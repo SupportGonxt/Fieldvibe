@@ -583,7 +583,56 @@ api.post('/visits', async (c) => {
     const respId = uuidv4();
     await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, ?, ?)').bind(respId, tenantId, id, body.visit_type || 'customer', JSON.stringify(body.responses)).run();
   }
-  return c.json({ success: true, data: { id }, message: 'Visit created' }, 201);
+
+  // Anomaly detection on visit creation
+  const anomalies = [];
+  const agentId = body.agent_id || userId;
+  const lat = parseFloat(body.latitude);
+  const lng = parseFloat(body.longitude);
+
+  if (lat && lng && body.customer_id) {
+    // 1. GPS spoofing: check if customer location is far from visit GPS
+    const customer = await db.prepare('SELECT latitude, longitude FROM customers WHERE id = ? AND tenant_id = ?').bind(body.customer_id, tenantId).first();
+    if (customer && customer.latitude && customer.longitude) {
+      const R = 6371;
+      const dLat = (lat - customer.latitude) * Math.PI / 180;
+      const dLon = (lng - customer.longitude) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(customer.latitude * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      if (dist > 0.5) {
+        anomalies.push({ type: 'GPS_SPOOFING', severity: dist > 2 ? 'high' : 'medium', details: `Visit GPS is ${dist.toFixed(2)}km from customer location` });
+      }
+    }
+
+    // 2. Ghost visit: check if agent had another visit within 5 minutes at a different location
+    const recentVisit = await db.prepare("SELECT latitude, longitude, check_in_time FROM visits WHERE tenant_id = ? AND agent_id = ? AND id != ? AND visit_date = ? AND ABS(julianday(check_in_time) - julianday(?)) < 0.0035 ORDER BY check_in_time DESC LIMIT 1").bind(tenantId, agentId, id, visitDate, body.check_in_time || new Date().toISOString()).first();
+    if (recentVisit && recentVisit.latitude && recentVisit.longitude) {
+      const dLat2 = (lat - recentVisit.latitude) * Math.PI / 180;
+      const dLon2 = (lng - recentVisit.longitude) * Math.PI / 180;
+      const a2 = Math.sin(dLat2 / 2) * Math.sin(dLat2 / 2) + Math.cos(recentVisit.latitude * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.sin(dLon2 / 2) * Math.sin(dLon2 / 2);
+      const dist2 = 6371 * 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
+      if (dist2 > 5) {
+        anomalies.push({ type: 'GHOST_VISIT', severity: 'high', details: `Agent teleported ${dist2.toFixed(1)}km between visits within 5 minutes` });
+      }
+    }
+
+    // 3. Pattern break: check if agent is visiting outside their usual hours
+    const hour = new Date(body.check_in_time || new Date()).getHours();
+    if (hour < 6 || hour > 21) {
+      anomalies.push({ type: 'PATTERN_BREAK', severity: 'low', details: `Visit created at unusual hour: ${hour}:00` });
+    }
+  }
+
+  // Insert anomaly flags if any detected
+  if (anomalies.length > 0) {
+    const anomalyBatch = anomalies.map(a => {
+      const aId = uuidv4();
+      return db.prepare("INSERT INTO anomaly_flags (id, tenant_id, entity_type, entity_id, anomaly_type, severity, details, status, created_at) VALUES (?, ?, 'VISIT', ?, ?, ?, ?, 'open', datetime('now'))").bind(aId, tenantId, id, a.type, a.severity, a.details);
+    });
+    try { await db.batch(anomalyBatch); } catch(e) { console.error('Anomaly insert error:', e); }
+  }
+
+  return c.json({ success: true, data: { id, anomalies: anomalies.length > 0 ? anomalies : undefined }, message: 'Visit created' }, 201);
 });
 
 api.put('/visits/:id', async (c) => {
@@ -3433,6 +3482,55 @@ api.post('/sales/orders/create', async (c) => {
 
     if (errors.length > 0) return c.json({ success: false, message: 'Validation failed', details: errors }, 400);
     if (resolvedItems.length === 0) return c.json({ success: false, message: 'No valid items' }, 400);
+
+    // Auto-apply promotions
+    const appliedPromos = [];
+    const now = new Date().toISOString();
+    const promoRules = await db.prepare("SELECT * FROM promotion_rules WHERE tenant_id = ? AND is_active = 1 AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?) ORDER BY CAST(COALESCE(json_extract(config, '$.priority'), '0') AS INTEGER) DESC").bind(tenantId, now, now).all();
+    for (const rule of (promoRules.results || [])) {
+      const config = JSON.parse(rule.config || '{}');
+      if (rule.rule_type === 'discount' || rule.rule_type === 'DISCOUNT_PCT') {
+        const discPct = config.discount_pct || config.discount || 0;
+        for (const item of resolvedItems) {
+          if (!rule.product_filter || rule.product_filter === item.product_id) {
+            const disc = item.line_total * (discPct / 100);
+            item.line_total -= disc;
+            subtotal -= disc;
+            totalDiscount += disc;
+            appliedPromos.push({ rule_id: rule.id, name: rule.name, type: rule.rule_type, discount: disc });
+          }
+        }
+      } else if (rule.rule_type === 'BUY_X_GET_Y') {
+        const buyQty = config.buy_qty || 3;
+        const freeQty = config.free_qty || 1;
+        for (const item of resolvedItems) {
+          if ((!rule.product_filter || rule.product_filter === item.product_id) && item.quantity >= buyQty) {
+            const freeItems = Math.floor(item.quantity / buyQty) * freeQty;
+            const freeValue = freeItems * item.unit_price;
+            item.line_total -= freeValue;
+            subtotal -= freeValue;
+            totalDiscount += freeValue;
+            appliedPromos.push({ rule_id: rule.id, name: rule.name, type: 'BUY_X_GET_Y', free_items: freeItems, discount: freeValue });
+          }
+        }
+      } else if (rule.rule_type === 'VOLUME_BREAK') {
+        const tiers = config.tiers || [];
+        for (const item of resolvedItems) {
+          if (!rule.product_filter || rule.product_filter === item.product_id) {
+            const matchedTier = tiers.filter(t => item.quantity >= t.min_qty).sort((a, b) => b.min_qty - a.min_qty)[0];
+            if (matchedTier) {
+              const oldTotal = item.line_total;
+              item.unit_price = matchedTier.price;
+              item.line_total = matchedTier.price * item.quantity;
+              const disc = oldTotal - item.line_total;
+              subtotal -= disc;
+              totalDiscount += disc;
+              appliedPromos.push({ rule_id: rule.id, name: rule.name, type: 'VOLUME_BREAK', discount: disc });
+            }
+          }
+        }
+      }
+    }
 
     // Credit limit check
     if (body.payment_method === 'CREDIT' || body.payment_method === 'credit') {
