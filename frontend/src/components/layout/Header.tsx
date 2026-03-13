@@ -37,8 +37,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
       <MegaMenu />
 
       <div className="flex-1 px-4 flex justify-end">
-        {/* Search */}
-        <div className="flex-1 flex">
+        {/* Search - hidden on lg where MegaMenu has its own search */}
+        <div className="flex-1 flex lg:hidden">
           <div className="w-full flex md:ml-0">
             <label htmlFor="search-field" className="sr-only">
               Search
@@ -58,7 +58,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
         </div>
 
         {/* Right side */}
-        <div className="ml-4 flex items-center md:ml-6">
+        <div className="ml-4 flex items-center md:ml-6 flex-shrink-0">
           {/* Theme Toggle */}
           <ThemeToggle />
 
