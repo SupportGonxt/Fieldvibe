@@ -3,6 +3,11 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+routes = [
+  { pattern = "fieldvibe-api.vantax.co.za/*", zone_name = "vantax.co.za" },
+  { pattern = "fieldvibe.vantax.co.za/api/*", zone_name = "vantax.co.za" }
+]
+
 [vars]
 ENVIRONMENT = "production"
 
