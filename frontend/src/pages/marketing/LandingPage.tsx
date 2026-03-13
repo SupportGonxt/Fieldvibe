@@ -37,7 +37,7 @@ export default function LandingPage() {
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                 <Zap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">SalesSync</span>
+              <span className="text-xl font-bold text-white">FieldVibe</span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-slate-300 hover:text-white transition-colors font-medium">Features</a>
@@ -224,7 +224,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-white mb-4">
-              Why Choose SalesSync?
+              Why Choose FieldVibe?
             </h2>
             <p className="text-xl text-blue-100 max-w-3xl mx-auto">
               Join hundreds of enterprises transforming their field operations
@@ -251,7 +251,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-white mb-4">
-              See SalesSync in Action
+              See FieldVibe in Action
             </h2>
             <p className="text-xl text-slate-400 max-w-3xl mx-auto">
               Powerful features designed for modern field operations
@@ -515,7 +515,7 @@ export default function LandingPage() {
             Ready to Transform Your Field Operations?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Join leading enterprises using SalesSync to drive growth and efficiency
+            Join leading enterprises using FieldVibe to drive growth and efficiency
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -544,7 +544,7 @@ export default function LandingPage() {
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                   <Zap className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold text-white">SalesSync</span>
+                <span className="text-xl font-bold text-white">FieldVibe</span>
               </div>
               <p className="text-slate-400 mb-6 max-w-md">
                 The complete field force and van sales platform for modern enterprises. Streamline operations, boost productivity, and drive growth.
@@ -575,7 +575,7 @@ export default function LandingPage() {
           </div>
           <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-slate-500 text-sm">
-              &copy; 2025 SalesSync by GONXT. All rights reserved.
+              &copy; 2025 FieldVibe by Vantax. All rights reserved.
             </p>
             <div className="flex items-center space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm">Terms</a>

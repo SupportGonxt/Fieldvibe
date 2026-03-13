@@ -12,7 +12,7 @@ interface QueuedRequest {
   retryCount: number;
 }
 
-const QUEUE_KEY = 'salessync_offline_queue';
+const QUEUE_KEY = 'fieldvibe_offline_queue';
 const MAX_RETRIES = 3;
 
 class OfflineQueueService {

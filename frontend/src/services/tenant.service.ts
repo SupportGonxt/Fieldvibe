@@ -23,19 +23,19 @@ export interface TenantMapping {
 
 // Default tenant configurations
 const DEFAULT_TENANT_MAPPINGS: TenantMapping = {
-  'demo.salessync.com': {
+  'demo.fieldvibe.com': {
     code: 'DEMO',
     name: 'Demo Tenant',
-    domain: 'demo.salessync.com',
+    domain: 'demo.fieldvibe.com',
     theme: {
       primaryColor: '#3B82F6',
       logo: '/assets/demo-logo.png'
     }
   },
-  'pepsi.salessync.com': {
+  'pepsi.fieldvibe.com': {
     code: 'PEPSI_SA',
     name: 'Pepsi South Africa',
-    domain: 'pepsi.salessync.com',
+    domain: 'pepsi.fieldvibe.com',
     theme: {
       primaryColor: '#004B93',
       logo: '/assets/pepsi-logo.png'
@@ -43,7 +43,7 @@ const DEFAULT_TENANT_MAPPINGS: TenantMapping = {
   },
   'ss.gonxt.tech': {
     code: 'DEMO', // Default for main domain
-    name: 'SalesSync Demo',
+    name: 'FieldVibe Demo',
     domain: 'ss.gonxt.tech'
   },
   'localhost': {
@@ -53,12 +53,12 @@ const DEFAULT_TENANT_MAPPINGS: TenantMapping = {
   },
   'work-1-otdktmkeksbigpch.prod-runtime.all-hands.dev': {
     code: 'DEMO',
-    name: 'SalesSync Development',
+    name: 'FieldVibe Development',
     domain: 'work-1-otdktmkeksbigpch.prod-runtime.all-hands.dev'
   },
   'work-1-vmhjvymxmtxtzzmm.prod-runtime.all-hands.dev': {
     code: 'DEMO',
-    name: 'SalesSync Development',
+    name: 'FieldVibe Development',
     domain: 'work-1-vmhjvymxmtxtzzmm.prod-runtime.all-hands.dev'
   }
 }
@@ -113,7 +113,7 @@ class TenantService {
 
   /**
    * Strategy 2: Detect tenant from subdomain
-   * e.g., demo.salessync.com -> DEMO_SA
+   * e.g., demo.fieldvibe.com -> DEMO_SA
    */
   private async detectTenantFromSubdomain(): Promise<TenantConfig | null> {
     const hostname = window.location.hostname
@@ -241,11 +241,11 @@ class TenantService {
 
     // Update page title
     if (tenant.name) {
-      document.title = `${tenant.name} - SalesSync`
+      document.title = `${tenant.name} - FieldVibe`
     }
 
     // Store tenant info in localStorage for persistence
-    localStorage.setItem('salessync-tenant', JSON.stringify(tenant))
+    localStorage.setItem('fieldvibe-tenant', JSON.stringify(tenant))
   }
 
   /**

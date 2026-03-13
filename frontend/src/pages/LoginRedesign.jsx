@@ -202,7 +202,7 @@ const LoginRedesign = () => {
                         mb: 1,
                       }}
                     >
-                      SalesSync
+                      FieldVibe
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Enterprise Business Management Platform

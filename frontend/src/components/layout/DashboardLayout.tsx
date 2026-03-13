@@ -73,7 +73,7 @@ export default function DashboardLayout() {
                 </a>
               </div>
               <div className="text-sm text-gray-500 text-center sm:text-right">
-                &copy; 2025 SalesSync by GONXT. All rights reserved.
+                &copy; 2025 FieldVibe by Vantax. All rights reserved.
               </div>
             </div>
           </div>

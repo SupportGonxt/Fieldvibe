@@ -90,7 +90,7 @@ const ReportsHub: React.FC = () => {
         }
       } else {
         const token = localStorage.getItem('token');
-        const baseUrl = import.meta.env.VITE_API_URL || 'https://salessync-api.reshigan-085.workers.dev/api';
+        const baseUrl = import.meta.env.VITE_API_URL || 'https://fieldvibe-api.reshigan-085.workers.dev/api';
         const fullUrl = `${baseUrl}${url}`;
         
         const response = await fetch(fullUrl, {

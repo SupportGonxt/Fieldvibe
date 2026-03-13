@@ -31,7 +31,7 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
           <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center">
             <span className="text-sm font-bold text-primary-600">SS</span>
           </div>
-          <span className="ml-2 text-lg font-bold">SalesSync</span>
+          <span className="ml-2 text-lg font-bold">FieldVibe</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm">{user?.first_name}</span>

@@ -183,7 +183,7 @@ const AgentDashboard: React.FC = () => {
         {/* Footer Info */}
         <Box mt={3} textAlign="center">
           <Typography variant="caption" color="white">
-            SalesSync Mobile v1.0 • {tenant.code}
+            FieldVibe Mobile v1.0 • {tenant.code}
           </Typography>
         </Box>
       </Container>

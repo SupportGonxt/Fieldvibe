@@ -150,7 +150,7 @@ export default function AnimatedLogo({
             `}
             style={{ animationDelay: '0.6s' }}
           >
-            SalesSync
+            FieldVibe
           </h1>
           <p 
             className={`

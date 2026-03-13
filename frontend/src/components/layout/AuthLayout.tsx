@@ -28,7 +28,7 @@ export default function AuthLayout() {
                 <Zap className="w-7 h-7 text-white" />
               </div>
               <div>
-                <span className="text-2xl font-bold text-white">SalesSync</span>
+                <span className="text-2xl font-bold text-white">FieldVibe</span>
                 <p className="text-blue-200 text-xs">Enterprise Platform</p>
               </div>
             </Link>
@@ -106,7 +106,7 @@ export default function AuthLayout() {
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                 <Zap className="w-7 h-7 text-white" />
               </div>
-              <span className="text-2xl font-bold text-white">SalesSync</span>
+              <span className="text-2xl font-bold text-white">FieldVibe</span>
             </Link>
             <p className="text-slate-400 text-sm mt-3">Enterprise Field Force Platform</p>
           </div>

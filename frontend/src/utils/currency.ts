@@ -1,4 +1,4 @@
-// Currency utilities for SalesSync
+// Currency utilities for FieldVibe
 export type Currency = 'USD' | 'ZAR' | 'EUR' | 'GBP'
 
 export interface CurrencyConfig {
@@ -47,14 +47,14 @@ export const setDefaultCurrency = (currency: Currency): void => {
   defaultCurrency = currency
   // Store in localStorage for persistence
   if (typeof window !== 'undefined') {
-    localStorage.setItem('salessync_currency', currency)
+    localStorage.setItem('fieldvibe_currency', currency)
   }
 }
 
 export const getDefaultCurrency = (): Currency => {
   // Check localStorage first
   if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('salessync_currency') as Currency
+    const stored = localStorage.getItem('fieldvibe_currency') as Currency
     if (stored && CURRENCIES[stored]) {
       defaultCurrency = stored
     }
@@ -226,7 +226,7 @@ export const formatCurrencyInput = (amount: number, currency?: Currency): string
 
 // Initialize default currency from localStorage on module load
 if (typeof window !== 'undefined') {
-  const stored = localStorage.getItem('salessync_currency') as Currency
+  const stored = localStorage.getItem('fieldvibe_currency') as Currency
   if (stored && CURRENCIES[stored]) {
     defaultCurrency = stored
   }

@@ -82,7 +82,7 @@ export const IntegrationsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Connect SalesSync with your favorite tools and services
+            Connect FieldVibe with your favorite tools and services
           </p>
         </div>
         <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
@@ -206,7 +206,7 @@ export const IntegrationsPage: React.FC = () => {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-medium text-gray-900 mb-4">API Keys</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Use these API keys to integrate SalesSync with custom applications
+          Use these API keys to integrate FieldVibe with custom applications
         </p>
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-lg">

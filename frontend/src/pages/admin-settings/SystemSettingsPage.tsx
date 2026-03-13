@@ -39,7 +39,7 @@ export const SystemSettingsPage: React.FC = () => {
 
   const mockSettings: SystemSettings = {
     general: {
-      company_name: 'SalesSync',
+      company_name: 'FieldVibe',
       timezone: 'Africa/Johannesburg',
       currency: 'ZAR',
       date_format: 'DD/MM/YYYY',
@@ -50,7 +50,7 @@ export const SystemSettingsPage: React.FC = () => {
       smtp_port: 587,
       smtp_username: 'noreply@example.com',
       smtp_from_email: 'noreply@example.com',
-      smtp_from_name: 'SalesSync'
+      smtp_from_name: 'FieldVibe'
     },
     security: {
       session_timeout: 30,

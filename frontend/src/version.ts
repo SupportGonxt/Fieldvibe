@@ -17,7 +17,7 @@ export function getVersionString(): string {
 export function logVersion(): void {
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║                    SalesSync Frontend                      ║
+║                    FieldVibe Frontend                      ║
 ║                                                            ║
 ║  Version:     ${VERSION.version.padEnd(44)} ║
 ║  Build Date:  ${VERSION.buildDate.split('T')[0].padEnd(44)} ║

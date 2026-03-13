@@ -29,7 +29,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
       {/* Logo on desktop */}
       <div className="hidden lg:flex items-center px-6 border-r border-gray-100">
-        <img src="/salessync-logo.svg" alt="SalesSync" className="h-8" />
+        <img src="/fieldvibe-logo.svg" alt="FieldVibe" className="h-8" />
       </div>
 
       {/* Mega Menu - Desktop only */}

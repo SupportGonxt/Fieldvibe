@@ -203,7 +203,7 @@ export default function HelpPanel({ isOpen, onClose }: HelpPanelProps) {
 
       <div className="p-4 border-t border-gray-100 bg-surface-secondary">
         <p className="text-xs text-gray-500 text-center">
-          Need more help? Contact support at support@salessync.com
+          Need more help? Contact support at support@fieldvibe.com
         </p>
       </div>
     </div>

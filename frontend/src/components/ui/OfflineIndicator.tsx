@@ -110,7 +110,7 @@ export const OfflineBanner: React.FC<{ className?: string }> = ({ className = ''
 
 // Offline storage utilities
 export class OfflineStorage {
-  private static readonly PREFIX = 'salessync_offline_'
+  private static readonly PREFIX = 'fieldvibe_offline_'
 
   static save(key: string, data: any): void {
     try {

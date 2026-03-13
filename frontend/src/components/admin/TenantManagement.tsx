@@ -295,7 +295,7 @@ const TenantManagement: React.FC = () => {
             <Input
               value={newTenant.domain}
               onChange={(e) => setNewTenant({ ...newTenant, domain: e.target.value })}
-              placeholder="acme.salessync.com"
+              placeholder="acme.fieldvibe.com"
             />
           </div>
 

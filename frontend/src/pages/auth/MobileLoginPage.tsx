@@ -100,7 +100,7 @@ const MobileLoginPage: React.FC = () => {
         >
           <Box textAlign="center" mb={3}>
             <Typography variant="h4" fontWeight="bold" color="primary" gutterBottom>
-              SalesSync
+              FieldVibe
             </Typography>
             <Typography variant="h6" color="text.secondary">
               Agent Mobile Login
