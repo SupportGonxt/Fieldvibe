@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -7,7 +8,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+        ui: ['Instrument Sans', 'Inter', 'system-ui', 'sans-serif'],
+        data: ['DM Mono', 'JetBrains Mono', 'monospace'],
       },
       colors: {
         primary: {
@@ -34,6 +38,28 @@ export default {
           DEFAULT: '#ffffff',
           secondary: '#f8fafc',
           tertiary: '#f1f5f9',
+        },
+        night: {
+          DEFAULT: '#0A0F1C',
+          50: '#1A1F2E',
+          100: '#141929',
+          200: '#0F1629',
+          300: '#0A0F1C',
+          400: '#070B15',
+          500: '#04060D',
+        },
+        pulse: {
+          DEFAULT: '#00E87B',
+          50: '#E6FFF3',
+          100: '#B3FFD9',
+          200: '#80FFBF',
+          300: '#4DFFA6',
+          400: '#1AFF8C',
+          500: '#00E87B',
+          600: '#00B862',
+          700: '#008849',
+          800: '#005830',
+          900: '#002817',
         },
       },
       borderRadius: {

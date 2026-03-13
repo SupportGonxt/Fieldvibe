@@ -400,6 +400,17 @@ import VanRoutesListPage from './pages/van-sales/VanRoutesListPage'
 import SurveyPage from './pages/field-agents/SurveyPage'
 import TaskPage from './pages/field-agents/TaskPage'
 
+// Insights Pages
+import ExecutiveInsightsDashboard from './pages/insights/ExecutiveDashboard'
+import SalesInsights from './pages/insights/SalesInsights'
+import VanSalesInsights from './pages/insights/VanSalesInsights'
+import FieldOpsInsights from './pages/insights/FieldOpsInsights'
+import TradePromoInsights from './pages/insights/TradePromoInsights'
+import StockInsights from './pages/insights/StockInsights'
+import CommissionInsights from './pages/insights/CommissionInsights'
+import GoalsInsights from './pages/insights/GoalsInsights'
+import AnomalyInsights from './pages/insights/AnomalyInsights'
+
 // Components
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -907,6 +918,18 @@ function App() {
                 <PriceListEditPage />
               </ProtectedRoute>
             } />
+
+            {/* Insights Dashboard Routes */}
+            <Route path="insights" element={<ExecutiveInsightsDashboard />} />
+            <Route path="insights/executive" element={<ExecutiveInsightsDashboard />} />
+            <Route path="insights/sales" element={<SalesInsights />} />
+            <Route path="insights/van-sales" element={<VanSalesInsights />} />
+            <Route path="insights/field-ops" element={<FieldOpsInsights />} />
+            <Route path="insights/trade-promotions" element={<TradePromoInsights />} />
+            <Route path="insights/stock" element={<StockInsights />} />
+            <Route path="insights/commissions" element={<CommissionInsights />} />
+            <Route path="insights/goals" element={<GoalsInsights />} />
+            <Route path="insights/anomalies" element={<AnomalyInsights />} />
 
             {/* Default redirect */}
             <Route index element={<Navigate to="dashboard" replace />} />

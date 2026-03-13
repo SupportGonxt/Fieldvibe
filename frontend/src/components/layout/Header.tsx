@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Menu, Bell, Search, User, LogOut, Settings } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import MegaMenu from './MegaMenu'
+import ThemeToggle from '../ui/ThemeToggle'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -58,8 +59,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
         {/* Right side */}
         <div className="ml-4 flex items-center md:ml-6">
+          {/* Theme Toggle */}
+          <ThemeToggle />
+
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative ml-2">
             <button
               type="button"
               className="relative p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"

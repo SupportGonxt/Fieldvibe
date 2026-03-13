@@ -748,3 +748,465 @@ CREATE INDEX IF NOT EXISTS idx_beats_tenant ON beats(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_route_customers_route ON route_customers(route_id);
 CREATE INDEX IF NOT EXISTS idx_agent_locations_agent ON agent_locations(tenant_id, agent_id, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_surveys_tenant ON surveys(tenant_id);
+
+-- ==================== DOC 1: TRANSACTION SYSTEM ====================
+
+CREATE TABLE IF NOT EXISTS price_lists (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  is_default INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  currency TEXT DEFAULT 'ZAR',
+  valid_from TEXT,
+  valid_to TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS price_list_items (
+  id TEXT PRIMARY KEY,
+  price_list_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  unit_price REAL NOT NULL,
+  min_qty INTEGER DEFAULT 1,
+  max_discount_pct REAL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (price_list_id) REFERENCES price_lists(id),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE IF NOT EXISTS serial_numbers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  serial_number TEXT NOT NULL,
+  status TEXT DEFAULT 'available',
+  sales_order_item_id TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE IF NOT EXISTS returns (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  original_order_id TEXT NOT NULL,
+  return_number TEXT NOT NULL,
+  return_type TEXT DEFAULT 'PARTIAL',
+  status TEXT DEFAULT 'PENDING',
+  total_credit_amount REAL DEFAULT 0,
+  restock_fee REAL DEFAULT 0,
+  net_credit_amount REAL DEFAULT 0,
+  reason TEXT,
+  approved_by TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (original_order_id) REFERENCES sales_orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS return_items (
+  id TEXT PRIMARY KEY,
+  return_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  condition TEXT DEFAULT 'good',
+  unit_price REAL NOT NULL,
+  line_credit REAL NOT NULL,
+  original_order_item_id TEXT,
+  FOREIGN KEY (return_id) REFERENCES returns(id),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE IF NOT EXISTS credit_notes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  return_id TEXT,
+  customer_id TEXT NOT NULL,
+  credit_number TEXT NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT DEFAULT 'ISSUED',
+  applied_to_orders TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+
+CREATE TABLE IF NOT EXISTS stock_adjustments (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  warehouse_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  adjustment_type TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  reason TEXT,
+  reference_type TEXT,
+  reference_id TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE IF NOT EXISTS commission_payouts (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  earner_id TEXT NOT NULL,
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  total_amount REAL NOT NULL,
+  status TEXT DEFAULT 'PENDING',
+  approved_by TEXT,
+  approved_at TEXT,
+  paid_at TEXT,
+  payment_reference TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (earner_id) REFERENCES users(id)
+);
+
+-- ==================== DOC 2: TRADE PROMOTIONS & FIELD OPS ====================
+
+CREATE TABLE IF NOT EXISTS trade_promotions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  promotion_type TEXT NOT NULL,
+  description TEXT,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  budget REAL DEFAULT 0,
+  actual_spend REAL DEFAULT 0,
+  status TEXT DEFAULT 'DRAFT',
+  config TEXT,
+  target_type TEXT DEFAULT 'ALL',
+  target_ids TEXT,
+  kpi_target TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS trade_promotion_enrollments (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  promotion_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  status TEXT DEFAULT 'ENROLLED',
+  enrolled_by TEXT,
+  enrolled_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  baseline_volume REAL DEFAULT 0,
+  target_volume REAL DEFAULT 0,
+  actual_volume REAL DEFAULT 0,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (promotion_id) REFERENCES trade_promotions(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+
+CREATE TABLE IF NOT EXISTS trade_promotion_claims (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  promotion_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  enrollment_id TEXT,
+  claim_type TEXT NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT DEFAULT 'PENDING',
+  evidence TEXT,
+  approved_by TEXT,
+  approved_at TEXT,
+  period_start TEXT,
+  period_end TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (promotion_id) REFERENCES trade_promotions(id)
+);
+
+CREATE TABLE IF NOT EXISTS trade_promotion_audits (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  promotion_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  visit_id TEXT,
+  audit_type TEXT DEFAULT 'COMPLIANCE',
+  compliance_score REAL DEFAULT 0,
+  findings TEXT,
+  photos TEXT,
+  status TEXT DEFAULT 'COMPLETED',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (promotion_id) REFERENCES trade_promotions(id)
+);
+
+CREATE TABLE IF NOT EXISTS territories (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT,
+  boundary TEXT,
+  manager_id TEXT,
+  parent_id TEXT,
+  status TEXT DEFAULT 'active',
+  target_visits_per_week INTEGER DEFAULT 0,
+  target_revenue_per_month REAL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (manager_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS territory_assignments (
+  id TEXT PRIMARY KEY,
+  territory_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  is_primary INTEGER DEFAULT 1,
+  assigned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (territory_id) REFERENCES territories(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS route_plans (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  route_date TEXT NOT NULL,
+  territory_id TEXT,
+  status TEXT DEFAULT 'PLANNED',
+  total_stops INTEGER DEFAULT 0,
+  completed_stops INTEGER DEFAULT 0,
+  planned_start TEXT,
+  actual_start TEXT,
+  planned_end TEXT,
+  actual_end TEXT,
+  total_distance_km REAL DEFAULT 0,
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS route_plan_stops (
+  id TEXT PRIMARY KEY,
+  route_plan_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  sequence_order INTEGER NOT NULL,
+  planned_arrival TEXT,
+  actual_arrival TEXT,
+  actual_departure TEXT,
+  status TEXT DEFAULT 'PENDING',
+  visit_id TEXT,
+  notes TEXT,
+  FOREIGN KEY (route_plan_id) REFERENCES route_plans(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+
+CREATE TABLE IF NOT EXISTS visit_activities (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  visit_id TEXT NOT NULL,
+  activity_type TEXT NOT NULL,
+  reference_type TEXT,
+  reference_id TEXT,
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (visit_id) REFERENCES visits(id)
+);
+
+CREATE TABLE IF NOT EXISTS competitor_sightings (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  visit_id TEXT,
+  customer_id TEXT,
+  agent_id TEXT NOT NULL,
+  competitor_brand TEXT NOT NULL,
+  competitor_product TEXT,
+  activity_type TEXT NOT NULL,
+  observed_price REAL,
+  shelf_position TEXT,
+  facing_count INTEGER,
+  photos TEXT,
+  impact_assessment TEXT,
+  notes TEXT,
+  gps_latitude REAL,
+  gps_longitude REAL,
+  sighting_date TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS anomaly_flags (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  anomaly_type TEXT NOT NULL,
+  severity TEXT DEFAULT 'MEDIUM',
+  description TEXT,
+  reference_type TEXT,
+  reference_id TEXT,
+  data TEXT,
+  status TEXT DEFAULT 'OPEN',
+  reviewed_by TEXT,
+  reviewed_at TEXT,
+  resolution TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+
+-- ==================== DOC 3: INSIGHTS, RBAC & PROCESS ====================
+
+CREATE TABLE IF NOT EXISTS feature_flags (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  feature_key TEXT NOT NULL,
+  is_enabled INTEGER DEFAULT 0,
+  config TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dashboard_snapshots (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  dashboard_type TEXT NOT NULL,
+  data TEXT NOT NULL,
+  period TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- ==================== DOC 4: FINAL GAPS ====================
+
+CREATE TABLE IF NOT EXISTS report_subscriptions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  report_type TEXT NOT NULL,
+  frequency TEXT DEFAULT 'WEEKLY',
+  config TEXT,
+  is_active INTEGER DEFAULT 1,
+  last_sent_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS report_history (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  report_type TEXT NOT NULL,
+  generated_by TEXT,
+  recipients TEXT,
+  status TEXT DEFAULT 'SENT',
+  file_url TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  events TEXT NOT NULL,
+  secret TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id TEXT PRIMARY KEY,
+  webhook_id TEXT NOT NULL,
+  event TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  response_status INTEGER,
+  response_body TEXT,
+  attempts INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'PENDING',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (webhook_id) REFERENCES webhooks(id)
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  key_prefix TEXT NOT NULL,
+  scopes TEXT DEFAULT '["read"]',
+  is_active INTEGER DEFAULT 1,
+  last_used_at TEXT,
+  expires_at TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS import_jobs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  import_type TEXT NOT NULL,
+  status TEXT DEFAULT 'PENDING',
+  total_rows INTEGER DEFAULT 0,
+  processed_rows INTEGER DEFAULT 0,
+  error_rows INTEGER DEFAULT 0,
+  errors TEXT,
+  file_url TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS error_logs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT,
+  error_type TEXT NOT NULL,
+  message TEXT NOT NULL,
+  stack_trace TEXT,
+  request_path TEXT,
+  request_method TEXT,
+  user_id TEXT,
+  severity TEXT DEFAULT 'ERROR',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS seed_runs (
+  id TEXT PRIMARY KEY,
+  seed_type TEXT NOT NULL,
+  status TEXT DEFAULT 'COMPLETED',
+  records_created INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==================== ADDITIONAL INDEXES ====================
+CREATE INDEX IF NOT EXISTS idx_price_lists_tenant ON price_lists(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_price_list_items_list ON price_list_items(price_list_id, product_id);
+CREATE INDEX IF NOT EXISTS idx_returns_tenant ON returns(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_returns_order ON returns(original_order_id);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_tenant ON credit_notes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_customer ON credit_notes(customer_id);
+CREATE INDEX IF NOT EXISTS idx_serial_numbers_tenant ON serial_numbers(tenant_id, product_id);
+CREATE INDEX IF NOT EXISTS idx_trade_promos_tenant ON trade_promotions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_trade_enrollments_promo ON trade_promotion_enrollments(promotion_id);
+CREATE INDEX IF NOT EXISTS idx_trade_claims_promo ON trade_promotion_claims(promotion_id);
+CREATE INDEX IF NOT EXISTS idx_trade_audits_promo ON trade_promotion_audits(promotion_id);
+CREATE INDEX IF NOT EXISTS idx_territories_tenant ON territories(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_territory_assignments_territory ON territory_assignments(territory_id);
+CREATE INDEX IF NOT EXISTS idx_route_plans_tenant ON route_plans(tenant_id, agent_id, route_date);
+CREATE INDEX IF NOT EXISTS idx_visit_activities_visit ON visit_activities(visit_id);
+CREATE INDEX IF NOT EXISTS idx_competitor_sightings_tenant ON competitor_sightings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_anomaly_flags_tenant ON anomaly_flags(tenant_id, agent_id);
+CREATE INDEX IF NOT EXISTS idx_feature_flags_tenant ON feature_flags(tenant_id, feature_key);
+CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_report_subs_tenant ON report_subscriptions(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_tenant ON import_jobs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_error_logs_tenant ON error_logs(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_commission_payouts_tenant ON commission_payouts(tenant_id, earner_id);
+CREATE INDEX IF NOT EXISTS idx_stock_adjustments_tenant ON stock_adjustments(tenant_id);
