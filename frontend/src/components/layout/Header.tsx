@@ -18,18 +18,18 @@ export default function Header({ onMenuClick }: HeaderProps) {
   }
 
   return (
-    <div className="sticky top-0 z-[1000] flex-shrink-0 flex h-16 bg-white border-b border-gray-100">
+    <div className="sticky top-0 z-[1000] flex-shrink-0 flex h-16 bg-white dark:bg-night-50 border-b border-gray-100 dark:border-night-100">
       {/* Mobile menu button */}
       <button
         type="button"
-        className="px-4 border-r border-gray-100 text-gray-500 hover:text-gray-700 hover:bg-surface-secondary focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 lg:hidden transition-colors"
+        className="px-4 border-r border-gray-100 dark:border-night-100 text-gray-500 hover:text-gray-700 hover:bg-surface-secondary dark:hover:bg-night-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 lg:hidden transition-colors"
         onClick={onMenuClick}
       >
         <Menu className="h-6 w-6" />
       </button>
 
       {/* Logo on desktop */}
-      <div className="hidden lg:flex items-center px-6 border-r border-gray-100">
+      <div className="hidden lg:flex items-center px-6 border-r border-gray-100 dark:border-night-100">
         <img src="/fieldvibe-logo.svg" alt="FieldVibe" className="h-8" />
       </div>
 
@@ -66,7 +66,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <div className="relative ml-2">
             <button
               type="button"
-              className="relative p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+              className="relative p-2 rounded-xl text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-night-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
               onClick={() => setShowNotifications(!showNotifications)}
             >
               <Bell className="h-5 w-5" />
@@ -122,8 +122,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   </span>
                 </div>
                 <div className="hidden md:block text-left">
-                  <div className="text-sm font-medium text-gray-900">{user?.first_name} {user?.last_name}</div>
-                  <div className="text-xs text-gray-500 capitalize">{user?.role || 'User'}</div>
+                                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{user?.first_name} {user?.last_name}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user?.role || 'User'}</div>
                 </div>
               </button>
             </div>

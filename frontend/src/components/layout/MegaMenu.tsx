@@ -98,7 +98,7 @@ export default function MegaMenu() {
           placeholder="Search..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+          className="pl-10 pr-4 py-2 border border-gray-300 dark:border-night-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64 dark:bg-night-100 dark:text-gray-100 dark:placeholder-gray-500"
         />
       </div>
 
@@ -120,11 +120,11 @@ export default function MegaMenu() {
                 cancelClose()
                 setActiveMenu(activeMenu === category ? null : category)
               }}
-              className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeMenu === category
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                            className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              activeMenu === category
+                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-night-100'
+                            }`}
               aria-expanded={activeMenu === category}
               aria-haspopup="true"
             >
@@ -144,7 +144,7 @@ export default function MegaMenu() {
                 {/* Hover bridge - invisible element to maintain hover state */}
                 <div className="absolute -top-2 left-0 w-full h-3" />
                 <div
-                  className="bg-white rounded-2xl shadow-xl border border-gray-100 w-[90vw] max-w-[800px] max-h-[70vh] overflow-y-auto overscroll-contain"
+                  className="bg-white dark:bg-night-50 rounded-2xl shadow-xl border border-gray-100 dark:border-night-100 w-[90vw] max-w-[800px] max-h-[70vh] overflow-y-auto overscroll-contain"
                   onWheelCapture={(e) => e.stopPropagation()}
                 >
                 <div className="p-6">

@@ -27,7 +27,7 @@ export default function DashboardLayout() {
   }, [sidebarOpen])
 
   return (
-    <div className="min-h-screen bg-surface-secondary">
+    <div className="min-h-screen bg-surface-secondary dark:bg-night dark:text-gray-100">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -63,7 +63,7 @@ export default function DashboardLayout() {
         </main>
 
         {/* Footer with GONXT branding */}
-        <footer className="bg-white border-t border-gray-100 py-4">
+        <footer className="bg-white dark:bg-night-50 border-t border-gray-100 dark:border-night-100 py-4">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0">
               <div className="flex items-center space-x-2 text-sm text-gray-500">
