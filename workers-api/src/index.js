@@ -152,7 +152,7 @@ api.get('/users', requireRole('admin', 'manager'), async (c) => {
   if (role) { where += ' AND u.role = ?'; params.push(role); }
   const offset = (parseInt(page) - 1) * parseInt(limit);
   const countR = await db.prepare('SELECT COUNT(*) as total FROM users u ' + where).bind(...params).first();
-  const users = await db.prepare('SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, u.admin_viewable_password, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id ' + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, u.admin_viewable_password, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
   return c.json({ success: true, data: { users: users.results || [], pagination: { total: countR ? countR.total : 0, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil((countR ? countR.total : 0) / parseInt(limit)) } } });
 });
 

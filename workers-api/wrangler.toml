@@ -9,7 +9,7 @@ ENVIRONMENT = "production"
 [[d1_databases]]
 binding = "DB"
 database_name = "fieldvibe-db"
-database_id = "placeholder-will-be-set-on-deploy"
+database_id = "1521287d-96be-42b7-b77c-e8c5f67629a6"
 
 [[r2_buckets]]
 binding = "UPLOADS"
