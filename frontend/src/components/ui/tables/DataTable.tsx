@@ -120,8 +120,8 @@ function DataTable({
       <div className="card-header">
         <div className="flex items-center justify-between">
           <div>
-            {title && <h3 className="text-lg font-medium text-gray-900">{title}</h3>}
-            <p className="text-sm text-gray-600">
+            {title && <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{title}</h3>}
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Showing {paginatedData.length} of {sortedData.length} entries
             </p>
           </div>
@@ -150,20 +150,20 @@ function DataTable({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-surface-secondary">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-night-100">
+          <thead className="bg-surface-secondary dark:bg-night-100">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider font-mono"
                 >
                   <div className="flex items-center space-x-1">
                     <span>{column.title}</span>
                     {column.sortable && (
                       <button
                         onClick={() => handleSort(column.key)}
-                        className="text-gray-400 hover:text-gray-600"
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                       >
                         {sortConfig?.key === column.key ? (
                           sortConfig.direction === 'asc' ? (
@@ -198,11 +198,11 @@ function DataTable({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-night-50 divide-y divide-gray-200 dark:divide-night-100">
             {paginatedData.map((row, index) => (
-              <tr key={index} className="hover:bg-surface-secondary">
+              <tr key={index} className="hover:bg-surface-secondary dark:hover:bg-night-100">
                 {columns.map((column) => (
-                  <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 font-data">
                     {column.render ? column.render(row[column.key], row) : row[column.key]}
                   </td>
                 ))}
@@ -214,7 +214,7 @@ function DataTable({
 
       {/* Pagination */}
       {pagination && totalPages > 1 && (
-        <div className="px-6 py-3 flex items-center justify-between border-t border-gray-100">
+        <div className="px-6 py-3 flex items-center justify-between border-t border-gray-100 dark:border-night-100">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -233,7 +233,7 @@ function DataTable({
           </div>
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
                 Showing page <span className="font-medium">{currentPage}</span> of{' '}
                 <span className="font-medium">{totalPages}</span>
               </p>
@@ -243,7 +243,7 @@ function DataTable({
                 <button
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-surface-secondary disabled:opacity-50"
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-night-50 bg-white dark:bg-night-50 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-surface-secondary dark:hover:bg-night-100 disabled:opacity-50"
                 >
                   Previous
                 </button>
@@ -255,8 +255,8 @@ function DataTable({
                       onClick={() => setCurrentPage(page)}
                       className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                         currentPage === page
-                          ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-surface-secondary'
+                          ? 'z-10 bg-pulse/10 border-pulse text-pulse'
+                          : 'bg-white dark:bg-night-50 border-gray-300 dark:border-night-50 text-gray-500 dark:text-gray-400 hover:bg-surface-secondary dark:hover:bg-night-100'
                       }`}
                     >
                       {page}
@@ -266,7 +266,7 @@ function DataTable({
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-surface-secondary disabled:opacity-50"
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-night-50 bg-white dark:bg-night-50 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-surface-secondary dark:hover:bg-night-100 disabled:opacity-50"
                 >
                   Next
                 </button>

@@ -9,7 +9,7 @@ interface PieChartProps {
 export default function PieChart({ data, title, height = 300 }: PieChartProps) {
   return (
     <div className="w-full">
-      {title && <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>}
+      {title && <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{title}</h3>}
       <ResponsiveContainer width="100%" height={height}>
         <RechartsPieChart>
           <Pie

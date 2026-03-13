@@ -22,3 +22,7 @@ bucket_name = "fieldvibe-uploads"
 
 [placement]
 mode = "smart"
+
+# Section 9: Scheduled jobs
+[triggers]
+crons = ["0 4 * * *", "0 6 * * *", "0 16 * * *", "0 22 1 * *", "0 5 * * 1"]
