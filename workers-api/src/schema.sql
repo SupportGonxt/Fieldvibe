@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS users (
   team_lead_id TEXT,
   status TEXT DEFAULT 'active',
   is_active INTEGER DEFAULT 1,
-  admin_viewable_password TEXT,
   last_login TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

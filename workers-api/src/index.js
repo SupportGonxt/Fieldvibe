@@ -3,13 +3,36 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, createProductSchema, createCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
 
 const app = new Hono();
 
+// ==================== SECTION 7: SECURITY HEADERS ====================
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('X-Request-ID', crypto.randomUUID());
+  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+});
+
 // Middleware
 app.use('*', logger());
+
+// ==================== SECTION 4: CORS LOCKDOWN ====================
 app.use('*', cors({
-  origin: (origin) => origin || '*',
+  origin: (origin) => {
+    const allowed = [
+      'https://fieldvibe.vantax.co.za',
+      'https://fieldvibe.pages.dev',
+    ];
+    if (!origin) return allowed[0];
+    if (allowed.includes(origin)) return origin;
+    if (origin.endsWith('.fieldvibe.pages.dev')) return origin;
+    if (origin.startsWith('http://localhost:')) return origin;
+    return null;
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-Tenant-Code', 'x-tenant-code'],
   exposeHeaders: ['Content-Length', 'X-Request-Id'],
@@ -17,8 +40,36 @@ app.use('*', cors({
   credentials: true,
 }));
 
+// ==================== SECTION 3: RATE LIMITING ====================
+const rateLimitStore = new Map();
+
+const rateLimiter = (limit, windowMs) => async (c, next) => {
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+  const windowKey = Math.floor(Date.now() / windowMs);
+  const key = `rl:${ip}:${windowKey}`;
+  const current = rateLimitStore.get(key) || 0;
+  if (current >= limit) {
+    c.header('Retry-After', String(Math.ceil(windowMs / 1000)));
+    c.header('X-RateLimit-Limit', String(limit));
+    c.header('X-RateLimit-Remaining', '0');
+    return c.json({ success: false, message: 'Too many requests. Please try again later.' }, 429);
+  }
+  rateLimitStore.set(key, current + 1);
+  // Cleanup old entries periodically
+  if (rateLimitStore.size > 10000) {
+    const cutoff = Math.floor(Date.now() / windowMs) - 2;
+    for (const [k] of rateLimitStore) {
+      const parts = k.split(':');
+      if (parseInt(parts[2]) < cutoff) rateLimitStore.delete(k);
+    }
+  }
+  c.header('X-RateLimit-Limit', String(limit));
+  c.header('X-RateLimit-Remaining', String(limit - current - 1));
+  await next();
+};
+
 // Health check
-app.get('/', (c) => c.json({ status: 'ok', service: 'FieldVibe API', version: '1.0.0' }));
+app.get('/', (c) => c.json({ status: 'ok', service: 'FieldVibe API', version: '2.0.0' }));
 app.get('/health', (c) => c.json({ status: 'healthy', timestamp: new Date().toISOString() }));
 
 // ==================== JWT HELPERS ====================
@@ -35,7 +86,7 @@ async function generateToken(payload, secret, expiresIn = 86400) {
   return base64Header + '.' + base64Payload + '.' + base64Signature;
 }
 
-// Auth middleware
+// Auth middleware with HMAC-SHA256 signature verification (Section 1 fix)
 const authMiddleware = async (c, next) => {
   try {
     const authHeader = c.req.header('Authorization');
@@ -44,6 +95,32 @@ const authMiddleware = async (c, next) => {
     }
     const token = authHeader.substring(7);
     const parts = token.split('.');
+    if (parts.length !== 3) {
+      return c.json({ success: false, message: 'Malformed token' }, 401);
+    }
+
+    // VERIFY SIGNATURE using Web Crypto API
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) {
+      return c.json({ success: false, message: 'Server configuration error' }, 500);
+    }
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(jwtSecret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const signatureBytes = Uint8Array.from(
+      atob(parts[2].replace(/-/g, '+').replace(/_/g, '/')),
+      ch => ch.charCodeAt(0)
+    );
+    const valid = await crypto.subtle.verify(
+      'HMAC', key, signatureBytes, encoder.encode(parts[0] + '.' + parts[1])
+    );
+    if (!valid) {
+      return c.json({ success: false, message: 'Invalid token signature' }, 401);
+    }
+
+    // NOW safe to decode payload
     const payload = JSON.parse(atob(parts[1]));
     if (payload.exp < Math.floor(Date.now() / 1000)) {
       return c.json({ success: false, message: 'Token expired' }, 401);
@@ -68,10 +145,13 @@ const requireRole = (...roles) => {
   };
 };
 
-// ==================== AUTH ROUTES ====================
-app.post('/api/auth/login', async (c) => {
+// ==================== AUTH ROUTES (with rate limiting + validation) ====================
+app.post('/api/auth/login', rateLimiter(5, 900000), async (c) => {
   try {
-    const { email, phone, password } = await c.req.json();
+    const body = await c.req.json();
+    const v = validate(loginSchema, body);
+    if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
+    const { email, phone, password } = v.data;
     const db = c.env.DB;
     const loginField = email || phone;
     const user = await db.prepare('SELECT * FROM users WHERE (email = ? OR phone = ?) AND is_active = 1').bind(loginField, loginField).first();
@@ -99,10 +179,13 @@ app.post('/api/auth/login', async (c) => {
   }
 });
 
-app.post('/api/auth/register', async (c) => {
+app.post('/api/auth/register', rateLimiter(3, 3600000), async (c) => {
   try {
     const db = c.env.DB;
-    const { email, phone, password, firstName, lastName, tenantCode } = await c.req.json();
+    const body = await c.req.json();
+    const v = validate(registerSchema, body);
+    if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
+    const { email, phone, password, firstName, lastName, tenantCode } = v.data;
     const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existing) return c.json({ success: false, message: 'Email already exists' }, 400);
     let tenantId;
@@ -118,7 +201,11 @@ app.post('/api/auth/register', async (c) => {
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
-    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(userId, tenantId, email, phone || null, hashedPassword, firstName, lastName, 'admin', 'active').run();
+    // Section 5: Batch user creation + audit log
+    await db.batch([
+      db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(userId, tenantId, email, phone || null, hashedPassword, firstName, lastName, 'admin', 'active'),
+      db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, details) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, userId, 'CREATE', 'user', userId, JSON.stringify({ email, role: 'admin' })),
+    ]);
     const jwtSecret = c.env.JWT_SECRET;
     const accessToken = await generateToken({ userId, tenantId, role: 'admin' }, jwtSecret);
     return c.json({ success: true, data: { user: { id: userId, email, role: 'admin', tenantId }, token: accessToken } }, 201);
@@ -140,6 +227,8 @@ app.get('/api/auth/me', authMiddleware, async (c) => {
 // ==================== PROTECTED API ROUTES ====================
 const api = new Hono();
 api.use('*', authMiddleware);
+// General API rate limiting (100 req/min)
+api.use('*', rateLimiter(100, 60000));
 
 // ==================== USERS ====================
 api.get('/users', requireRole('admin', 'manager'), async (c) => {
@@ -152,7 +241,8 @@ api.get('/users', requireRole('admin', 'manager'), async (c) => {
   if (role) { where += ' AND u.role = ?'; params.push(role); }
   const offset = (parseInt(page) - 1) * parseInt(limit);
   const countR = await db.prepare('SELECT COUNT(*) as total FROM users u ' + where).bind(...params).first();
-  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, u.admin_viewable_password, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  // Section 8: Remove admin_viewable_password from SELECT
+  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
   return c.json({ success: true, data: { users: users.results || [], pagination: { total: countR ? countR.total : 0, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil((countR ? countR.total : 0) / parseInt(limit)) } } });
 });
 
@@ -160,10 +250,13 @@ api.post('/users', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
+  const v = validate(createUserSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
   const password = body.password || Math.random().toString(36).slice(-8);
   const hashedPassword = await bcrypt.hash(password, 10);
-  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active, admin_viewable_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)').bind(id, tenantId, body.email, body.phone || null, hashedPassword, body.firstName || body.first_name || '', body.lastName || body.last_name || '', body.role || 'agent', body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active', password).run();
+  // Section 8: Removed admin_viewable_password storage
+  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.email, body.phone || null, hashedPassword, body.firstName || body.first_name || '', body.lastName || body.last_name || '', body.role || 'agent', body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
   return c.json({ success: true, data: { id, password }, message: 'User created' }, 201);
 });
 
@@ -190,7 +283,8 @@ api.post('/users/:id/reset-password', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
   const newPassword = Math.random().toString(36).slice(-8);
   const hashed = await bcrypt.hash(newPassword, 10);
-  await db.prepare('UPDATE users SET password_hash = ?, admin_viewable_password = ? WHERE id = ? AND tenant_id = ?').bind(hashed, newPassword, id, tenantId).run();
+  // Section 8: No longer storing plaintext password
+  await db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND tenant_id = ?').bind(hashed, id, tenantId).run();
   return c.json({ success: true, data: { password: newPassword } });
 });
 
@@ -5655,4 +5749,54 @@ app.route('/api', api);
 // Catch-all for unmatched routes
 app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 
-export default app;
+// ==================== SECTION 9: SCHEDULED JOBS ====================
+async function checkOverdueInvoices(db) {
+  try {
+    await db.prepare("UPDATE sales_orders SET payment_status = 'overdue' WHERE payment_status = 'pending' AND due_date < datetime('now') AND due_date IS NOT NULL").run();
+  } catch (e) { console.error('checkOverdueInvoices error:', e); }
+}
+
+async function checkLowStock(db) {
+  try {
+    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.min_stock_level, p.name, s.tenant_id FROM inventory_stock s JOIN products p ON s.product_id = p.id WHERE s.quantity <= COALESCE(p.min_stock_level, 10) AND s.quantity > 0").all();
+    for (const item of (lowStock.results || [])) {
+      const id = crypto.randomUUID();
+      await db.prepare("INSERT OR IGNORE INTO notifications (id, tenant_id, type, title, message, severity, created_at) VALUES (?, ?, 'low_stock', ?, ?, 'warning', datetime('now'))").bind(id, item.tenant_id, `Low stock: ${item.name}`, `${item.name} has ${item.quantity} units remaining in warehouse ${item.warehouse_id}`).run();
+    }
+  } catch (e) { console.error('checkLowStock error:', e); }
+}
+
+async function checkStaleVanLoads(db) {
+  try {
+    await db.prepare("UPDATE van_stock_loads SET status = 'stale' WHERE status = 'active' AND created_at < datetime('now', '-3 days')").run();
+  } catch (e) { console.error('checkStaleVanLoads error:', e); }
+}
+
+async function closeCommissionPeriod(db) {
+  try {
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const periodName = lastMonth.toISOString().slice(0, 7);
+    await db.prepare("UPDATE commission_earnings SET status = 'closed' WHERE status = 'approved' AND period = ?").bind(periodName).run();
+  } catch (e) { console.error('closeCommissionPeriod error:', e); }
+}
+
+async function generateAgingReport(db) {
+  try {
+    await db.prepare("UPDATE customers SET aging_bracket = CASE WHEN outstanding_balance <= 0 THEN 'current' WHEN julianday('now') - julianday(last_payment_date) <= 30 THEN '0-30' WHEN julianday('now') - julianday(last_payment_date) <= 60 THEN '31-60' WHEN julianday('now') - julianday(last_payment_date) <= 90 THEN '61-90' ELSE '90+' END WHERE outstanding_balance > 0").run();
+  } catch (e) { console.error('generateAgingReport error:', e); }
+}
+
+export default {
+  fetch: app.fetch,
+  scheduled: async (event, env, ctx) => {
+    const hour = new Date().getUTCHours();
+    const day = new Date().getUTCDay();
+    const date = new Date().getUTCDate();
+    if (hour === 4) await checkOverdueInvoices(env.DB);
+    if (hour === 6) await checkLowStock(env.DB);
+    if (hour === 16) await checkStaleVanLoads(env.DB);
+    if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);
+    if (day === 1 && hour === 5) await generateAgingReport(env.DB);
+  },
+};
