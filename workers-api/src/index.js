@@ -1993,7 +1993,7 @@ api.get('/inventory/stats', authMiddleware, async (c) => {
     db.prepare('SELECT COUNT(DISTINCT product_id) as count FROM stock_levels WHERE tenant_id = ?').bind(tenantId).first(),
     db.prepare('SELECT COALESCE(SUM(quantity), 0) as total FROM stock_levels WHERE tenant_id = ?').bind(tenantId).first(),
     db.prepare('SELECT COUNT(*) as count FROM stock_levels WHERE tenant_id = ? AND quantity <= reorder_level').bind(tenantId).first(),
-    db.prepare('SELECT COALESCE(SUM(sl.quantity * COALESCE(p.unit_price, 0)), 0) as total FROM stock_levels sl LEFT JOIN products p ON sl.product_id = p.id WHERE sl.tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COALESCE(SUM(sl.quantity * COALESCE(p.price, 0)), 0) as total FROM stock_levels sl LEFT JOIN products p ON sl.product_id = p.id WHERE sl.tenant_id = ?').bind(tenantId).first(),
   ]);
 
   // Stock movements for trends
@@ -2697,6 +2697,17 @@ api.get('/cash-reconciliations', authMiddleware, async (c) => {
   return c.json({ data: recons.results || [] });
 });
 
+api.get('/cash-reconciliations/stats', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const [total, pending, approved] = await Promise.all([
+    db.prepare("SELECT COUNT(*) as count FROM van_reconciliations WHERE tenant_id = ?").bind(tenantId).first(),
+    db.prepare("SELECT COUNT(*) as count FROM van_reconciliations WHERE tenant_id = ? AND status = 'pending'").bind(tenantId).first(),
+    db.prepare("SELECT COUNT(*) as count FROM van_reconciliations WHERE tenant_id = ? AND status = 'approved'").bind(tenantId).first(),
+  ]);
+  return c.json({ data: { total: total?.count || 0, pending: pending?.count || 0, approved: approved?.count || 0 }});
+});
+
 api.get('/cash-reconciliations/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -2757,17 +2768,6 @@ api.post('/cash-reconciliations/:id/close', authMiddleware, async (c) => {
   const id = c.req.param('id');
   await db.prepare("UPDATE van_reconciliations SET status = 'closed' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
   return c.json({ message: 'Closed' });
-});
-
-api.get('/cash-reconciliations/stats', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const [total, pending, approved] = await Promise.all([
-    db.prepare("SELECT COUNT(*) as count FROM van_reconciliations WHERE tenant_id = ?").bind(tenantId).first(),
-    db.prepare("SELECT COUNT(*) as count FROM van_reconciliations WHERE tenant_id = ? AND status = 'pending'").bind(tenantId).first(),
-    db.prepare("SELECT COUNT(*) as count FROM van_reconciliations WHERE tenant_id = ? AND status = 'approved'").bind(tenantId).first(),
-  ]);
-  return c.json({ data: { total: total?.count || 0, pending: pending?.count || 0, approved: approved?.count || 0 }});
 });
 
 // ==================== TRADE MARKETING ROUTES ====================
