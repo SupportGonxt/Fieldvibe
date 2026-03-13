@@ -3,6 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { X, HelpCircle } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import MobileBottomTabs from './MobileBottomTabs'
+import PageTransition from './PageTransition'
 import OfflineIndicator from '../ui/OfflineIndicator'
 import HelpPanel from '../help/HelpPanel'
 
@@ -63,9 +65,11 @@ export default function DashboardLayout() {
       <div className="flex flex-col flex-1 min-w-0">
         <Header onMenuClick={() => setSidebarOpen(true)} />
 
-        <main className="flex-1 pb-8">
+        <main className="flex-1 pb-20 lg:pb-8">
           <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <Outlet />
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
           </div>
         </main>
 
@@ -86,6 +90,7 @@ export default function DashboardLayout() {
         </footer>
       </div>
       
+      <MobileBottomTabs />
       <OfflineIndicator />
 
       <button
