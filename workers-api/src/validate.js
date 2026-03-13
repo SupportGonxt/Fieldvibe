@@ -98,14 +98,28 @@ export const createVanLoadSchema = z.object({
 }).refine(data => data.van_id || data.vehicle_id, { message: 'van_id or vehicle_id is required' });
 
 export const vanSellSchema = z.object({
-  load_id: z.string().uuid('Invalid load ID'),
+  load_id: z.string().uuid('Invalid load ID').optional(),
+  van_stock_load_id: z.string().uuid('Invalid load ID').optional(),
   customer_id: z.string().uuid('Invalid customer ID'),
   items: z.array(z.object({
     product_id: z.string().uuid('Invalid product ID'),
     quantity: z.number().int().positive('Quantity must be > 0'),
     unit_price: z.number().positive('Price must be > 0').optional(),
   })).min(1, 'At least one item is required'),
-  payment_method: z.enum(['cash', 'card', 'credit', 'mobile']).default('cash'),
+  payment_method: z.enum(['cash', 'card', 'credit', 'mobile', 'CASH', 'CARD', 'CREDIT', 'MOBILE']).default('cash'),
+  amount_paid: z.number().min(0).optional(),
+  payment_reference: z.string().optional(),
+  gps_latitude: z.number().optional().nullable(),
+  gps_longitude: z.number().optional().nullable(),
+  notes: z.string().optional(),
+}).refine(data => data.load_id || data.van_stock_load_id, { message: 'load_id or van_stock_load_id is required' });
+
+export const vanReturnSchema = z.object({
+  items: z.array(z.object({
+    product_id: z.string().uuid('Invalid product ID'),
+    quantity_returned: z.number().int().min(0).default(0),
+    quantity_damaged: z.number().int().min(0).default(0),
+  })).min(1, 'At least one item is required'),
   notes: z.string().optional(),
 });
 
@@ -130,6 +144,50 @@ export const createProductSchema = z.object({
 });
 
 // Customers
+export const updateCustomerSchema = z.object({
+  name: z.string().min(1).optional(),
+  code: z.string().optional(),
+  contact_person: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  customer_type: z.string().optional().nullable(),
+  status: z.enum(['active', 'inactive', 'suspended']).optional(),
+  credit_limit: z.number().min(0).optional(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  gps_lat: z.number().min(-90).max(90).optional().nullable(),
+  gps_lng: z.number().min(-180).max(180).optional().nullable(),
+  price_list_id: z.string().uuid().optional().nullable(),
+}).passthrough();
+
+export const updateProductSchema = z.object({
+  name: z.string().min(1).optional(),
+  sku: z.string().optional(),
+  price: z.number().min(0).optional(),
+  cost_price: z.number().min(0).optional(),
+  costPrice: z.number().min(0).optional(),
+  category: z.string().optional().nullable(),
+  category_id: z.string().optional().nullable(),
+  categoryId: z.string().optional().nullable(),
+  brand: z.string().optional().nullable(),
+  brand_id: z.string().optional().nullable(),
+  brandId: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  unit_of_measure: z.string().optional().nullable(),
+  unitOfMeasure: z.string().optional().nullable(),
+  tax_rate: z.number().min(0).max(100).optional(),
+  taxRate: z.number().min(0).max(100).optional(),
+  is_active: z.union([z.boolean(), z.number()]).optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+  min_stock_level: z.number().int().min(0).optional(),
+  max_stock_level: z.number().int().min(0).optional(),
+  code: z.string().optional(),
+  barcode: z.string().optional().nullable(),
+}).passthrough();
+
 export const createCustomerSchema = z.object({
   name: z.string().min(1, 'Customer name is required'),
   code: z.string().optional(),

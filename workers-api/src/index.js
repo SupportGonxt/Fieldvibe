@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, createProductSchema, createCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
+import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
 
 const app = new Hono();
 
@@ -365,6 +365,8 @@ api.post('/customers', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
+  const v = validate(createCustomerSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
   await db.prepare('INSERT INTO customers (id, tenant_id, name, code, type, customer_type, contact_person, contact_phone, contact_email, phone, email, address, latitude, longitude, route_id, credit_limit, outstanding_balance, payment_terms, category, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.code || id.slice(0, 8), body.type || 'retail', body.customer_type || body.customerType || 'SHOP', body.contact_person || body.contactPerson || null, body.contact_phone || body.contactPhone || null, body.contact_email || body.contactEmail || null, body.phone || null, body.email || null, body.address || null, body.latitude || null, body.longitude || null, body.route_id || null, body.credit_limit || body.creditLimit || 0, 0, body.payment_terms || 0, body.category || 'B', body.notes || null, 'active').run();
   return c.json({ success: true, data: { id }, message: 'Customer created' }, 201);
@@ -375,6 +377,8 @@ api.put('/customers/:id', async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
+  const v = validate(updateCustomerSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   await db.prepare('UPDATE customers SET name = COALESCE(?, name), code = COALESCE(?, code), customer_type = COALESCE(?, customer_type), contact_person = COALESCE(?, contact_person), contact_phone = COALESCE(?, contact_phone), phone = COALESCE(?, phone), email = COALESCE(?, email), address = COALESCE(?, address), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude), credit_limit = COALESCE(?, credit_limit), category = COALESCE(?, category), notes = COALESCE(?, notes), status = COALESCE(?, status), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.code || null, body.customer_type || body.customerType || null, body.contact_person || body.contactPerson || null, body.contact_phone || body.contactPhone || null, body.phone || null, body.email || null, body.address || null, body.latitude || null, body.longitude || null, body.credit_limit || body.creditLimit || null, body.category || null, body.notes || null, body.status || null, id, tenantId).run();
   return c.json({ success: true, message: 'Customer updated' });
 });
@@ -489,6 +493,8 @@ api.post('/products', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
+  const v = validate(createProductSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
   await db.prepare('INSERT INTO products (id, tenant_id, name, code, sku, barcode, category_id, brand_id, unit_of_measure, price, cost_price, tax_rate, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.code || id.slice(0, 8), body.sku || null, body.barcode || null, body.category_id || body.categoryId || null, body.brand_id || body.brandId || null, body.unit_of_measure || body.unitOfMeasure || 'each', body.price || 0, body.cost_price || body.costPrice || 0, body.tax_rate || body.taxRate || 15, 'active').run();
   return c.json({ success: true, data: { id }, message: 'Product created' }, 201);
@@ -499,6 +505,8 @@ api.put('/products/:id', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
+  const v = validate(updateProductSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   await db.prepare('UPDATE products SET name = COALESCE(?, name), code = COALESCE(?, code), sku = COALESCE(?, sku), category_id = COALESCE(?, category_id), brand_id = COALESCE(?, brand_id), price = COALESCE(?, price), cost_price = COALESCE(?, cost_price), tax_rate = COALESCE(?, tax_rate), status = COALESCE(?, status) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.code || null, body.sku || null, body.category_id || null, body.brand_id || null, body.price || null, body.cost_price || null, body.tax_rate || null, body.status || null, id, tenantId).run();
   return c.json({ success: true, message: 'Product updated' });
 });
@@ -3375,6 +3383,8 @@ api.post('/sales/orders/create', async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
+  const v = validate(createSalesOrderSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const errors = [];
 
   try {
@@ -3432,60 +3442,68 @@ api.post('/sales/orders/create', async (c) => {
       }
     }
 
-    // 3. Create order
+    // 3. Create order - Section 5: Use db.batch() for atomic writes
     const orderId = uuidv4();
     const orderNumber = 'SO-' + Date.now().toString(36).toUpperCase();
     const paymentMethod = body.payment_method || 'CASH';
     const paymentStatus = paymentMethod === 'CREDIT' || paymentMethod === 'credit' ? 'PENDING' : (body.amount_paid >= subtotal ? 'PAID' : 'PENDING');
 
-    await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, visit_id, order_type, status, subtotal, tax_amount, discount_amount, total_amount, payment_method, payment_status, notes, gps_latitude, gps_longitude, van_stock_load_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(orderId, tenantId, orderNumber, userId, body.customer_id, body.visit_id || null, body.order_type || 'direct_sale', 'CONFIRMED', subtotal, totalTax, totalDiscount, subtotal, paymentMethod, paymentStatus, body.notes || null, body.gps_latitude || null, body.gps_longitude || null, body.van_stock_load_id || null).run();
+    const batchStatements = [];
 
-    // 4. Create order items
+    // Order header
+    batchStatements.push(db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, visit_id, order_type, status, subtotal, tax_amount, discount_amount, total_amount, payment_method, payment_status, notes, gps_latitude, gps_longitude, van_stock_load_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(orderId, tenantId, orderNumber, userId, body.customer_id, body.visit_id || null, body.order_type || 'direct_sale', 'CONFIRMED', subtotal, totalTax, totalDiscount, subtotal, paymentMethod, paymentStatus, body.notes || null, body.gps_latitude || null, body.gps_longitude || null, body.van_stock_load_id || null));
+
+    // 4. Order items
     for (const item of resolvedItems) {
       const itemId = uuidv4();
-      await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, discount_percent, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity, item.unit_price, item.discount_percent, item.line_total).run();
+      batchStatements.push(db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, discount_percent, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity, item.unit_price, item.discount_percent, item.line_total));
     }
 
-    // 5. Create payment if provided
+    // 5. Payment if provided
     if (body.amount_paid && body.amount_paid > 0) {
       const paymentId = uuidv4();
-      await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, orderId, body.amount_paid, paymentMethod, body.payment_reference || null, 'completed').run();
+      batchStatements.push(db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, orderId, body.amount_paid, paymentMethod, body.payment_reference || null, 'completed'));
     }
 
     // 6. Update customer balance for credit
     if (paymentMethod === 'CREDIT' || paymentMethod === 'credit') {
-      await db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance + ? WHERE id = ?').bind(subtotal, body.customer_id).run();
+      batchStatements.push(db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance + ? WHERE id = ?').bind(subtotal, body.customer_id));
     }
 
-    // 7. Create stock movements
+    // 7. Stock movements
     if (body.order_type !== 'VAN_SALE') {
       for (const item of resolvedItems) {
         const smId = uuidv4();
-        await db.prepare('INSERT INTO stock_movements (id, tenant_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, item.product_id, 'SALE_OUT', item.quantity, 'SALES_ORDER', orderId, userId).run();
-        await db.prepare('UPDATE stock_levels SET quantity = quantity - ?, updated_at = datetime("now") WHERE tenant_id = ? AND product_id = ?').bind(item.quantity, tenantId, item.product_id).run();
+        batchStatements.push(db.prepare('INSERT INTO stock_movements (id, tenant_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, item.product_id, 'SALE_OUT', item.quantity, 'SALES_ORDER', orderId, userId));
+        batchStatements.push(db.prepare('UPDATE stock_levels SET quantity = quantity - ?, updated_at = datetime("now") WHERE tenant_id = ? AND product_id = ?').bind(item.quantity, tenantId, item.product_id));
       }
     }
 
     // 8. Van stock update
     if (body.order_type === 'VAN_SALE' && body.van_stock_load_id) {
       for (const item of resolvedItems) {
-        await db.prepare('UPDATE van_stock_load_items SET quantity_sold = quantity_sold + ? WHERE van_stock_load_id = ? AND product_id = ?').bind(item.quantity, body.van_stock_load_id, item.product_id).run();
+        batchStatements.push(db.prepare('UPDATE van_stock_load_items SET quantity_sold = quantity_sold + ? WHERE van_stock_load_id = ? AND product_id = ?').bind(item.quantity, body.van_stock_load_id, item.product_id));
       }
     }
 
-    // 9. Commission calculation
+    // 9. Audit log
+    const auditId = uuidv4();
+    batchStatements.push(db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, new_values) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(auditId, tenantId, userId, 'CREATE', 'SALES_ORDER', orderId, JSON.stringify({ order_number: orderNumber, total: subtotal, items: resolvedItems.length })));
+
+    // Execute all writes atomically
+    await db.batch(batchStatements);
+
+    // 10. Commission calculation (separate query needed for reads)
     const commRules = await db.prepare("SELECT * FROM commission_rules WHERE tenant_id = ? AND source_type = 'SALE' AND is_active = 1 AND (effective_from IS NULL OR effective_from <= datetime('now')) AND (effective_to IS NULL OR effective_to >= datetime('now'))").bind(tenantId).all();
+    const commBatch = [];
     for (const rule of (commRules.results || [])) {
       const commAmount = subtotal * (rule.rate || 0);
       if (commAmount > 0) {
         const ceId = uuidv4();
-        await db.prepare('INSERT INTO commission_earnings (id, tenant_id, earner_id, source_type, source_id, rule_id, rate, base_amount, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(ceId, tenantId, userId, 'SALE', orderId, rule.id, rule.rate, subtotal, rule.max_cap && commAmount > rule.max_cap ? rule.max_cap : commAmount, 'pending').run();
+        commBatch.push(db.prepare('INSERT INTO commission_earnings (id, tenant_id, earner_id, source_type, source_id, rule_id, rate, base_amount, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(ceId, tenantId, userId, 'SALE', orderId, rule.id, rule.rate, subtotal, rule.max_cap && commAmount > rule.max_cap ? rule.max_cap : commAmount, 'pending'));
       }
     }
-
-    // 10. Audit log
-    const auditId = uuidv4();
-    await db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, new_values) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(auditId, tenantId, userId, 'CREATE', 'SALES_ORDER', orderId, JSON.stringify({ order_number: orderNumber, total: subtotal, items: resolvedItems.length })).run();
+    if (commBatch.length > 0) await db.batch(commBatch);
 
     return c.json({ success: true, data: { id: orderId, order_number: orderNumber, total_amount: subtotal, payment_status: paymentStatus, items: resolvedItems } }, 201);
   } catch (error) {
@@ -3553,6 +3571,8 @@ api.post('/sales/orders/:id/payments', async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.param();
   const body = await c.req.json();
+  const v = validate(createPaymentSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
 
   const order = await db.prepare('SELECT * FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
@@ -3566,16 +3586,18 @@ api.post('/sales/orders/:id/payments', async (c) => {
   }
 
   const paymentId = uuidv4();
-  await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, id, body.amount, body.method || 'CASH', body.reference || null, 'completed').run();
-
   const newTotalPaid = totalPaid + body.amount;
   const newStatus = newTotalPaid >= order.total_amount ? 'PAID' : 'PARTIAL';
-  await db.prepare('UPDATE sales_orders SET payment_status = ?, updated_at = datetime("now") WHERE id = ?').bind(newStatus, id).run();
 
-  // Reduce outstanding balance
+  // Section 5: Batch payment + order status update + customer balance atomically
+  const paymentBatch = [
+    db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, id, body.amount, body.method || 'CASH', body.reference || null, 'completed'),
+    db.prepare('UPDATE sales_orders SET payment_status = ?, updated_at = datetime("now") WHERE id = ?').bind(newStatus, id),
+  ];
   if (order.payment_method === 'CREDIT' || order.payment_method === 'credit') {
-    await db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ?').bind(body.amount, order.customer_id).run();
+    paymentBatch.push(db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ?').bind(body.amount, order.customer_id));
   }
+  await db.batch(paymentBatch);
 
   return c.json({ success: true, data: { id: paymentId, total_paid: newTotalPaid, outstanding: order.total_amount - newTotalPaid, payment_status: newStatus } });
 });
@@ -3588,6 +3610,8 @@ api.post('/van-sales/loads/create', requireRole('admin', 'manager'), async (c) =
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
+  const v = validate(createVanLoadSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const errors = [];
 
   // Validate stock availability
@@ -3601,24 +3625,27 @@ api.post('/van-sales/loads/create', requireRole('admin', 'manager'), async (c) =
   }
   if (errors.length > 0) return c.json({ success: false, message: 'Insufficient stock', details: errors }, 400);
 
-  // Create load
+  // Section 5: Use db.batch() for atomic van load creation
   const loadId = uuidv4();
-  await db.prepare('INSERT INTO van_stock_loads (id, tenant_id, agent_id, vehicle_reg, warehouse_id, status, load_date, created_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?)').bind(loadId, tenantId, body.agent_id, body.vehicle_reg, body.warehouse_id, 'loaded', userId).run();
+  const loadBatch = [];
 
-  // Create load items and stock movements
+  // Load header
+  loadBatch.push(db.prepare('INSERT INTO van_stock_loads (id, tenant_id, agent_id, vehicle_reg, warehouse_id, status, load_date, created_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?)').bind(loadId, tenantId, body.agent_id, body.vehicle_reg, body.warehouse_id, 'loaded', userId));
+
+  // Load items and stock movements
   for (const item of (body.items || [])) {
     const itemId = uuidv4();
-    await db.prepare('INSERT INTO van_stock_load_items (id, van_stock_load_id, product_id, quantity_loaded) VALUES (?, ?, ?, ?)').bind(itemId, loadId, item.product_id, item.quantity).run();
-
-    // Transfer out of warehouse
+    loadBatch.push(db.prepare('INSERT INTO van_stock_load_items (id, van_stock_load_id, product_id, quantity_loaded) VALUES (?, ?, ?, ?)').bind(itemId, loadId, item.product_id, item.quantity));
     const smId = uuidv4();
-    await db.prepare('INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, body.warehouse_id, item.product_id, 'TRANSFER_OUT', item.quantity, 'VAN_LOAD', loadId, userId).run();
-    await db.prepare('UPDATE stock_levels SET quantity = quantity - ?, updated_at = datetime("now") WHERE tenant_id = ? AND warehouse_id = ? AND product_id = ?').bind(item.quantity, tenantId, body.warehouse_id, item.product_id).run();
+    loadBatch.push(db.prepare('INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, body.warehouse_id, item.product_id, 'TRANSFER_OUT', item.quantity, 'VAN_LOAD', loadId, userId));
+    loadBatch.push(db.prepare('UPDATE stock_levels SET quantity = quantity - ?, updated_at = datetime("now") WHERE tenant_id = ? AND warehouse_id = ? AND product_id = ?').bind(item.quantity, tenantId, body.warehouse_id, item.product_id));
   }
 
   // Notification
   const notifId = uuidv4();
-  await db.prepare('INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(notifId, tenantId, body.agent_id, 'info', 'Van Load Ready', 'Your van has been loaded and is ready for collection', 'VAN_LOAD', loadId).run();
+  loadBatch.push(db.prepare('INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(notifId, tenantId, body.agent_id, 'info', 'Van Load Ready', 'Your van has been loaded and is ready for collection', 'VAN_LOAD', loadId));
+
+  await db.batch(loadBatch);
 
   return c.json({ success: true, data: { id: loadId }, message: 'Van loaded successfully' }, 201);
 });
@@ -3638,6 +3665,8 @@ api.post('/van-sales/sell', async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
+  const v = validate(vanSellSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const errors = [];
 
   // Validate van load is in field
@@ -3675,20 +3704,24 @@ api.post('/van-sales/sell', async (c) => {
     resolvedItems.push({ product_id: item.product_id, quantity: qty, unit_price: unitPrice, line_total: lineTotal });
   }
 
-  await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, order_type, status, subtotal, tax_amount, total_amount, payment_method, payment_status, van_stock_load_id, gps_latitude, gps_longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(orderId, tenantId, orderNumber, userId, body.customer_id, 'VAN_SALE', 'CONFIRMED', subtotal, subtotal - (subtotal / 1.15), subtotal, body.payment_method || 'CASH', body.amount_paid >= subtotal ? 'PAID' : 'PENDING', body.van_stock_load_id, body.gps_latitude || null, body.gps_longitude || null).run();
+  // Section 5: Use db.batch() for atomic van sell
+  const vanSellBatch = [];
+
+  vanSellBatch.push(db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, order_type, status, subtotal, tax_amount, total_amount, payment_method, payment_status, van_stock_load_id, gps_latitude, gps_longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(orderId, tenantId, orderNumber, userId, body.customer_id, 'VAN_SALE', 'CONFIRMED', subtotal, subtotal - (subtotal / 1.15), subtotal, body.payment_method || 'CASH', body.amount_paid >= subtotal ? 'PAID' : 'PENDING', body.van_stock_load_id, body.gps_latitude || null, body.gps_longitude || null));
 
   for (const item of resolvedItems) {
     const itemId = uuidv4();
-    await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity, item.unit_price, item.line_total).run();
-    // Update van stock
-    await db.prepare('UPDATE van_stock_load_items SET quantity_sold = quantity_sold + ? WHERE van_stock_load_id = ? AND product_id = ?').bind(item.quantity, body.van_stock_load_id, item.product_id).run();
+    vanSellBatch.push(db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity, item.unit_price, item.line_total));
+    vanSellBatch.push(db.prepare('UPDATE van_stock_load_items SET quantity_sold = quantity_sold + ? WHERE van_stock_load_id = ? AND product_id = ?').bind(item.quantity, body.van_stock_load_id, item.product_id));
   }
 
   // Payment
   if (body.amount_paid && body.amount_paid > 0) {
     const paymentId = uuidv4();
-    await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference) VALUES (?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, orderId, body.amount_paid, body.payment_method || 'CASH', body.payment_reference || null).run();
+    vanSellBatch.push(db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference) VALUES (?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, orderId, body.amount_paid, body.payment_method || 'CASH', body.payment_reference || null));
   }
+
+  await db.batch(vanSellBatch);
 
   return c.json({ success: true, data: { id: orderId, order_number: orderNumber, total_amount: subtotal } }, 201);
 });
@@ -3700,13 +3733,17 @@ api.post('/van-sales/loads/:id/return', async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.param();
   const body = await c.req.json();
+  const v = validate(vanReturnSchema, body);
+  if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
 
   const load = await db.prepare('SELECT * FROM van_stock_loads WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!load) return c.json({ success: false, message: 'Van load not found' }, 404);
 
   const errors = [];
   const discrepancies = [];
+  const validatedItems = [];
 
+  // Phase 1: Reads & validation (sequential reads are fine)
   for (const item of (body.items || [])) {
     const vanItem = await db.prepare('SELECT * FROM van_stock_load_items WHERE van_stock_load_id = ? AND product_id = ?').bind(id, item.product_id).first();
     if (!vanItem) { errors.push(`Product ${item.product_id} not on this load`); continue; }
@@ -3717,38 +3754,42 @@ api.post('/van-sales/loads/:id/return', async (c) => {
       continue;
     }
 
-    // Check for discrepancy
     if (totalAccounted < vanItem.quantity_loaded) {
       const missing = vanItem.quantity_loaded - totalAccounted;
       discrepancies.push({ product_id: item.product_id, missing_quantity: missing });
     }
 
-    // Update van item
-    await db.prepare('UPDATE van_stock_load_items SET quantity_returned = ?, quantity_damaged = ? WHERE van_stock_load_id = ? AND product_id = ?').bind(item.quantity_returned || 0, item.quantity_damaged || 0, id, item.product_id).run();
-
-    // Return good items to warehouse
-    if ((item.quantity_returned || 0) > 0) {
-      const smId = uuidv4();
-      await db.prepare('INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, load.warehouse_id, item.product_id, 'TRANSFER_IN', item.quantity_returned, 'VAN_RETURN', id, userId).run();
-      await db.prepare('UPDATE stock_levels SET quantity = quantity + ?, updated_at = datetime("now") WHERE tenant_id = ? AND warehouse_id = ? AND product_id = ?').bind(item.quantity_returned, tenantId, load.warehouse_id, item.product_id).run();
-    }
-
-    // Record damaged items
-    if ((item.quantity_damaged || 0) > 0) {
-      const smId = uuidv4();
-      await db.prepare('INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, load.warehouse_id, item.product_id, 'DAMAGE', item.quantity_damaged, 'VAN_RETURN', id, 'Van return damage', userId).run();
-    }
+    validatedItems.push(item);
   }
 
   if (errors.length > 0) return c.json({ success: false, message: 'Return validation failed', details: errors }, 400);
 
-  // Record discrepancies
-  for (const d of discrepancies) {
-    const adjId = uuidv4();
-    await db.prepare('INSERT INTO stock_adjustments (id, tenant_id, warehouse_id, product_id, adjustment_type, quantity, reason, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(adjId, tenantId, load.warehouse_id, d.product_id, 'DISCREPANCY', d.missing_quantity, 'Van return discrepancy - missing units', 'VAN_RETURN', id, userId).run();
+  // Phase 2: Batch all writes atomically
+  const returnBatch = [];
+
+  for (const item of validatedItems) {
+    returnBatch.push(db.prepare('UPDATE van_stock_load_items SET quantity_returned = ?, quantity_damaged = ? WHERE van_stock_load_id = ? AND product_id = ?').bind(item.quantity_returned || 0, item.quantity_damaged || 0, id, item.product_id));
+
+    if ((item.quantity_returned || 0) > 0) {
+      const smId = uuidv4();
+      returnBatch.push(db.prepare('INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, load.warehouse_id, item.product_id, 'TRANSFER_IN', item.quantity_returned, 'VAN_RETURN', id, userId));
+      returnBatch.push(db.prepare('UPDATE stock_levels SET quantity = quantity + ?, updated_at = datetime("now") WHERE tenant_id = ? AND warehouse_id = ? AND product_id = ?').bind(item.quantity_returned, tenantId, load.warehouse_id, item.product_id));
+    }
+
+    if ((item.quantity_damaged || 0) > 0) {
+      const smId = uuidv4();
+      returnBatch.push(db.prepare('INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, load.warehouse_id, item.product_id, 'DAMAGE', item.quantity_damaged, 'VAN_RETURN', id, 'Van return damage', userId));
+    }
   }
 
-  await db.prepare("UPDATE van_stock_loads SET status = 'returned', return_time = datetime('now'), updated_at = datetime('now') WHERE id = ?").bind(id).run();
+  for (const d of discrepancies) {
+    const adjId = uuidv4();
+    returnBatch.push(db.prepare('INSERT INTO stock_adjustments (id, tenant_id, warehouse_id, product_id, adjustment_type, quantity, reason, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(adjId, tenantId, load.warehouse_id, d.product_id, 'DISCREPANCY', d.missing_quantity, 'Van return discrepancy - missing units', 'VAN_RETURN', id, userId));
+  }
+
+  returnBatch.push(db.prepare("UPDATE van_stock_loads SET status = 'returned', return_time = datetime('now'), updated_at = datetime('now') WHERE id = ?").bind(id));
+
+  await db.batch(returnBatch);
 
   return c.json({ success: true, message: 'Van return processed', data: { discrepancies } });
 });
