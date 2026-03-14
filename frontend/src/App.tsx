@@ -639,6 +639,7 @@ function App() {
             <Route path="sales/returns/:id" element={<Suspense fallback={<PageSkeleton />}><SalesReturnDetail /></Suspense>} />
 
             {/* Marketing Routes */}
+            <Route path="marketing" element={<Navigate to="/marketing/campaigns" replace />} />
             <Route path="marketing/campaigns" element={<Suspense fallback={<PageSkeleton />}><CampaignsList /></Suspense>} />
             <Route path="marketing/campaigns/create" element={<Suspense fallback={<PageSkeleton />}><CampaignCreate /></Suspense>} />
             <Route path="marketing/campaigns/:id" element={<Suspense fallback={<PageSkeleton />}><CampaignDetail /></Suspense>} />
