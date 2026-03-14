@@ -13,19 +13,19 @@ interface NearbyCustomer {
 
 export default function QuickVisitPage() {
   const navigate = useNavigate()
-  const { latitude, longitude } = useGeolocation()
+  const { position } = useGeolocation()
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
   const [purpose, setPurpose] = useState('sales_call')
   const [step, setStep] = useState(1)
 
   const { data: nearbyData, isLoading: loadingNearby } = useQuery({
-    queryKey: ['nearby-customers', latitude, longitude],
+    queryKey: ['nearby-customers', position?.latitude, position?.longitude],
     queryFn: async () => {
-      if (!latitude || !longitude) return { customers: [] }
-      const res = await apiClient.get(`/api/visits/nearby-customers?lat=${latitude}&lng=${longitude}&radius=5`)
+      if (!position?.latitude || !position?.longitude) return { customers: [] }
+      const res = await apiClient.get(`/api/visits/nearby-customers?lat=${position.latitude}&lng=${position.longitude}&radius=5`)
       return res.data
     },
-    enabled: !!latitude && !!longitude,
+    enabled: !!position?.latitude && !!position?.longitude,
     staleTime: 60000,
   })
 
@@ -34,8 +34,8 @@ export default function QuickVisitPage() {
       const res = await apiClient.post('/api/visits/quick-start', {
         customer_id: selectedCustomer,
         purpose,
-        check_in_lat: latitude,
-        check_in_lng: longitude,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
       })
       return res.data
     },
@@ -128,10 +128,10 @@ export default function QuickVisitPage() {
             <div className="font-medium">{nearby.find(c => c.id === selectedCustomer)?.name || 'Selected'}</div>
             <div className="text-sm text-gray-400 mt-2">Purpose</div>
             <div className="font-medium">{purposes.find(p => p.value === purpose)?.label}</div>
-            {latitude && longitude && (
+            {position?.latitude && position?.longitude && (
               <>
                 <div className="text-sm text-gray-400 mt-2">Location</div>
-                <div className="font-medium text-xs">{latitude.toFixed(4)}, {longitude.toFixed(4)}</div>
+                <div className="font-medium text-xs">{position.latitude.toFixed(4)}, {position.longitude.toFixed(4)}</div>
               </>
             )}
           </div>

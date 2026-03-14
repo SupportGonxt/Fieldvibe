@@ -1,18 +1,33 @@
 export type Currency = 'USD' | 'ZAR' | 'EUR' | 'GBP' | 'KES' | 'NGN' | 'GHS' | 'TZS' | 'UGX' | 'BWP' | 'MZN' | 'ZMW'
 
-const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number }> = {
-  ZAR: { symbol: 'R', locale: 'en-ZA', decimals: 2 },
-  USD: { symbol: '$', locale: 'en-US', decimals: 2 },
-  EUR: { symbol: '€', locale: 'de-DE', decimals: 2 },
-  GBP: { symbol: '£', locale: 'en-GB', decimals: 2 },
-  KES: { symbol: 'KSh', locale: 'en-KE', decimals: 2 },
-  NGN: { symbol: '₦', locale: 'en-NG', decimals: 2 },
-  GHS: { symbol: 'GH₵', locale: 'en-GH', decimals: 2 },
-  TZS: { symbol: 'TSh', locale: 'en-TZ', decimals: 0 },
-  UGX: { symbol: 'USh', locale: 'en-UG', decimals: 0 },
-  BWP: { symbol: 'P', locale: 'en-BW', decimals: 2 },
-  MZN: { symbol: 'MT', locale: 'pt-MZ', decimals: 2 },
-  ZMW: { symbol: 'ZK', locale: 'en-ZM', decimals: 2 },
+const CURRENCY_NAMES: Record<string, string> = {
+  ZAR: 'South African Rand',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  GBP: 'British Pound',
+  KES: 'Kenyan Shilling',
+  NGN: 'Nigerian Naira',
+  GHS: 'Ghanaian Cedi',
+  TZS: 'Tanzanian Shilling',
+  UGX: 'Ugandan Shilling',
+  BWP: 'Botswana Pula',
+  MZN: 'Mozambican Metical',
+  ZMW: 'Zambian Kwacha',
+}
+
+const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number; code: string; name: string }> = {
+  ZAR: { symbol: 'R', locale: 'en-ZA', decimals: 2, code: 'ZAR', name: 'South African Rand' },
+  USD: { symbol: '$', locale: 'en-US', decimals: 2, code: 'USD', name: 'US Dollar' },
+  EUR: { symbol: '€', locale: 'de-DE', decimals: 2, code: 'EUR', name: 'Euro' },
+  GBP: { symbol: '£', locale: 'en-GB', decimals: 2, code: 'GBP', name: 'British Pound' },
+  KES: { symbol: 'KSh', locale: 'en-KE', decimals: 2, code: 'KES', name: 'Kenyan Shilling' },
+  NGN: { symbol: '₦', locale: 'en-NG', decimals: 2, code: 'NGN', name: 'Nigerian Naira' },
+  GHS: { symbol: 'GH₵', locale: 'en-GH', decimals: 2, code: 'GHS', name: 'Ghanaian Cedi' },
+  TZS: { symbol: 'TSh', locale: 'en-TZ', decimals: 0, code: 'TZS', name: 'Tanzanian Shilling' },
+  UGX: { symbol: 'USh', locale: 'en-UG', decimals: 0, code: 'UGX', name: 'Ugandan Shilling' },
+  BWP: { symbol: 'P', locale: 'en-BW', decimals: 2, code: 'BWP', name: 'Botswana Pula' },
+  MZN: { symbol: 'MT', locale: 'pt-MZ', decimals: 2, code: 'MZN', name: 'Mozambican Metical' },
+  ZMW: { symbol: 'ZK', locale: 'en-ZM', decimals: 2, code: 'ZMW', name: 'Zambian Kwacha' },
 }
 
 let defaultCurrency: Currency = 'ZAR'
@@ -86,6 +101,12 @@ export function formatCurrency(
   } catch {
     return `${config.symbol}${numAmount.toFixed(config.decimals)}`
   }
+}
+
+export const CURRENCIES = CURRENCY_CONFIG
+
+export function getCurrencyName(currencyCode: string): string {
+  return CURRENCY_NAMES[currencyCode] || currencyCode
 }
 
 export function getCurrencySymbol(currencyCode = 'ZAR'): string {

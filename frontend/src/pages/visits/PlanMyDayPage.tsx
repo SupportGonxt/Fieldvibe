@@ -14,14 +14,14 @@ interface RouteStop {
 }
 
 export default function PlanMyDayPage() {
-  const { latitude, longitude } = useGeolocation()
+  const { position } = useGeolocation()
   const [optimizedRoute, setOptimizedRoute] = useState<RouteStop[]>([])
 
   const suggestMutation = useMutation({
     mutationFn: async () => {
       const res = await apiClient.post('/api/route-plans/suggest', {
-        agent_lat: latitude,
-        agent_lng: longitude,
+        agent_lat: position?.latitude,
+        agent_lng: position?.longitude,
         max_visits: 12,
       })
       return res.data
@@ -40,7 +40,7 @@ export default function PlanMyDayPage() {
         </div>
         <button
           onClick={() => suggestMutation.mutate()}
-          disabled={suggestMutation.isPending || !latitude}
+          disabled={suggestMutation.isPending || !position?.latitude}
           className="px-4 py-2 bg-[#00E87B] text-black font-semibold rounded-lg hover:bg-[#00cc6a] disabled:opacity-50 min-h-[44px]"
           aria-label="Generate optimized route"
         >
@@ -48,7 +48,7 @@ export default function PlanMyDayPage() {
         </button>
       </div>
 
-      {!latitude && (
+      {!position?.latitude && (
         <div className="bg-yellow-900/50 border border-yellow-600 rounded-lg p-3 mb-4 text-sm text-yellow-200" role="alert">
           Enable location services to get route suggestions based on your current position.
         </div>

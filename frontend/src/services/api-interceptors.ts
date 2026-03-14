@@ -15,9 +15,9 @@ function processQueue(error: unknown, token: string | null) {
 export function setupInterceptors() {
   // Request interceptor - add auth token
   apiClient.interceptors.request.use((config) => {
-    const token = useAuthStore.getState().token
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`
+    const tokens = useAuthStore.getState().tokens
+    if (tokens?.access_token && config.headers) {
+      config.headers.Authorization = `Bearer ${tokens.access_token}`
     }
     return config
   })
@@ -44,13 +44,19 @@ export function setupInterceptors() {
         isRefreshing = true
 
         try {
-          const res = await apiClient.post('/auth/refresh')
-          const data = res.data as { token?: string }
-          const newToken = data.token
-          if (newToken) {
-            useAuthStore.getState().setToken(newToken)
-            processQueue(null, newToken)
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
+          const refreshToken = useAuthStore.getState().tokens?.refresh_token
+          if (!refreshToken) {
+            useAuthStore.getState().logout()
+            return Promise.reject(error)
+          }
+          const res = await apiClient.post('/auth/refresh', { refresh_token: refreshToken })
+          const data = res.data as { data?: { access_token?: string; refresh_token?: string; expires_in?: number } }
+          const newAccessToken = data.data?.access_token
+          if (newAccessToken) {
+            // Update tokens in the store directly via refreshToken action
+            await useAuthStore.getState().refreshToken()
+            processQueue(null, newAccessToken)
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
             return apiClient(originalRequest)
           }
         } catch (refreshError) {

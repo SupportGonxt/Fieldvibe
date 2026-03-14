@@ -6005,7 +6005,13 @@ api.put('/settings/geofence', async (c) => {
   const tenantId = c.get('tenantId');
   const { geofence_radius_meters } = await c.req.json();
   const radius = Math.max(50, Math.min(1000, parseInt(geofence_radius_meters) || 200));
-  await db.prepare("INSERT INTO settings (id, tenant_id, key, value, category) VALUES (?, ?, 'geofence_radius_meters', ?, 'field_ops') ON CONFLICT(id) DO UPDATE SET value = ?, updated_at = datetime('now')").bind(`${tenantId}_geofence`, tenantId, String(radius), String(radius)).run();
+  // Check if setting already exists for this tenant
+  const existing = await db.prepare("SELECT id FROM settings WHERE tenant_id = ? AND key = 'geofence_radius_meters'").bind(tenantId).first();
+  if (existing) {
+    await db.prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE id = ?").bind(String(radius), existing.id).run();
+  } else {
+    await db.prepare("INSERT INTO settings (id, tenant_id, key, value, category) VALUES (?, ?, 'geofence_radius_meters', ?, 'field_ops')").bind(crypto.randomUUID(), tenantId, String(radius)).run();
+  }
   return c.json({ success: true, data: { geofence_radius_meters: radius }, message: 'Geofence radius updated' });
 });
 
@@ -6120,9 +6126,10 @@ async function healStockLevels(db) {
 }
 
 async function cleanOrphanRecords(db) {
-  const orphanItems = await db.prepare("DELETE FROM sales_order_items WHERE sales_order_id NOT IN (SELECT id FROM sales_orders)").run();
-  const orphanPayments = await db.prepare("DELETE FROM payments WHERE sales_order_id NOT IN (SELECT id FROM sales_orders)").run();
-  const orphanVan = await db.prepare("DELETE FROM van_stock_load_items WHERE van_stock_load_id NOT IN (SELECT id FROM van_stock_loads)").run();
+  // Only delete orphans older than 1 hour to avoid racing with in-flight transactions, limit to 500 per run
+  const orphanItems = await db.prepare("DELETE FROM sales_order_items WHERE rowid IN (SELECT soi.rowid FROM sales_order_items soi WHERE soi.sales_order_id NOT IN (SELECT id FROM sales_orders) AND soi.created_at < datetime('now', '-1 hour') LIMIT 500)").run();
+  const orphanPayments = await db.prepare("DELETE FROM payments WHERE rowid IN (SELECT p.rowid FROM payments p WHERE p.sales_order_id NOT IN (SELECT id FROM sales_orders) AND p.created_at < datetime('now', '-1 hour') LIMIT 500)").run();
+  const orphanVan = await db.prepare("DELETE FROM van_stock_load_items WHERE rowid IN (SELECT v.rowid FROM van_stock_load_items v WHERE v.van_stock_load_id NOT IN (SELECT id FROM van_stock_loads) AND v.created_at < datetime('now', '-1 hour') LIMIT 500)").run();
   return { orphan_items: orphanItems.meta?.changes || 0, orphan_payments: orphanPayments.meta?.changes || 0, orphan_van: orphanVan.meta?.changes || 0 };
 }
 
