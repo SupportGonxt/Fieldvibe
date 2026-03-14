@@ -4,6 +4,7 @@ import {
   Camera, MapPin, Users, DollarSign, Calendar, Clock, Target, 
   TrendingUp, MessageSquare, Star, Gift, Plus, X, Upload
 } from 'lucide-react';
+import { apiClient } from '../services/api.service'
 
 interface BrandActivation {
   id?: number;
@@ -152,38 +153,24 @@ const BrandActivationFormPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch('/api/trade-marketing-new/brand-activations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+      await apiClient.post('/trade-marketing-new/brand-activations', formData);
+      toast.success('Brand Activation event created successfully!')
+      setFormData({
+        eventType: 'sampling',
+        teamMembers: [],
+        customerFeedback: [],
+        photos: [],
+        activities: [],
+        status: 'planned',
+        targetAttendance: 100,
+        actualAttendance: 0,
+        samplesDistributed: 0,
+        leadsCaptured: 0,
+        engagementScore: 7
       });
-
-      if (response.ok) {
-        toast.success('Brand Activation event created successfully!')
-        // Reset form
-        setFormData({
-          eventType: 'sampling',
-          teamMembers: [],
-          customerFeedback: [],
-          photos: [],
-          activities: [],
-          status: 'planned',
-          targetAttendance: 100,
-          actualAttendance: 0,
-          samplesDistributed: 0,
-          leadsCaptured: 0,
-          engagementScore: 7
-        });
-      } else {
-        const error = await response.json();
-        toast.error('Failed to create event: ' + (error.message || 'Unknown error'))
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating brand activation:', error);
-      toast.error('Error creating brand activation event')
+      toast.error('Failed to create event: ' + (error.response?.data?.message || 'Unknown error'))
     }
   };
 

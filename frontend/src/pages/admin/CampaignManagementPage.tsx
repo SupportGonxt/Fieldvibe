@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Calendar } from 'lucide-react';
+import { apiClient } from '../../services/api.service';
+import toast from 'react-hot-toast';
 
 interface Campaign { id: number; name: string; startDate: string; endDate: string; budget: number; status: string; target: number; }
 
@@ -12,32 +14,30 @@ const CampaignManagementPage: React.FC = () => {
 
   const loadCampaigns = async () => {
     try {
-      const res = await fetch('/api/admin/campaigns', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setCampaigns((await res.json()).campaigns || []);
+      const res = await apiClient.get('/admin/campaigns');
+      setCampaigns(res.data?.campaigns || []);
     } catch (err) { console.error(err); }
   };
 
   const saveCampaign = async () => {
     try {
-      const url = editing ? `/api/admin/campaigns/${editing}` : '/api/admin/campaigns';
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadCampaigns(); setEditing(null); setForm({ status: 'planned' }); }
-    } catch (err) { console.error(err); }
+      if (editing) {
+        await apiClient.put(`/admin/campaigns/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/campaigns', form);
+      }
+      toast.success('Campaign saved');
+      loadCampaigns(); setEditing(null); setForm({ status: 'planned' });
+    } catch (err) { toast.error('Failed to save campaign'); }
   };
 
   const deleteCampaign = async (id: number) => {
-    if (!confirm('Delete campaign?')) return;
+    if (!window.confirm('Delete campaign?')) return;
     try {
-      const res = await fetch(`/api/admin/campaigns/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadCampaigns();
-    } catch (err) { console.error(err); }
+      await apiClient.delete(`/admin/campaigns/${id}`);
+      toast.success('Campaign deleted');
+      loadCampaigns();
+    } catch (err) { toast.error('Failed to delete campaign'); }
   };
 
   const getStatusColor = (status: string) => {

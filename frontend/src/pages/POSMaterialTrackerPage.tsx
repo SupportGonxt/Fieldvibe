@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, MapPin, Package, QrCode, Search, Calendar, CheckCircle2, AlertCircle, Upload, Download } from 'lucide-react';
 import toast from 'react-hot-toast'
+import { apiClient } from '../services/api.service'
 
 interface POSMaterial {
   id: number;
@@ -56,16 +57,8 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const loadMaterialLibrary = async () => {
     try {
-      const response = await fetch('/api/trade-marketing-new/materials/library', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMaterials(data.materials || []);
-      }
+      const response = await apiClient.get('/trade-marketing-new/materials/library');
+      setMaterials(response.data?.materials || []);
     } catch (error) {
       console.error('Error loading material library:', error);
     }
@@ -73,16 +66,8 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const loadInstallationHistory = async () => {
     try {
-      const response = await fetch('/api/trade-marketing-new/pos-materials', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setInstallations(data.installations || []);
-      }
+      const response = await apiClient.get('/trade-marketing-new/pos-materials');
+      setInstallations(response.data?.installations || []);
     } catch (error) {
       console.error('Error loading installation history:', error);
     }
@@ -158,34 +143,22 @@ const POSMaterialTrackerPage: React.FC = () => {
     };
 
     try {
-      const response = await fetch('/api/trade-marketing-new/pos-materials', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(installationData)
+      await apiClient.post('/trade-marketing-new/pos-materials', installationData);
+      toast.success('Installation recorded successfully!')
+      await loadInstallationHistory();
+      setShowInstallForm(false);
+      setSelectedMaterial(null);
+      setFormData({
+        condition: 'good',
+        location: '',
+        notes: '',
+        photosBefore: [],
+        photosAfter: [],
+        verificationStatus: 'pending'
       });
-
-      if (response.ok) {
-        toast.success('Installation recorded successfully!')
-        await loadInstallationHistory(); // Reload list
-        setShowInstallForm(false);
-        setSelectedMaterial(null);
-        setFormData({
-          condition: 'good',
-          location: '',
-          notes: '',
-          photosBefore: [],
-          photosAfter: [],
-          verificationStatus: 'pending'
-        });
-      } else {
-        toast.error('Failed to record installation')
-      }
     } catch (error) {
       console.error('Error submitting installation:', error);
-      toast.error('Error recording installation')
+      toast.error('Failed to record installation')
     }
   };
 

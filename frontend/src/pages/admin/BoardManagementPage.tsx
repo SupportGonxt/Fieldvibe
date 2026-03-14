@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { apiClient } from '../../services/api.service';
+import toast from 'react-hot-toast';
 
 interface Board { id: number; name: string; type: string; width: number; height: number; commissionRate: number; installCost: number; }
 
@@ -12,32 +14,30 @@ const BoardManagementPage: React.FC = () => {
 
   const loadBoards = async () => {
     try {
-      const res = await fetch('/api/admin/boards', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setBoards((await res.json()).boards || []);
+      const res = await apiClient.get('/admin/boards');
+      setBoards(res.data?.boards || []);
     } catch (err) { console.error(err); }
   };
 
   const saveBoard = async () => {
     try {
-      const url = editing ? `/api/admin/boards/${editing}` : '/api/admin/boards';
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadBoards(); setEditing(null); setForm({}); }
-    } catch (err) { console.error(err); }
+      if (editing) {
+        await apiClient.put(`/admin/boards/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/boards', form);
+      }
+      toast.success('Board saved');
+      loadBoards(); setEditing(null); setForm({});
+    } catch (err) { toast.error('Failed to save board'); }
   };
 
   const deleteBoard = async (id: number) => {
-    if (!confirm('Delete this board?')) return;
+    if (!window.confirm('Delete this board?')) return;
     try {
-      const res = await fetch(`/api/admin/boards/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadBoards();
-    } catch (err) { console.error(err); }
+      await apiClient.delete(`/admin/boards/${id}`);
+      toast.success('Board deleted');
+      loadBoards();
+    } catch (err) { toast.error('Failed to delete board'); }
   };
 
   return (

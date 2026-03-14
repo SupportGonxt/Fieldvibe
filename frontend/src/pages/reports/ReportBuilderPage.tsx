@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart3, Download, Calendar, Filter } from 'lucide-react';
+import { apiClient } from '../../services/api.service';
+import toast from 'react-hot-toast';
 
 const ReportBuilderPage: React.FC = () => {
   const [config, setConfig] = useState({ type: 'sales', dateFrom: '', dateTo: '', groupBy: 'day', filters: {} });
@@ -9,32 +11,23 @@ const ReportBuilderPage: React.FC = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/reports/generate', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
-      if (res.ok) setData(await res.json());
-    } catch (err) { console.error(err); }
+      const res = await apiClient.post('/reports/generate', config);
+      setData(res.data || {});
+    } catch (err) { toast.error('Failed to generate report'); }
     finally { setLoading(false); }
   };
 
   const exportReport = async (format: string) => {
     try {
-      const res = await fetch(`/api/reports/export?format=${format}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...config, data })
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${Date.now()}.${format}`;
-        a.click();
-      }
-    } catch (err) { console.error(err); }
+      const res = await apiClient.post(`/reports/export?format=${format}`, { ...config, data }, { responseType: 'blob' });
+      const blob = new Blob([res.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-${Date.now()}.${format}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) { toast.error('Failed to export report'); }
   };
 
   return (
