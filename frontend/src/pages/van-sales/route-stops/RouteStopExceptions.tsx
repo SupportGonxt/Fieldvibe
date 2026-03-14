@@ -25,7 +25,7 @@ export default function RouteStopExceptions() {
     enabled: !!routeId,
   })
 
-  const oldExceptions = [
+  const _oldExceptions = [
       {
         id: '1',
         stop_number: 2,
@@ -74,8 +74,7 @@ export default function RouteStopExceptions() {
         resolution: 'Partial delivery, backorder created',
         resolved: true,
       },
-    ],
-  })
+    ]
 
   if (isLoading) {
     return <div className="p-6">Loading exceptions...</div>

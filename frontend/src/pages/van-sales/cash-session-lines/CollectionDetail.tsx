@@ -35,7 +35,7 @@ export default function CollectionDetail() {
     },
   })
 
-  const oldCollection = {
+  const _oldCollection = {
       id: collectionId,
       session_id: sessionId,
       customer_id: 'cust-1',
@@ -48,8 +48,7 @@ export default function CollectionDetail() {
       collected_by: 'John Van Sales',
       reference_number: 'REF-001',
       notes: 'Full payment received',
-    }),
-  })
+    }
 
   if (isLoading) {
     return <div className="p-6">Loading collection details...</div>

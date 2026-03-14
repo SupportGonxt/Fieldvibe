@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import fieldMarketingService from '../services/fieldMarketing.service';
+import { fieldMarketingService } from '../services/fieldMarketing.service';
 
 const BoardPlacementFormPage: React.FC = () => {
   const location = useLocation();

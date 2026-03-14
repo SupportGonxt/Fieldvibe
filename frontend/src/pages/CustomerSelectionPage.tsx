@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import fieldMarketingService from '../services/fieldMarketing.service';
+import { fieldMarketingService } from '../services/fieldMarketing.service';
 
 const CustomerSelectionPage: React.FC = () => {
   const navigate = useNavigate();

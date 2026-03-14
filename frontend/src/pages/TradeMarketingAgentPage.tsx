@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import tradeMarketingService from '../services/tradeMarketing.service';
+import { tradeMarketingService } from '../services/tradeMarketing.service';
 
 const TradeMarketingAgentPage: React.FC = () => {
   const navigate = useNavigate();

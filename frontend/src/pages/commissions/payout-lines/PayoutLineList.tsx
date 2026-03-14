@@ -29,7 +29,7 @@ export default function PayoutLineList() {
       return await commissionsService.getPayoutLines(payoutId)
     },
     enabled: !!payoutId,
-    oldData: [
+    placeholderData: [
       {
         id: '1',
         agent_name: 'John Sales Agent',

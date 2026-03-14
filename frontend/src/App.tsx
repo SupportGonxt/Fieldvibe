@@ -258,6 +258,111 @@ const QuickVisitPage = lazy(() => import('./pages/visits/QuickVisitPage'))
 const PlanMyDayPage = lazy(() => import('./pages/visits/PlanMyDayPage'))
 const OnboardingPage = lazy(() => import('./pages/onboarding/OnboardingPage'))
 
+const OrdersKanban = lazy(() => import('./pages/OrdersKanban'))
+const SKUAvailabilityCheckerPage = lazy(() => import('./pages/SKUAvailabilityCheckerPage'))
+const POSMaterialTrackerPage = lazy(() => import('./pages/POSMaterialTrackerPage'))
+const VisitWorkflowPage = lazy(() => import('./pages/VisitWorkflowPage'))
+const FieldMarketingAgentPage = lazy(() => import('./pages/FieldMarketingAgentPage'))
+const TradeMarketingAgentPage = lazy(() => import('./pages/TradeMarketingAgentPage'))
+const CustomerSelectionPage = lazy(() => import('./pages/CustomerSelectionPage'))
+const BrandActivationFormPage = lazy(() => import('./pages/BrandActivationFormPage'))
+const ShelfAnalyticsFormPage = lazy(() => import('./pages/ShelfAnalyticsFormPage'))
+const CustomersAdvanced = lazy(() => import('./pages/CustomersAdvanced'))
+const MobileLoginPage = lazy(() => import('./pages/auth/MobileLoginPage'))
+const RoleManagementPage = lazy(() => import('./pages/admin-settings/RoleManagementPage'))
+const CalculationDetail = lazy(() => import('./pages/commissions/calculation-details/CalculationDetail'))
+const CalculationLog = lazy(() => import('./pages/commissions/calculation-details/CalculationLog'))
+const ApprovalDetail = lazy(() => import('./pages/commissions/calculation-details/ApprovalDetail'))
+const ExceptionDetail = lazy(() => import('./pages/commissions/calculation-details/ExceptionDetail'))
+const RuleConditionDetail = lazy(() => import('./pages/commissions/calculation-details/RuleConditionDetail'))
+const PayoutLineList = lazy(() => import('./pages/commissions/payout-lines/PayoutLineList'))
+const PayoutLineDetail = lazy(() => import('./pages/commissions/payout-lines/PayoutLineDetail'))
+const PayoutLineEdit = lazy(() => import('./pages/commissions/payout-lines/PayoutLineEdit'))
+const PayoutAuditTrail = lazy(() => import('./pages/commissions/payout-lines/PayoutAuditTrail'))
+const SourceTransactions = lazy(() => import('./pages/commissions/payout-lines/SourceTransactions'))
+const BoardPlacementHistory = lazy(() => import('./pages/field-operations/board-management/BoardPlacementHistory'))
+const BoardPhotoHistory = lazy(() => import('./pages/field-operations/board-management/BoardPhotoHistory'))
+const BoardLocationChanges = lazy(() => import('./pages/field-operations/board-management/BoardLocationChanges'))
+const BoardMaintenanceLog = lazy(() => import('./pages/field-operations/board-management/BoardMaintenanceLog'))
+const BoardComplianceChecks = lazy(() => import('./pages/field-operations/board-management/BoardComplianceChecks'))
+const PhotoGallery = lazy(() => import('./pages/field-operations/photos/PhotoGallery'))
+const PhotoEvidence = lazy(() => import('./pages/field-operations/photos/PhotoEvidence'))
+const PhotoTimeline = lazy(() => import('./pages/field-operations/photos/PhotoTimeline'))
+const PhotoDetail = lazy(() => import('./pages/field-operations/photos/PhotoDetail'))
+const SurveyResponseDetail = lazy(() => import('./pages/field-operations/survey-responses/SurveyResponseDetail'))
+const SurveyResponseEdit = lazy(() => import('./pages/field-operations/survey-responses/SurveyResponseEdit'))
+const SurveyAnalysis = lazy(() => import('./pages/field-operations/survey-responses/SurveyAnalysis'))
+const SurveyComparison = lazy(() => import('./pages/field-operations/survey-responses/SurveyComparison'))
+const SurveyAnswerDetail = lazy(() => import('./pages/field-operations/survey-responses/SurveyAnswerDetail'))
+const VisitTaskList = lazy(() => import('./pages/field-operations/visit-tasks/VisitTaskList'))
+const VisitTaskDetail = lazy(() => import('./pages/field-operations/visit-tasks/VisitTaskDetail'))
+const VisitTaskEdit = lazy(() => import('./pages/field-operations/visit-tasks/VisitTaskEdit'))
+const VisitTaskSurveyDetail = lazy(() => import('./pages/field-operations/visit-tasks/SurveyDetail'))
+const InvoiceItemList = lazy(() => import('./pages/finance/invoice-items/InvoiceItemList'))
+const InvoiceItemDetail = lazy(() => import('./pages/finance/invoice-items/InvoiceItemDetail'))
+const InvoiceItemEdit = lazy(() => import('./pages/finance/invoice-items/InvoiceItemEdit'))
+const InvoiceItemHistory = lazy(() => import('./pages/finance/invoice-items/InvoiceItemHistory'))
+const PaymentAllocationList = lazy(() => import('./pages/finance/payment-allocations/PaymentAllocationList'))
+const PaymentAllocationCreate = lazy(() => import('./pages/finance/payment-allocations/PaymentAllocationCreate'))
+const PaymentAllocationDetail = lazy(() => import('./pages/finance/payment-allocations/PaymentAllocationDetail'))
+const PaymentAllocationEdit = lazy(() => import('./pages/finance/payment-allocations/PaymentAllocationEdit'))
+const InvoiceStatusHistory = lazy(() => import('./pages/finance/invoice-status-history/InvoiceStatusHistory'))
+const PaymentStatusHistory = lazy(() => import('./pages/finance/payment-status-history/PaymentStatusHistory'))
+const AdjustmentItemList = lazy(() => import('./pages/inventory/adjustment-items/AdjustmentItemList'))
+const AdjustmentItemDetail = lazy(() => import('./pages/inventory/adjustment-items/AdjustmentItemDetail'))
+const AdjustmentItemEdit = lazy(() => import('./pages/inventory/adjustment-items/AdjustmentItemEdit'))
+const AdjustmentJustification = lazy(() => import('./pages/inventory/adjustment-items/AdjustmentJustification'))
+const BatchDetail = lazy(() => import('./pages/inventory/batch-tracking/BatchDetail'))
+const BatchExpiry = lazy(() => import('./pages/inventory/batch-tracking/BatchExpiry'))
+const BatchAllocation = lazy(() => import('./pages/inventory/batch-tracking/BatchAllocation'))
+const BatchMovementHistory = lazy(() => import('./pages/inventory/batch-tracking/BatchMovementHistory'))
+const LotTracking = lazy(() => import('./pages/inventory/batch-tracking/LotTracking'))
+const LotDetail = lazy(() => import('./pages/inventory/batch-tracking/LotDetail'))
+const SerialTracking = lazy(() => import('./pages/inventory/batch-tracking/SerialTracking'))
+const SerialDetail = lazy(() => import('./pages/inventory/batch-tracking/SerialDetail'))
+const CountLineList = lazy(() => import('./pages/inventory/stock-count-lines/CountLineList'))
+const CountLineDetail = lazy(() => import('./pages/inventory/stock-count-lines/CountLineDetail'))
+const CountLineEdit = lazy(() => import('./pages/inventory/stock-count-lines/CountLineEdit'))
+const CountLineApproval = lazy(() => import('./pages/inventory/stock-count-lines/CountLineApproval'))
+const VarianceResolution = lazy(() => import('./pages/inventory/stock-count-lines/VarianceResolution'))
+const StockLedgerByProduct = lazy(() => import('./pages/inventory/stock-ledger/StockLedgerByProduct'))
+const StockLedgerByWarehouse = lazy(() => import('./pages/inventory/stock-ledger/StockLedgerByWarehouse'))
+const StockLedgerDetail = lazy(() => import('./pages/inventory/stock-ledger/StockLedgerDetail'))
+const MovementDetail = lazy(() => import('./pages/inventory/stock-ledger/MovementDetail'))
+const TransferItemList = lazy(() => import('./pages/inventory/transfer-items/TransferItemList'))
+const TransferItemDetail = lazy(() => import('./pages/inventory/transfer-items/TransferItemDetail'))
+const TransferItemEdit = lazy(() => import('./pages/inventory/transfer-items/TransferItemEdit'))
+const TransferItemTracking = lazy(() => import('./pages/inventory/transfer-items/TransferItemTracking'))
+const DeliveryList = lazy(() => import('./pages/orders/deliveries/DeliveryList'))
+const DeliveryDetail = lazy(() => import('./pages/orders/deliveries/DeliveryDetail'))
+const DeliveryEdit = lazy(() => import('./pages/orders/deliveries/DeliveryEdit'))
+const DeliveryPOD = lazy(() => import('./pages/orders/deliveries/DeliveryPOD'))
+const DeliveryStops = lazy(() => import('./pages/orders/deliveries/DeliveryStops'))
+const DeliveryStopDetail = lazy(() => import('./pages/orders/deliveries/DeliveryStopDetail'))
+const OrderItemList = lazy(() => import('./pages/orders/items/OrderItemList'))
+const OrderItemDetail = lazy(() => import('./pages/orders/items/OrderItemDetail'))
+const OrderItemEdit = lazy(() => import('./pages/orders/items/OrderItemEdit'))
+const OrderItemHistory = lazy(() => import('./pages/orders/items/OrderItemHistory'))
+const ReturnItemList = lazy(() => import('./pages/orders/returns-items/ReturnItemList'))
+const ReturnItemDetail = lazy(() => import('./pages/orders/returns-items/ReturnItemDetail'))
+const ReturnItemEdit = lazy(() => import('./pages/orders/returns-items/ReturnItemEdit'))
+const ReturnItemApproval = lazy(() => import('./pages/orders/returns-items/ReturnItemApproval'))
+const OrderStatusHistory = lazy(() => import('./pages/orders/status-history/OrderStatusHistory'))
+const StatusTransitionDetail = lazy(() => import('./pages/orders/status-history/StatusTransitionDetail'))
+const RouteStopList = lazy(() => import('./pages/van-sales/route-stops/RouteStopList'))
+const RouteStopDetail = lazy(() => import('./pages/van-sales/route-stops/RouteStopDetail'))
+const RouteStopEdit = lazy(() => import('./pages/van-sales/route-stops/RouteStopEdit'))
+const RouteStopExceptions = lazy(() => import('./pages/van-sales/route-stops/RouteStopExceptions'))
+const RouteStopPerformance = lazy(() => import('./pages/van-sales/route-stops/RouteStopPerformance'))
+const VanLoadItemList = lazy(() => import('./pages/van-sales/van-load-items/VanLoadItemList'))
+const VanLoadItemDetail = lazy(() => import('./pages/van-sales/van-load-items/VanLoadItemDetail'))
+const VanLoadItemEdit = lazy(() => import('./pages/van-sales/van-load-items/VanLoadItemEdit'))
+const VanLoadReconciliation = lazy(() => import('./pages/van-sales/van-load-items/VanLoadReconciliation'))
+const VanLoadVariance = lazy(() => import('./pages/van-sales/van-load-items/VanLoadVariance'))
+const CashSessionCollectionDetail = lazy(() => import('./pages/van-sales/cash-session-lines/CollectionDetail'))
+const CashSessionDepositDetail = lazy(() => import('./pages/van-sales/cash-session-lines/DepositDetail'))
+const CashVariance = lazy(() => import('./pages/van-sales/cash-session-lines/CashVariance'))
+
 // Page loading fallback
 const PageSkeleton = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -708,6 +813,124 @@ function App() {
             <Route path="insights/commissions" element={<Suspense fallback={<PageSkeleton />}><CommissionInsights /></Suspense>} />
             <Route path="insights/goals" element={<Suspense fallback={<PageSkeleton />}><GoalsInsights /></Suspense>} />
             <Route path="insights/anomalies" element={<Suspense fallback={<PageSkeleton />}><AnomalyInsights /></Suspense>} />
+
+            {/* Top-Level Feature Routes */}
+            <Route path="orders/kanban" element={<Suspense fallback={<PageSkeleton />}><OrdersKanban /></Suspense>} />
+            <Route path="inventory/sku-checker" element={<Suspense fallback={<PageSkeleton />}><SKUAvailabilityCheckerPage /></Suspense>} />
+            <Route path="field-operations/pos-tracker" element={<Suspense fallback={<PageSkeleton />}><POSMaterialTrackerPage /></Suspense>} />
+            <Route path="field-operations/visit-workflow" element={<Suspense fallback={<PageSkeleton />}><VisitWorkflowPage /></Suspense>} />
+            <Route path="field-operations/agent-workflow" element={<Suspense fallback={<PageSkeleton />}><FieldMarketingAgentPage /></Suspense>} />
+            <Route path="trade-marketing/agent-view" element={<Suspense fallback={<PageSkeleton />}><TradeMarketingAgentPage /></Suspense>} />
+            <Route path="field-operations/customer-select" element={<Suspense fallback={<PageSkeleton />}><CustomerSelectionPage /></Suspense>} />
+            <Route path="marketing/activations/form" element={<Suspense fallback={<PageSkeleton />}><BrandActivationFormPage /></Suspense>} />
+            <Route path="field-operations/shelf-analytics" element={<Suspense fallback={<PageSkeleton />}><ShelfAnalyticsFormPage /></Suspense>} />
+            <Route path="customers/advanced" element={<Suspense fallback={<PageSkeleton />}><CustomersAdvanced /></Suspense>} />
+            <Route path="admin/role-management" element={<ProtectedRoute requiredRole="admin"><RoleManagementPage /></ProtectedRoute>} />
+
+            {/* Commission Drill-Down Routes */}
+            <Route path="commissions/calculations/:id" element={<Suspense fallback={<PageSkeleton />}><CalculationDetail /></Suspense>} />
+            <Route path="commissions/calculations/:id/log" element={<Suspense fallback={<PageSkeleton />}><CalculationLog /></Suspense>} />
+            <Route path="commissions/calculations/:id/approval" element={<Suspense fallback={<PageSkeleton />}><ApprovalDetail /></Suspense>} />
+            <Route path="commissions/calculations/:id/exceptions" element={<Suspense fallback={<PageSkeleton />}><ExceptionDetail /></Suspense>} />
+            <Route path="commissions/calculations/:id/rules" element={<Suspense fallback={<PageSkeleton />}><RuleConditionDetail /></Suspense>} />
+            <Route path="commissions/payouts/:id/lines" element={<Suspense fallback={<PageSkeleton />}><PayoutLineList /></Suspense>} />
+            <Route path="commissions/payouts/:id/lines/:lineId" element={<Suspense fallback={<PageSkeleton />}><PayoutLineDetail /></Suspense>} />
+            <Route path="commissions/payouts/:id/lines/:lineId/edit" element={<Suspense fallback={<PageSkeleton />}><PayoutLineEdit /></Suspense>} />
+            <Route path="commissions/payouts/:id/audit" element={<Suspense fallback={<PageSkeleton />}><PayoutAuditTrail /></Suspense>} />
+            <Route path="commissions/payouts/:id/transactions" element={<Suspense fallback={<PageSkeleton />}><SourceTransactions /></Suspense>} />
+
+            {/* Field Operations Drill-Down Routes */}
+            <Route path="field-operations/boards/:id/history" element={<Suspense fallback={<PageSkeleton />}><BoardPlacementHistory /></Suspense>} />
+            <Route path="field-operations/boards/:id/photos" element={<Suspense fallback={<PageSkeleton />}><BoardPhotoHistory /></Suspense>} />
+            <Route path="field-operations/boards/:id/locations" element={<Suspense fallback={<PageSkeleton />}><BoardLocationChanges /></Suspense>} />
+            <Route path="field-operations/boards/:id/maintenance" element={<Suspense fallback={<PageSkeleton />}><BoardMaintenanceLog /></Suspense>} />
+            <Route path="field-operations/boards/:id/compliance" element={<Suspense fallback={<PageSkeleton />}><BoardComplianceChecks /></Suspense>} />
+            <Route path="field-operations/visits/:id/photos" element={<Suspense fallback={<PageSkeleton />}><PhotoGallery /></Suspense>} />
+            <Route path="field-operations/visits/:id/photos/:photoId" element={<Suspense fallback={<PageSkeleton />}><PhotoDetail /></Suspense>} />
+            <Route path="field-operations/photos/evidence" element={<Suspense fallback={<PageSkeleton />}><PhotoEvidence /></Suspense>} />
+            <Route path="field-operations/photos/timeline" element={<Suspense fallback={<PageSkeleton />}><PhotoTimeline /></Suspense>} />
+            <Route path="field-operations/survey-responses/:id" element={<Suspense fallback={<PageSkeleton />}><SurveyResponseDetail /></Suspense>} />
+            <Route path="field-operations/survey-responses/:id/edit" element={<Suspense fallback={<PageSkeleton />}><SurveyResponseEdit /></Suspense>} />
+            <Route path="field-operations/survey-responses/:id/analysis" element={<Suspense fallback={<PageSkeleton />}><SurveyAnalysis /></Suspense>} />
+            <Route path="field-operations/survey-responses/comparison" element={<Suspense fallback={<PageSkeleton />}><SurveyComparison /></Suspense>} />
+            <Route path="field-operations/survey-responses/:id/answers/:answerId" element={<Suspense fallback={<PageSkeleton />}><SurveyAnswerDetail /></Suspense>} />
+            <Route path="field-operations/tasks" element={<Suspense fallback={<PageSkeleton />}><VisitTaskList /></Suspense>} />
+            <Route path="field-operations/tasks/:id" element={<Suspense fallback={<PageSkeleton />}><VisitTaskDetail /></Suspense>} />
+            <Route path="field-operations/tasks/:id/edit" element={<Suspense fallback={<PageSkeleton />}><VisitTaskEdit /></Suspense>} />
+            <Route path="field-operations/tasks/:id/survey" element={<Suspense fallback={<PageSkeleton />}><VisitTaskSurveyDetail /></Suspense>} />
+
+            {/* Finance Drill-Down Routes */}
+            <Route path="finance/invoices/:id/line-items" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemList /></Suspense>} />
+            <Route path="finance/invoices/:id/line-items/:itemId" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemDetail /></Suspense>} />
+            <Route path="finance/invoices/:id/line-items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemEdit /></Suspense>} />
+            <Route path="finance/invoices/:id/line-items/:itemId/history" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemHistory /></Suspense>} />
+            <Route path="finance/invoices/:id/status-history" element={<Suspense fallback={<PageSkeleton />}><InvoiceStatusHistory /></Suspense>} />
+            <Route path="finance/payments/:id/allocations" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationList /></Suspense>} />
+            <Route path="finance/payments/:id/allocations/create" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationCreate /></Suspense>} />
+            <Route path="finance/payments/:id/allocations/:allocId" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationDetail /></Suspense>} />
+            <Route path="finance/payments/:id/allocations/:allocId/edit" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationEdit /></Suspense>} />
+            <Route path="finance/payments/:id/status-history" element={<Suspense fallback={<PageSkeleton />}><PaymentStatusHistory /></Suspense>} />
+
+            {/* Inventory Drill-Down Routes */}
+            <Route path="inventory/adjustments/:id/items" element={<Suspense fallback={<PageSkeleton />}><AdjustmentItemList /></Suspense>} />
+            <Route path="inventory/adjustments/:id/items/:itemId" element={<Suspense fallback={<PageSkeleton />}><AdjustmentItemDetail /></Suspense>} />
+            <Route path="inventory/adjustments/:id/items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><AdjustmentItemEdit /></Suspense>} />
+            <Route path="inventory/adjustments/:id/items/:itemId/justification" element={<Suspense fallback={<PageSkeleton />}><AdjustmentJustification /></Suspense>} />
+            <Route path="inventory/batches" element={<Suspense fallback={<PageSkeleton />}><LotTracking /></Suspense>} />
+            <Route path="inventory/batches/:id" element={<Suspense fallback={<PageSkeleton />}><BatchDetail /></Suspense>} />
+            <Route path="inventory/batches/:id/expiry" element={<Suspense fallback={<PageSkeleton />}><BatchExpiry /></Suspense>} />
+            <Route path="inventory/batches/:id/allocation" element={<Suspense fallback={<PageSkeleton />}><BatchAllocation /></Suspense>} />
+            <Route path="inventory/batches/:id/movements" element={<Suspense fallback={<PageSkeleton />}><BatchMovementHistory /></Suspense>} />
+            <Route path="inventory/lots" element={<Suspense fallback={<PageSkeleton />}><LotTracking /></Suspense>} />
+            <Route path="inventory/lots/:id" element={<Suspense fallback={<PageSkeleton />}><LotDetail /></Suspense>} />
+            <Route path="inventory/serials" element={<Suspense fallback={<PageSkeleton />}><SerialTracking /></Suspense>} />
+            <Route path="inventory/serials/:id" element={<Suspense fallback={<PageSkeleton />}><SerialDetail /></Suspense>} />
+            <Route path="inventory/stock-counts/:id/lines" element={<Suspense fallback={<PageSkeleton />}><CountLineList /></Suspense>} />
+            <Route path="inventory/stock-counts/:id/lines/:lineId" element={<Suspense fallback={<PageSkeleton />}><CountLineDetail /></Suspense>} />
+            <Route path="inventory/stock-counts/:id/lines/:lineId/edit" element={<Suspense fallback={<PageSkeleton />}><CountLineEdit /></Suspense>} />
+            <Route path="inventory/stock-counts/:id/lines/:lineId/approve" element={<Suspense fallback={<PageSkeleton />}><CountLineApproval /></Suspense>} />
+            <Route path="inventory/stock-counts/:id/lines/:lineId/variance" element={<Suspense fallback={<PageSkeleton />}><VarianceResolution /></Suspense>} />
+            <Route path="inventory/ledger/by-product" element={<Suspense fallback={<PageSkeleton />}><StockLedgerByProduct /></Suspense>} />
+            <Route path="inventory/ledger/by-warehouse" element={<Suspense fallback={<PageSkeleton />}><StockLedgerByWarehouse /></Suspense>} />
+            <Route path="inventory/ledger/:id" element={<Suspense fallback={<PageSkeleton />}><StockLedgerDetail /></Suspense>} />
+            <Route path="inventory/ledger/movements/:id" element={<Suspense fallback={<PageSkeleton />}><MovementDetail /></Suspense>} />
+            <Route path="inventory/transfers/:id/items" element={<Suspense fallback={<PageSkeleton />}><TransferItemList /></Suspense>} />
+            <Route path="inventory/transfers/:id/items/:itemId" element={<Suspense fallback={<PageSkeleton />}><TransferItemDetail /></Suspense>} />
+            <Route path="inventory/transfers/:id/items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><TransferItemEdit /></Suspense>} />
+            <Route path="inventory/transfers/:id/items/:itemId/tracking" element={<Suspense fallback={<PageSkeleton />}><TransferItemTracking /></Suspense>} />
+
+            {/* Order Drill-Down Routes */}
+            <Route path="orders/:id/deliveries" element={<Suspense fallback={<PageSkeleton />}><DeliveryList /></Suspense>} />
+            <Route path="orders/:id/deliveries/:delId" element={<Suspense fallback={<PageSkeleton />}><DeliveryDetail /></Suspense>} />
+            <Route path="orders/:id/deliveries/:delId/edit" element={<Suspense fallback={<PageSkeleton />}><DeliveryEdit /></Suspense>} />
+            <Route path="orders/:id/deliveries/:delId/pod" element={<Suspense fallback={<PageSkeleton />}><DeliveryPOD /></Suspense>} />
+            <Route path="orders/:id/deliveries/:delId/stops" element={<Suspense fallback={<PageSkeleton />}><DeliveryStops /></Suspense>} />
+            <Route path="orders/:id/deliveries/:delId/stops/:stopId" element={<Suspense fallback={<PageSkeleton />}><DeliveryStopDetail /></Suspense>} />
+            <Route path="orders/:id/line-items" element={<Suspense fallback={<PageSkeleton />}><OrderItemList /></Suspense>} />
+            <Route path="orders/:id/line-items/:itemId" element={<Suspense fallback={<PageSkeleton />}><OrderItemDetail /></Suspense>} />
+            <Route path="orders/:id/line-items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><OrderItemEdit /></Suspense>} />
+            <Route path="orders/:id/line-items/:itemId/history" element={<Suspense fallback={<PageSkeleton />}><OrderItemHistory /></Suspense>} />
+            <Route path="orders/:id/returns/:returnId/items" element={<Suspense fallback={<PageSkeleton />}><ReturnItemList /></Suspense>} />
+            <Route path="orders/:id/returns/:returnId/items/:itemId" element={<Suspense fallback={<PageSkeleton />}><ReturnItemDetail /></Suspense>} />
+            <Route path="orders/:id/returns/:returnId/items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><ReturnItemEdit /></Suspense>} />
+            <Route path="orders/:id/returns/:returnId/items/:itemId/approve" element={<Suspense fallback={<PageSkeleton />}><ReturnItemApproval /></Suspense>} />
+            <Route path="orders/:id/status-history" element={<Suspense fallback={<PageSkeleton />}><OrderStatusHistory /></Suspense>} />
+            <Route path="orders/:id/status-history/:transitionId" element={<Suspense fallback={<PageSkeleton />}><StatusTransitionDetail /></Suspense>} />
+
+            {/* Van Sales Drill-Down Routes */}
+            <Route path="van-sales/routes/:id/stops" element={<Suspense fallback={<PageSkeleton />}><RouteStopList /></Suspense>} />
+            <Route path="van-sales/routes/:id/stops/:stopId" element={<Suspense fallback={<PageSkeleton />}><RouteStopDetail /></Suspense>} />
+            <Route path="van-sales/routes/:id/stops/:stopId/edit" element={<Suspense fallback={<PageSkeleton />}><RouteStopEdit /></Suspense>} />
+            <Route path="van-sales/routes/:id/stops/:stopId/exceptions" element={<Suspense fallback={<PageSkeleton />}><RouteStopExceptions /></Suspense>} />
+            <Route path="van-sales/routes/:id/stops/:stopId/performance" element={<Suspense fallback={<PageSkeleton />}><RouteStopPerformance /></Suspense>} />
+            <Route path="van-sales/van-loads/:id/items" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemList /></Suspense>} />
+            <Route path="van-sales/van-loads/:id/items/:itemId" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemDetail /></Suspense>} />
+            <Route path="van-sales/van-loads/:id/items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemEdit /></Suspense>} />
+            <Route path="van-sales/van-loads/:id/reconciliation" element={<Suspense fallback={<PageSkeleton />}><VanLoadReconciliation /></Suspense>} />
+            <Route path="van-sales/van-loads/:id/variance" element={<Suspense fallback={<PageSkeleton />}><VanLoadVariance /></Suspense>} />
+            <Route path="van-sales/cash-reconciliation/:id/collections/:colId" element={<Suspense fallback={<PageSkeleton />}><CashSessionCollectionDetail /></Suspense>} />
+            <Route path="van-sales/cash-reconciliation/:id/deposits/:depId" element={<Suspense fallback={<PageSkeleton />}><CashSessionDepositDetail /></Suspense>} />
+            <Route path="van-sales/cash-reconciliation/:id/variance" element={<Suspense fallback={<PageSkeleton />}><CashVariance /></Suspense>} />
 
             {/* Default redirect */}
             <Route index element={<Navigate to="dashboard" replace />} />

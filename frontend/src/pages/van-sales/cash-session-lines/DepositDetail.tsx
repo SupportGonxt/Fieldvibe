@@ -35,7 +35,7 @@ export default function DepositDetail() {
     },
   })
 
-  const oldDeposit = {
+  const _oldDeposit = {
       id: depositId,
       session_id: sessionId,
       deposit_number: 'DEP-2024-001',
@@ -54,8 +54,7 @@ export default function DepositDetail() {
         cards: 0.00,
       },
       notes: 'End of day deposit',
-    }),
-  })
+    }
 
   if (isLoading) {
     return <div className="p-6">Loading deposit details...</div>
