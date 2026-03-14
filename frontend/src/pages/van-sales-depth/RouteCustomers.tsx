@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, Phone } from 'lucide-react'
 import { vanSalesService } from '../../services/vanSales.service'
 import { beatRoutesService } from '../../services/beat-routes.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function RouteCustomers() {
   const { id } = useParams<{ id: string }>()
@@ -18,7 +19,7 @@ export default function RouteCustomers() {
     queryFn: () => beatRoutesService.getRouteCustomers(id!),
   })
 
-  if (isLoading) return <div className="p-6">Loading customers...</div>
+  if (isLoading) return <div className="p-6"><LoadingSpinner size="md" /></div>
 
   return (
     <div className="p-6">

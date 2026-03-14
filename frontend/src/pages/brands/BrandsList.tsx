@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter } from 'lucide-react'
 import { brandService } from '../../services/brand.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import EmptyState from '../../components/ui/EmptyState'
 
 export default function BrandsList() {
   const navigate = useNavigate()
@@ -50,7 +52,7 @@ export default function BrandsList() {
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading brands...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : brands.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             No brands found. Create your first brand to get started.

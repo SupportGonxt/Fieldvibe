@@ -137,7 +137,6 @@ export default function VanSalesOrdersList() {
       data={orders}
       loading={loading}
       onRefresh={loadOrders}
-      onExport={() => console.log('Export orders')}
       createPath="/van-sales/orders/create"
       createLabel="Create Order"
     />

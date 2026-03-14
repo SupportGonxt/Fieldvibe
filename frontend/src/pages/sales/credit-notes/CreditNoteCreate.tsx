@@ -6,6 +6,7 @@ import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
 import { customersService } from '../../../services/customers.service'
 import { discountsService } from '../../../services/discounts.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface Customer {
   id: string
@@ -105,7 +106,7 @@ export default function CreditNoteCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

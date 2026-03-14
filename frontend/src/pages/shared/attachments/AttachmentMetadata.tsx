@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { attachmentsService } from '../../../services/attachments.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface MetadataFormData {
   description: string
@@ -41,7 +43,7 @@ export default function AttachmentMetadata() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
 
   if (!attachment) {

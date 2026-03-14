@@ -111,7 +111,6 @@ export default function InvoicesList() {
       data={invoices}
       loading={loading}
       onRefresh={loadInvoices}
-      onExport={() => console.log('Export invoices')}
       createPath="/sales/invoices/create"
       createLabel="Create Invoice"
     />

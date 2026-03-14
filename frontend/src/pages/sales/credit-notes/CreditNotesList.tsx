@@ -108,7 +108,6 @@ export default function CreditNotesList() {
       data={creditNotes}
       loading={loading}
       onRefresh={loadCreditNotes}
-      onExport={() => console.log('Export credit notes')}
       createPath="/sales/credit-notes/create"
       createLabel="Create Credit Note"
     />

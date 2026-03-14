@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, FileText } from 'lucide-react'
 import { documentsService } from '../../../services/documents.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface DocumentFlowVisualizationProps {
   entityType: string

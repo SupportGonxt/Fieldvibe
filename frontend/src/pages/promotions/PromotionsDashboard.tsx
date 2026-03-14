@@ -37,6 +37,8 @@ import {
 import { promotionsService } from '../../services/promotions.service'
 import { formatDate, formatNumber, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']
 

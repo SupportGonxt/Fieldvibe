@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, Factory, Calendar, CheckCircle } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function LotDetail() {
   const { lotId } = useParams<{ lotId: string }>()

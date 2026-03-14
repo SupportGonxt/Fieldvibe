@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { reportsService } from '../../services/reports.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface ReportFormData {
   name: string
@@ -50,7 +51,7 @@ export default function ReportEdit() {
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading report...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

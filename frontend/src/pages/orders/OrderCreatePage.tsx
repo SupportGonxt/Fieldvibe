@@ -5,6 +5,7 @@ import { ordersService } from '../../services/orders.service'
 import { customersService } from '../../services/customers.service'
 import { productsService } from '../../services/products.service'
 import { discountsService, Discount } from '../../services/discounts.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Product {
   id: string
@@ -239,7 +240,7 @@ export default function OrderCreatePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

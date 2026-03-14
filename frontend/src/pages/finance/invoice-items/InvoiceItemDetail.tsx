@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, DollarSign, TrendingUp } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function InvoiceItemDetail() {
   const { invoiceId, itemId } = useParams<{ invoiceId: string; itemId: string }>()

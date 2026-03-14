@@ -130,7 +130,6 @@ export default function IssuesList() {
       data={issues}
       loading={loading}
       onRefresh={loadIssues}
-      onExport={() => console.log('Export issues')}
       createPath="/inventory/issues/create"
       createLabel="Create Issue"
     />

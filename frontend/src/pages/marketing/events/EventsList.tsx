@@ -119,7 +119,6 @@ export default function EventsList() {
       data={events}
       loading={loading}
       onRefresh={loadEvents}
-      onExport={() => console.log('Export events')}
       createPath="/marketing/events/create"
       createLabel="Create Event"
     />

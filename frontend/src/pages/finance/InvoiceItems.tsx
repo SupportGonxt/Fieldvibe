@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { financeService } from '../../services/finance.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function InvoiceItems() {
   const { id } = useParams<{ id: string }>()
@@ -21,7 +22,7 @@ export default function InvoiceItems() {
   const subtotal = items?.reduce((sum, item) => sum + item.total, 0) || 0
 
   if (isLoading) {
-    return <div className="p-6">Loading items...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

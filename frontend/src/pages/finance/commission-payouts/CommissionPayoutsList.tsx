@@ -109,7 +109,6 @@ export default function CommissionPayoutsList() {
       data={payouts}
       loading={loading}
       onRefresh={loadPayouts}
-      onExport={() => console.log('Export commission payouts')}
     />
   )
 }

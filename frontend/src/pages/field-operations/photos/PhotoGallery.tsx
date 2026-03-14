@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image as ImageIcon, Calendar } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PhotoGallery() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -66,7 +67,7 @@ export default function PhotoGallery() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading photos...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

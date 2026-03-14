@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { customersService } from '../../services/customers.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface KYCFormData {
   business_name: string
@@ -48,7 +49,7 @@ export default function KYCEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading KYC...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

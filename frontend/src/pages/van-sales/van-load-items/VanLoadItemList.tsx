@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, TrendingUp, TrendingDown } from 'lucide-react'
 import { vanSalesService } from '../../../services/vanSales.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VanLoadItemList() {
   const { loadId } = useParams<{ loadId: string }>()
@@ -31,7 +32,7 @@ export default function VanLoadItemList() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading items...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

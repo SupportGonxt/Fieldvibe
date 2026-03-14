@@ -116,7 +116,6 @@ export default function CommissionLedgerList() {
       data={commissions}
       loading={loading}
       onRefresh={loadCommissions}
-      onExport={() => console.log('Export commissions')}
     />
   )
 }

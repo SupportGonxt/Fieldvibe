@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function ExceptionDetail() {
   const { calculationId, exceptionId } = useParams<{ calculationId: string; exceptionId: string }>()
@@ -22,7 +24,7 @@ export default function ExceptionDetail() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading exception...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!exception) {

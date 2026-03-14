@@ -129,7 +129,6 @@ export default function BoardPlacementsList() {
       data={placements}
       loading={loading}
       onRefresh={loadPlacements}
-      onExport={() => console.log('Export board placements')}
       createPath="/field-operations/board-placements/create"
       createLabel="Create Placement"
     />

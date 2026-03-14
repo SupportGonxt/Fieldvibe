@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, DollarSign, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function CommissionDetail() {
   const { id } = useParams<{ id: string }>()

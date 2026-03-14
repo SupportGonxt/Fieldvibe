@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 export const CommissionDashboardPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -23,7 +26,7 @@ export const CommissionDashboardPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

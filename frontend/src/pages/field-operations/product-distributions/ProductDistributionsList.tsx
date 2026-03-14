@@ -133,7 +133,6 @@ export default function ProductDistributionsList() {
       data={distributions}
       loading={loading}
       onRefresh={loadDistributions}
-      onExport={() => console.log('Export product distributions')}
       createPath="/field-operations/product-distributions/create"
       createLabel="Create Distribution"
     />

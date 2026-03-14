@@ -36,6 +36,7 @@ import {
   Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { apiClient } from '../../services/api.service';
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Tenant {
   id: number;
@@ -256,7 +257,7 @@ const TenantManagement: React.FC = () => {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} align="center">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} align="center"><LoadingSpinner size="sm" /></TableCell></TableRow>
             ) : tenants.length === 0 ? (
               <TableRow><TableCell colSpan={6} align="center">No tenants found</TableCell></TableRow>
             ) : (

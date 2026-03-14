@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, Percent, Target } from 'lucide-react'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function RuleDetail() {
   const { id } = useParams<{ id: string }>()

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button'
 import { MapPin, Clock, Truck, Navigation, Plus, Edit, Trash2 } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Route {
   id: string

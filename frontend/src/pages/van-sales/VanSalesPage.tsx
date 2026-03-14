@@ -5,6 +5,7 @@ import { Truck, MapPin, Package, DollarSign, TrendingUp, Clock } from 'lucide-re
 import { formatCurrency } from '../../utils/currency'
 import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../../services/api.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface VanSalesMetrics {
   totalVans: number

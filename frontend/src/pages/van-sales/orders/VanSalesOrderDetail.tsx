@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VanSalesOrderDetail() {
   const { id } = useParams()
@@ -41,11 +43,15 @@ export default function VanSalesOrderDetail() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!order) {
-    return <div className="flex items-center justify-center h-64">Order not found</div>
+    return <ErrorState title="Order not found" message="The order you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Send, ArrowRightLeft, Warehouse } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { inventoryService } from '../../../services/inventory.service'
 import { productsService } from '../../../services/products.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface WarehouseType {
   id: string
@@ -101,7 +102,7 @@ export default function TransferCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

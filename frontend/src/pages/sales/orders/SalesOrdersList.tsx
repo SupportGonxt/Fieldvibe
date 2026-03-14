@@ -116,7 +116,6 @@ export default function SalesOrdersList() {
       data={orders}
       loading={loading}
       onRefresh={loadOrders}
-      onExport={() => console.log('Export orders')}
       createPath="/sales/orders/create"
       createLabel="Create Order"
     />

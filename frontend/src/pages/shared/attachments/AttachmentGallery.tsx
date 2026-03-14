@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Image, FileText, File } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface AttachmentGalleryProps {
   entityType: string
@@ -55,7 +56,7 @@ export default function AttachmentGallery({ entityType, entityId }: AttachmentGa
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading gallery...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

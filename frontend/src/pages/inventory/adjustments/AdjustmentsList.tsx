@@ -112,7 +112,6 @@ export default function AdjustmentsList() {
       data={adjustments}
       loading={loading}
       onRefresh={loadAdjustments}
-      onExport={() => console.log('Export adjustments')}
       createPath="/inventory/adjustments/create"
       createLabel="Create Adjustment"
     />

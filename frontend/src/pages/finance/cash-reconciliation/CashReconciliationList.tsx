@@ -112,7 +112,6 @@ export default function CashReconciliationList() {
       data={reconciliations}
       loading={loading}
       onRefresh={loadReconciliations}
-      onExport={() => console.log('Export cash reconciliations')}
       createPath="/finance/cash-reconciliation/create"
       createLabel="Create Reconciliation"
     />

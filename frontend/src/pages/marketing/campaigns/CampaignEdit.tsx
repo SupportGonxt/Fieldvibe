@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionForm from '../../../components/transactions/TransactionForm'
 import { marketingService } from '../../../services/marketing.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CampaignEdit() {
   const { id } = useParams()
@@ -98,11 +100,15 @@ export default function CampaignEdit() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!campaign) {
-    return <div className="flex items-center justify-center h-64">Campaign not found</div>
+    return <ErrorState title="Campaign not found" message="The campaign you are looking for does not exist or has been deleted." />
   }
 
   return (

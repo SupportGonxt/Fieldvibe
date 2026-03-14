@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, AlertTriangle, DollarSign } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface VarianceFormData {
   resolution_action: string
@@ -30,16 +32,15 @@ export default function CashVariance() {
     },
   })
 
-  const oldSession = {
-      id: sessionId,
-      session_number: 'CASH-2024-001',
-      agent_name: 'John Van Sales',
-      expected_cash: 2450.00,
-      actual_cash: 2430.00,
-      variance: -20.00,
-      variance_percentage: -0.82,
-    }),
-  })
+  const fallbackSession = {
+    id: sessionId,
+    session_number: 'CASH-2024-001',
+    agent_name: 'John Van Sales',
+    expected_cash: 2450.00,
+    actual_cash: 2430.00,
+    variance: -20.00,
+    variance_percentage: -0.82,
+  }
 
   const { register, handleSubmit, formState: { errors } } = useForm<VarianceFormData>()
 
@@ -58,7 +59,7 @@ export default function CashVariance() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
 
   if (!session) {
