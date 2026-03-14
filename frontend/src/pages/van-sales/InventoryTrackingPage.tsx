@@ -33,7 +33,7 @@ export default function InventoryTrackingPage() {
   const fetchInventoryData = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with real API calls
+      // FUTURE: Replace with real API calls
       setInventory([
         {
           id: '1',

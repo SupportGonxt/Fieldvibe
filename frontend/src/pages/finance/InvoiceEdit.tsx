@@ -30,7 +30,7 @@ export default function InvoiceEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id }
     },
     onSuccess: () => {

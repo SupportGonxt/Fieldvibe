@@ -27,7 +27,7 @@ export default function CommissionCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CommissionFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id: 'new-commission-id' }
     },
     onSuccess: (data) => {

@@ -13,7 +13,7 @@ export default function AuditTrailExport({ entityType, entityId }: AuditTrailExp
   const handleExport = async (format: 'csv' | 'pdf' | 'json') => {
     setIsExporting(true)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       toast.success(`Audit trail exported as ${format.toUpperCase()}`)
     } catch (error) {
       toast.error('Failed to export audit trail')

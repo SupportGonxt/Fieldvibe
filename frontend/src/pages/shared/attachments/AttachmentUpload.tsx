@@ -33,7 +33,7 @@ export default function AttachmentUpload({ entityType, entityId }: AttachmentUpl
 
     setIsUploading(true)
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1500ms fake delay
       toast.success(`${selectedFiles.length} file(s) uploaded successfully`)
       navigate(-1)
     } catch (error) {

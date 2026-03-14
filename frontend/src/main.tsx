@@ -1,14 +1,33 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { Toaster } from 'react-hot-toast'
+import { Toaster, toast } from 'react-hot-toast'
 import App from './App'
 import './index.css'
 
+// BUG-013: Global error handlers for queries and mutations
+const queryCache = new QueryCache({
+  onError: (error: unknown) => {
+    const msg = error instanceof Error ? error.message : 'An unexpected error occurred'
+    if ((error as any)?.status === 401) return // handled by interceptor
+    toast.error(msg)
+  },
+})
+
+const mutationCache = new MutationCache({
+  onError: (error: unknown) => {
+    const msg = error instanceof Error ? error.message : 'An unexpected error occurred'
+    if ((error as any)?.status === 401) return
+    toast.error(msg)
+  },
+})
+
 // Create a client
 const queryClient = new QueryClient({
+  queryCache,
+  mutationCache,
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes

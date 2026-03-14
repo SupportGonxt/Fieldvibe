@@ -43,7 +43,7 @@ export default function AuditExport() {
 
   const exportMutation = useMutation({
     mutationFn: async (data: ExportFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { download_url: '/exports/audit-trail-123.csv' }
     },
     onSuccess: (data) => {

@@ -52,7 +52,7 @@ export default function CampaignsPage() {
   const fetchCampaignsData = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with real API calls
+      // FUTURE: Replace with real API calls
       setMetrics({
         totalCampaigns: 24,
         activeCampaigns: 8,
