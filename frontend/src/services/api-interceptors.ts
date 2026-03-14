@@ -68,8 +68,9 @@ export function setupInterceptors() {
         }
       }
 
-      // Exponential backoff retry for 5xx
-      if (error.response?.status >= 500 && (!originalRequest._retryCount || originalRequest._retryCount < 3)) {
+      // Exponential backoff retry for 5xx (only idempotent methods to avoid duplicate mutations)
+      const idempotentMethods = ['get', 'head', 'options']
+      if (error.response?.status >= 500 && idempotentMethods.includes((originalRequest.method || '').toLowerCase()) && (!originalRequest._retryCount || originalRequest._retryCount < 3)) {
         originalRequest._retryCount = (originalRequest._retryCount || 0) + 1
         const delay = Math.pow(2, originalRequest._retryCount) * 1000
         await new Promise(resolve => setTimeout(resolve, delay))

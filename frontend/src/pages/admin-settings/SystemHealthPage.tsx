@@ -37,7 +37,7 @@ export const SystemHealthPage: React.FC = () => {
       { name: 'Customers', endpoint: '/customers?limit=1' },
       { name: 'Products', endpoint: '/products?limit=1' },
       { name: 'Orders', endpoint: '/orders?limit=1' },
-      { name: 'Self-Healing Engine', endpoint: '/api/self-heal/status' },
+      { name: 'Self-Healing Engine', endpoint: '/platform/self-heal' },
       { name: 'Analytics', endpoint: '/analytics-new/sales?period=daily' },
     ]
     const results: ServiceStatus[] = []
@@ -59,7 +59,7 @@ export const SystemHealthPage: React.FC = () => {
 
   const fetchHealHistory = async () => {
     try {
-      const res = await apiClient.get('/api/self-heal/status')
+      const res = await apiClient.get('/platform/self-heal')
       if (res.data && typeof res.data === 'object') {
         setHealHistory([res.data as HealHistory])
       }
@@ -69,7 +69,7 @@ export const SystemHealthPage: React.FC = () => {
   const triggerHeal = async () => {
     setHealRunning(true)
     try {
-      await apiClient.post('/api/self-heal/run')
+      await apiClient.post('/platform/self-heal')
       await fetchHealHistory()
     } catch { /* ignore */ }
     setHealRunning(false)

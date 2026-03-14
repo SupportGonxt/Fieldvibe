@@ -1360,7 +1360,7 @@ api.post('/commission-rules', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare('INSERT INTO commission_rules (id, tenant_id, name, source_type, rate, min_threshold, max_cap, product_filter, effective_from, effective_to, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.name, body.source_type, body.rate, body.min_threshold || 0, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null).run();
+  await db.prepare('INSERT INTO commission_rules (id, tenant_id, name, source_type, rate, manager_override_rate, min_threshold, max_cap, product_filter, effective_from, effective_to, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.name, body.source_type, body.rate, body.manager_override_rate || 0, body.min_threshold || 0, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null).run();
   return c.json({ success: true, data: { id } }, 201);
 });
 
@@ -1369,7 +1369,7 @@ api.put('/commission-rules/:id', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE commission_rules SET name = COALESCE(?, name), rate = COALESCE(?, rate), min_threshold = COALESCE(?, min_threshold), max_cap = COALESCE(?, max_cap), is_active = COALESCE(?, is_active) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.rate || null, body.min_threshold !== undefined ? body.min_threshold : null, body.max_cap !== undefined ? body.max_cap : null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
+  await db.prepare('UPDATE commission_rules SET name = COALESCE(?, name), rate = COALESCE(?, rate), manager_override_rate = COALESCE(?, manager_override_rate), min_threshold = COALESCE(?, min_threshold), max_cap = COALESCE(?, max_cap), is_active = COALESCE(?, is_active) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.rate || null, body.manager_override_rate !== undefined ? body.manager_override_rate : null, body.min_threshold !== undefined ? body.min_threshold : null, body.max_cap !== undefined ? body.max_cap : null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
   return c.json({ success: true, message: 'Commission rule updated' });
 });
 
@@ -4223,7 +4223,7 @@ api.post('/commission-rules', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare('INSERT INTO commission_rules (id, tenant_id, name, source_type, rate, min_threshold, max_cap, product_filter, effective_from, effective_to, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.source_type, body.rate, body.min_threshold || 0, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null, 1).run();
+  await db.prepare('INSERT INTO commission_rules (id, tenant_id, name, source_type, rate, manager_override_rate, min_threshold, max_cap, product_filter, effective_from, effective_to, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.source_type, body.rate, body.manager_override_rate || 0, body.min_threshold || 0, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null, 1).run();
   return c.json({ success: true, data: { id }, message: 'Commission rule created' }, 201);
 });
 
@@ -4232,7 +4232,7 @@ api.put('/commission-rules/:id', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE commission_rules SET name = COALESCE(?, name), source_type = COALESCE(?, source_type), rate = COALESCE(?, rate), min_threshold = COALESCE(?, min_threshold), max_cap = ?, product_filter = ?, effective_from = ?, effective_to = ?, is_active = COALESCE(?, is_active) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.source_type || null, body.rate || null, body.min_threshold || null, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
+  await db.prepare('UPDATE commission_rules SET name = COALESCE(?, name), source_type = COALESCE(?, source_type), rate = COALESCE(?, rate), manager_override_rate = COALESCE(?, manager_override_rate), min_threshold = COALESCE(?, min_threshold), max_cap = ?, product_filter = ?, effective_from = ?, effective_to = ?, is_active = COALESCE(?, is_active) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.source_type || null, body.rate || null, body.manager_override_rate !== undefined ? body.manager_override_rate : null, body.min_threshold || null, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
   return c.json({ success: true, message: 'Commission rule updated' });
 });
 
@@ -6032,7 +6032,7 @@ api.post('/van-sales/reconciliations/denominations', async (c) => {
   const totalExpected = expected ? expected.total : 0;
   const variance = totalActual - totalExpected;
   const id = crypto.randomUUID();
-  await db.prepare("INSERT INTO van_reconciliations (id, tenant_id, van_stock_load_id, agent_id, total_expected, total_actual, variance, cash_breakdown, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))").bind(id, tenantId, body.van_stock_load_id, userId, totalExpected, totalActual, variance, JSON.stringify(denominations), Math.abs(variance) < 0.01 ? 'balanced' : 'discrepancy').run();
+  await db.prepare("INSERT INTO van_reconciliations (id, tenant_id, van_stock_load_id, cash_expected, cash_actual, variance, denominations, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))").bind(id, tenantId, body.van_stock_load_id, totalExpected, totalActual, variance, JSON.stringify(denominations), Math.abs(variance) < 0.01 ? 'balanced' : 'discrepancy').run();
   return c.json({ success: true, data: { id, total_expected: totalExpected, total_actual: totalActual, variance, denominations, status: Math.abs(variance) < 0.01 ? 'balanced' : 'discrepancy' }, message: 'Cash reconciliation recorded' }, 201);
 });
 

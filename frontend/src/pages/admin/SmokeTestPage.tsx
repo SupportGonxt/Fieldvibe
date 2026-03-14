@@ -44,7 +44,7 @@ export default function SmokeTestPage() {
     { name: 'GPS Tracking', endpoint: '/gps/agents/active' },
     { name: 'Audit Logs', endpoint: '/audit-logs?limit=1' },
     { name: 'Analytics Sales', endpoint: '/analytics-new/sales?period=daily' },
-    { name: 'Self-Heal Status', endpoint: '/api/self-heal/status' },
+    { name: 'Self-Heal Status', endpoint: '/platform/self-heal' },
     { name: 'Visits API', endpoint: '/visits?limit=1' },
     { name: 'Commissions API', endpoint: '/commissions?limit=1' },
   ]
@@ -87,7 +87,7 @@ export default function SmokeTestPage() {
     setIntegrityChecks(checks)
     try {
       setIntegrityChecks(prev => prev.map(c => ({ ...c, status: 'loading' as const })))
-      const res = await apiClient.get('/api/self-heal/status')
+      const res = await apiClient.get('/platform/self-heal')
       const data = res.data as Record<string, string>
       setIntegrityChecks(checks.map(c => ({
         ...c,
@@ -130,7 +130,7 @@ export default function SmokeTestPage() {
   const triggerHeal = async () => {
     setHealRunning(true)
     try {
-      const res = await apiClient.post('/api/self-heal/run')
+      const res = await apiClient.post('/platform/self-heal')
       setLastHealResult(res.data as Record<string, unknown>)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown'

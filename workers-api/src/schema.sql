@@ -521,6 +521,7 @@ CREATE TABLE IF NOT EXISTS commission_rules (
   name TEXT NOT NULL,
   source_type TEXT NOT NULL,
   rate REAL NOT NULL,
+  manager_override_rate REAL DEFAULT 0,
   min_threshold REAL DEFAULT 0,
   max_cap REAL,
   product_filter TEXT,
