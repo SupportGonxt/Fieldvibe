@@ -19,7 +19,7 @@ export default function PlanMyDayPage() {
 
   const suggestMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.post('/api/route-plans/suggest', {
+      const res = await apiClient.post('/route-plans/suggest', {
         agent_lat: position?.latitude,
         agent_lng: position?.longitude,
         max_visits: 12,

@@ -45,12 +45,12 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
   for (const action of queue) {
     try {
       const endpointMap: Record<string, string> = {
-        visit_start: '/api/visits/quick-start',
+        visit_start: '/visits/quick-start',
         visit_end: '/visits/checkout',
         order_draft: '/sales/orders/create',
         photo_upload: '/visits/photos',
       }
-      await apiClient.post(endpointMap[action.type] || '/api/sync', action.payload)
+      await apiClient.post(endpointMap[action.type] || '/sync', action.payload)
       synced++
     } catch {
       action.retries++

@@ -32,7 +32,7 @@ export default function OnboardingPage() {
 
   const fetchProgress = async () => {
     try {
-      const res = await apiClient.get('/api/onboarding/progress')
+      const res = await apiClient.get('/onboarding/progress')
       const data = res.data as { completed_steps?: string[] }
       if (data.completed_steps) {
         setSteps(prev => prev.map(s => ({
@@ -46,7 +46,7 @@ export default function OnboardingPage() {
 
   const markComplete = async (stepId: string) => {
     try {
-      await apiClient.post('/api/onboarding/complete-step', { step_id: stepId })
+      await apiClient.post('/onboarding/complete-step', { step_id: stepId })
       setSteps(prev => prev.map(s => s.id === stepId ? { ...s, completed: true } : s))
     } catch { /* ignore */ }
   }

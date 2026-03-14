@@ -12,7 +12,7 @@ export function usePageTracking() {
     // Track previous page duration
     if (lastPath.current && lastPath.current !== location.pathname) {
       const duration = now - startTime.current
-      apiClient.post('/api/analytics/track', {
+      apiClient.post('/analytics/track', {
         page: lastPath.current,
         action: 'view',
         duration_ms: duration,

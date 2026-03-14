@@ -22,7 +22,7 @@ export default function QuickVisitPage() {
     queryKey: ['nearby-customers', position?.latitude, position?.longitude],
     queryFn: async () => {
       if (!position?.latitude || !position?.longitude) return { customers: [] }
-      const res = await apiClient.get(`/api/visits/nearby-customers?lat=${position.latitude}&lng=${position.longitude}&radius=5`)
+      const res = await apiClient.get(`/visits/nearby-customers?lat=${position.latitude}&lng=${position.longitude}&radius=5`)
       return res.data
     },
     enabled: !!position?.latitude && !!position?.longitude,
@@ -31,7 +31,7 @@ export default function QuickVisitPage() {
 
   const startVisitMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.post('/api/visits/quick-start', {
+      const res = await apiClient.post('/visits/quick-start', {
         customer_id: selectedCustomer,
         purpose,
         latitude: position?.latitude,

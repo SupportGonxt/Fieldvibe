@@ -46,15 +46,22 @@ export function setupInterceptors() {
         try {
           const refreshToken = useAuthStore.getState().tokens?.refresh_token
           if (!refreshToken) {
+            processQueue(error, null)
             useAuthStore.getState().logout()
             return Promise.reject(error)
           }
           const res = await apiClient.post('/auth/refresh', { refresh_token: refreshToken })
           const data = res.data as { data?: { access_token?: string; refresh_token?: string; expires_in?: number } }
           const newAccessToken = data.data?.access_token
+          const newRefreshToken = data.data?.refresh_token
           if (newAccessToken) {
-            // Update tokens in the store directly via refreshToken action
-            await useAuthStore.getState().refreshToken()
+            // Update tokens directly in the store (avoid redundant second refresh call)
+            useAuthStore.setState({
+              tokens: {
+                access_token: newAccessToken,
+                refresh_token: newRefreshToken || refreshToken,
+              }
+            })
             processQueue(null, newAccessToken)
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
             return apiClient(originalRequest)
