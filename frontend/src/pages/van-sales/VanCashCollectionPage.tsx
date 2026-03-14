@@ -58,7 +58,7 @@ export default function VanCashCollectionPage() {
 
           <div className="bg-white rounded-lg shadow overflow-hidden">
             {isLoading ? (
-              <div className="p-12 text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-600"><LoadingSpinner size="sm" /></p></div>
+              <div className="p-12 text-center"><LoadingSpinner size="lg" /></div>
             ) : error ? (
               <div className="p-12 text-center text-red-600"><AlertCircle className="h-12 w-12 mx-auto mb-2" /><p>Failed to load cash collections</p></div>
             ) : collections.length === 0 ? (

@@ -194,7 +194,7 @@ export function AnalyticsBarChart({
       <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">{title}</h3>
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout={layout === 'horizontal' ? 'horizontal' : 'vertical'}>
+          <BarChart data={data} layout={layout === 'horizontal' ? 'vertical' : 'horizontal'}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
             {layout === 'horizontal' ? (
               <>
@@ -301,8 +301,6 @@ interface SummaryTableProps {
 }
 
 export function AnalyticsSummaryTable({ title, columns, data, maxRows = 5 }: SummaryTableProps) {
-  const displayData = data.slice(0, maxRows)
-
   if (!data || data.length === 0) {
     return (
       <div className="card p-5">
@@ -311,6 +309,8 @@ export function AnalyticsSummaryTable({ title, columns, data, maxRows = 5 }: Sum
       </div>
     )
   }
+
+  const displayData = data.slice(0, maxRows)
 
   return (
     <div className="card p-5">
