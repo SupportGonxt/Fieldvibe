@@ -471,8 +471,8 @@ function App() {
             <Route path="field-operations" element={<Suspense fallback={<PageSkeleton />}><FieldOperationsDashboard /></Suspense>} />
             <Route path="field-operations/dashboard" element={<Suspense fallback={<PageSkeleton />}><FieldOperationsDashboard /></Suspense>} />
             <Route path="field-operations/agent-dashboard" element={<Suspense fallback={<PageSkeleton />}><FieldAgentDashboardPage /></Suspense>} />
-            <Route path="field-operations/agents" element={<Suspense fallback={<PageSkeleton />}><FieldAgentsPage /></Suspense>} />
-            <Route path="field-operations/mapping" element={<Suspense fallback={<PageSkeleton />}><LiveMappingPage /></Suspense>} />
+            <Route path="field-operations/agents" element={<Suspense fallback={<PageSkeleton />}><FieldAgentDashboardPage /></Suspense>} />
+            <Route path="field-operations/mapping" element={<Suspense fallback={<PageSkeleton />}><LiveGPSTrackingPage /></Suspense>} />
             <Route path="field-operations/gps-tracking" element={<Suspense fallback={<PageSkeleton />}><LiveGPSTrackingPage /></Suspense>} />
             <Route path="field-operations/boards" element={<Suspense fallback={<PageSkeleton />}><BoardPlacementsList /></Suspense>} />
             <Route path="field-operations/boards/create" element={<Suspense fallback={<PageSkeleton />}><BoardPlacementFormPage /></Suspense>} />
