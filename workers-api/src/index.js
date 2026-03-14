@@ -5941,7 +5941,7 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
       totalFacings = parsed.brands.reduce((s, b) => s + (b.facings || 0), 0);
       const tenantBrands = await env.DB.prepare('SELECT name FROM brands WHERE tenant_id = ?').bind(tenantId).all();
       const tenantBrandNames = (tenantBrands.results || []).map(b => b.name.toLowerCase());
-      brandFacings = parsed.brands.filter(b => tenantBrandNames.some(tb => b.name.toLowerCase().includes(tb))).reduce((s, b) => s + (b.facings || 0), 0);
+      brandFacings = parsed.brands.filter(b => b.name && tenantBrandNames.some(tb => b.name.toLowerCase().includes(tb))).reduce((s, b) => s + (b.facings || 0), 0);
       sovPct = totalFacings > 0 ? Math.round((brandFacings / totalFacings) * 1000) / 10 : 0;
     }
 
@@ -6394,7 +6394,7 @@ api.post('/visits/:id/checkout-enhanced', async (c) => {
 
   // Check mandatory photos
   const photoCount = await db.prepare('SELECT COUNT(*) as count FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  const minPhotos = await db.prepare("SELECT MIN(photo_required) as min_photos FROM survey_templates WHERE tenant_id = ? AND trigger_type LIKE 'mandatory%' AND photo_required > 0").bind(tenantId).first();
+  const minPhotos = await db.prepare("SELECT MAX(photo_required) as min_photos FROM survey_templates WHERE tenant_id = ? AND trigger_type LIKE 'mandatory%' AND photo_required > 0").bind(tenantId).first();
   if (minPhotos?.min_photos > 0 && (photoCount?.count || 0) < minPhotos.min_photos) {
     return c.json({ success: false, message: `At least ${minPhotos.min_photos} photo(s) required` }, 400);
   }

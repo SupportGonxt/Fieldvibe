@@ -123,12 +123,12 @@ export default function SurveyRenderer({ questions, onSubmit, onCancel, loading 
           <button onClick={() => {
             navigator.geolocation.getCurrentPosition(
               (pos) => updateAnswer(q.id, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
-              () => updateAnswer(q.id, 'GPS unavailable'),
+              () => updateAnswer(q.id, { lat: null, lng: null, error: 'GPS unavailable' }),
               { enableHighAccuracy: true }
             )
           }} className="w-full py-3 border border-gray-300 rounded-lg flex items-center justify-center text-sm text-gray-700">
             <MapPin className="w-4 h-4 mr-2" />
-            {answers[q.id] ? `${answers[q.id].lat?.toFixed(4)}, ${answers[q.id].lng?.toFixed(4)}` : 'Capture GPS Location'}
+            {answers[q.id] ? (answers[q.id].lat != null ? `${answers[q.id].lat.toFixed(4)}, ${answers[q.id].lng.toFixed(4)}` : (answers[q.id].error || 'GPS unavailable')) : 'Capture GPS Location'}
           </button>
         )
 
