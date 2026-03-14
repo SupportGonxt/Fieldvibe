@@ -25,7 +25,8 @@ export default function PhotoCaptureWithCompression({ visitId, photoType = 'gene
 
     try {
       setUploading(true)
-      setPreview(URL.createObjectURL(file))
+      const objectUrl = URL.createObjectURL(file)
+      setPreview(objectUrl)
 
       const { compressed, originalSize, compressedSize } = await compressPhoto(file)
       setCompressionInfo({ original: originalSize, compressed: compressedSize })
@@ -56,7 +57,7 @@ export default function PhotoCaptureWithCompression({ visitId, photoType = 'gene
       onPhotoUploaded?.(result)
     } catch (err: any) {
       onError?.(err.message || 'Upload failed')
-      if (preview) URL.revokeObjectURL(preview)
+      URL.revokeObjectURL(objectUrl)
       setPreview(null)
     } finally {
       setUploading(false)
