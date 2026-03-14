@@ -53,7 +53,6 @@ export async function retryRequest<T>(
       }
       
       const delay = getRetryDelay(attempt, retryDelay)
-      console.log(`Retrying request (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms...`)
       await new Promise(resolve => setTimeout(resolve, delay))
     }
   }

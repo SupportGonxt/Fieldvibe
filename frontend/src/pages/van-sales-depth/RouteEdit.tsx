@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface RouteFormData {

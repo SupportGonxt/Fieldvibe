@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import tradeMarketingService from '../services/tradeMarketing.service';
+import { tradeMarketingService } from '../services/tradeMarketing.service';
 import ErrorState from '../components/ui/ErrorState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 

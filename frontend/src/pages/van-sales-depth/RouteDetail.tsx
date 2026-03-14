@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, MapPin, Users, TrendingUp } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 

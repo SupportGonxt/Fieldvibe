@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, Phone } from 'lucide-react'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { beatRoutesService } from '../../services/beat-routes.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 

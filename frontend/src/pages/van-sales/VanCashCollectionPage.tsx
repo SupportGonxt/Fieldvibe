@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { DollarSign, TrendingUp, Calendar, AlertCircle } from 'lucide-react'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 

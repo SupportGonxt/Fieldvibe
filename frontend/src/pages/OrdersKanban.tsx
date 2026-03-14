@@ -72,7 +72,6 @@ const OrdersKanban: React.FC = () => {
   const handleCardMove = async (cardId: string, fromColumn: string, toColumn: string) => {
     try {
       await api.put(`/orders/${cardId}`, { status: toColumn });
-      console.log(`Moved order ${cardId} from ${fromColumn} to ${toColumn}`);
     } catch (err: any) {
       console.error('Failed to move card:', err);
       throw err;
@@ -80,12 +79,10 @@ const OrdersKanban: React.FC = () => {
   };
 
   const handleCardClick = (card: KanbanCard) => {
-    console.log('Card clicked:', card);
     // Navigate to order details or open modal
   };
 
   const handleCardEdit = (card: KanbanCard) => {
-    console.log('Edit card:', card);
     // Open edit dialog
   };
 

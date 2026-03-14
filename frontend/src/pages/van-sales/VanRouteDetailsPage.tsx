@@ -1,7 +1,7 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { MapPin, Clock, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
 
 export default function VanRouteDetailsPage() {

@@ -49,13 +49,11 @@ export const CommissionApprovalPage: React.FC = () => {
 
   const handleBulkApprove = () => {
     if (selectedCommissions.size === 0) return
-    console.log('Approving commissions:', Array.from(selectedCommissions))
     setSelectedCommissions(new Set())
   }
 
   const handleBulkReject = () => {
     if (selectedCommissions.size === 0 || !rejectionReason) return
-    console.log('Rejecting commissions:', Array.from(selectedCommissions), rejectionReason)
     setSelectedCommissions(new Set())
     setRejectionReason('')
     setShowRejectModal(false)

@@ -15,7 +15,6 @@ export function getVersionString(): string {
 }
 
 export function logVersion(): void {
-  console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║                    FieldVibe Frontend                      ║
 ║                                                            ║

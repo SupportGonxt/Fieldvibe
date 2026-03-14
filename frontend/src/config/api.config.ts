@@ -12,13 +12,11 @@ const getApiBaseUrl = (): string => {
   // 1. Always prefer explicit environment variable
   if (import.meta.env.VITE_API_BASE_URL) {
     const url = import.meta.env.VITE_API_BASE_URL
-    console.log('🔌 API Base URL (from env):', url)
     return url
   }
   
   // 2. Development: use relative path (proxied by Vite dev server)
   if (import.meta.env.DEV) {
-    console.log('🔧 Development mode: using proxy /api')
     return '/api'
   }
   

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import fieldMarketingService from '../services/fieldMarketing.service';
+import { fieldMarketingService } from '../services/field-marketing.service';
 import ErrorState from '../components/ui/ErrorState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 

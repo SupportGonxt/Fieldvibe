@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import tradeMarketingService from '../services/tradeMarketing.service';
+import { tradeMarketingService } from '../services/tradeMarketing.service';
 
 const SKUAvailabilityCheckerPage: React.FC = () => {
   const location = useLocation();

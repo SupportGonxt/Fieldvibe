@@ -33,7 +33,6 @@ export const CurrencySettings: React.FC<CurrencySettingsProps> = ({ onCurrencyCh
       onCurrencyChange?.(currency)
       
       // Show success message (you could use a toast library here)
-      console.log(`Currency changed to ${getCurrencyName(currency)}`)
       
     } catch (error) {
       console.error('Failed to update currency:', error)

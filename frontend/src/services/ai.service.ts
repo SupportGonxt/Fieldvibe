@@ -8,7 +8,7 @@ class AIService {
   private buildUrl(endpoint: string): string {
     return `${API_CONFIG.BASE_URL}${endpoint}`
   }
-  private ollamaUrl = 'http://localhost:11434'
+  private ollamaUrl = '' + (import.meta.env.VITE_AI_URL || '/api/ai') + ''
   private isOllamaAvailable = false
 
   constructor() {
@@ -369,12 +369,10 @@ Respond with JSON containing:
   // Real-time Monitoring
   async startRealTimeMonitoring(modules: string[]): Promise<void> {
     // Implementation for real-time AI monitoring
-    console.log('Starting real-time AI monitoring for modules:', modules)
   }
 
   async stopRealTimeMonitoring(): Promise<void> {
     // Implementation to stop real-time monitoring
-    console.log('Stopping real-time AI monitoring')
   }
 
   // Configuration

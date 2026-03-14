@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { ordersService } from '../../services/orders.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 

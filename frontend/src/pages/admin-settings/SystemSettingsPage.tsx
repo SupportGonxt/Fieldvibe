@@ -72,7 +72,6 @@ export const SystemSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState(mockSettings)
 
   const handleSave = () => {
-    console.log('Saving settings:', settings)
   }
 
   const tabs = [

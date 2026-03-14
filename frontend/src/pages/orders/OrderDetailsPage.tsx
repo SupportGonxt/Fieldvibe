@@ -185,7 +185,6 @@ export default function OrderDetailsPage() {
   }
 
   const handleDownload = () => {
-    console.log('Downloading invoice...')
   }
 
   const updateOrderStatus = async (newStatus: string) => {

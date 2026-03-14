@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fieldOperationsService } from '../../services/fieldOperations.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
 import { MapPin, Navigation, Clock, Activity } from 'lucide-react'
 
 export default function LiveGPSTrackingPage() {

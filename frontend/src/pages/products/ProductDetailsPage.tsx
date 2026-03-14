@@ -104,7 +104,6 @@ export default function ProductDetailsPage() {
 
   const handleSave = async () => {
     try {
-      console.log('Saving product:', editForm)
       setProduct({ ...product!, ...editForm })
       setIsEditing(false)
     } catch (error) {

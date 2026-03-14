@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, TrendingUp, TrendingDown } from 'lucide-react'
-import { vanSalesService } from '../../../services/vanSales.service'
+import { vanSalesService } from '../../../services/van-sales.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VanLoadItemList() {
