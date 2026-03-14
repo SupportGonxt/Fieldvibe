@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, MapPin, Calendar, User } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PhotoDetail() {
   const { visitId, photoId } = useParams<{ visitId: string; photoId: string }>()
@@ -41,7 +43,7 @@ export default function PhotoDetail() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading photo...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!photo) {

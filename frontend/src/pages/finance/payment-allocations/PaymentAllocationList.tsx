@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, Edit, Plus } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PaymentAllocationList() {
   const { paymentId } = useParams<{ paymentId: string }>()
@@ -19,7 +20,7 @@ export default function PaymentAllocationList() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading allocations...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

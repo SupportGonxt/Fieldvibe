@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, DollarSign, Eye } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { financeService } from '../../services/finance.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function InvoicePayments() {
   const { id } = useParams<{ id: string }>()
@@ -24,7 +25,7 @@ export default function InvoicePayments() {
   const total = payments?.reduce((sum, p) => sum + p.amount, 0) || 0
 
   if (isLoading) {
-    return <div className="p-6">Loading payments...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

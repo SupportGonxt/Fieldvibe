@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, Download, Share2, Calendar } from 'lucide-react'
 import { reportsService } from '../../services/reports.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function ReportDetail() {
   const { id } = useParams<{ id: string }>()

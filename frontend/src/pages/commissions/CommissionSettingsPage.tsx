@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface CommissionRule {
   id: string
@@ -68,7 +69,7 @@ export const CommissionSettingsPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

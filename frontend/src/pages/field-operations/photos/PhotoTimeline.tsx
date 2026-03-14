@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, Clock } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PhotoTimeline() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -78,7 +79,7 @@ export default function PhotoTimeline() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading timeline...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

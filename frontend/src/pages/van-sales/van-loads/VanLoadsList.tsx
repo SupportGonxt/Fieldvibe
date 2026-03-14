@@ -131,7 +131,6 @@ export default function VanLoadsList() {
       data={vanLoads}
       loading={loading}
       onRefresh={loadVanLoads}
-      onExport={() => console.log('Export van loads')}
       createPath="/van-sales/van-loads/create"
       createLabel="Create Van Load"
     />

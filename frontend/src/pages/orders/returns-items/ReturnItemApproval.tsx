@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface ApprovalFormData {
   decision: 'approved' | 'rejected'
@@ -50,7 +52,7 @@ export default function ReturnItemApproval() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
 
   if (!item) {

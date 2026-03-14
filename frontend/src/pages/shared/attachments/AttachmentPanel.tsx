@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Paperclip, Download, Eye, Trash2 } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface AttachmentPanelProps {
   entityType: string
@@ -45,7 +46,7 @@ export default function AttachmentPanel({ entityType, entityId }: AttachmentPane
   }
 
   if (isLoading) {
-    return <div className="p-4">Loading attachments...</div>
+    return <div className="p-4"><LoadingSpinner size="md" /></div>
   }
 
   return (

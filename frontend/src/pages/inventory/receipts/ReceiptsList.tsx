@@ -130,7 +130,6 @@ export default function ReceiptsList() {
       data={receipts}
       loading={loading}
       onRefresh={loadReceipts}
-      onExport={() => console.log('Export receipts')}
       createPath="/inventory/receipts/create"
       createLabel="Create Receipt"
     />

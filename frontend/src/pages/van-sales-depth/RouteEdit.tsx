@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { vanSalesService } from '../../services/vanSales.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface RouteFormData {
   route_name: string
@@ -45,7 +46,7 @@ export default function RouteEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading route...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

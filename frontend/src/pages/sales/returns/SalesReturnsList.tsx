@@ -109,7 +109,6 @@ export default function SalesReturnsList() {
       data={returns}
       loading={loading}
       onRefresh={loadReturns}
-      onExport={() => console.log('Export returns')}
       createPath="/sales/returns/create"
       createLabel="Create Return"
     />

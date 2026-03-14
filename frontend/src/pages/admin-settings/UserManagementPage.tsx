@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersService } from '../../services/users.service'
 import teamHierarchyService from '../../services/teamHierarchy.service'
 import TeamLeaderSelector from '../../components/team/TeamLeaderSelector'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface User {
   id: string
@@ -90,7 +91,7 @@ export const UserManagementPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

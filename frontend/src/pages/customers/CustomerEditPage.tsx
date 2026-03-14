@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionForm from '../../components/transactions/TransactionForm'
 import { customersService } from '../../services/customers.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function CustomerEditPage() {
   const { id } = useParams()
@@ -116,11 +118,15 @@ export default function CustomerEditPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!customer) {
-    return <div className="flex items-center justify-center h-64">Customer not found</div>
+    return <ErrorState title="Customer not found" message="The customer you are looking for does not exist or has been deleted." />
   }
 
   return (

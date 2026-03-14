@@ -4,6 +4,7 @@ import { ArrowLeft, Eye } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { vanSalesService } from '../../services/vanSales.service'
 import { ordersService } from '../../services/orders.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function RouteOrders() {
   const { id } = useParams<{ id: string }>()
@@ -24,7 +25,7 @@ export default function RouteOrders() {
 
   const total = orders?.reduce((sum, o) => sum + o.amount, 0) || 0
 
-  if (isLoading) return <div className="p-6">Loading orders...</div>
+  if (isLoading) return <div className="p-6"><LoadingSpinner size="md" /></div>
 
   return (
     <div className="p-6">

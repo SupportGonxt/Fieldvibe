@@ -126,7 +126,6 @@ export default function TransfersList() {
       data={transfers}
       loading={loading}
       onRefresh={loadTransfers}
-      onExport={() => console.log('Export transfers')}
       createPath="/inventory/transfers/create"
       createLabel="Create Transfer"
     />

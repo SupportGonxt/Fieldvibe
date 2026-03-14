@@ -143,7 +143,6 @@ export default function StockCountsList() {
       data={stockCounts}
       loading={loading}
       onRefresh={loadStockCounts}
-      onExport={() => console.log('Export stock counts')}
       createPath="/inventory/stock-counts/create"
       createLabel="Create Stock Count"
     />

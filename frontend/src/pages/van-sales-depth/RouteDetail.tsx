@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, MapPin, Users, TrendingUp } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { vanSalesService } from '../../services/vanSales.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function RouteDetail() {
   const { id } = useParams<{ id: string }>()
@@ -14,7 +16,7 @@ export default function RouteDetail() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading route...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!route) {

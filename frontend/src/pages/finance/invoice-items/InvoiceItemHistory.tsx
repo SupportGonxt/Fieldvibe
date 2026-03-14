@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Clock } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function InvoiceItemHistory() {
   const { invoiceId, itemId } = useParams<{ invoiceId: string; itemId: string }>()
@@ -21,7 +22,7 @@ export default function InvoiceItemHistory() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading history...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

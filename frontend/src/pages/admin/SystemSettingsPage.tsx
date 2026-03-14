@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Settings, DollarSign, Bell, Lock, Mail, FileText, Globe, Zap, Save, AlertCircle, Upload, CheckCircle, Building2, MessageSquare, ShoppingCart, Receipt, Package, MapPin, Shield, Plug, RefreshCw } from 'lucide-react'
 import CurrencySettings from '../../components/settings/CurrencySettings'
 import api from '../../services/api'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Setting {
   key: string
@@ -231,7 +232,7 @@ export default function SystemSettingsPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Loading settings...</span>
+        <span className="ml-2 text-gray-600"><LoadingSpinner size="md" /></span>
       </div>
     )
   }

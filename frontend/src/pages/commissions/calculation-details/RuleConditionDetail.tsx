@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function RuleConditionDetail() {
   const { ruleId, conditionId } = useParams<{ ruleId: string; conditionId: string }>()
@@ -21,7 +23,7 @@ export default function RuleConditionDetail() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading condition...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!condition) {

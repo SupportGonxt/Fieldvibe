@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { salesService } from '../../../services/sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 
@@ -8,6 +10,7 @@ export default function SalesReturnDetail() {
   const { id } = useParams()
   const [returnData, setReturnData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadReturn()
@@ -15,22 +18,32 @@ export default function SalesReturnDetail() {
 
   const loadReturn = async () => {
     setLoading(true)
+    setError(null)
     try {
       const response = await salesService.getReturn(Number(id))
       setReturnData(response.data)
-    } catch (error) {
-      console.error('Failed to load return:', error)
+    } catch (err: any) {
+      console.error('Failed to load return:', err)
+      setError(err.message || 'Failed to load return details')
     } finally {
       setLoading(false)
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return <ErrorState title="Failed to load return" message={error} onRetry={loadReturn} />
   }
 
   if (!returnData) {
-    return <div className="flex items-center justify-center h-64">Return not found</div>
+    return <ErrorState title="Return not found" message="The return you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { brandService } from '../../services/brand.service'
 import { toast } from 'react-hot-toast'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function BrandEdit() {
   const { id } = useParams<{ id: string }>()
@@ -37,7 +39,7 @@ export default function BrandEdit() {
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading brand...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!brand) {

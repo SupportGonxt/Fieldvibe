@@ -33,6 +33,8 @@ import { useAuthStore } from '../../store/auth.store'
 import { analyticsService } from '../../services/analytics.service'
 import { formatCurrency, formatNumber, formatDate } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 export default function DashboardPage() {
   const { user } = useAuthStore()

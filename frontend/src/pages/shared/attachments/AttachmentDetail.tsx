@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Paperclip, Download, Calendar, User } from 'lucide-react'
 import { attachmentsService } from '../../../services/attachments.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function AttachmentDetail() {
   const { entityType, entityId, attachmentId } = useParams<{ entityType: string; entityId: string; attachmentId: string }>()
@@ -19,7 +21,7 @@ export default function AttachmentDetail() {
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading attachment...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!attachment) {

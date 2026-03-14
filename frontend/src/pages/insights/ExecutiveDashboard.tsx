@@ -3,6 +3,8 @@ import { TrendingUp, DollarSign, Users, MapPin, Package, BarChart3, Activity, Ta
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 const COLORS = ['#00E87B', '#36A2EB', '#9B59B6', '#F39C12', '#E91E63', '#00BCD4']
 

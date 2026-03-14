@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, CheckCircle } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function SurveyResponseDetail() {
   const { surveyId, responseId } = useParams<{ surveyId: string; responseId: string }>()
@@ -32,7 +34,7 @@ export default function SurveyResponseDetail() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading response...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!response) {

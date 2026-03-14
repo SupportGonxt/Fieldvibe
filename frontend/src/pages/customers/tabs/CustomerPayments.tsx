@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, DollarSign } from 'lucide-react'
 import { paymentService } from '../../../services/payments.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CustomerPayments() {
   const { id } = useParams<{ id: string }>()
@@ -32,7 +33,7 @@ export default function CustomerPayments() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading payments...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : payments.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <DollarSign className="h-12 w-12 mx-auto mb-4 text-gray-400" />

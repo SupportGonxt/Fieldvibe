@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionForm from '../../../components/transactions/TransactionForm'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VisitEdit() {
   const { id } = useParams()
@@ -91,11 +93,15 @@ export default function VisitEdit() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!visit) {
-    return <div className="flex items-center justify-center h-64">Visit not found</div>
+    return <ErrorState title="Visit not found" message="The visit you are looking for does not exist or has been deleted." />
   }
 
   return (

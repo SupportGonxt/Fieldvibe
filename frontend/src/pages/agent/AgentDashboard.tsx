@@ -16,8 +16,10 @@ import {
   ListItemText,
   Paper
 } from '@mui/material';
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 import {
-  Person,
   ExitToApp,
   Assignment,
   LocalShipping,
@@ -70,7 +72,7 @@ const AgentDashboard: React.FC = () => {
   };
 
   if (!agent || !tenant) {
-    return <Box>Loading...</Box>;
+    return <Box><LoadingSpinner size="sm" /></Box>;
   }
 
   const menuItems = [

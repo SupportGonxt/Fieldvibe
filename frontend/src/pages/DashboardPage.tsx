@@ -7,6 +7,8 @@ import { Container, Typography, Box, Alert, CircularProgress, Button } from '@mu
 import { Refresh as RefreshIcon } from '@mui/icons-material';
 import Dashboard from '../components/DashboardCharts';
 import api from '../services/api';
+import ErrorState from '../components/ui/ErrorState'
+import EmptyState from '../components/ui/EmptyState'
 
 const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);

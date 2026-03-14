@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Link2, Calendar, User } from 'lucide-react'
 import { documentsService } from '../../../services/documents.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function RelationshipDetail() {
   const { entityType, entityId, relationshipId } = useParams<{ entityType: string; entityId: string; relationshipId: string }>()
@@ -13,7 +15,7 @@ export default function RelationshipDetail() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading relationship...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!relationship) {

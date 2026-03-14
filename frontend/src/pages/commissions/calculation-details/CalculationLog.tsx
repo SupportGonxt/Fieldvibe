@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Calculator, Calendar, Eye } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CalculationLog() {
   const { agentId } = useParams<{ agentId: string }>()
@@ -69,7 +70,7 @@ export default function CalculationLog() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading calculations...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, AlertTriangle, Package } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VanLoadReconciliation() {
   const { loadId } = useParams<{ loadId: string }>()
@@ -36,7 +38,7 @@ export default function VanLoadReconciliation() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading reconciliation...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!reconciliation) {

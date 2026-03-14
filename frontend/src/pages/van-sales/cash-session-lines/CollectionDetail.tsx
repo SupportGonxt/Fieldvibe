@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, DollarSign, User, Clock } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CollectionDetail() {
   const { sessionId, collectionId } = useParams<{ sessionId: string; collectionId: string }>()
@@ -35,21 +37,20 @@ export default function CollectionDetail() {
     },
   })
 
-  const oldCollection = {
-      id: collectionId,
-      session_id: sessionId,
-      customer_id: 'cust-1',
-      customer_name: 'ABC Store',
-      invoice_number: 'INV-2024-001',
-      invoice_amount: 250.00,
-      amount_collected: 250.00,
-      payment_method: 'cash',
-      collection_time: '2024-01-20T09:35:00Z',
-      collected_by: 'John Van Sales',
-      reference_number: 'REF-001',
-      notes: 'Full payment received',
-    }),
-  })
+  const fallbackCollection = {
+    id: collectionId,
+    session_id: sessionId,
+    customer_id: 'cust-1',
+    customer_name: 'ABC Store',
+    invoice_number: 'INV-2024-001',
+    invoice_amount: 250.00,
+    amount_collected: 250.00,
+    payment_method: 'cash',
+    collection_time: '2024-01-20T09:35:00Z',
+    collected_by: 'John Van Sales',
+    reference_number: 'REF-001',
+    notes: 'Full payment received',
+  }
 
   if (isLoading) {
     return <div className="p-6">Loading collection details...</div>

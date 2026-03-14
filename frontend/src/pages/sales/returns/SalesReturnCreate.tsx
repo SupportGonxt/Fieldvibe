@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Send, RotateCcw, FileText } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface Order {
   id: string
@@ -102,7 +103,7 @@ export default function SalesReturnCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

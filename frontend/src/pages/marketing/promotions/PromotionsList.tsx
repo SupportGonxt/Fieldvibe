@@ -110,7 +110,6 @@ export default function PromotionsList() {
       data={promotions}
       loading={loading}
       onRefresh={loadPromotions}
-      onExport={() => console.log('Export promotions')}
       createPath="/marketing/promotions/create"
       createLabel="Create Promotion"
     />

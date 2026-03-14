@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function BoardPlacementDetail() {
   const { id } = useParams()
@@ -41,11 +43,15 @@ export default function BoardPlacementDetail() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!placement) {
-    return <div className="flex items-center justify-center h-64">Board placement not found</div>
+    return <ErrorState title="Board placement not found" message="The board placement you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Printer, Download, Package, DollarSign, Calendar, User, MapPin, CheckCircle, XCircle, Clock, Truck, FileText, CreditCard, Save, X, Plus, Trash2, History, RefreshCw } from 'lucide-react'
 import { ordersService } from '../../services/orders.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 
 interface OrderItem {
   id: string
@@ -225,7 +227,7 @@ export default function OrderDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

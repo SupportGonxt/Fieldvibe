@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/vanSales.service'
 import { Package, TrendingDown, TrendingUp, AlertCircle } from 'lucide-react'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function VanInventoryPage() {
   const [selectedVanId, setSelectedVanId] = useState<string>('')
@@ -29,7 +30,7 @@ export default function VanInventoryPage() {
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {!selectedVanId ? <div className="p-12 text-center text-gray-500"><Package className="h-12 w-12 mx-auto text-gray-400 mb-2" /><p>Select a van to view inventory</p></div>
-        : isLoading ? <div className="p-12 text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-600">Loading...</p></div>
+        : isLoading ? <div className="p-12 text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-600"><LoadingSpinner size="sm" /></p></div>
         : error ? <div className="p-12 text-center text-red-600"><AlertCircle className="h-12 w-12 mx-auto mb-2" /><p>Failed to load</p></div>
         : inventory && inventory.length === 0 ? <div className="p-12 text-center text-gray-500"><Package className="h-12 w-12 mx-auto text-gray-400 mb-2" /><p>No inventory found</p></div>
         : (

@@ -119,7 +119,6 @@ export default function VisitsList() {
       data={visits}
       loading={loading}
       onRefresh={loadVisits}
-      onExport={() => console.log('Export visits')}
       createPath="/field-operations/visits/create"
       createLabel="Create Visit"
     />

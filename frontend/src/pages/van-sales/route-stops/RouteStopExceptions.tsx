@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, AlertTriangle, Clock, XCircle } from 'lucide-react'
 import { vanSalesService } from '../../../services/vanSales.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function RouteStopExceptions() {
   const { routeId } = useParams<{ routeId: string }>()
@@ -25,60 +26,59 @@ export default function RouteStopExceptions() {
     enabled: !!routeId,
   })
 
-  const oldExceptions = [
-      {
-        id: '1',
-        stop_number: 2,
-        customer_name: 'XYZ Mart',
-        exception_type: 'late_arrival',
-        severity: 'medium',
-        description: 'Arrived 10 minutes late due to traffic',
-        planned_time: '2024-01-20T10:00:00Z',
-        actual_time: '2024-01-20T10:10:00Z',
-        resolution: 'Customer was understanding, no issues',
-        resolved: true,
-      },
-      {
-        id: '2',
-        stop_number: 5,
-        customer_name: 'GHI Store',
-        exception_type: 'customer_unavailable',
-        severity: 'high',
-        description: 'Store was closed, no one available to receive delivery',
-        planned_time: '2024-01-20T14:00:00Z',
-        actual_time: '2024-01-20T14:05:00Z',
-        resolution: 'Rescheduled for next day',
-        resolved: true,
-      },
-      {
-        id: '3',
-        stop_number: 7,
-        customer_name: 'JKL Mart',
-        exception_type: 'payment_issue',
-        severity: 'high',
-        description: 'Customer could not pay full amount',
-        planned_time: '2024-01-20T16:00:00Z',
-        actual_time: '2024-01-20T16:10:00Z',
-        resolution: 'Partial payment accepted, balance on credit',
-        resolved: true,
-      },
-      {
-        id: '4',
-        stop_number: 3,
-        customer_name: 'DEF Shop',
-        exception_type: 'product_shortage',
-        severity: 'medium',
-        description: 'Van did not have enough stock of requested product',
-        planned_time: '2024-01-20T11:00:00Z',
-        actual_time: '2024-01-20T11:05:00Z',
-        resolution: 'Partial delivery, backorder created',
-        resolved: true,
-      },
-    ],
-  })
+  const fallbackExceptions = [
+    {
+      id: '1',
+      stop_number: 2,
+      customer_name: 'XYZ Mart',
+      exception_type: 'late_arrival',
+      severity: 'medium',
+      description: 'Arrived 10 minutes late due to traffic',
+      planned_time: '2024-01-20T10:00:00Z',
+      actual_time: '2024-01-20T10:10:00Z',
+      resolution: 'Customer was understanding, no issues',
+      resolved: true,
+    },
+    {
+      id: '2',
+      stop_number: 5,
+      customer_name: 'GHI Store',
+      exception_type: 'customer_unavailable',
+      severity: 'high',
+      description: 'Store was closed, no one available to receive delivery',
+      planned_time: '2024-01-20T14:00:00Z',
+      actual_time: '2024-01-20T14:05:00Z',
+      resolution: 'Rescheduled for next day',
+      resolved: true,
+    },
+    {
+      id: '3',
+      stop_number: 7,
+      customer_name: 'JKL Mart',
+      exception_type: 'payment_issue',
+      severity: 'high',
+      description: 'Customer could not pay full amount',
+      planned_time: '2024-01-20T16:00:00Z',
+      actual_time: '2024-01-20T16:10:00Z',
+      resolution: 'Partial payment accepted, balance on credit',
+      resolved: true,
+    },
+    {
+      id: '4',
+      stop_number: 3,
+      customer_name: 'DEF Shop',
+      exception_type: 'product_shortage',
+      severity: 'medium',
+      description: 'Van did not have enough stock of requested product',
+      planned_time: '2024-01-20T11:00:00Z',
+      actual_time: '2024-01-20T11:05:00Z',
+      resolution: 'Partial delivery, backorder created',
+      resolved: true,
+    },
+  ]
 
   if (isLoading) {
-    return <div className="p-6">Loading exceptions...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

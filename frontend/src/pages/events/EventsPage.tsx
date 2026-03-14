@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button'
 import { Calendar, Users, MapPin, DollarSign, TrendingUp, Clock, Plus, Filter } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Event {
   id: string

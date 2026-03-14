@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Search, Key, UserCheck, UserX, Mail, Phone, Shield } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface User {
   id: string
@@ -346,7 +347,7 @@ export default function UserManagementPage() {
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading users...</p>
+            <p className="mt-4 text-gray-600"><LoadingSpinner size="md" /></p>
           </div>
         ) : users.length === 0 ? (
           <div className="text-center py-12">

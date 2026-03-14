@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Calculator, DollarSign, TrendingUp } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CalculationDetail() {
   const { calculationId } = useParams<{ calculationId: string }>()
@@ -19,7 +21,7 @@ export default function CalculationDetail() {
       const result = await response.json()
       return result.data
     },
-    oldData: {
+    placeholderData: {
       id: calculationId,
       agent_id: 'agent-1',
       agent_name: 'John Sales Agent',
@@ -39,11 +41,11 @@ export default function CalculationDetail() {
         { category: 'Product Sales', amount: 40000.00, rate: 5, commission: 2000.00 },
         { category: 'Service Sales', amount: 10000.00, rate: 5, commission: 500.00 },
       ],
-    }),
+    },
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading calculation...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!calculation) {

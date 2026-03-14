@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, Package, Target, FileText, LayoutGrid } from 'lucide-react'
 import { brandService } from '../../services/brand.service'
 import { EntityRefLink } from '../../components/generic/EntityRefLink'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function BrandDetail() {
   const { id } = useParams<{ id: string }>()
