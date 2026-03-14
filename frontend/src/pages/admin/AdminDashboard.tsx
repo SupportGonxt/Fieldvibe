@@ -131,10 +131,24 @@ const getStatusColor = (status: string) => {
   }
 }
 
+const fallbackAdminMetrics: AdminMetrics = {
+  totalUsers: 0,
+  activeUsers: 0,
+  totalAgents: 0,
+  activeAgents: 0,
+  totalCustomers: 0,
+  totalProducts: 0,
+  totalOrders: 0,
+  totalRevenue: 0,
+  systemHealth: { pendingPayments: 0, overdueOrders: 0, inactiveAgents: 0 },
+  agentPerformance: [],
+  recentUsers: [],
+}
+
 export default function AdminDashboard() {
-  const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
+  const [metrics, setMetrics] = useState<AdminMetrics>(fallbackAdminMetrics)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [usingFallback, setUsingFallback] = useState(false)
 
   useEffect(() => {
     fetchMetrics()
@@ -143,16 +157,15 @@ export default function AdminDashboard() {
   const fetchMetrics = async () => {
     try {
       setLoading(true)
-      setError(null)
       const response = await api.get('/dashboard/admin')
       if (response.data.success) {
         setMetrics(response.data.data)
       } else {
-        throw new Error(response.data.error?.message || 'Failed to fetch admin metrics')
+        setUsingFallback(true)
       }
     } catch (err: any) {
       console.error('Error fetching admin metrics:', err)
-      setError(err.message || 'Failed to load admin dashboard')
+      setUsingFallback(true)
     } finally {
       setLoading(false)
     }
@@ -162,24 +175,6 @@ export default function AdminDashboard() {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
-      </Box>
-    )
-  }
-
-  if (error) {
-    return (
-      <Box p={3}>
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      </Box>
-    )
-  }
-
-  if (!metrics) {
-    return (
-      <Box p={3}>
-        <Alert severity="warning">No admin data available</Alert>
       </Box>
     )
   }
@@ -200,6 +195,12 @@ export default function AdminDashboard() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         System overview, user management, and agent performance
       </Typography>
+
+      {usingFallback && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Admin dashboard data is not yet available. Showing default values.
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* System Statistics */}

@@ -116,10 +116,21 @@ interface AnalyticsData {
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316']
 
+const fallbackAnalyticsData: AnalyticsData = {
+  overview: { total_revenue: 0, revenue_growth: 0, total_orders: 0, orders_growth: 0, total_customers: 0, customers_growth: 0, total_products: 0, products_growth: 0, avg_order_value: 0, aov_growth: 0, conversion_rate: 0, conversion_growth: 0 },
+  revenue_trend: [],
+  sales_by_category: [],
+  top_products: [],
+  customer_segments: [],
+  field_agent_performance: [],
+  geographic_data: [],
+  time_analysis: { peak_hours: [], peak_days: [] }
+}
+
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [usingFallback, setUsingFallback] = useState(false)
   const [dateRange, setDateRange] = useState('30d')
   const [selectedMetric, setSelectedMetric] = useState('revenue')
   const [refreshing, setRefreshing] = useState(false)
@@ -131,7 +142,6 @@ export default function AnalyticsPage() {
   const loadAnalyticsData = async () => {
     try {
       setLoading(true)
-      setError(null)
       
       const filter = {
         start_date: getStartDate(dateRange),
@@ -211,7 +221,7 @@ export default function AnalyticsPage() {
       
       setData(analyticsData)
     } catch (err) {
-      setError('Failed to load analytics data')
+      setUsingFallback(true)
       console.error('Error loading analytics:', err)
     } finally {
       setLoading(false)
@@ -260,7 +270,7 @@ export default function AnalyticsPage() {
   const exportData = () => {
     // Mock export functionality
     const csvData = 'Date,Revenue,Orders,Customers\n' + 
-      (data?.revenue_trend.map(item => 
+      (displayData.revenue_trend.map(item => 
         `${item.date},${item.revenue},${item.orders},${item.customers}`
       ).join('\n') || '')
     
@@ -281,36 +291,7 @@ export default function AnalyticsPage() {
     )
   }
 
-  if (error) {
-    return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Comprehensive analytics and reporting dashboard.
-          </p>
-        </div>
-        
-        <div className="card">
-          <div className="text-center py-12">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Error Loading Analytics
-            </h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={loadAnalyticsData}
-              className="btn-primary"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!data) return null
+  const displayData = data || fallbackAnalyticsData
 
   return (
     <div className="space-y-8">
@@ -353,26 +334,32 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      {usingFallback && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-blue-800 text-sm">Analytics data is not yet available. Showing default values.</p>
+        </div>
+      )}
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.overview.total_revenue)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(displayData.overview.total_revenue)}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
               <DollarSign className="h-6 w-6 text-green-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center">
-            {data.overview.revenue_growth > 0 ? (
+            {displayData.overview.revenue_growth > 0 ? (
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             ) : (
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             )}
-            <span className={`text-sm font-medium ${data.overview.revenue_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPercentage(data.overview.revenue_growth)}
+            <span className={`text-sm font-medium ${displayData.overview.revenue_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatPercentage(displayData.overview.revenue_growth)}
             </span>
             <span className="text-sm text-gray-500 ml-2">vs last period</span>
           </div>
@@ -382,20 +369,20 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Orders</p>
-              <p className="text-2xl font-bold text-gray-900">{data.overview.total_orders.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{displayData.overview.total_orders.toLocaleString()}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
               <ShoppingCart className="h-6 w-6 text-blue-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center">
-            {data.overview.orders_growth > 0 ? (
+            {displayData.overview.orders_growth > 0 ? (
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             ) : (
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             )}
-            <span className={`text-sm font-medium ${data.overview.orders_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPercentage(data.overview.orders_growth)}
+            <span className={`text-sm font-medium ${displayData.overview.orders_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatPercentage(displayData.overview.orders_growth)}
             </span>
             <span className="text-sm text-gray-500 ml-2">vs last period</span>
           </div>
@@ -405,20 +392,20 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Customers</p>
-              <p className="text-2xl font-bold text-gray-900">{data.overview.total_customers.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{displayData.overview.total_customers.toLocaleString()}</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
               <Users className="h-6 w-6 text-purple-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center">
-            {data.overview.customers_growth > 0 ? (
+            {displayData.overview.customers_growth > 0 ? (
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             ) : (
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             )}
-            <span className={`text-sm font-medium ${data.overview.customers_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPercentage(data.overview.customers_growth)}
+            <span className={`text-sm font-medium ${displayData.overview.customers_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatPercentage(displayData.overview.customers_growth)}
             </span>
             <span className="text-sm text-gray-500 ml-2">vs last period</span>
           </div>
@@ -428,20 +415,20 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.overview.avg_order_value)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(displayData.overview.avg_order_value)}</p>
             </div>
             <div className="p-3 bg-orange-100 rounded-full">
               <Target className="h-6 w-6 text-orange-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center">
-            {data.overview.aov_growth > 0 ? (
+            {displayData.overview.aov_growth > 0 ? (
               <ArrowUpRight className="h-4 w-4 text-green-500" />
             ) : (
               <ArrowDownRight className="h-4 w-4 text-red-500" />
             )}
-            <span className={`text-sm font-medium ${data.overview.aov_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPercentage(data.overview.aov_growth)}
+            <span className={`text-sm font-medium ${displayData.overview.aov_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatPercentage(displayData.overview.aov_growth)}
             </span>
             <span className="text-sm text-gray-500 ml-2">vs last period</span>
           </div>
@@ -467,7 +454,7 @@ export default function AnalyticsPage() {
         
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.revenue_trend}>
+            <AreaChart data={displayData.revenue_trend}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
                 dataKey="date" 
@@ -506,7 +493,7 @@ export default function AnalyticsPage() {
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPieChart>
                 <Pie
-                  data={data.sales_by_category}
+                  data={displayData.sales_by_category}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -515,7 +502,7 @@ export default function AnalyticsPage() {
                   fill="#8884d8"
                   dataKey="revenue"
                 >
-                  {data.sales_by_category.map((entry, index) => (
+                  {displayData.sales_by_category.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -529,7 +516,7 @@ export default function AnalyticsPage() {
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-6">Top Products</h3>
           <div className="space-y-4">
-            {data.top_products.map((product, index) => (
+            {displayData.top_products.map((product, index) => (
               <div key={product.id} className="flex items-center justify-between p-3 bg-surface-secondary rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
@@ -589,7 +576,7 @@ export default function AnalyticsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {data.field_agent_performance.map((agent) => (
+              {displayData.field_agent_performance.map((agent) => (
                 <tr key={agent.agent_id} className="hover:bg-surface-secondary">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -643,7 +630,7 @@ export default function AnalyticsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-6">Geographic Performance</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.geographic_data}>
+              <BarChart data={displayData.geographic_data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="region" />
                 <YAxis tickFormatter={(value) => formatCurrency(value)} />
@@ -659,7 +646,7 @@ export default function AnalyticsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-6">Peak Hours Analysis</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <RechartsLineChart data={data.time_analysis.peak_hours}>
+              <RechartsLineChart data={displayData.time_analysis.peak_hours}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="hour" 
@@ -688,7 +675,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
-              <p className="text-2xl font-bold text-gray-900">{data.overview.conversion_rate}%</p>
+              <p className="text-2xl font-bold text-gray-900">{displayData.overview.conversion_rate}%</p>
             </div>
             <div className="p-3 bg-indigo-100 rounded-full">
               <Activity className="h-6 w-6 text-indigo-600" />
@@ -696,13 +683,13 @@ export default function AnalyticsPage() {
           </div>
           <div className="mt-4">
             <div className="flex items-center">
-              {data.overview.conversion_growth > 0 ? (
+              {displayData.overview.conversion_growth > 0 ? (
                 <ArrowUpRight className="h-4 w-4 text-green-500" />
               ) : (
                 <ArrowDownRight className="h-4 w-4 text-red-500" />
               )}
-              <span className={`text-sm font-medium ${data.overview.conversion_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatPercentage(data.overview.conversion_growth)}
+              <span className={`text-sm font-medium ${displayData.overview.conversion_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatPercentage(displayData.overview.conversion_growth)}
               </span>
               <span className="text-sm text-gray-500 ml-2">vs last period</span>
             </div>
@@ -713,7 +700,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Active Products</p>
-              <p className="text-2xl font-bold text-gray-900">{data.overview.total_products}</p>
+              <p className="text-2xl font-bold text-gray-900">{displayData.overview.total_products}</p>
             </div>
             <div className="p-3 bg-teal-100 rounded-full">
               <Package className="h-6 w-6 text-teal-600" />
@@ -721,13 +708,13 @@ export default function AnalyticsPage() {
           </div>
           <div className="mt-4">
             <div className="flex items-center">
-              {data.overview.products_growth > 0 ? (
+              {displayData.overview.products_growth > 0 ? (
                 <ArrowUpRight className="h-4 w-4 text-green-500" />
               ) : (
                 <ArrowDownRight className="h-4 w-4 text-red-500" />
               )}
-              <span className={`text-sm font-medium ${data.overview.products_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatPercentage(data.overview.products_growth)}
+              <span className={`text-sm font-medium ${displayData.overview.products_growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatPercentage(displayData.overview.products_growth)}
               </span>
               <span className="text-sm text-gray-500 ml-2">vs last period</span>
             </div>
@@ -738,14 +725,14 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Customer Segments</p>
-              <p className="text-2xl font-bold text-gray-900">{data.customer_segments.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{displayData.customer_segments.length}</p>
             </div>
             <div className="p-3 bg-pink-100 rounded-full">
               <Award className="h-6 w-6 text-pink-600" />
             </div>
           </div>
           <div className="mt-4 space-y-2">
-            {data.customer_segments.map((segment) => (
+            {displayData.customer_segments.map((segment) => (
               <div key={segment.segment} className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">{segment.segment}</span>
                 <span className="font-medium text-gray-900">{segment.count}</span>

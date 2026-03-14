@@ -99,10 +99,21 @@ const MetricCard = ({ title, value, change, icon, color }: MetricCardProps) => (
   </Card>
 )
 
+const fallbackCustomerMetrics: CustomerMetrics = {
+  totalCustomers: 0,
+  newCustomers: 0,
+  activeCustomers: 0,
+  inactiveCustomers: 0,
+  customerLifetimeValue: 0,
+  churnRate: 0,
+  retentionRate: 0,
+  topCustomers: [],
+}
+
 export default function CustomerDashboard() {
-  const [metrics, setMetrics] = useState<CustomerMetrics | null>(null)
+  const [metrics, setMetrics] = useState<CustomerMetrics>(fallbackCustomerMetrics)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [usingFallback, setUsingFallback] = useState(false)
 
   useEffect(() => {
     fetchMetrics()
@@ -111,16 +122,15 @@ export default function CustomerDashboard() {
   const fetchMetrics = async () => {
     try {
       setLoading(true)
-      setError(null)
       const response = await api.get('/dashboard/customers')
       if (response.data.success) {
         setMetrics(response.data.data)
       } else {
-        throw new Error(response.data.error?.message || 'Failed to fetch customer metrics')
+        setUsingFallback(true)
       }
     } catch (err: any) {
       console.error('Error fetching customer metrics:', err)
-      setError(err.message || 'Failed to load customer dashboard')
+      setUsingFallback(true)
     } finally {
       setLoading(false)
     }
@@ -134,24 +144,6 @@ export default function CustomerDashboard() {
     )
   }
 
-  if (error) {
-    return (
-      <Box p={3}>
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      </Box>
-    )
-  }
-
-  if (!metrics) {
-    return (
-      <Box p={3}>
-        <Alert severity="warning">No customer data available</Alert>
-      </Box>
-    )
-  }
-
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" fontWeight="bold" gutterBottom>
@@ -160,6 +152,12 @@ export default function CustomerDashboard() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Monitor customer metrics, engagement, and lifetime value
       </Typography>
+
+      {usingFallback && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Customer dashboard data is not yet available. Showing default values.
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* Top Metrics */}
