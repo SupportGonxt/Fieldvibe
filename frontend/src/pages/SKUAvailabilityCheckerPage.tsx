@@ -46,7 +46,7 @@ const SKUAvailabilityCheckerPage: React.FC = () => {
       if (file) {
         toast.success('Photo captured for barcode');
         const productId = prompt('Enter the product ID/barcode:');
-        if (productId) setFormData({ ...formData, productId });
+        if (productId) setFormData(prev => ({ ...prev, productId }));
       }
     };
     input.click();

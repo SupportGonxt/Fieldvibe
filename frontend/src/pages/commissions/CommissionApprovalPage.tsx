@@ -72,6 +72,7 @@ export const CommissionApprovalPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
       toast.success('Commissions approved successfully')
+      setSelectedCommissions(new Set())
     },
     onError: () => toast.error('Failed to approve commissions'),
   })
@@ -79,7 +80,6 @@ export const CommissionApprovalPage: React.FC = () => {
   const handleBulkApprove = () => {
     if (selectedCommissions.size === 0) return
     approveMutation.mutate(Array.from(selectedCommissions))
-    setSelectedCommissions(new Set())
   }
 
   const handleBulkReject = () => {
