@@ -840,11 +840,11 @@ function App() {
             <Route path="commissions/calculations/:id/approval" element={<Suspense fallback={<PageSkeleton />}><ApprovalDetail /></Suspense>} />
             <Route path="commissions/calculations/:id/exceptions" element={<Suspense fallback={<PageSkeleton />}><ExceptionDetail /></Suspense>} />
             <Route path="commissions/calculations/:id/rules" element={<Suspense fallback={<PageSkeleton />}><RuleConditionDetail /></Suspense>} />
-            <Route path="commissions/payouts/:id/lines" element={<Suspense fallback={<PageSkeleton />}><PayoutLineList /></Suspense>} />
-            <Route path="commissions/payouts/:id/lines/:lineId" element={<Suspense fallback={<PageSkeleton />}><PayoutLineDetail /></Suspense>} />
-            <Route path="commissions/payouts/:id/lines/:lineId/edit" element={<Suspense fallback={<PageSkeleton />}><PayoutLineEdit /></Suspense>} />
-            <Route path="commissions/payouts/:id/audit" element={<Suspense fallback={<PageSkeleton />}><PayoutAuditTrail /></Suspense>} />
-            <Route path="commissions/payouts/:id/transactions" element={<Suspense fallback={<PageSkeleton />}><SourceTransactions /></Suspense>} />
+            <Route path="commissions/payouts/:payoutId/lines" element={<Suspense fallback={<PageSkeleton />}><PayoutLineList /></Suspense>} />
+            <Route path="commissions/payouts/:payoutId/lines/:lineId" element={<Suspense fallback={<PageSkeleton />}><PayoutLineDetail /></Suspense>} />
+            <Route path="commissions/payouts/:payoutId/lines/:lineId/edit" element={<Suspense fallback={<PageSkeleton />}><PayoutLineEdit /></Suspense>} />
+            <Route path="commissions/payouts/:payoutId/audit" element={<Suspense fallback={<PageSkeleton />}><PayoutAuditTrail /></Suspense>} />
+            <Route path="commissions/payouts/:payoutId/transactions" element={<Suspense fallback={<PageSkeleton />}><SourceTransactions /></Suspense>} />
 
             {/* Field Operations Drill-Down Routes */}
             <Route path="field-operations/boards/:id/history" element={<Suspense fallback={<PageSkeleton />}><BoardPlacementHistory /></Suspense>} />
@@ -867,16 +867,16 @@ function App() {
             <Route path="field-operations/tasks/:id/survey" element={<Suspense fallback={<PageSkeleton />}><VisitTaskSurveyDetail /></Suspense>} />
 
             {/* Finance Drill-Down Routes */}
-            <Route path="finance/invoices/:id/line-items" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemList /></Suspense>} />
-            <Route path="finance/invoices/:id/line-items/:itemId" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemDetail /></Suspense>} />
-            <Route path="finance/invoices/:id/line-items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemEdit /></Suspense>} />
-            <Route path="finance/invoices/:id/line-items/:itemId/history" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemHistory /></Suspense>} />
-            <Route path="finance/invoices/:id/status-history" element={<Suspense fallback={<PageSkeleton />}><InvoiceStatusHistory /></Suspense>} />
-            <Route path="finance/payments/:id/allocations" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationList /></Suspense>} />
-            <Route path="finance/payments/:id/allocations/create" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationCreate /></Suspense>} />
-            <Route path="finance/payments/:id/allocations/:allocId" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationDetail /></Suspense>} />
-            <Route path="finance/payments/:id/allocations/:allocId/edit" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationEdit /></Suspense>} />
-            <Route path="finance/payments/:id/status-history" element={<Suspense fallback={<PageSkeleton />}><PaymentStatusHistory /></Suspense>} />
+            <Route path="finance/invoices/:invoiceId/line-items" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemList /></Suspense>} />
+            <Route path="finance/invoices/:invoiceId/line-items/:itemId" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemDetail /></Suspense>} />
+            <Route path="finance/invoices/:invoiceId/line-items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemEdit /></Suspense>} />
+            <Route path="finance/invoices/:invoiceId/line-items/:itemId/history" element={<Suspense fallback={<PageSkeleton />}><InvoiceItemHistory /></Suspense>} />
+            <Route path="finance/invoices/:invoiceId/status-history" element={<Suspense fallback={<PageSkeleton />}><InvoiceStatusHistory /></Suspense>} />
+            <Route path="finance/payments/:paymentId/allocations" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationList /></Suspense>} />
+            <Route path="finance/payments/:paymentId/allocations/create" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationCreate /></Suspense>} />
+            <Route path="finance/payments/:paymentId/allocations/:allocId" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationDetail /></Suspense>} />
+            <Route path="finance/payments/:paymentId/allocations/:allocId/edit" element={<Suspense fallback={<PageSkeleton />}><PaymentAllocationEdit /></Suspense>} />
+            <Route path="finance/payments/:paymentId/status-history" element={<Suspense fallback={<PageSkeleton />}><PaymentStatusHistory /></Suspense>} />
 
             {/* Inventory Drill-Down Routes */}
             <Route path="inventory/adjustments/:id/items" element={<Suspense fallback={<PageSkeleton />}><AdjustmentItemList /></Suspense>} />
@@ -892,11 +892,11 @@ function App() {
             <Route path="inventory/lots/:id" element={<Suspense fallback={<PageSkeleton />}><LotDetail /></Suspense>} />
             <Route path="inventory/serials" element={<Suspense fallback={<PageSkeleton />}><SerialTracking /></Suspense>} />
             <Route path="inventory/serials/:id" element={<Suspense fallback={<PageSkeleton />}><SerialDetail /></Suspense>} />
-            <Route path="inventory/stock-counts/:id/lines" element={<Suspense fallback={<PageSkeleton />}><CountLineList /></Suspense>} />
-            <Route path="inventory/stock-counts/:id/lines/:lineId" element={<Suspense fallback={<PageSkeleton />}><CountLineDetail /></Suspense>} />
-            <Route path="inventory/stock-counts/:id/lines/:lineId/edit" element={<Suspense fallback={<PageSkeleton />}><CountLineEdit /></Suspense>} />
-            <Route path="inventory/stock-counts/:id/lines/:lineId/approve" element={<Suspense fallback={<PageSkeleton />}><CountLineApproval /></Suspense>} />
-            <Route path="inventory/stock-counts/:id/lines/:lineId/variance" element={<Suspense fallback={<PageSkeleton />}><VarianceResolution /></Suspense>} />
+            <Route path="inventory/stock-counts/:countId/lines" element={<Suspense fallback={<PageSkeleton />}><CountLineList /></Suspense>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId" element={<Suspense fallback={<PageSkeleton />}><CountLineDetail /></Suspense>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/edit" element={<Suspense fallback={<PageSkeleton />}><CountLineEdit /></Suspense>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/approve" element={<Suspense fallback={<PageSkeleton />}><CountLineApproval /></Suspense>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/variance" element={<Suspense fallback={<PageSkeleton />}><VarianceResolution /></Suspense>} />
             <Route path="inventory/ledger/by-product" element={<Suspense fallback={<PageSkeleton />}><StockLedgerByProduct /></Suspense>} />
             <Route path="inventory/ledger/by-warehouse" element={<Suspense fallback={<PageSkeleton />}><StockLedgerByWarehouse /></Suspense>} />
             <Route path="inventory/ledger/:id" element={<Suspense fallback={<PageSkeleton />}><StockLedgerDetail /></Suspense>} />
@@ -925,19 +925,19 @@ function App() {
             <Route path="orders/:id/status-history/:transitionId" element={<Suspense fallback={<PageSkeleton />}><StatusTransitionDetail /></Suspense>} />
 
             {/* Van Sales Drill-Down Routes */}
-            <Route path="van-sales/routes/:id/stops" element={<Suspense fallback={<PageSkeleton />}><RouteStopList /></Suspense>} />
-            <Route path="van-sales/routes/:id/stops/:stopId" element={<Suspense fallback={<PageSkeleton />}><RouteStopDetail /></Suspense>} />
-            <Route path="van-sales/routes/:id/stops/:stopId/edit" element={<Suspense fallback={<PageSkeleton />}><RouteStopEdit /></Suspense>} />
-            <Route path="van-sales/routes/:id/stops/:stopId/exceptions" element={<Suspense fallback={<PageSkeleton />}><RouteStopExceptions /></Suspense>} />
-            <Route path="van-sales/routes/:id/stops/:stopId/performance" element={<Suspense fallback={<PageSkeleton />}><RouteStopPerformance /></Suspense>} />
-            <Route path="van-sales/van-loads/:id/items" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemList /></Suspense>} />
-            <Route path="van-sales/van-loads/:id/items/:itemId" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemDetail /></Suspense>} />
-            <Route path="van-sales/van-loads/:id/items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemEdit /></Suspense>} />
-            <Route path="van-sales/van-loads/:id/reconciliation" element={<Suspense fallback={<PageSkeleton />}><VanLoadReconciliation /></Suspense>} />
-            <Route path="van-sales/van-loads/:id/variance" element={<Suspense fallback={<PageSkeleton />}><VanLoadVariance /></Suspense>} />
-            <Route path="van-sales/cash-reconciliation/:id/collections/:colId" element={<Suspense fallback={<PageSkeleton />}><CashSessionCollectionDetail /></Suspense>} />
-            <Route path="van-sales/cash-reconciliation/:id/deposits/:depId" element={<Suspense fallback={<PageSkeleton />}><CashSessionDepositDetail /></Suspense>} />
-            <Route path="van-sales/cash-reconciliation/:id/variance" element={<Suspense fallback={<PageSkeleton />}><CashVariance /></Suspense>} />
+            <Route path="van-sales/routes/:routeId/stops" element={<Suspense fallback={<PageSkeleton />}><RouteStopList /></Suspense>} />
+            <Route path="van-sales/routes/:routeId/stops/:stopId" element={<Suspense fallback={<PageSkeleton />}><RouteStopDetail /></Suspense>} />
+            <Route path="van-sales/routes/:routeId/stops/:stopId/edit" element={<Suspense fallback={<PageSkeleton />}><RouteStopEdit /></Suspense>} />
+            <Route path="van-sales/routes/:routeId/stops/:stopId/exceptions" element={<Suspense fallback={<PageSkeleton />}><RouteStopExceptions /></Suspense>} />
+            <Route path="van-sales/routes/:routeId/stops/:stopId/performance" element={<Suspense fallback={<PageSkeleton />}><RouteStopPerformance /></Suspense>} />
+            <Route path="van-sales/van-loads/:loadId/items" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemList /></Suspense>} />
+            <Route path="van-sales/van-loads/:loadId/items/:itemId" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemDetail /></Suspense>} />
+            <Route path="van-sales/van-loads/:loadId/items/:itemId/edit" element={<Suspense fallback={<PageSkeleton />}><VanLoadItemEdit /></Suspense>} />
+            <Route path="van-sales/van-loads/:loadId/reconciliation" element={<Suspense fallback={<PageSkeleton />}><VanLoadReconciliation /></Suspense>} />
+            <Route path="van-sales/van-loads/:loadId/variance" element={<Suspense fallback={<PageSkeleton />}><VanLoadVariance /></Suspense>} />
+            <Route path="van-sales/cash-reconciliation/:sessionId/collections/:collectionId" element={<Suspense fallback={<PageSkeleton />}><CashSessionCollectionDetail /></Suspense>} />
+            <Route path="van-sales/cash-reconciliation/:sessionId/deposits/:depositId" element={<Suspense fallback={<PageSkeleton />}><CashSessionDepositDetail /></Suspense>} />
+            <Route path="van-sales/cash-reconciliation/:sessionId/variance" element={<Suspense fallback={<PageSkeleton />}><CashVariance /></Suspense>} />
 
             {/* Note: index route removed to avoid conflicting with path="/" LandingPage route */}
           </Route>

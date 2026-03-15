@@ -232,7 +232,7 @@ export default function DashboardPage() {
                   dataKey="date" 
                   tickFormatter={(value) => formatDate(value, { format: 'short' })}
                 />
-                <YAxis tickFormatter={(value) => formatCurrency(value, { compact: true })} />
+                <YAxis width={80} tickFormatter={(value) => formatCurrency(value, { compact: true })} />
                 <Tooltip 
                   labelFormatter={(value) => formatDate(value)}
                   formatter={(value: any) => [formatCurrency(value), 'Revenue']}

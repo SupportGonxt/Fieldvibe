@@ -267,10 +267,12 @@ export default function AnalyticsPage() {
     return `${num > 0 ? '+' : ''}${Number.isFinite(num) ? num.toFixed(1) : '0.0'}%`
   }
 
+  const displayData = data || fallbackAnalyticsData
+
   const exportData = () => {
-    // Mock export functionality
+    const d = data || fallbackAnalyticsData
     const csvData = 'Date,Revenue,Orders,Customers\n' + 
-      (displayData.revenue_trend.map(item => 
+      (d.revenue_trend.map(item => 
         `${item.date},${item.revenue},${item.orders},${item.customers}`
       ).join('\n') || '')
     
@@ -290,8 +292,6 @@ export default function AnalyticsPage() {
       </div>
     )
   }
-
-  const displayData = data || fallbackAnalyticsData
 
   return (
     <div className="space-y-8">

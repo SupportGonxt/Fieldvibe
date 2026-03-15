@@ -40,18 +40,19 @@ export const SystemHealthPage: React.FC = () => {
       { name: 'Self-Healing Engine', endpoint: '/platform/self-heal' },
       { name: 'Analytics', endpoint: '/analytics-new/sales?period=daily' },
     ]
-    const results: ServiceStatus[] = []
-    let errors = 0
-    for (const ep of endpoints) {
-      try {
+    const settled = await Promise.allSettled(
+      endpoints.map(async (ep) => {
         const start = Date.now()
         await apiClient.get(ep.endpoint)
-        results.push({ name: ep.name, status: 'healthy', latency: Date.now() - start })
-      } catch {
-        results.push({ name: ep.name, status: 'down' })
-        errors++
-      }
-    }
+        return { name: ep.name, status: 'healthy' as const, latency: Date.now() - start }
+      })
+    )
+    let errors = 0
+    const results: ServiceStatus[] = settled.map((result, i) => {
+      if (result.status === 'fulfilled') return result.value
+      errors++
+      return { name: endpoints[i].name, status: 'down' as const }
+    })
     setServices(results)
     setErrorRate(Math.round((errors / endpoints.length) * 100))
     setLoading(false)
