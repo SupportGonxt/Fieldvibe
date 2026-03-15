@@ -28,13 +28,23 @@ export const CommissionApprovalPage: React.FC = () => {
     queryFn: () => commissionsService.getCommissions({ status: 'pending' }),
   })
 
+  const approveMutation = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map(id => commissionsService.approveCommission(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
+      toast.success('Commissions approved successfully')
+      setSelectedCommissions(new Set())
+    },
+    onError: () => toast.error('Failed to approve commissions'),
+  })
+
   const mockPendingCommissions: PendingCommission[] = (pendingData?.commissions || []).map((c: any) => ({
     id: String(c.id),
-    agent_name: c.agent_name || c.user_name || 'Unknown Agent',
-    agent_id: String(c.agent_id || c.user_id || ''),
-    transaction_type: c.transaction_type || c.type || 'Sale',
+    agent_name: c.agent_name || c.earner_name || c.user_name || 'Unknown Agent',
+    agent_id: String(c.agent_id || c.earner_id || c.user_id || ''),
+    transaction_type: c.transaction_type || c.source_type || c.type || 'Sale',
     transaction_date: c.transaction_date || c.created_at || new Date().toISOString(),
-    amount: Number(c.amount || c.base_amount || 0),
+    amount: Number(c.base_amount || c.amount || 0),
     commission_amount: Number(c.commission_amount || c.amount || 0),
     submitted_date: c.submitted_date || c.created_at || new Date().toISOString(),
     notes: c.notes,
@@ -66,16 +76,6 @@ export const CommissionApprovalPage: React.FC = () => {
       setSelectedCommissions(new Set(mockPendingCommissions.map(c => c.id)))
     }
   }
-
-  const approveMutation = useMutation({
-    mutationFn: (ids: string[]) => Promise.all(ids.map(id => commissionsService.approveCommission(id))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
-      toast.success('Commissions approved successfully')
-      setSelectedCommissions(new Set())
-    },
-    onError: () => toast.error('Failed to approve commissions'),
-  })
 
   const handleBulkApprove = () => {
     if (selectedCommissions.size === 0) return
@@ -278,7 +278,7 @@ export const CommissionApprovalPage: React.FC = () => {
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-surface-secondary0 bg-opacity-75 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Reject Commissions</h3>
             <p className="text-sm text-gray-500 mb-4">
