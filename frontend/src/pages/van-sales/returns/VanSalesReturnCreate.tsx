@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Send, RotateCcw, Package } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { vanSalesService } from '../../../services/van-sales.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Order {
   id: string
@@ -21,6 +22,7 @@ interface Product {
 }
 
 export default function VanSalesReturnCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -57,15 +59,15 @@ export default function VanSalesReturnCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedOrder) {
-      alert('Please select an order')
+      toast.info('Please select an order')
       return
     }
     if (!reason) {
-      alert('Please select a return reason')
+      toast.info('Please select a return reason')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product to return')
+      toast.info('Please add at least one product to return')
       return
     }
 

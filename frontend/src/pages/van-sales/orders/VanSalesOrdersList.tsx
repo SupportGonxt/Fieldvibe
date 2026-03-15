@@ -4,8 +4,10 @@ import { Eye, Edit, RotateCcw } from 'lucide-react'
 import TransactionList from '../../../components/transactions/TransactionList'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function VanSalesOrdersList() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
@@ -126,7 +128,7 @@ export default function VanSalesOrdersList() {
       loadOrders()
     } catch (error) {
       console.error('Failed to reverse order:', error)
-      alert('Failed to reverse order')
+      toast.error('Failed to reverse order')
     }
   }
 

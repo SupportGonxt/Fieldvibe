@@ -4,8 +4,10 @@ import { Eye, RotateCcw } from 'lucide-react'
 import TransactionList from '../../../components/transactions/TransactionList'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function BoardPlacementsList() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [placements, setPlacements] = useState([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +36,7 @@ export default function BoardPlacementsList() {
       loadPlacements()
     } catch (error) {
       console.error('Failed to reverse board placement:', error)
-      alert('Failed to reverse board placement')
+      toast.error('Failed to reverse board placement')
     }
   }
 

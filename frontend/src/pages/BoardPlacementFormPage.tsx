@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fieldMarketingService } from '../services/field-marketing.service';
+import { useToast } from '../components/ui/Toast'
 
 const BoardPlacementFormPage: React.FC = () => {
+  const { toast } = useToast()
   const location = useLocation();
   const navigate = useNavigate();
   const { visit, customer, boards } = location.state || {};
@@ -45,24 +47,24 @@ const BoardPlacementFormPage: React.FC = () => {
     // Simulate photo capture - in production, this would open camera
     const photoUrl = `https://storage.example.com/boards/${Date.now()}.jpg`;
     setFormData({ ...formData, placementPhoto: photoUrl });
-    alert('📸 Photo captured! (Simulated)');
+    toast.info('📸 Photo captured! (Simulated)');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedBoard) {
-      alert('Please select a board type');
+      toast.info('Please select a board type');
       return;
     }
 
     if (!formData.placementPhoto) {
-      alert('Please capture placement photo');
+      toast.info('Please capture placement photo');
       return;
     }
 
     if (!currentLocation) {
-      alert('GPS location not available');
+      toast.info('GPS location not available');
       return;
     }
 
@@ -81,11 +83,11 @@ const BoardPlacementFormPage: React.FC = () => {
         placementNotes: formData.placementNotes
       });
 
-      alert(`✅ Board placement recorded! Commission: $${selectedBoard.commission_rate || 0}`);
+      toast.info(`Board placement recorded! Commission: $${selectedBoard.commission_rate || 0}`);
       navigate(-1);
     } catch (error) {
       console.error('Failed to create board placement:', error);
-      alert('Failed to record board placement. Please try again.');
+      toast.error('Failed to record board placement. Please try again.');
     } finally {
       setLoading(false);
     }

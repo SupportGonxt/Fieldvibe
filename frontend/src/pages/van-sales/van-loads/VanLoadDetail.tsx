@@ -5,8 +5,10 @@ import { vanSalesService } from '../../../services/van-sales.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function VanLoadDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [vanLoad, setVanLoad] = useState<any>(null)
@@ -38,7 +40,7 @@ export default function VanLoadDetail() {
       navigate('/van-sales/van-loads')
     } catch (error) {
       console.error('Failed to confirm van load:', error)
-      alert('Failed to confirm van load')
+      toast.error('Failed to confirm van load')
     }
   }
 

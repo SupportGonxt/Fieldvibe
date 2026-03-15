@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export const CommissionReportsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -16,16 +17,43 @@ export const CommissionReportsPage: React.FC = () => {
     }).format(amount)
   }
 
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['commission-stats'],
+    queryFn: () => commissionsService.getCommissionStats(),
+  })
+
+  const { data: commissionsData, isLoading: commissionsLoading } = useQuery({
+    queryKey: ['commissions-report', dateRange],
+    queryFn: () => commissionsService.getCommissions(),
+  })
+
+  const isLoading = statsLoading || commissionsLoading
+  const commissionsList = commissionsData?.commissions || []
+
+  if (isLoading) return <LoadingSpinner />
+
   const mockReportData = {
-    by_agent: [],
-    by_type: [],
+    by_agent: commissionsList.reduce((acc: any[], c: any) => {
+      const name = c.agent_name || c.user_name || 'Unknown'
+      const existing = acc.find((a: any) => a.name === name)
+      if (existing) { existing.total += Number(c.amount || 0); existing.count++ }
+      else acc.push({ name, total: Number(c.amount || 0), count: 1 })
+      return acc
+    }, []),
+    by_type: commissionsList.reduce((acc: any[], c: any) => {
+      const type = c.transaction_type || c.type || 'Sale'
+      const existing = acc.find((a: any) => a.type === type)
+      if (existing) { existing.total += Number(c.amount || 0); existing.count++ }
+      else acc.push({ type, total: Number(c.amount || 0), count: 1 })
+      return acc
+    }, []),
     by_period: [],
     summary: {
-      total_commissions: 0,
-      total_amount: 0,
-      average_commission: 0,
-      highest_earner: null,
-      growth_rate: 0
+      total_commissions: (statsData as any)?.total_commissions || commissionsList.length,
+      total_amount: (statsData as any)?.total_amount || commissionsList.reduce((s: number, c: any) => s + Number(c.amount || 0), 0),
+      average_commission: (statsData as any)?.average_commission || (commissionsList.length > 0 ? commissionsList.reduce((s: number, c: any) => s + Number(c.amount || 0), 0) / commissionsList.length : 0),
+      highest_earner: (statsData as any)?.highest_earner || null,
+      growth_rate: (statsData as any)?.growth_rate || 0
     }
   }
 

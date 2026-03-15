@@ -5,8 +5,10 @@ import { fieldOperationsService } from '../../../services/field-operations.servi
 import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function BoardPlacementDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [placement, setPlacement] = useState<any>(null)
@@ -38,7 +40,7 @@ export default function BoardPlacementDetail() {
       navigate('/field-operations/board-placements')
     } catch (error) {
       console.error('Failed to reverse board placement:', error)
-      alert('Failed to reverse board placement')
+      toast.error('Failed to reverse board placement')
     }
   }
 

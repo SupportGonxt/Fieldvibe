@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { tradeMarketingService } from '../services/tradeMarketing.service';
+import { useToast } from '../components/ui/Toast'
 
 const SKUAvailabilityCheckerPage: React.FC = () => {
+  const { toast } = useToast()
   const location = useLocation();
   const navigate = useNavigate();
   const { visit, store } = location.state || {};
@@ -34,23 +36,33 @@ const SKUAvailabilityCheckerPage: React.FC = () => {
   }, [formData.actualPrice, formData.rrp]);
 
   const scanBarcode = () => {
-    // Simulate barcode scanning
-    const mockBarcode = Math.random().toString(36).substring(7).toUpperCase();
-    alert(`📱 Barcode scanned: ${mockBarcode}`);
-    setFormData({ ...formData, productId: mockBarcode });
+    // Use device camera for barcode scanning
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e: any) => {
+      const file = e.target?.files?.[0];
+      if (file) {
+        toast.success('Photo captured for barcode');
+        const productId = prompt('Enter the product ID/barcode:');
+        if (productId) setFormData({ ...formData, productId });
+      }
+    };
+    input.click();
   };
 
   const capturePhoto = () => {
     const photoUrl = `https://storage.example.com/sku/${Date.now()}.jpg`;
     setFormData({ ...formData, skuPhoto: photoUrl });
-    alert('📸 SKU photo captured!');
+    toast.info('📸 SKU photo captured!');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.productId) {
-      alert('Please scan or enter product ID');
+      toast.info('Please scan or enter product ID');
       return;
     }
 
@@ -72,11 +84,11 @@ const SKUAvailabilityCheckerPage: React.FC = () => {
         notes: formData.notes || undefined
       });
 
-      alert('✅ SKU availability recorded!');
+      toast.info('✅ SKU availability recorded!');
       navigate(-1);
     } catch (error) {
       console.error('Failed to record SKU:', error);
-      alert('Failed to record SKU. Please try again.');
+      toast.error('Failed to record SKU. Please try again.');
     } finally {
       setLoading(false);
     }

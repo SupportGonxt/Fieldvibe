@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import { useToast } from '../../components/ui/Toast'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface PendingCommission {
   id: string
@@ -16,11 +18,29 @@ interface PendingCommission {
 
 export const CommissionApprovalPage: React.FC = () => {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [selectedCommissions, setSelectedCommissions] = useState<Set<string>>(new Set())
   const [rejectionReason, setRejectionReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
-  const mockPendingCommissions: PendingCommission[] = []
+  const { data: pendingData, isLoading } = useQuery({
+    queryKey: ['commission-earnings-pending'],
+    queryFn: () => commissionsService.getCommissions({ status: 'pending' }),
+  })
+
+  const mockPendingCommissions: PendingCommission[] = (pendingData?.commissions || []).map((c: any) => ({
+    id: String(c.id),
+    agent_name: c.agent_name || c.user_name || 'Unknown Agent',
+    agent_id: String(c.agent_id || c.user_id || ''),
+    transaction_type: c.transaction_type || c.type || 'Sale',
+    transaction_date: c.transaction_date || c.created_at || new Date().toISOString(),
+    amount: Number(c.amount || c.base_amount || 0),
+    commission_amount: Number(c.commission_amount || c.amount || 0),
+    submitted_date: c.submitted_date || c.created_at || new Date().toISOString(),
+    notes: c.notes,
+  }))
+
+  if (isLoading) return <LoadingSpinner />
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -47,13 +67,29 @@ export const CommissionApprovalPage: React.FC = () => {
     }
   }
 
+  const approveMutation = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map(id => commissionsService.approveCommission(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
+      toast.success('Commissions approved successfully')
+    },
+    onError: () => toast.error('Failed to approve commissions'),
+  })
+
   const handleBulkApprove = () => {
     if (selectedCommissions.size === 0) return
+    approveMutation.mutate(Array.from(selectedCommissions))
     setSelectedCommissions(new Set())
   }
 
   const handleBulkReject = () => {
     if (selectedCommissions.size === 0 || !rejectionReason) return
+    Promise.all(Array.from(selectedCommissions).map(id =>
+      commissionsService.reverseCommission(id, rejectionReason)
+    )).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
+      toast.success('Commissions rejected')
+    }).catch(() => toast.error('Failed to reject commissions'))
     setSelectedCommissions(new Set())
     setRejectionReason('')
     setShowRejectModal(false)

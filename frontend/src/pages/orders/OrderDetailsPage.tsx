@@ -4,6 +4,7 @@ import { ArrowLeft, Edit2, Printer, Download, Package, DollarSign, Calendar, Use
 import { ordersService } from '../../services/orders.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
+import { useToast } from '../../components/ui/Toast'
 
 interface OrderItem {
   id: string
@@ -52,6 +53,7 @@ interface TimelineEvent {
 }
 
 export default function OrderDetailsPage() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState<Order | null>(null)

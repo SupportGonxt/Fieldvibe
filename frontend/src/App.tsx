@@ -329,6 +329,7 @@ import BrandOwnerReports from './pages/brand-owner/BrandOwnerReports'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LandingPage from './pages/marketing/LandingPage'
+import ToastContainer from './components/ui/Toast'
 
 
 // BUG-007: Register previously unrouted drill-down pages
@@ -458,6 +459,7 @@ function App() {
 
   return (
     <ErrorBoundary>
+      <ToastContainer />
       <div className="min-h-screen bg-[#06090F]">
         <Routes>
           {/* Marketing Landing Page */}

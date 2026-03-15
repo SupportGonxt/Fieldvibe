@@ -5,8 +5,10 @@ import { vanSalesService } from '../../../services/van-sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function VanSalesOrderDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState<any>(null)
@@ -38,7 +40,7 @@ export default function VanSalesOrderDetail() {
       navigate('/van-sales/orders')
     } catch (error) {
       console.error('Failed to reverse order:', error)
-      alert('Failed to reverse order')
+      toast.error('Failed to reverse order')
     }
   }
 

@@ -5,8 +5,10 @@ import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function StockCountDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [stockCount, setStockCount] = useState<any>(null)
@@ -38,7 +40,7 @@ export default function StockCountDetail() {
       navigate('/inventory/stock-counts')
     } catch (error) {
       console.error('Failed to confirm stock count:', error)
-      alert('Failed to confirm stock count')
+      toast.error('Failed to confirm stock count')
     }
   }
 

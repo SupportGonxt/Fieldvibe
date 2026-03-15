@@ -5,6 +5,7 @@ import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary, createEmptyL
 import { vanSalesService } from '../../../services/van-sales.service'
 import { discountsService } from '../../../services/discounts.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Customer {
   id: string
@@ -26,6 +27,7 @@ interface Product {
 }
 
 export default function VanSalesOrderCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [routes, setRoutes] = useState<Route[]>([])
@@ -69,15 +71,15 @@ export default function VanSalesOrderCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedCustomer) {
-      alert('Please select a customer')
+      toast.info('Please select a customer')
       return
     }
     if (!selectedRoute) {
-      alert('Please select a route')
+      toast.info('Please select a route')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product')
+      toast.info('Please add at least one product')
       return
     }
 

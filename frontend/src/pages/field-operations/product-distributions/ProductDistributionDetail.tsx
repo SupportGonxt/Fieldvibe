@@ -5,8 +5,10 @@ import { fieldOperationsService } from '../../../services/field-operations.servi
 import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function ProductDistributionDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [distribution, setDistribution] = useState<any>(null)
@@ -38,7 +40,7 @@ export default function ProductDistributionDetail() {
       navigate('/field-operations/product-distributions')
     } catch (error) {
       console.error('Failed to reverse product distribution:', error)
-      alert('Failed to reverse product distribution')
+      toast.error('Failed to reverse product distribution')
     }
   }
 

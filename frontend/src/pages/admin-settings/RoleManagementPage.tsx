@@ -13,7 +13,13 @@ interface Role {
 export const RoleManagementPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
-  const mockRoles: Role[] = []
+  // Roles are defined in the system
+  const mockRoles: Role[] = [
+    { id: '1', name: 'Admin', description: 'Full system access', permissions: ['all'], user_count: 1, is_system: true, created_at: new Date().toISOString() },
+    { id: '2', name: 'Manager', description: 'Team and operations management', permissions: ['read', 'write', 'approve'], user_count: 2, is_system: true, created_at: new Date().toISOString() },
+    { id: '3', name: 'Agent', description: 'Field agent access', permissions: ['read', 'write'], user_count: 6, is_system: true, created_at: new Date().toISOString() },
+    { id: '4', name: 'Viewer', description: 'Read-only access', permissions: ['read'], user_count: 0, is_system: false, created_at: new Date().toISOString() },
+  ]
 
   const availablePermissions = [
     { id: 'users.view', name: 'View Users', category: 'Users' },

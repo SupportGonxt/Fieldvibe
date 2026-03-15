@@ -5,8 +5,10 @@ import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function ReceiptDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [receipt, setReceipt] = useState<any>(null)
@@ -38,7 +40,7 @@ export default function ReceiptDetail() {
       navigate('/inventory/receipts')
     } catch (error) {
       console.error('Failed to reverse receipt:', error)
-      alert('Failed to reverse receipt')
+      toast.error('Failed to reverse receipt')
     }
   }
 

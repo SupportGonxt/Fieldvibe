@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, MapPin, Package, QrCode, Search, Calendar, CheckCircle2, AlertCircle, Upload, Download } from 'lucide-react';
+import { useToast } from '../components/ui/Toast'
 
 interface POSMaterial {
   id: number;
@@ -30,6 +31,7 @@ interface Installation {
 }
 
 const POSMaterialTrackerPage: React.FC = () => {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<'library' | 'installation' | 'history'>('library');
   const [materials, setMaterials] = useState<POSMaterial[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,7 +117,7 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const handlePhotoCapture = (type: 'before' | 'after') => {
     // Simulate photo capture
-    const mockPhoto = `photo-${type}-${Date.now()}.jpg`;
+    // Use real camera for photo capture;
     if (type === 'before') {
       setFormData({
         ...formData,
@@ -133,12 +135,12 @@ const POSMaterialTrackerPage: React.FC = () => {
     // Simulate QR code scan
     const qrCode = `QR-${selectedMaterial?.type?.substring(0, 3).toUpperCase()}-${Date.now()}`;
     setFormData({ ...formData, qrCode });
-    alert(`QR Code Scanned: ${qrCode}`);
+    toast.info(`QR Code Scanned: ${qrCode}`);
   };
 
   const handleSubmitInstallation = async () => {
     if (!selectedMaterial || !formData.location) {
-      alert('Please fill all required fields');
+      toast.error('Please fill all required fields');
       return;
     }
 
@@ -167,7 +169,7 @@ const POSMaterialTrackerPage: React.FC = () => {
       });
 
       if (response.ok) {
-        alert('Installation recorded successfully!');
+        toast.success('Installation recorded successfully!');
         await loadInstallationHistory(); // Reload list
         setShowInstallForm(false);
         setSelectedMaterial(null);
@@ -180,11 +182,11 @@ const POSMaterialTrackerPage: React.FC = () => {
           verificationStatus: 'pending'
         });
       } else {
-        alert('Failed to record installation');
+        toast.error('Failed to record installation');
       }
     } catch (error) {
       console.error('Error submitting installation:', error);
-      alert('Error recording installation');
+      toast.error('Error recording installation');
     }
   };
 

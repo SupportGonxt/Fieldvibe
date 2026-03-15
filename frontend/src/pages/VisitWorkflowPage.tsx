@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fieldMarketingService } from '../services/field-marketing.service';
+import { useToast } from '../components/ui/Toast'
 
 const VisitWorkflowPage: React.FC = () => {
+  const { toast } = useToast()
   const location = useLocation();
   const navigate = useNavigate();
   const { customer, location: gpsLocation } = location.state || {};
@@ -40,7 +42,7 @@ const VisitWorkflowPage: React.FC = () => {
       loadBoards();
     } catch (error) {
       console.error('Failed to create visit:', error);
-      alert('Failed to create visit. Please try again.');
+      toast.error('Failed to create visit. Please try again.');
       navigate(-1);
     } finally {
       setLoading(false);
@@ -82,11 +84,11 @@ const VisitWorkflowPage: React.FC = () => {
         visitNotes: visitNotes || undefined
       });
       
-      alert('Visit completed successfully!');
+      toast.success('Visit completed successfully!');
       navigate('/field-marketing');
     } catch (error) {
       console.error('Failed to complete visit:', error);
-      alert('Failed to complete visit. Please try again.');
+      toast.error('Failed to complete visit. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -173,7 +175,7 @@ const VisitWorkflowPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => alert('Survey feature coming soon!')}
+            onClick={() => toast.info('Survey feature is not configured for this visit type')}
             className="w-full bg-white rounded-lg shadow p-6 hover:shadow-md transition text-left opacity-75"
           >
             <div className="flex items-center">

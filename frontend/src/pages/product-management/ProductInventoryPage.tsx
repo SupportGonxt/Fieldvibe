@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface ProductInventory {
   product_id: string
@@ -24,7 +25,27 @@ export const ProductInventoryPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const mockInventory: ProductInventory[] = []
+  const { data: productsData, isLoading } = useQuery({
+    queryKey: ['products-inventory'],
+    queryFn: () => productsService.getProducts({ limit: 100 }),
+  })
+
+  const mockInventory: ProductInventory[] = (productsData?.products || productsData || []).map((p: any) => ({
+    product_id: String(p.id),
+    product_name: p.name || 'Unknown Product',
+    sku: p.sku || '',
+    category: p.category_name || p.category || '',
+    current_stock: Number(p.stock_quantity || p.current_stock || 0),
+    reserved_stock: Number(p.reserved_stock || 0),
+    available_stock: Number(p.stock_quantity || p.current_stock || 0) - Number(p.reserved_stock || 0),
+    reorder_level: Number(p.reorder_level || p.min_stock || 10),
+    reorder_quantity: Number(p.reorder_quantity || 50),
+    warehouse: p.warehouse_name || 'Main Warehouse',
+    last_restocked: p.updated_at || new Date().toISOString(),
+    status: Number(p.stock_quantity || 0) <= 0 ? 'out_of_stock' : Number(p.stock_quantity || 0) <= Number(p.reorder_level || 10) ? 'low_stock' : 'in_stock' as any,
+  }))
+
+  if (isLoading) return <LoadingSpinner />
 
   const getStatusBadge = (status: string) => {
     const badges = {

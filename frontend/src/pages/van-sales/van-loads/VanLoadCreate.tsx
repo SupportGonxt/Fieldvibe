@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Send, Truck, Package } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { vanSalesService } from '../../../services/van-sales.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Van {
   id: string
@@ -25,6 +26,7 @@ interface Product {
 }
 
 export default function VanLoadCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [vans, setVans] = useState<Van[]>([])
   const [routes, setRoutes] = useState<Route[]>([])
@@ -63,15 +65,15 @@ export default function VanLoadCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedVan) {
-      alert('Please select a van')
+      toast.info('Please select a van')
       return
     }
     if (!selectedRoute) {
-      alert('Please select a route')
+      toast.info('Please select a route')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product to load')
+      toast.info('Please add at least one product to load')
       return
     }
 

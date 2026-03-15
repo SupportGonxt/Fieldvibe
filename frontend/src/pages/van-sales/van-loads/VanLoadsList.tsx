@@ -4,8 +4,10 @@ import { Eye, CheckCircle } from 'lucide-react'
 import TransactionList from '../../../components/transactions/TransactionList'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatDate } from '../../../utils/format'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function VanLoadsList() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [vanLoads, setVanLoads] = useState([])
   const [loading, setLoading] = useState(true)
@@ -36,7 +38,7 @@ export default function VanLoadsList() {
       loadVanLoads()
     } catch (error) {
       console.error('Failed to confirm van load:', error)
-      alert('Failed to confirm van load')
+      toast.error('Failed to confirm van load')
     }
   }
 

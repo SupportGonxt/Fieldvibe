@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fieldMarketingService } from '../services/field-marketing.service';
 import EmptyState from '../components/ui/EmptyState'
+import { useToast } from '../components/ui/Toast'
 
 const CustomerSelectionPage: React.FC = () => {
+  const { toast } = useToast()
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,7 +65,7 @@ const CustomerSelectionPage: React.FC = () => {
 
   const validateCustomerGPS = async (customer: any) => {
     if (!currentLocation) {
-      alert('Your location is not available. Please enable GPS.');
+      toast.info('Your location is not available. Please enable GPS.');
       return;
     }
 

@@ -5,6 +5,7 @@ import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../..
 import { inventoryService } from '../../../services/inventory.service'
 import { productsService } from '../../../services/products.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface WarehouseType {
   id: string
@@ -21,6 +22,7 @@ interface Product {
 }
 
 export default function IssueCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -57,19 +59,19 @@ export default function IssueCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedWarehouse) {
-      alert('Please select a warehouse')
+      toast.info('Please select a warehouse')
       return
     }
     if (!issuedTo) {
-      alert('Please enter who this is issued to')
+      toast.info('Please enter who this is issued to')
       return
     }
     if (!issueType) {
-      alert('Please select an issue type')
+      toast.info('Please select an issue type')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product')
+      toast.info('Please add at least one product')
       return
     }
 

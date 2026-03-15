@@ -6,6 +6,7 @@ import { formatCurrency } from '../../utils/currency'
 import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { useToast } from '../../components/ui/Toast'
 
 interface VanSalesMetrics {
   totalVans: number
@@ -29,6 +30,7 @@ interface VanPerformance {
 }
 
 export default function VanSalesPage() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [metrics, setMetrics] = useState<VanSalesMetrics>({
     totalVans: 0,
@@ -137,7 +139,7 @@ export default function VanSalesPage() {
       }
     } catch (error) {
       console.error('Error creating van:', error)
-      alert('Failed to create van')
+      toast.error('Failed to create van')
     }
   }
 
