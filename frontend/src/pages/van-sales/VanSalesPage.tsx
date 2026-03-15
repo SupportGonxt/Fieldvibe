@@ -135,7 +135,7 @@ export default function VanSalesPage() {
         })
         fetchVanSalesData() // Refresh the data
       } else {
-        alert(data.message || 'Failed to create van')
+        toast.error(data.message || 'Failed to create van')
       }
     } catch (error) {
       console.error('Error creating van:', error)

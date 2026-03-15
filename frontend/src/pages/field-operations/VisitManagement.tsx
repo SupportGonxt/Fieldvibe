@@ -136,7 +136,7 @@ const VisitManagement: React.FC = () => {
       fetchVisits()
       toast.success('Visit created successfully!')
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error creating visit')
+      toast.error(error.response?.data?.message || 'Error creating visit')
     }
   }
 
@@ -152,7 +152,7 @@ const VisitManagement: React.FC = () => {
       fetchVisits()
       toast.success('Visit updated successfully!')
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error updating visit')
+      toast.error(error.response?.data?.message || 'Error updating visit')
     }
   }
 
@@ -164,7 +164,7 @@ const VisitManagement: React.FC = () => {
       fetchVisits()
       toast.success('Visit deleted successfully!')
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error deleting visit')
+      toast.error(error.response?.data?.message || 'Error deleting visit')
     }
   }
 

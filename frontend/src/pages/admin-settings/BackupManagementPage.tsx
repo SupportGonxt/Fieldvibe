@@ -19,11 +19,11 @@ export const BackupManagementPage: React.FC = () => {
   const mockBackups: Backup[] = [{
     id: '1',
     name: 'Auto Backup - ' + new Date().toLocaleDateString(),
-    type: 'automatic' as any,
-    status: 'completed' as any,
-    size: 'N/A',
+    type: 'full',
+    status: 'completed',
+    size: 0,
     created_at: new Date().toISOString(),
-    retention_days: 30,
+    created_by: 'System (Cloudflare D1)',
   }]
 
   const formatFileSize = (bytes: number) => {

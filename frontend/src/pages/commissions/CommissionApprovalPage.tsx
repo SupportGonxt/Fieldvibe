@@ -89,10 +89,10 @@ export const CommissionApprovalPage: React.FC = () => {
     )).then(() => {
       queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
       toast.success('Commissions rejected')
+      setSelectedCommissions(new Set())
+      setRejectionReason('')
+      setShowRejectModal(false)
     }).catch(() => toast.error('Failed to reject commissions'))
-    setSelectedCommissions(new Set())
-    setRejectionReason('')
-    setShowRejectModal(false)
   }
 
   const selectedTotal = mockPendingCommissions
