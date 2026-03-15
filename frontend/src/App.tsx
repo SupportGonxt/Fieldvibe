@@ -540,8 +540,8 @@ function App() {
             <Route path="field-operations" element={<FieldOperationsDashboard />} />
             <Route path="field-operations/dashboard" element={<FieldOperationsDashboard />} />
             <Route path="field-operations/agent-dashboard" element={<FieldAgentDashboardPage />} />
-            <Route path="field-operations/agents" element={<FieldAgentsPage />} />
-            <Route path="field-operations/mapping" element={<LiveMappingPage />} />
+            <Route path="field-operations/agents" element={<Navigate to="/field-operations/agent-dashboard" replace />} />
+            <Route path="field-operations/mapping" element={<Navigate to="/field-operations/gps-tracking" replace />} />
             <Route path="field-operations/gps-tracking" element={<LiveGPSTrackingPage />} />
             <Route path="field-operations/boards" element={<BoardPlacementsList />} />
             <Route path="field-operations/boards/create" element={<BoardPlacementFormPage />} />
