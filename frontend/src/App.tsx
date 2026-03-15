@@ -215,7 +215,7 @@ import AuditLogsPage from './pages/admin/AuditLogsPage'
 import SmokeTestPage from './pages/admin/SmokeTestPage'
 import RouteAuditPage from './pages/admin/RouteAuditPage'
 import BrandManagementPage from './pages/admin/BrandManagementPage'
-import CampaignManagementPage from './pages/admin/CampaignManagementPage'
+import AdminCampaignManagementPage from './pages/admin/CampaignManagementPage'
 import CommissionRuleBuilderPage from './pages/admin/CommissionRuleBuilderPage'
 import DataImportExportPage from './pages/admin/DataImportExportPage'
 import POSLibraryPage from './pages/admin/POSLibraryPage'
@@ -301,7 +301,6 @@ import TenantManagement from './pages/superadmin/TenantManagement'
 import FieldAgentDashboardPage from './pages/field-operations/FieldAgentDashboardPage'
 import LiveGPSTrackingPage from './pages/field-operations/LiveGPSTrackingPage'
 import VisitHistoryPage from './pages/field-operations/VisitHistoryPage'
-import VisitManagementPage from './pages/field-operations/VisitManagementPage'
 
 // Van Sales Additional Pages
 import VanCashCollectionPage from './pages/van-sales/VanCashCollectionPage'
@@ -540,8 +539,8 @@ function App() {
             <Route path="field-operations" element={<FieldOperationsDashboard />} />
             <Route path="field-operations/dashboard" element={<FieldOperationsDashboard />} />
             <Route path="field-operations/agent-dashboard" element={<FieldAgentDashboardPage />} />
-            <Route path="field-operations/agents" element={<FieldAgentsPage />} />
-            <Route path="field-operations/mapping" element={<LiveMappingPage />} />
+            <Route path="field-operations/agents" element={<Navigate to="/field-operations" replace />} />
+            <Route path="field-operations/mapping" element={<Navigate to="/field-operations/gps-tracking" replace />} />
             <Route path="field-operations/gps-tracking" element={<LiveGPSTrackingPage />} />
             <Route path="field-operations/boards" element={<BoardPlacementsList />} />
             <Route path="field-operations/boards/create" element={<BoardPlacementFormPage />} />
@@ -791,7 +790,7 @@ function App() {
             } />
             <Route path="admin/campaigns" element={
               <ProtectedRoute requiredRole="admin">
-                <CampaignManagementPage />
+                <AdminCampaignManagementPage />
               </ProtectedRoute>
             } />
             <Route path="admin/commissions" element={
