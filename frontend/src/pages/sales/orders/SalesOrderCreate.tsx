@@ -5,8 +5,11 @@ import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary, Discount } f
 import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
 import { discountsService } from '../../../services/discounts.service'
+import { pricingService } from '../../../services/pricing.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
+import type { SearchableSelectOption } from '../../../components/ui/SearchableSelect'
 
 interface Customer {
   id: string
@@ -44,10 +47,29 @@ export default function SalesOrderCreate() {
   const [notes, setNotes] = useState('')
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [totals, setTotals] = useState<LineItemsTotals>({ subtotal: 0, discount_amount: 0, tax_amount: 0, total_amount: 0, item_count: 0 })
+  const [customerPrices, setCustomerPrices] = useState<Record<string, { price: number; source: string }>>({})
 
   useEffect(() => {
     loadFormData()
   }, [])
+
+  // Fetch customer-specific prices when customer changes (Section 1.4)
+  useEffect(() => {
+    if (selectedCustomer) {
+      pricingService.getCustomerPrices(selectedCustomer).then(prices => {
+        const priceMap: Record<string, { price: number; source: string }> = {}
+        prices.forEach(p => { priceMap[p.product_id] = { price: p.resolved_price, source: p.source } })
+        setCustomerPrices(priceMap)
+        // Update product prices with resolved prices
+        setProducts(prev => prev.map(prod => {
+          const resolved = priceMap[prod.id]
+          return resolved ? { ...prod, price: resolved.price, selling_price: resolved.price } : prod
+        }))
+      }).catch(() => {})
+    } else {
+      setCustomerPrices({})
+    }
+  }, [selectedCustomer])
 
   const loadFormData = async () => {
     try {
@@ -194,13 +216,14 @@ export default function SalesOrderCreate() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  label="Customer *"
+                  placeholder="Select a customer"
+                  options={customers.map(c => ({ value: c.id, label: c.name }))}
+                  value={selectedCustomer}
+                  onChange={(val) => setSelectedCustomer(val || '')}
+                  required
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sales Rep</label>

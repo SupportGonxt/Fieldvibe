@@ -226,6 +226,7 @@ import BoardManagementPage from './pages/admin/BoardManagementPage'
 import PriceListManagementPage from './pages/admin/PriceListManagementPage'
 import PriceListEditPage from './pages/admin/PriceListEditPage'
 
+import { RoleManagementPage } from './pages/admin-settings/RoleManagementPage'
 import { BackupManagementPage } from './pages/admin-settings/BackupManagementPage'
 import { IntegrationsPage } from './pages/admin-settings/IntegrationsPage'
 import { SystemHealthPage } from './pages/admin-settings/SystemHealthPage'
@@ -861,6 +862,11 @@ function App() {
             <Route path="admin/price-lists/:id" element={
               <ProtectedRoute requiredRole="admin">
                 <PriceListEditPage />
+              </ProtectedRoute>
+            } />
+            <Route path="admin/role-management" element={
+              <ProtectedRoute requiredRole="admin">
+                <RoleManagementPage />
               </ProtectedRoute>
             } />
 

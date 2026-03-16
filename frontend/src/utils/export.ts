@@ -58,7 +58,7 @@ export function exportToXLSX(
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>${sheetName}</x:Name>
+<x:Name>${escapeHtml(sheetName)}</x:Name>
 <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
 </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;}</style>
@@ -66,8 +66,8 @@ export function exportToXLSX(
 <table border="1">${headerRow ? `<thead><tr>${headerRow}</tr></thead>` : ''}<tbody>${bodyRows}</tbody></table>
 </body></html>`
 
-  const blob = new Blob([html], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-  downloadBlob(blob, `${filename}.xlsx`)
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
+  downloadBlob(blob, `${filename}.xls`)
 }
 
 export function exportToJSON(data: any[], filename: string = 'export'): void {
