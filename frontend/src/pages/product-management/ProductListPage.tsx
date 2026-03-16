@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { productsService, Product } from '../../services/products.service'
 import { Link } from 'react-router-dom'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ExportMenu from '../../components/export/ExportMenu'
 
 export const ProductListPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -61,12 +62,27 @@ export const ProductListPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Product Management</h1>
-        <Link
-          to="/products/create"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          Add Product
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            data={products}
+            columns={[
+              { key: 'name', label: 'Name' },
+              { key: 'sku', label: 'SKU' },
+              { key: 'category', label: 'Category' },
+              { key: 'price', label: 'Price' },
+              { key: 'stock_quantity', label: 'Stock' },
+              { key: 'status', label: 'Status' },
+            ]}
+            filename="products"
+            title="Products"
+          />
+          <Link
+            to="/products/create"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Add Product
+          </Link>
+        </div>
       </div>
 
       {/* Summary Cards */}

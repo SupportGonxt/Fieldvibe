@@ -4,6 +4,7 @@ import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
+import ExportMenu from '../../components/export/ExportMenu'
 
 export const CommissionDashboardPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -53,12 +54,21 @@ export const CommissionDashboardPage: React.FC = () => {
             Overview of commission earnings and payments
           </p>
         </div>
-        <button
-          onClick={() => window.print()}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          Export Report
-        </button>
+        <ExportMenu
+          data={[
+            { metric: 'Total Commissions', amount: commissionStats.total_amount, count: commissionStats.total_commissions },
+            { metric: 'Pending', amount: commissionStats.pending_amount, count: commissionStats.pending_commissions },
+            { metric: 'Approved', amount: commissionStats.approved_amount, count: commissionStats.approved_commissions },
+            { metric: 'Paid', amount: commissionStats.paid_amount, count: commissionStats.paid_commissions },
+          ]}
+          columns={[
+            { key: 'metric', label: 'Metric' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'count', label: 'Count' },
+          ]}
+          filename="commission-report"
+          title="Commission Report"
+        />
       </div>
 
       {/* Date Range Filter */}

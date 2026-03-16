@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Download, FileText, Table, Printer, ChevronDown } from 'lucide-react'
-import { exportToCSV, exportTableToExcel, printTable } from '../../utils/export'
+import { exportToCSV, exportToXLSX, exportTableToExcel, printTable } from '../../utils/export'
 import type { ExportColumn } from '../../utils/export'
 
 interface ExportMenuProps {
@@ -43,6 +43,11 @@ export default function ExportMenu({
     setOpen(false)
   }
 
+  const handleXLSX = () => {
+    exportToXLSX(data, columns, filename, title)
+    setOpen(false)
+  }
+
   const handlePrint = () => {
     printTable(data, columns, title)
     setOpen(false)
@@ -75,7 +80,7 @@ export default function ExportMenu({
             Export as CSV
           </button>
           <button
-            onClick={handleExcel}
+            onClick={handleXLSX}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-night-100"
           >
             <Table className="w-4 h-4 text-blue-600" />
