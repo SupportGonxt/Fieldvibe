@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Send, ShoppingCart, User } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary, Discount } from '../../../components/transactions/LineItemsEditor'
@@ -48,6 +48,7 @@ export default function SalesOrderCreate() {
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [totals, setTotals] = useState<LineItemsTotals>({ subtotal: 0, discount_amount: 0, tax_amount: 0, total_amount: 0, item_count: 0 })
   const [customerPrices, setCustomerPrices] = useState<Record<string, { price: number; source: string }>>({})
+  const baseProductsRef = useRef<Product[]>([])
 
   useEffect(() => {
     loadFormData()
@@ -60,14 +61,18 @@ export default function SalesOrderCreate() {
         const priceMap: Record<string, { price: number; source: string }> = {}
         prices.forEach(p => { priceMap[p.product_id] = { price: p.resolved_price, source: p.source } })
         setCustomerPrices(priceMap)
-        // Update product prices with resolved prices
-        setProducts(prev => prev.map(prod => {
+        // Derive prices from base products, not from mutated state
+        setProducts(baseProductsRef.current.map(prod => {
           const resolved = priceMap[prod.id]
           return resolved ? { ...prod, price: resolved.price, selling_price: resolved.price } : prod
         }))
       }).catch(() => {})
     } else {
       setCustomerPrices({})
+      // Restore original base prices
+      if (baseProductsRef.current.length > 0) {
+        setProducts(baseProductsRef.current)
+      }
     }
   }, [selectedCustomer])
 
@@ -124,6 +129,7 @@ export default function SalesOrderCreate() {
         }
         
         setProducts(productsData)
+        baseProductsRef.current = productsData
       }
       if (discountsRes.status === 'fulfilled') {
         const data = discountsRes.value || []

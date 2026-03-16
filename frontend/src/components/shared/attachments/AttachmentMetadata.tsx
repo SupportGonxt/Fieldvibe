@@ -24,12 +24,20 @@ export default function AttachmentMetadata() {
   })
 
   const { register, handleSubmit, formState: { errors } } = useForm<MetadataFormData>({
-    values: attachment,
+    values: attachment ? {
+      description: attachment.description || '',
+      tags: Array.isArray(attachment.tags) ? attachment.tags.join(', ') : (attachment.tags || ''),
+      category: (attachment as any).category || '',
+    } : undefined,
   })
 
   const updateMutation = useMutation({
     mutationFn: async (data: MetadataFormData) => {
-      return attachmentsService.uploadAttachment(entityType!, entityId!, new File([], ''), { description: data.description, tags: data.tags.split(',').map(t => t.trim()) })
+      return attachmentsService.updateAttachmentMetadata(attachmentId!, {
+        description: data.description,
+        tags: data.tags.split(',').map(t => t.trim()).filter(Boolean),
+        category: data.category,
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attachment-metadata', entityType, entityId, attachmentId] })
