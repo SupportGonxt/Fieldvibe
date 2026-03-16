@@ -30,6 +30,46 @@ export function exportToCSV(
   downloadBlob(blob, `${filename}.csv`)
 }
 
+export function exportToXLSX(
+  data: any[],
+  columns: ExportColumn[],
+  filename: string = 'export',
+  sheetName: string = 'Sheet1'
+): void {
+  if (data.length === 0) return
+
+  // Build a proper XLSX-compatible spreadsheet via HTML table with Excel XML namespace
+  const headerRow = columns.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')
+  const bodyRows = data.map(row =>
+    columns.map(col => {
+      const value = col.format ? col.format(row[col.key], row) : row[col.key]
+      const strValue = String(value ?? '')
+      // Detect numbers for proper Excel formatting
+      const num = Number(strValue)
+      if (!isNaN(num) && strValue.trim() !== '') {
+        return `<td style="mso-number-format:'0.00'">${escapeHtml(strValue)}</td>`
+      }
+      return `<td style="mso-number-format:'\\@'">${escapeHtml(strValue)}</td>`
+    }).join('')
+  ).map(r => `<tr>${r}</tr>`).join('')
+
+  const html = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>${sheetName}</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;}</style>
+</head><body>
+<table border="1">${headerRow ? `<thead><tr>${headerRow}</tr></thead>` : ''}<tbody>${bodyRows}</tbody></table>
+</body></html>`
+
+  const blob = new Blob([html], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  downloadBlob(blob, `${filename}.xlsx`)
+}
+
 export function exportToJSON(data: any[], filename: string = 'export'): void {
   const json = JSON.stringify(data, null, 2)
   const blob = new Blob([json], { type: 'application/json' })

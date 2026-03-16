@@ -7,12 +7,39 @@ import { validate, loginSchema, registerSchema, createUserSchema, updateUserSche
 
 const app = new Hono();
 
+// ==================== IDEMPOTENCY HELPER (BUG-006) ====================
+async function checkIdempotency(c, db, tenantId) {
+  const key = c.req.header('X-Idempotency-Key');
+  if (!key) return null;
+  try {
+    const existing = await db.prepare('SELECT response_body, response_status FROM idempotency_keys WHERE idempotency_key = ? AND tenant_id = ?').bind(key, tenantId).first();
+    if (existing) return c.json(JSON.parse(existing.response_body), existing.response_status);
+  } catch(e) {}
+  return null;
+}
+async function saveIdempotency(db, tenantId, c, responseBody, status) {
+  const key = c.req.header('X-Idempotency-Key');
+  if (!key) return;
+  try {
+    await db.prepare("INSERT OR IGNORE INTO idempotency_keys (id, tenant_id, idempotency_key, response_body, response_status) VALUES (?, ?, ?, ?, ?)").bind(uuidv4(), tenantId, key, JSON.stringify(responseBody), status).run();
+  } catch(e) {}
+}
+
+
 // ==================== GLOBAL ERROR HANDLER (BUG-001) ====================
 // Catches all unhandled exceptions in any route handler, preventing raw 500
-// errors and stack trace leaks to the client.
+// errors and stack trace leaks to the client. Logs to error_logs table.
 app.onError((err, c) => {
-  console.error('Unhandled error:', err);
-  return c.json({ success: false, message: 'Internal server error' }, 500);
+  console.error('Unhandled error:', err.message, err.stack);
+  try {
+    const db = c.env?.DB;
+    if (db) {
+      db.prepare('INSERT INTO error_logs (id, tenant_id, error_type, message, stack_trace, request_path, request_method, severity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(
+        crypto.randomUUID(), c.get('tenantId') || 'unknown', 'UNHANDLED', err.message, err.stack,
+        c.req.path, c.req.method, 'ERROR').run().catch(() => {});
+    }
+  } catch(e) {}
+  return c.json({ success: false, message: 'An internal error occurred. Please try again.' }, 500);
 });
 
 // ==================== SECTION 7: SECURITY HEADERS ====================
@@ -230,6 +257,49 @@ app.get('/api/auth/me', authMiddleware, async (c) => {
   if (!user) return c.json({ success: false, message: 'User not found' }, 404);
   const tenant = await db.prepare('SELECT name FROM tenants WHERE id = ?').bind(user.tenant_id).first();
   return c.json({ success: true, data: { ...user, name: user.first_name + ' ' + user.last_name, companyName: tenant ? tenant.name : '' } });
+});
+
+// ==================== PASSWORD RESET & EMAIL QUEUE (SECTION 9) ====================
+app.post('/api/auth/forgot-password', rateLimiter(3, 900000), async (c) => {
+  try {
+    const db = c.env.DB;
+    const { email } = await c.req.json();
+    if (!email) return c.json({ success: false, message: 'Email is required' }, 400);
+    const user = await db.prepare('SELECT id, tenant_id, email, first_name FROM users WHERE email = ? AND is_active = 1').bind(email).first();
+    if (!user) return c.json({ success: true, message: 'If an account exists, a reset link will be sent' });
+    const resetToken = uuidv4();
+    const expiresAt = new Date(Date.now() + 3600000).toISOString();
+    await db.prepare("INSERT INTO password_resets (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)").bind(uuidv4(), user.id, resetToken, expiresAt).run();
+    const resetLink = (c.env.FRONTEND_URL || 'https://fieldvibe.app') + '/reset-password?token=' + resetToken;
+    try {
+      await db.prepare("INSERT INTO email_queue (id, tenant_id, to_email, subject, body_html, status) VALUES (?, ?, ?, ?, ?, 'pending')").bind(
+        uuidv4(), user.tenant_id, email, 'Password Reset - FieldVibe',
+        '<h2>Password Reset</h2><p>Hi ' + (user.first_name || '') + ',</p><p>Click below to reset your password:</p><p><a href="' + resetLink + '">Reset Password</a></p><p>This link expires in 1 hour.</p>'
+      ).run();
+    } catch(e) { console.error('Email queue error:', e); }
+    return c.json({ success: true, message: 'If an account exists, a reset link will be sent' });
+  } catch(e) {
+    console.error('Forgot password error:', e);
+    return c.json({ success: false, message: 'An error occurred' }, 500);
+  }
+});
+
+app.post('/api/auth/reset-password', rateLimiter(5, 900000), async (c) => {
+  try {
+    const db = c.env.DB;
+    const { token, password } = await c.req.json();
+    if (!token || !password) return c.json({ success: false, message: 'Token and password are required' }, 400);
+    if (password.length < 8) return c.json({ success: false, message: 'Password must be at least 8 characters' }, 400);
+    const reset = await db.prepare("SELECT * FROM password_resets WHERE token = ? AND used_at IS NULL AND expires_at > datetime('now')").bind(token).first();
+    if (!reset) return c.json({ success: false, message: 'Invalid or expired reset token' }, 400);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = datetime("now") WHERE id = ?').bind(hashedPassword, reset.user_id).run();
+    await db.prepare("UPDATE password_resets SET used_at = datetime('now') WHERE id = ?").bind(reset.id).run();
+    return c.json({ success: true, message: 'Password reset successfully' });
+  } catch(e) {
+    console.error('Reset password error:', e);
+    return c.json({ success: false, message: 'An error occurred' }, 500);
+  }
 });
 
 // ==================== PROTECTED API ROUTES ====================
@@ -845,8 +915,8 @@ api.get('/sales-orders/:id', async (c) => {
   const { id } = c.req.param();
   const order = await db.prepare("SELECT so.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id LEFT JOIN users u ON so.agent_id = u.id WHERE so.id = ? AND so.tenant_id = ?").bind(id, tenantId).first();
   if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
-  const items = await db.prepare('SELECT soi.*, p.name as product_name, p.code as product_code FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? LIMIT 500').bind(id).all();
-  const payments = await db.prepare('SELECT * FROM payments WHERE sales_order_id = ? LIMIT 500').bind(id).all();
+  const items = await db.prepare('SELECT soi.*, p.name as product_name, p.code as product_code FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? AND so.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
+  const payments = await db.prepare('SELECT * FROM payments WHERE sales_order_id = ? AND tenant_id = ? LIMIT 500').bind(id, tenantId).all();
   return c.json({ success: true, data: { ...order, items: items.results || [], payments: payments.results || [] } });
 });
 
@@ -1025,7 +1095,8 @@ api.post('/stock-movements', requireRole('admin', 'manager'), async (c) => {
     const existing = await db.prepare('SELECT id, quantity FROM stock_levels WHERE warehouse_id = ? AND product_id = ? AND tenant_id = ?').bind(body.warehouse_id, body.product_id, tenantId).first();
     const delta = ['in', 'received', 'return'].includes(body.movement_type) ? body.quantity : -body.quantity;
     if (existing) {
-      await db.prepare('UPDATE stock_levels SET quantity = quantity + ?, updated_at = datetime("now") WHERE id = ?').bind(delta, existing.id).run();
+      if (delta < 0 && existing.quantity + delta < 0) return c.json({ success: false, message: 'Insufficient stock. Available: ' + existing.quantity }, 400);
+      await db.prepare('UPDATE stock_levels SET quantity = MAX(0, quantity + ?), updated_at = datetime("now") WHERE id = ?').bind(delta, existing.id).run();
     } else {
       const slId = uuidv4();
       await db.prepare('INSERT INTO stock_levels (id, tenant_id, warehouse_id, product_id, quantity) VALUES (?, ?, ?, ?, ?)').bind(slId, tenantId, body.warehouse_id, body.product_id, Math.max(0, delta)).run();
@@ -1053,7 +1124,7 @@ api.get('/purchase-orders/:id', requireRole('admin', 'manager'), async (c) => {
   const { id } = c.req.param();
   const po = await db.prepare('SELECT po.*, w.name as warehouse_name FROM purchase_orders po LEFT JOIN warehouses w ON po.warehouse_id = w.id WHERE po.id = ? AND po.tenant_id = ?').bind(id, tenantId).first();
   if (!po) return c.json({ success: false, message: 'Purchase order not found' }, 404);
-  const items = await db.prepare('SELECT poi.*, p.name as product_name FROM purchase_order_items poi LEFT JOIN products p ON poi.product_id = p.id JOIN purchase_orders po ON poi.purchase_order_id = po.id WHERE poi.purchase_order_id = ? AND po.tenant_id = ? LIMIT 500').bind(id).all();
+  const items = await db.prepare('SELECT poi.*, p.name as product_name FROM purchase_order_items poi LEFT JOIN products p ON poi.product_id = p.id JOIN purchase_orders po ON poi.purchase_order_id = po.id WHERE poi.purchase_order_id = ? AND po.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
   return c.json({ success: true, data: { ...po, items: items.results || [] } });
 });
 
@@ -1092,7 +1163,7 @@ api.put('/purchase-orders/:id/receive', requireRole('admin', 'manager'), async (
   // Update received quantities and create stock movements
   if (body.items && Array.isArray(body.items)) {
     for (const item of body.items) {
-      await db.prepare('UPDATE purchase_order_items SET quantity_received = ? WHERE id = ?').bind(item.quantity_received || 0, item.id).run();
+      await db.prepare('UPDATE purchase_order_items SET quantity_received = ? WHERE id = ? AND purchase_order_id = ?').bind(item.quantity_received || 0, item.id, id).run();
       if (item.quantity_received > 0) {
         const smId = uuidv4();
         await db.prepare("INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, 'received', ?, 'purchase_order', ?, ?)").bind(smId, tenantId, po.warehouse_id, item.product_id, item.quantity_received, id, userId).run();
@@ -1136,7 +1207,7 @@ api.get('/van-stock-loads/:id', async (c) => {
   const { id } = c.req.param();
   const load = await db.prepare("SELECT vsl.*, u.first_name || ' ' || u.last_name as agent_name, w.name as warehouse_name FROM van_stock_loads vsl LEFT JOIN users u ON vsl.agent_id = u.id LEFT JOIN warehouses w ON vsl.warehouse_id = w.id WHERE vsl.id = ? AND vsl.tenant_id = ?").bind(id, tenantId).first();
   if (!load) return c.json({ success: false, message: 'Van stock load not found' }, 404);
-  const items = await db.prepare('SELECT vsli.*, p.name as product_name, p.code as product_code, p.price FROM van_stock_load_items vsli LEFT JOIN products p ON vsli.product_id = p.id WHERE vsli.van_stock_load_id = ? LIMIT 500').bind(id).all();
+  const items = await db.prepare('SELECT vsli.*, p.name as product_name, p.code as product_code, p.price FROM van_stock_load_items vsli JOIN van_stock_loads vsl ON vsli.van_stock_load_id = vsl.id LEFT JOIN products p ON vsli.product_id = p.id WHERE vsli.van_stock_load_id = ? AND vsl.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
   return c.json({ success: true, data: { ...load, items: items.results || [] } });
 });
 
@@ -1155,9 +1226,10 @@ api.post('/van-stock-loads', async (c) => {
       if (body.warehouse_id) {
         const smId = uuidv4();
         await db.prepare("INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, 'out', ?, 'van_load', ?, ?)").bind(smId, tenantId, body.warehouse_id, item.product_id, item.quantity_loaded || 0, id, userId).run();
-        const sl = await db.prepare('SELECT id FROM stock_levels WHERE warehouse_id = ? AND product_id = ? AND tenant_id = ?').bind(body.warehouse_id, item.product_id, tenantId).first();
+        const sl = await db.prepare('SELECT id, quantity FROM stock_levels WHERE warehouse_id = ? AND product_id = ? AND tenant_id = ?').bind(body.warehouse_id, item.product_id, tenantId).first();
         if (sl) {
-          await db.prepare('UPDATE stock_levels SET quantity = quantity - ?, updated_at = datetime("now") WHERE id = ?').bind(item.quantity_loaded || 0, sl.id).run();
+          if (sl.quantity < (item.quantity_loaded || 0)) return c.json({ success: false, message: 'Insufficient stock for product ' + item.product_id + '. Available: ' + sl.quantity }, 400);
+          await db.prepare('UPDATE stock_levels SET quantity = MAX(0, quantity - ?), updated_at = datetime("now") WHERE id = ?').bind(item.quantity_loaded || 0, sl.id).run();
         }
       }
     }
@@ -1176,7 +1248,7 @@ api.put('/van-stock-loads/:id/return', async (c) => {
   // Update item quantities
   if (body.items && Array.isArray(body.items)) {
     for (const item of body.items) {
-      await db.prepare('UPDATE van_stock_load_items SET quantity_sold = ?, quantity_returned = ?, quantity_damaged = ? WHERE id = ?').bind(item.quantity_sold || 0, item.quantity_returned || 0, item.quantity_damaged || 0, item.id).run();
+      await db.prepare('UPDATE van_stock_load_items SET quantity_sold = ?, quantity_returned = ?, quantity_damaged = ? WHERE id = ? AND van_stock_load_id = ?').bind(item.quantity_sold || 0, item.quantity_returned || 0, item.quantity_damaged || 0, item.id, id).run();
       // Return stock to warehouse
       if (load.warehouse_id && (item.quantity_returned || 0) > 0) {
         const smId = uuidv4();
@@ -1277,7 +1349,7 @@ api.delete('/campaigns/:id', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  await db.prepare('DELETE FROM campaign_assignments WHERE campaign_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM campaign_assignments WHERE campaign_id = ? AND campaign_id IN (SELECT id FROM campaigns WHERE tenant_id = ?)').bind(id, tenantId).run();
   await db.prepare('DELETE FROM campaigns WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
   return c.json({ success: true, message: 'Campaign deleted' });
 });
@@ -1903,15 +1975,16 @@ api.delete('/orders/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
-  await db.prepare('DELETE FROM sales_order_items WHERE order_id = ?').bind(id).run();
+  await db.prepare('DELETE FROM sales_order_items WHERE sales_order_id IN (SELECT id FROM sales_orders WHERE id = ? AND tenant_id = ?)').bind(id, tenantId).run();
   await db.prepare('DELETE FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
   return c.json({ message: 'Order deleted' });
 });
 
 api.get('/orders/:id/items', authMiddleware, async (c) => {
   const db = c.env.DB;
+  const tenantId = c.get('tenantId');
   const id = c.req.param('id');
-  const items = await db.prepare('SELECT soi.*, p.name as product_name, p.code as product_code FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? LIMIT 500').bind(id).all();
+  const items = await db.prepare('SELECT soi.*, p.name as product_name, p.code as product_code FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? AND so.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
   return c.json(items.results || []);
 });
 
@@ -3789,11 +3862,11 @@ api.post('/van-sales/sell', async (c) => {
   // Check van stock availability
   for (let idx = 0; idx < (body.items || []).length; idx++) {
     const item = body.items[idx];
-    const vanItem = await db.prepare('SELECT * FROM van_stock_load_items WHERE van_stock_load_id = ? AND product_id = ?').bind(body.van_stock_load_id, item.product_id).first();
+    const vanItem = await db.prepare('SELECT vsli.* FROM van_stock_load_items vsli JOIN van_stock_loads vsl ON vsli.van_stock_load_id = vsl.id WHERE vsli.van_stock_load_id = ? AND vsli.product_id = ? AND vsl.tenant_id = ?').bind(body.van_stock_load_id, item.product_id, tenantId).first();
     if (!vanItem) { errors.push(`Item ${idx + 1}: product not on van`); continue; }
     const available = vanItem.quantity_loaded - (vanItem.quantity_sold || 0) - (vanItem.quantity_returned || 0) - (vanItem.quantity_damaged || 0);
     if (available < (item.quantity || 1)) {
-      const product = await db.prepare('SELECT name FROM products WHERE id = ?').bind(item.product_id).first();
+      const product = await db.prepare('SELECT name FROM products WHERE id = ? AND tenant_id = ?').bind(item.product_id, tenantId).first();
       errors.push(`Item ${idx + 1}: only ${available} of ${product ? product.name : 'product'} available on van`);
     }
   }
@@ -3858,7 +3931,7 @@ api.post('/van-sales/loads/:id/return', async (c) => {
 
   // Phase 1: Reads & validation (sequential reads are fine)
   for (const item of (body.items || [])) {
-    const vanItem = await db.prepare('SELECT * FROM van_stock_load_items WHERE van_stock_load_id = ? AND product_id = ?').bind(id, item.product_id).first();
+    const vanItem = await db.prepare('SELECT vsli.* FROM van_stock_load_items vsli JOIN van_stock_loads vsl ON vsli.van_stock_load_id = vsl.id WHERE vsli.van_stock_load_id = ? AND vsli.product_id = ? AND vsl.tenant_id = ?').bind(id, item.product_id, tenantId).first();
     if (!vanItem) { errors.push(`Product ${item.product_id} not on this load`); continue; }
 
     const totalAccounted = (vanItem.quantity_sold || 0) + (item.quantity_returned || 0) + (item.quantity_damaged || 0);
@@ -3992,7 +4065,7 @@ api.post('/returns', async (c) => {
   // Validate return quantities
   for (let idx = 0; idx < (body.items || []).length; idx++) {
     const item = body.items[idx];
-    const orderItem = await db.prepare('SELECT soi.* FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id WHERE soi.sales_order_id = ? AND so.tenant_id = ? AND soi.product_id = ?').bind(body.original_order_id, item.product_id).first();
+    const orderItem = await db.prepare('SELECT soi.* FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id WHERE soi.sales_order_id = ? AND so.tenant_id = ? AND soi.product_id = ?').bind(body.original_order_id, tenantId, item.product_id).first();
     if (!orderItem) { errors.push(`Item ${idx + 1}: product not in original order`); continue; }
     // Check already returned
     const alreadyReturned = await db.prepare('SELECT COALESCE(SUM(ri.quantity), 0) as returned FROM return_items ri JOIN returns r ON ri.return_id = r.id WHERE r.original_order_id = ? AND ri.product_id = ? AND r.status != ?').bind(body.original_order_id, item.product_id, 'REJECTED').first();
@@ -4005,10 +4078,11 @@ api.post('/returns', async (c) => {
 
   const returnId = uuidv4();
   const returnNumber = 'RET-' + Date.now().toString(36).toUpperCase();
-  const isFullReturn = (body.items || []).length === (await db.prepare('SELECT COUNT(*) as cnt FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id WHERE soi.sales_order_id = ? AND so.tenant_id = ?').bind(body.original_order_id).first()).cnt;
+  const isFullReturnR = await db.prepare('SELECT COUNT(*) as cnt FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id WHERE soi.sales_order_id = ? AND so.tenant_id = ?').bind(body.original_order_id, tenantId).first();
+  const isFullReturn = (body.items || []).length === (isFullReturnR ? isFullReturnR.cnt : 0);
 
   for (const item of (body.items || [])) {
-    const product = await db.prepare('SELECT * FROM products WHERE id = ?').bind(item.product_id).first();
+    const product = await db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?').bind(item.product_id, tenantId).first();
     const unitPrice = product ? product.price : 0;
     const lineCredit = unitPrice * item.quantity;
     totalCredit += lineCredit;
@@ -4036,7 +4110,7 @@ api.put('/returns/:id/approve', requireRole('admin', 'manager'), async (c) => {
   if (ret.status !== 'PENDING') return c.json({ success: false, message: 'Return is not pending' }, 400);
 
   const items = await db.prepare('SELECT ri.* FROM return_items ri JOIN returns r ON ri.return_id = r.id WHERE ri.return_id = ? AND r.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
-  const order = await db.prepare('SELECT * FROM sales_orders WHERE id = ?').bind(ret.original_order_id).first();
+  const order = await db.prepare('SELECT * FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(ret.original_order_id, tenantId).first();
 
   for (const item of (items.results || [])) {
     if (item.condition === 'good') {
@@ -4702,7 +4776,7 @@ api.get('/route-plans/:id', async (c) => {
   const { id } = c.req.param();
   const plan = await db.prepare('SELECT * FROM route_plans WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!plan) return c.json({ success: false, message: 'Route plan not found' }, 404);
-  const stops = await db.prepare('SELECT rps.*, c.name as customer_name, c.address, c.gps_latitude, c.gps_longitude FROM route_plan_stops rps LEFT JOIN customers c ON rps.customer_id = c.id WHERE rps.route_plan_id = ? ORDER BY rps.sequence_order LIMIT 500').bind(id).all();
+  const stops = await db.prepare('SELECT rps.*, c.name as customer_name, c.address, c.gps_latitude, c.gps_longitude FROM route_plan_stops rps JOIN route_plans rp ON rps.route_plan_id = rp.id LEFT JOIN customers c ON rps.customer_id = c.id WHERE rps.route_plan_id = ? AND rp.tenant_id = ? ORDER BY rps.sequence_order LIMIT 500').bind(id, tenantId).all();
   return c.json({ success: true, data: { ...plan, stops: stops.results || [] } });
 });
 
@@ -5336,7 +5410,7 @@ api.get('/process/audit', requireRole('admin'), async (c) => {
   const checks = [];
 
   // Check for orphaned order items
-  const orphanedItems = await db.prepare("SELECT COUNT(*) as cnt FROM sales_order_items soi LEFT JOIN sales_orders so ON soi.sales_order_id = so.id WHERE so.id IS NULL").first();
+  const orphanedItems = await db.prepare("SELECT COUNT(*) as cnt FROM sales_order_items soi LEFT JOIN sales_orders so ON soi.sales_order_id = so.id WHERE so.id IS NULL").first() || { cnt: 0 };
   checks.push({ check: 'orphaned_order_items', count: orphanedItems?.cnt || 0, status: (orphanedItems?.cnt || 0) === 0 ? 'PASS' : 'FAIL' });
 
   // Check for negative stock
@@ -6153,7 +6227,7 @@ api.post('/activations/:id/submit', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  const pendingTasks = await db.prepare("SELECT COUNT(*) as count FROM activation_tasks WHERE activation_id = ? AND status != 'completed'").bind(id).first();
+  const pendingTasks = await db.prepare("SELECT COUNT(*) as count FROM activation_tasks WHERE activation_id = ? AND status != 'completed'").bind(id).first() || { count: 0 };
   if (pendingTasks?.count > 0) {
     return c.json({ success: false, message: `${pendingTasks.count} task(s) still pending` }, 400);
   }
@@ -6449,6 +6523,37 @@ async function generateAgingReport(db) {
     await db.prepare("UPDATE customers SET aging_bracket = CASE WHEN outstanding_balance <= 0 THEN 'current' WHEN julianday('now') - julianday(last_payment_date) <= 30 THEN '0-30' WHEN julianday('now') - julianday(last_payment_date) <= 60 THEN '31-60' WHEN julianday('now') - julianday(last_payment_date) <= 90 THEN '61-90' ELSE '90+' END WHERE outstanding_balance > 0").run();
   } catch (e) { console.error('generateAgingReport error:', e); }
 }
+
+// ==================== DYNAMIC PRICING (SECTION 1) ====================
+async function resolvePrice(db, tenantId, productId, customerId, quantity) {
+  if (customerId) {
+    const customer = await db.prepare('SELECT price_list_id FROM customers WHERE id = ? AND tenant_id = ?').bind(customerId, tenantId).first();
+    if (customer && customer.price_list_id) {
+      const pli = await db.prepare('SELECT unit_price FROM price_list_items WHERE price_list_id = ? AND product_id = ? AND min_qty <= ? ORDER BY min_qty DESC LIMIT 1').bind(customer.price_list_id, productId, quantity || 1).first();
+      if (pli) return { price: pli.unit_price, source: 'customer_price_list' };
+    }
+  }
+  const volumePrice = await db.prepare("SELECT pli.unit_price FROM price_list_items pli JOIN price_lists pl ON pli.price_list_id = pl.id WHERE pl.tenant_id = ? AND pl.is_active = 1 AND pli.product_id = ? AND pli.min_qty <= ? ORDER BY pli.min_qty DESC LIMIT 1").bind(tenantId, productId, quantity || 1).first();
+  if (volumePrice) return { price: volumePrice.unit_price, source: 'volume_price' };
+  const defaultPrice = await db.prepare("SELECT pli.unit_price FROM price_list_items pli JOIN price_lists pl ON pli.price_list_id = pl.id WHERE pl.tenant_id = ? AND pl.is_default = 1 AND pli.product_id = ? ORDER BY pli.created_at DESC LIMIT 1").bind(tenantId, productId).first();
+  if (defaultPrice) return { price: defaultPrice.unit_price, source: 'default_price_list' };
+  const product = await db.prepare('SELECT price FROM products WHERE id = ? AND tenant_id = ?').bind(productId, tenantId).first();
+  return { price: product ? product.price : 0, source: 'base_price' };
+}
+
+api.get('/pricing/customer-prices', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { customer_id } = c.req.query();
+  if (!customer_id) return c.json({ success: false, message: 'customer_id required' }, 400);
+  const products = await db.prepare('SELECT id, name, code, price FROM products WHERE tenant_id = ? AND status = ? ORDER BY name LIMIT 1000').bind(tenantId, 'active').all();
+  const prices = [];
+  for (const p of (products.results || [])) {
+    const resolved = await resolvePrice(db, tenantId, p.id, customer_id, 1);
+    prices.push({ product_id: p.id, product_name: p.name, product_code: p.code, base_price: p.price, resolved_price: resolved.price, price_source: resolved.source });
+  }
+  return c.json({ success: true, data: prices });
+});
 
 export default {
   fetch: app.fetch,

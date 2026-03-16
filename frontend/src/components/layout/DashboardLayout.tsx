@@ -7,6 +7,7 @@ import MobileBottomTabs from './MobileBottomTabs'
 import PageTransition from './PageTransition'
 import OfflineIndicator from '../ui/OfflineIndicator'
 import HelpPanel from '../help/HelpPanel'
+import Breadcrumbs from '../navigation/Breadcrumbs'
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -67,6 +68,9 @@ export default function DashboardLayout() {
 
         <main className="flex-1 pb-20 lg:pb-8">
           <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="mb-4">
+              <Breadcrumbs />
+            </div>
             <PageTransition>
               <Outlet />
             </PageTransition>

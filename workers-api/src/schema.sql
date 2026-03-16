@@ -155,8 +155,10 @@ CREATE TABLE IF NOT EXISTS customers (
   status TEXT DEFAULT 'active',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  price_list_id TEXT,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  FOREIGN KEY (route_id) REFERENCES routes(id)
+  FOREIGN KEY (route_id) REFERENCES routes(id),
+  FOREIGN KEY (price_list_id) REFERENCES price_lists(id)
 );
 
 -- ==================== VISITS / CHECK-INS ====================
@@ -1374,3 +1376,44 @@ CREATE INDEX IF NOT EXISTS idx_import_jobs_tenant ON import_jobs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_error_logs_tenant ON error_logs(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_commission_payouts_tenant ON commission_payouts(tenant_id, earner_id);
 CREATE INDEX IF NOT EXISTS idx_stock_adjustments_tenant ON stock_adjustments(tenant_id);
+
+-- ==================== EMAIL QUEUE (SECTION 9) ====================
+CREATE TABLE IF NOT EXISTS email_queue (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  to_email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  retry_count INTEGER DEFAULT 0,
+  sent_at TEXT,
+  error TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status, created_at);
+
+-- ==================== PASSWORD RESETS (SECTION 9) ====================
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+
+-- ==================== IDEMPOTENCY KEYS (SECTION 2.6) ====================
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  response_body TEXT,
+  response_status INTEGER,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  UNIQUE(tenant_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_lookup ON idempotency_keys(tenant_id, idempotency_key);

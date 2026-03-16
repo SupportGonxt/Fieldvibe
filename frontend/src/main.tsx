@@ -7,6 +7,9 @@ import { Toaster, toast } from 'react-hot-toast'
 import App from './App'
 import './index.css'
 
+// Section 6: Force dark theme globally
+document.documentElement.classList.add('dark')
+
 // BUG-013: Global error handlers for queries and mutations
 const queryCache = new QueryCache({
   onError: (error: unknown) => {
