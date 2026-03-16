@@ -705,7 +705,7 @@ api.post('/visits', async (c) => {
   if (anomalies.length > 0) {
     const anomalyBatch = anomalies.map(a => {
       const aId = uuidv4();
-      return db.prepare("INSERT INTO anomaly_flags (id, tenant_id, entity_type, entity_id, anomaly_type, severity, details, status, created_at) VALUES (?, ?, 'VISIT', ?, ?, ?, ?, 'open', datetime('now'))").bind(aId, tenantId, id, a.type, a.severity, a.details);
+      return db.prepare("INSERT INTO anomaly_flags (id, tenant_id, agent_id, anomaly_type, severity, description, reference_type, reference_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'VISIT', ?, 'OPEN', datetime('now'))").bind(aId, tenantId, body.agent_id || userId, a.type, a.severity, a.details, id);
     });
     try { await db.batch(anomalyBatch); } catch(e) { console.error('Anomaly insert error:', e); }
   }
@@ -1224,11 +1224,14 @@ api.post('/van-stock-loads', async (c) => {
       await db.prepare('INSERT INTO van_stock_load_items (id, van_stock_load_id, product_id, quantity_loaded) VALUES (?, ?, ?, ?)').bind(itemId, id, item.product_id, item.quantity_loaded || 0).run();
       // Deduct from warehouse stock
       if (body.warehouse_id) {
+        // Check stock availability BEFORE creating movement record
+        const sl = await db.prepare('SELECT id, quantity FROM stock_levels WHERE warehouse_id = ? AND product_id = ? AND tenant_id = ?').bind(body.warehouse_id, item.product_id, tenantId).first();
+        if (sl && sl.quantity < (item.quantity_loaded || 0)) {
+          return c.json({ success: false, message: 'Insufficient stock for product ' + item.product_id + '. Available: ' + sl.quantity }, 400);
+        }
         const smId = uuidv4();
         await db.prepare("INSERT INTO stock_movements (id, tenant_id, warehouse_id, product_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, ?, ?, ?, 'out', ?, 'van_load', ?, ?)").bind(smId, tenantId, body.warehouse_id, item.product_id, item.quantity_loaded || 0, id, userId).run();
-        const sl = await db.prepare('SELECT id, quantity FROM stock_levels WHERE warehouse_id = ? AND product_id = ? AND tenant_id = ?').bind(body.warehouse_id, item.product_id, tenantId).first();
         if (sl) {
-          if (sl.quantity < (item.quantity_loaded || 0)) return c.json({ success: false, message: 'Insufficient stock for product ' + item.product_id + '. Available: ' + sl.quantity }, 400);
           await db.prepare('UPDATE stock_levels SET quantity = MAX(0, quantity - ?), updated_at = datetime("now") WHERE id = ?').bind(item.quantity_loaded || 0, sl.id).run();
         }
       }
@@ -1315,7 +1318,7 @@ api.get('/campaigns/:id', async (c) => {
   const { id } = c.req.param();
   const campaign = await db.prepare('SELECT * FROM campaigns WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!campaign) return c.json({ success: false, message: 'Campaign not found' }, 404);
-  const assignments = await db.prepare("SELECT ca.*, u.first_name || ' ' || u.last_name as user_name FROM campaign_assignments ca LEFT JOIN users u ON ca.user_id = u.id JOIN campaigns c ON ca.campaign_id = c.id WHERE ca.campaign_id = ? AND c.tenant_id = ?").bind(id).all();
+  const assignments = await db.prepare("SELECT ca.*, u.first_name || ' ' || u.last_name as user_name FROM campaign_assignments ca LEFT JOIN users u ON ca.user_id = u.id JOIN campaigns c ON ca.campaign_id = c.id WHERE ca.campaign_id = ? AND c.tenant_id = ?").bind(id, tenantId).all();
   const activations = await db.prepare('SELECT * FROM activations WHERE campaign_id = ? AND tenant_id = ? LIMIT 500').bind(id, tenantId).all();
   return c.json({ success: true, data: { ...campaign, assignments: assignments.results || [], activations: activations.results || [] } });
 });
@@ -2307,7 +2310,7 @@ api.get('/finance/invoices', authMiddleware, async (c) => {
 api.get('/finance/payments', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const payments = await db.prepare("SELECT p.*, c.name as customer_name FROM payments p LEFT JOIN customers c ON p.customer_id = c.id WHERE p.tenant_id = ? ORDER BY p.created_at DESC LIMIT 50").bind(tenantId).all();
+  const payments = await db.prepare("SELECT p.*, c.name as customer_name FROM payments p LEFT JOIN sales_orders so ON p.sales_order_id = so.id LEFT JOIN customers c ON so.customer_id = c.id WHERE p.tenant_id = ? ORDER BY p.created_at DESC LIMIT 50").bind(tenantId).all();
   return c.json({ data: payments.results || [] });
 });
 
@@ -3231,7 +3234,7 @@ api.get('/finance/invoices/:invoiceId/items', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const invoiceId = c.req.param('invoiceId');
-  const items = await db.prepare("SELECT soi.*, p.name as product_name FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? AND soi.tenant_id = ?").bind(invoiceId, tenantId).all();
+  const items = await db.prepare("SELECT soi.*, p.name as product_name FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id JOIN sales_orders so ON soi.sales_order_id = so.id WHERE soi.sales_order_id = ? AND so.tenant_id = ?").bind(invoiceId, tenantId).all();
   return c.json({ data: items.results || [] });
 });
 
@@ -3239,7 +3242,7 @@ api.get('/finance/invoices/:invoiceId/items/:itemId', authMiddleware, async (c) 
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const itemId = c.req.param('itemId');
-  const item = await db.prepare("SELECT * FROM sales_order_items WHERE id = ? AND tenant_id = ?").bind(itemId, tenantId).first();
+  const item = await db.prepare("SELECT soi.* FROM sales_order_items soi JOIN sales_orders so ON soi.sales_order_id = so.id WHERE soi.id = ? AND so.tenant_id = ?").bind(itemId, tenantId).first();
   return item ? c.json(item) : c.json({ message: 'Not found' }, 404);
 });
 
@@ -3316,7 +3319,7 @@ api.get('/price-lists/:id', async (c) => {
   const { id } = c.req.param();
   const list = await db.prepare('SELECT * FROM price_lists WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!list) return c.json({ success: false, message: 'Price list not found' }, 404);
-  const items = await db.prepare('SELECT pli.*, p.name as product_name, p.sku FROM price_list_items pli JOIN products p ON pli.product_id = p.id JOIN price_lists pl ON pli.price_list_id = pl.id WHERE pli.price_list_id = ? AND pl.tenant_id = ? LIMIT 500').bind(id).all();
+  const items = await db.prepare('SELECT pli.*, p.name as product_name, p.sku FROM price_list_items pli JOIN products p ON pli.product_id = p.id JOIN price_lists pl ON pli.price_list_id = pl.id WHERE pli.price_list_id = ? AND pl.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
   return c.json({ success: true, data: { ...list, items: items.results || [] } });
 });
 
@@ -5692,7 +5695,13 @@ api.post('/api-keys', requireRole('admin'), async (c) => {
   const id = uuidv4();
   const keyValue = 'fv_' + uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '').substring(0, 16);
   const keyPrefix = keyValue.substring(0, 10);
-  await db.prepare('INSERT INTO api_keys (id, tenant_id, name, key_hash, key_prefix, scopes, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, keyValue, keyPrefix, JSON.stringify(body.scopes || ['read']), 1).run();
+  // Hash the API key before storing
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(keyValue);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', keyData);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const keyHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  await db.prepare('INSERT INTO api_keys (id, tenant_id, name, key_hash, key_prefix, scopes, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, keyHash, keyPrefix, JSON.stringify(body.scopes || ['read']), 1).run();
   return c.json({ success: true, data: { id, api_key: keyValue, prefix: keyPrefix }, message: 'API key created. Store the key securely - it cannot be retrieved later.' }, 201);
 });
 
@@ -5727,10 +5736,11 @@ api.post('/export', requireRole('admin', 'manager'), async (c) => {
     case 'stock_levels': q = "SELECT sl.*, p.name as product_name, p.sku, w.name as warehouse_name FROM stock_levels sl JOIN products p ON sl.product_id = p.id JOIN warehouses w ON sl.warehouse_id = w.id WHERE sl.tenant_id = ?"; break;
   }
 
-  if (body.date_from) q += ` AND created_at >= '${body.date_from}'`;
-  if (body.date_to) q += ` AND created_at <= '${body.date_to}'`;
+  const bindParams = [tenantId];
+  if (body.date_from) { q += ' AND created_at >= ?'; bindParams.push(body.date_from); }
+  if (body.date_to) { q += ' AND created_at <= ?'; bindParams.push(body.date_to); }
 
-  const data = await db.prepare(q).bind(tenantId).all();
+  const data = await db.prepare(q).bind(...bindParams).all();
   return c.json({ success: true, data: { entity: body.entity, count: (data.results || []).length, rows: data.results || [] } });
 });
 
