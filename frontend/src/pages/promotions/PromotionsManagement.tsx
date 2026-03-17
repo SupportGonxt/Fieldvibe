@@ -48,12 +48,14 @@ export default function PromotionsManagement() {
     queryKey: ['promotions', filter],
     queryFn: () => promotionsService.getPromotions(filter),
     staleTime: 1000 * 60 * 5,
+    retry: 1,
   })
 
   const { data: stats } = useQuery({
     queryKey: ['promotions-stats'],
     queryFn: () => promotionsService.getPromotionStats(),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   })
 
   const promotions = promotionsData?.promotions || []
@@ -340,6 +342,27 @@ export default function PromotionsManagement() {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Promotions Management</h1>
+          <p className="text-gray-600">Create, manage, and track promotional campaigns</p>
+        </div>
+        <div className="card">
+          <div className="text-center py-12">
+            <AlertTriangle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Promotions</h3>
+            <p className="text-gray-600 mb-4">Promotions data could not be loaded. The service may not be available yet.</p>
+            <button onClick={() => refetch()} className="btn-primary">
+              Try Again
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

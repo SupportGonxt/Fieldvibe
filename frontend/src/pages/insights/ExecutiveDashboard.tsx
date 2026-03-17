@@ -9,12 +9,29 @@ import EmptyState from '../../components/ui/EmptyState'
 const COLORS = ['#00E87B', '#36A2EB', '#9B59B6', '#F39C12', '#E91E63', '#00BCD4']
 
 export default function ExecutiveDashboard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['insights-executive'],
     queryFn: insightsService.getExecutiveDashboard,
+    retry: 1,
   })
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Executive Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Platform-wide performance overview</p>
+        </div>
+        <div className="card p-8 text-center">
+          <Activity className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Insights Data Unavailable</h3>
+          <p className="text-gray-600 dark:text-gray-400">Analytics data could not be loaded. Data will populate as transactions are recorded.</p>
+        </div>
+      </div>
+    )
+  }
 
   const stats = data || {}
 

@@ -15,6 +15,7 @@ export default function OrdersPage() {
     queryKey: ['orders', filter],
     queryFn: () => ordersService.getOrders(filter),
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1,
   })
 
   const orders = data?.orders || []
@@ -256,10 +257,10 @@ export default function OrdersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {order.order_number}
+                          {order.order_number || '-'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {order.id.substring(0, 8)}...
+                          {order.id ? order.id.substring(0, 8) : '-'}...
                         </div>
                       </div>
                     </td>
@@ -287,10 +288,10 @@ export default function OrdersPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(order.order_status)}
+                      {getStatusBadge(order.order_status || 'pending')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getPaymentStatusBadge(order.payment_status)}
+                      {getPaymentStatusBadge(order.payment_status || 'pending')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {order.items?.length || 0} items

@@ -52,18 +52,29 @@ export default function InventoryManagement() {
     queryKey: ['inventory-items', filter],
     queryFn: () => inventoryService.getInventoryItems(filter),
     staleTime: 1000 * 60 * 5,
+    retry: 1,
   })
 
-  const { data: stats } = useQuery({
+  const { data: rawStats } = useQuery({
     queryKey: ['inventory-stats'],
     queryFn: () => inventoryService.getInventoryStats(),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   })
+
+  const stats = rawStats ? {
+    total_items: rawStats.total_items ?? 0,
+    total_value: rawStats.total_value ?? 0,
+    low_stock_items: rawStats.low_stock_items ?? 0,
+    out_of_stock_items: rawStats.out_of_stock_items ?? 0,
+    total_locations: rawStats.total_locations ?? 0,
+  } : null
 
   const { data: locations } = useQuery({
     queryKey: ['inventory-locations'],
     queryFn: () => inventoryService.getLocations(),
     staleTime: 1000 * 60 * 30,
+    retry: 1,
   })
 
   const items = inventoryData?.items || []

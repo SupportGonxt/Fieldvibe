@@ -260,7 +260,7 @@ export default function CustomerDetailsPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Total Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">${customer.totalRevenue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">${(customer.totalRevenue || 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -272,7 +272,7 @@ export default function CustomerDetailsPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Current Balance</p>
-              <p className="text-2xl font-bold text-gray-900">${customer.currentBalance.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">${(customer.currentBalance || 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -284,7 +284,7 @@ export default function CustomerDetailsPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Credit Limit</p>
-              <p className="text-2xl font-bold text-gray-900">${customer.creditLimit.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">${(customer.creditLimit || 0).toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -438,7 +438,7 @@ export default function CustomerDetailsPage() {
                   <tr key={order.id} className="hover:bg-surface-secondary cursor-pointer" onClick={() => navigate(`/orders/${order.id}`)}>
                     <td className="px-6 py-4 text-sm font-medium text-blue-600">{order.orderNumber}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{new Date(order.orderDate).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">${order.totalAmount.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">${(order.totalAmount || 0).toLocaleString()}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getOrderStatusColor(order.status)}`}>
                         {order.status}

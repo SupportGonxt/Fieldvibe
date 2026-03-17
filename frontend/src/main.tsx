@@ -7,8 +7,21 @@ import { Toaster, toast } from 'react-hot-toast'
 import App from './App'
 import './index.css'
 
-// Section 6: Force dark theme globally
-document.documentElement.classList.add('dark')
+// Apply persisted theme from localStorage (instead of forcing dark)
+try {
+  const stored = localStorage.getItem('fieldvibe-theme')
+  if (stored) {
+    const parsed = JSON.parse(stored)
+    const theme = parsed?.state?.theme
+    if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
+} catch {
+  // Default: no dark class (light mode)
+}
 
 // BUG-013: Global error handlers for queries and mutations
 const queryCache = new QueryCache({

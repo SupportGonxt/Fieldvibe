@@ -49,12 +49,14 @@ export default function KYCManagement() {
     queryKey: ['kyc-submissions', filter],
     queryFn: () => kycService.getKYCSubmissions(filter),
     staleTime: 1000 * 60 * 5,
+    retry: 1,
   })
 
   const { data: stats } = useQuery({
     queryKey: ['kyc-stats'],
     queryFn: () => kycService.getKYCStats(),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   })
 
   const submissions = kycData?.submissions || []
@@ -316,6 +318,27 @@ export default function KYCManagement() {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">KYC Management</h1>
+          <p className="text-gray-600">Manage customer Know Your Customer submissions</p>
+        </div>
+        <div className="card">
+          <div className="text-center py-12">
+            <AlertTriangle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load KYC Data</h3>
+            <p className="text-gray-600 mb-4">KYC submissions could not be loaded. The service may not be available yet.</p>
+            <button onClick={() => refetch()} className="btn-primary">
+              Try Again
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

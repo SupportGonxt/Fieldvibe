@@ -107,8 +107,9 @@ export default function VanSalesPage() {
       })
       
       setVanPerformance(vanPerformanceData)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching van sales data:', error)
+      // Don't show toast for expected missing endpoints - just show zero metrics
     } finally {
       setLoading(false)
     }
