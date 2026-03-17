@@ -48,9 +48,20 @@ export default function PerformanceDrillDownPage() {
   }
 
   const user = drillDown.user || {}
-  const subordinates = drillDown.subordinates || []
-  const dailyData = drillDown.daily_breakdown || []
-  const companyData = drillDown.company_breakdown || []
+  // Backend returns 'agents' for team_lead drill-down, 'visits'/'registrations'/'daily_visits' for agent
+  const subordinates = drillDown.agents || []
+  const dailyData = drillDown.daily_visits || []
+  // Compute totals from subordinates or visits arrays
+  const totalVisits = user.role === 'team_lead'
+    ? subordinates.reduce((s: number, a: any) => s + (a.visits || 0), 0)
+    : (drillDown.visits || []).length
+  const totalRegistrations = user.role === 'team_lead'
+    ? subordinates.reduce((s: number, a: any) => s + (a.registrations || 0), 0)
+    : (drillDown.registrations || []).length
+  const totalConversions = user.role === 'team_lead'
+    ? subordinates.reduce((s: number, a: any) => s + (a.conversions || 0), 0)
+    : (drillDown.registrations || []).filter((r: any) => r.converted).length
+  const conversionRate = totalRegistrations > 0 ? Math.round((totalConversions / totalRegistrations) * 100) : 0
 
   return (
     <div className="space-y-6 p-6">
@@ -81,28 +92,28 @@ export default function PerformanceDrillDownPage() {
           <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30"><Target className="w-5 h-5 text-blue-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Total Visits</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{drillDown.total_visits || 0}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalVisits}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30"><UserCheck className="w-5 h-5 text-green-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Registrations</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{drillDown.total_registrations || 0}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalRegistrations}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30"><Award className="w-5 h-5 text-purple-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Conversions</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{drillDown.total_conversions || 0}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalConversions}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30"><TrendingUp className="w-5 h-5 text-yellow-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Conversion Rate</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{drillDown.conversion_rate || 0}%</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{conversionRate}%</p>
           </div>
         </div>
       </div>
@@ -115,51 +126,12 @@ export default function PerformanceDrillDownPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dailyData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                <XAxis dataKey="visit_date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="visits" fill="#3B82F6" name="Visits" />
-                <Bar dataKey="registrations" fill="#10B981" name="Registrations" />
-                <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
+                <Bar dataKey="count" fill="#3B82F6" name="Visits" />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Company Breakdown */}
-      {companyData.length > 0 && (
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Performance by Company</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead>
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Registrations</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conversions</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {companyData.map((c: any, i: number) => (
-                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-gray-400" /> {c.company_name}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.visits}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.registrations}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.conversions}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${c.conversion_rate >= 50 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {c.conversion_rate}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
@@ -185,8 +157,8 @@ export default function PerformanceDrillDownPage() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {subordinates.map((sub: any) => (
                   <tr key={sub.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{sub.first_name} {sub.last_name}</td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{(sub.role || '').replace('_', ' ')}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{sub.agent_name || `${sub.first_name || ''} ${sub.last_name || ''}`}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{(sub.role || sub.email || '').replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.visits || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.registrations || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.conversions || 0}</td>
@@ -207,16 +179,14 @@ export default function PerformanceDrillDownPage() {
       )}
 
       {/* Target Performance */}
-      {drillDown.targets && (
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Target Achievement</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <TargetBar label="Visits" current={drillDown.total_visits || 0} target={drillDown.targets.visits || 20} />
-            <TargetBar label="Registrations" current={drillDown.total_registrations || 0} target={drillDown.targets.registrations || 10} />
-            <TargetBar label="Conversions" current={drillDown.total_conversions || 0} target={drillDown.targets.conversions || 5} />
-          </div>
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Target Achievement</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <TargetBar label="Visits" current={totalVisits} target={20} />
+          <TargetBar label="Registrations" current={totalRegistrations} target={10} />
+          <TargetBar label="Conversions" current={totalConversions} target={5} />
         </div>
-      )}
+      </div>
     </div>
   )
 }

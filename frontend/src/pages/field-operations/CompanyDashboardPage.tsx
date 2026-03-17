@@ -11,7 +11,7 @@ export default function CompanyDashboardPage() {
 
   // Check for company_token (company portal auth) or main app auth
   const companyToken = localStorage.getItem('company_token')
-  const isCompanyPortal = !!companyToken && !window.location.pathname.startsWith('/field-operations/')
+  const isCompanyPortal = !window.location.pathname.startsWith('/field-operations/')
   if (isCompanyPortal && !companyToken) {
     navigate('/company-login')
     return null

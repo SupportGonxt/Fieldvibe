@@ -71,6 +71,13 @@ export const navigation: NavigationItem[] = [
     category: 'Operations',
     children: [
       { name: 'Agent Dashboard', href: '/field-operations/agent-dashboard', permission: null, description: 'Agent performance overview' },
+      { name: 'Performance', href: '/field-operations/performance', permission: null, description: 'Role-based performance metrics' },
+      { name: 'Daily Targets', href: '/field-operations/daily-targets', permission: null, description: 'Daily targets per agent' },
+      { name: 'Individuals', href: '/field-operations/individuals', permission: null, description: 'Individual registrations' },
+      { name: 'Companies', href: '/field-operations/companies', permission: null, description: 'Manage service companies' },
+      { name: 'Hierarchy', href: '/field-operations/hierarchy', permission: null, description: 'Agent hierarchy management' },
+      { name: 'Brand Insights', href: '/field-operations/brand-insights', permission: null, description: 'Brand analytics & reporting' },
+      { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins' },
       { name: 'Visits', href: '/field-operations/visits', permission: null, description: 'Manage customer visits' },
       { name: 'Live Map', href: '/field-operations/mapping', permission: null, description: 'Real-time agent tracking' },
       { name: 'GPS Tracking', href: '/field-operations/gps-tracking', permission: null, description: 'GPS compliance monitoring' },

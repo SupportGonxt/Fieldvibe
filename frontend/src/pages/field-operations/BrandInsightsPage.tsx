@@ -57,11 +57,11 @@ export default function BrandInsightsPage() {
     )
   }
 
-  const summary = insights?.summary || {}
-  const companyBreakdown = insights?.company_breakdown || []
-  const dailyTrends = insights?.daily_trends || []
-  const topAgents = insights?.top_agents || []
-  const registrationsByCompany = insights?.registrations_by_company || []
+  const summary = insights?.kpis || {}
+  const dailyTrends = insights?.visits_by_day || []
+  const topAgents = insights?.agent_performance || []
+  const conversionsByDay = insights?.conversions_by_day || []
+  const visitsByHour = insights?.visits_by_hour || []
 
   return (
     <div className="space-y-6 p-6">
@@ -69,7 +69,7 @@ export default function BrandInsightsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Brand Insights</h1>
-          <p className="text-gray-600 dark:text-gray-400">Performance analytics per brand/company (SSReports-style)</p>
+          <p className="text-gray-600 dark:text-gray-400">Performance analytics per brand/company</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -97,44 +97,10 @@ export default function BrandInsightsPage() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Company Breakdown Pie */}
+        {/* Daily Visits Line */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrations by Company</h3>
-            <PieChartIcon className="w-5 h-5 text-gray-400" />
-          </div>
-          {registrationsByCompany.length > 0 ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={registrationsByCompany}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                    nameKey="company_name"
-                  >
-                    {registrationsByCompany.map((_: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-400">No data available</div>
-          )}
-        </div>
-
-        {/* Daily Trends Line */}
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daily Activity Trends</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daily Visit Trends</h3>
             <BarChart3 className="w-5 h-5 text-gray-400" />
           </div>
           {dailyTrends.length > 0 ? (
@@ -142,81 +108,57 @@ export default function BrandInsightsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={dailyTrends}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                  <XAxis dataKey="visit_date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="visits" stroke="#3B82F6" strokeWidth={2} name="Visits" />
-                  <Line type="monotone" dataKey="registrations" stroke="#10B981" strokeWidth={2} name="Registrations" />
-                  <Line type="monotone" dataKey="conversions" stroke="#8B5CF6" strokeWidth={2} name="Conversions" />
+                  <Line type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={2} name="Visits" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-400">No trend data available</div>
+            <div className="h-64 flex items-center justify-center text-gray-400">No visit trend data available</div>
+          )}
+        </div>
+
+        {/* Conversions by Day */}
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrations & Conversions</h3>
+            <PieChartIcon className="w-5 h-5 text-gray-400" />
+          </div>
+          {conversionsByDay.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={conversionsByDay}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="registrations" fill="#10B981" name="Registrations" />
+                  <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-400">No conversion data available</div>
           )}
         </div>
       </div>
 
-      {/* Company Breakdown Table */}
-      {companyBreakdown.length > 0 && (
+      {/* Visits by Hour */}
+      {visitsByHour.length > 0 && (
         <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Company Performance Breakdown</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Agents</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Registrations</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conversions</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conv. Rate</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Visits/Agent</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {companyBreakdown.map((c: any, i: number) => (
-                  <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      {c.company_name}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.agents || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.visits || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.registrations || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{c.conversions || 0}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${(c.conversion_rate || 0) >= 50 ? 'bg-green-100 text-green-800' : (c.conversion_rate || 0) >= 25 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                        {c.conversion_rate || 0}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">
-                      {c.agents > 0 ? Math.round((c.visits || 0) / c.agents) : 0}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Company Bar Chart */}
-      {companyBreakdown.length > 0 && (
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Company Comparison</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Visits by Hour of Day</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={companyBreakdown}>
+              <BarChart data={visitsByHour}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="company_name" />
+                <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
                 <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="visits" fill="#3B82F6" name="Visits" />
-                <Bar dataKey="registrations" fill="#10B981" name="Registrations" />
-                <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
+                <Tooltip labelFormatter={(h) => `${h}:00 - ${h}:59`} />
+                <Bar dataKey="count" fill="#3B82F6" name="Visits" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -241,12 +183,12 @@ export default function BrandInsightsPage() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">{agent.agent_name}</p>
-                    <p className="text-sm text-gray-500">{agent.company_name || 'All Companies'}</p>
+                    <p className="text-sm text-gray-500">{agent.completed || 0} completed</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-gray-900 dark:text-white">{agent.total_visits || agent.visits || 0} visits</p>
-                  <p className="text-sm text-gray-500">{agent.conversions || 0} conversions</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{agent.visit_count || 0} visits</p>
+                  <p className="text-sm text-gray-500">{agent.completed || 0} completed</p>
                 </div>
               </div>
             ))}
@@ -255,7 +197,7 @@ export default function BrandInsightsPage() {
       )}
 
       {/* Empty State */}
-      {!companyBreakdown.length && !dailyTrends.length && !topAgents.length && (
+      {!dailyTrends.length && !topAgents.length && !conversionsByDay.length && (
         <div className="text-center py-12">
           <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-lg font-medium">No brand insights data available</p>
