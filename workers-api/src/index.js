@@ -1938,9 +1938,9 @@ api.get('/orders/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const order = await db.prepare('SELECT so.*, c.name as customer_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id WHERE so.id = ? AND so.tenant_id = ?').bind(id, tenantId).first();
-  if (!order) return c.json({ message: 'Order not found' }, 404);
+  if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
   const items = await db.prepare('SELECT soi.*, p.name as product_name FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? LIMIT 500').bind(id).all();
-  return c.json({ ...order, items: items.results || [] });
+  return c.json({ success: true, data: { ...order, items: items.results || [] } });
 });
 
 api.post('/orders', authMiddleware, async (c) => {
@@ -1970,8 +1970,8 @@ api.put('/orders/:id', authMiddleware, async (c) => {
     if (['status', 'notes', 'total_amount', 'payment_status', 'payment_method', 'delivery_date', 'order_date'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
   }
   if (sets.length === 0) return c.json({ message: 'No valid fields' }, 400);
-  await db.prepare('UPDATE sales_orders SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
-  return c.json({ message: 'Order updated' });
+  await db.prepare('UPDATE sales_orders SET ' + sets.join(', ') + ', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Order updated' });
 });
 
 api.delete('/orders/:id', authMiddleware, async (c) => {
@@ -2022,7 +2022,7 @@ api.post('/orders/create', authMiddleware, async (c) => {
       const product = await db.prepare("SELECT * FROM products WHERE id = ? AND tenant_id = ? AND status = 'active'").bind(item.product_id, tenantId).first();
       if (!product) continue;
 
-      const unitPrice = item.unit_price || product.price;
+      const unitPrice = item.unit_price != null ? item.unit_price : product.price;
       const qty = item.quantity || 1;
       const discountPct = item.discount_percentage || 0;
       const lineSubtotal = unitPrice * qty;
@@ -2032,7 +2032,7 @@ api.post('/orders/create', authMiddleware, async (c) => {
       const taxAmt = afterDiscount * (taxRate / 100);
       const lineTotal = afterDiscount + taxAmt;
 
-      subtotal += afterDiscount;
+      subtotal += lineSubtotal;
       totalTax += taxAmt;
       totalDiscount += discountAmt;
       resolvedItems.push({ product_id: item.product_id, quantity: qty, unit_price: unitPrice, discount_percent: discountPct, tax_rate: taxRate, line_total: lineTotal, product_name: product.name });
@@ -2044,7 +2044,7 @@ api.post('/orders/create', authMiddleware, async (c) => {
     const orderId = uuidv4();
     const orderNumber = 'ORD-' + Date.now().toString(36).toUpperCase();
     const paymentMethod = body.payment_method || 'cash';
-    const totalAmount = subtotal + totalTax;
+    const totalAmount = subtotal - totalDiscount + totalTax;
 
     await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, payment_method, payment_status, subtotal, tax_amount, discount_amount, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(orderId, tenantId, orderNumber, body.customer_id, userId, body.submit ? 'confirmed' : 'draft', paymentMethod, 'pending', subtotal, totalTax, totalDiscount, totalAmount, body.notes || '').run();
 
@@ -2097,7 +2097,7 @@ api.post('/sales/returns/create', authMiddleware, async (c) => {
     const resolvedItems = [];
     for (const item of (body.items || [])) {
       const product = await db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?').bind(item.product_id, tenantId).first();
-      const unitPrice = item.unit_price || (product ? product.price : 0);
+      const unitPrice = item.unit_price != null ? item.unit_price : (product ? product.price : 0);
       const lineCredit = unitPrice * item.quantity;
       totalCredit += lineCredit;
       resolvedItems.push({ product_id: item.product_id, quantity: item.quantity, unitPrice, lineCredit });
