@@ -2089,22 +2089,27 @@ api.post('/sales/returns/create', authMiddleware, async (c) => {
     const order = await db.prepare('SELECT * FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(body.order_id, tenantId).first();
     if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
 
-    let totalCredit = 0;
     const returnId = uuidv4();
     const returnNumber = 'RET-' + Date.now().toString(36).toUpperCase();
 
-    // Insert return items
+    // 1. Resolve items and calculate totalCredit first
+    let totalCredit = 0;
+    const resolvedItems = [];
     for (const item of (body.items || [])) {
       const product = await db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?').bind(item.product_id, tenantId).first();
       const unitPrice = item.unit_price || (product ? product.price : 0);
       const lineCredit = unitPrice * item.quantity;
       totalCredit += lineCredit;
-
-      await db.prepare('INSERT INTO return_items (id, return_id, product_id, quantity, condition, unit_price, line_credit) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), returnId, item.product_id, item.quantity, 'good', unitPrice, lineCredit).run();
+      resolvedItems.push({ product_id: item.product_id, quantity: item.quantity, unitPrice, lineCredit });
     }
 
-    // Insert return record
+    // 2. Insert parent return record first (before child return_items)
     await db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, return_type, status, total_credit_amount, restock_fee, net_credit_amount, reason, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(returnId, tenantId, body.order_id, returnNumber, 'PARTIAL', 'PENDING', totalCredit, 0, totalCredit, body.reason || body.notes || null, userId).run();
+
+    // 3. Insert child return_items after parent exists
+    for (const item of resolvedItems) {
+      await db.prepare('INSERT INTO return_items (id, return_id, product_id, quantity, condition, unit_price, line_credit) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), returnId, item.product_id, item.quantity, 'good', item.unitPrice, item.lineCredit).run();
+    }
 
     return c.json({ success: true, data: { id: returnId, return_number: returnNumber, total_credit: totalCredit } }, 201);
   } catch (error) {
