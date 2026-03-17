@@ -6409,7 +6409,7 @@ api.get('/insights/van-sales', async (c) => {
 });
 
 // O.4 Field Operations Dashboard
-api.get('/insights/field-ops', async (c) => {
+api.get('/insights/field-ops', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
 
