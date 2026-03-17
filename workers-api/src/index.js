@@ -2048,7 +2048,7 @@ api.post('/orders/create', authMiddleware, async (c) => {
     const orderId = uuidv4();
     const orderNumber = 'SO-' + uuidv4().slice(0,8).toUpperCase();
     const paymentMethod = body.payment_method || 'CASH';
-    const paymentStatus = paymentMethod === 'CREDIT' || paymentMethod === 'credit' ? 'PENDING' : 'PENDING';
+    const paymentStatus = paymentMethod === 'CREDIT' || paymentMethod === 'credit' ? 'PENDING' : 'PAID';
 
     const batchStatements = [];
     batchStatements.push(db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, order_type, status, subtotal, tax_amount, discount_amount, total_amount, payment_method, payment_status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(orderId, tenantId, orderNumber, userId, body.customer_id, body.order_type || 'direct_sale', 'CONFIRMED', subtotal, totalTax, totalDiscount, subtotal, paymentMethod, paymentStatus, body.notes || null));
@@ -2067,6 +2067,25 @@ api.post('/orders/create', authMiddleware, async (c) => {
     console.error('Order creation error:', error);
     return c.json({ success: false, message: 'Order creation failed: ' + error.message }, 500);
   }
+});
+
+// ==================== SALES ORDERS ALIASES (frontend /sales/orders routes) ====================
+
+api.get('/sales/orders', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const orders = await db.prepare('SELECT so.*, c.name as customer_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id WHERE so.tenant_id = ? ORDER BY so.created_at DESC LIMIT 500').bind(tenantId).all();
+  return c.json({ success: true, data: orders.results || [] });
+});
+
+api.get('/sales/orders/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const order = await db.prepare('SELECT so.*, c.name as customer_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id WHERE so.id = ? AND so.tenant_id = ?').bind(id, tenantId).first();
+  if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
+  const items = await db.prepare('SELECT soi.*, p.name as product_name FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? LIMIT 500').bind(id).all();
+  return c.json({ success: true, data: { ...order, items: items.results || [] } });
 });
 
 // Order transitions (frontend calls /orders/:id/transition)
@@ -2224,8 +2243,7 @@ api.post('/sales/payments', authMiddleware, async (c) => {
     if (linkedOrderId) {
       await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, linkedOrderId, body.amount, body.method || 'cash', body.reference || null, 'completed').run();
     } else {
-      // No linked order - insert without FK-constrained column using raw SQL to bypass NOT NULL
-      await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, (SELECT id FROM sales_orders WHERE tenant_id = ? LIMIT 1), ?, ?, ?, ?)').bind(paymentId, tenantId, tenantId, body.amount, body.method || 'cash', body.reference || ('STANDALONE-' + paymentId.slice(0,8)), 'completed').run();
+      return c.json({ success: false, message: 'order_id or sales_order_id is required — payments must be linked to an order' }, 400);
     }
   } catch (dbErr) {
     return c.json({ success: false, message: 'Payment insert failed: ' + dbErr.message }, 500);
@@ -2234,11 +2252,11 @@ api.post('/sales/payments', authMiddleware, async (c) => {
   // Update order payment status if linked
   if (body.order_id || body.sales_order_id) {
     const orderId = body.order_id || body.sales_order_id;
-    const order = await db.prepare('SELECT total_amount FROM sales_orders WHERE id = ?').bind(orderId).first();
-    const totalPaid = await db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE sales_order_id = ?').bind(orderId).first();
+    const order = await db.prepare('SELECT total_amount FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(orderId, tenantId).first();
+    const totalPaid = await db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE sales_order_id = ? AND tenant_id = ?').bind(orderId, tenantId).first();
     if (order && totalPaid) {
       const newStatus = totalPaid.total >= order.total_amount ? 'PAID' : 'PARTIAL';
-      await db.prepare('UPDATE sales_orders SET payment_status = ? WHERE id = ?').bind(newStatus, orderId).run();
+      await db.prepare('UPDATE sales_orders SET payment_status = ? WHERE id = ? AND tenant_id = ?').bind(newStatus, orderId, tenantId).run();
     }
   }
 
