@@ -2135,10 +2135,10 @@ api.post('/orders/:id/recalculate', authMiddleware, async (c) => {
     const qty = item.quantity || 1;
     const lineTotal = unitPrice * qty;
     const taxRate = product && product.tax_rate != null ? product.tax_rate : 15;
-    totalTax += lineTotal * (taxRate / 100);
+    totalTax += lineTotal - (lineTotal / (1 + taxRate / 100));
     subtotal += lineTotal;
   }
-  return c.json({ success: true, data: { subtotal, tax: totalTax, total: subtotal + totalTax } });
+  return c.json({ success: true, data: { subtotal, tax: totalTax, total: subtotal } });
 });
 
 // ==================== INVOICES ====================
@@ -2452,8 +2452,8 @@ api.get('/pricing/quote', authMiddleware, async (c) => {
   const unitPrice = product.price || 0;
   const taxRate = product.tax_rate != null ? product.tax_rate : 15;
   const lineTotal = unitPrice * qty;
-  const tax = lineTotal * (taxRate / 100);
-  return c.json({ success: true, data: { product_id, unit_price: unitPrice, quantity: qty, line_total: lineTotal, tax, total: lineTotal + tax } });
+  const tax = lineTotal - (lineTotal / (1 + taxRate / 100));
+  return c.json({ success: true, data: { product_id, unit_price: unitPrice, quantity: qty, line_total: lineTotal, tax, total: lineTotal } });
 });
 
 api.post('/pricing/bulk-quote', authMiddleware, async (c) => {
@@ -2474,9 +2474,9 @@ api.post('/pricing/bulk-quote', authMiddleware, async (c) => {
   for (const r of results) {
     const prod = await db.prepare('SELECT tax_rate FROM products WHERE id = ? AND tenant_id = ?').bind(r.product_id, tenantId).first();
     const rate = prod && prod.tax_rate != null ? prod.tax_rate : 15;
-    grandTax += r.line_total * (rate / 100);
+    grandTax += r.line_total - (r.line_total / (1 + rate / 100));
   }
-  return c.json({ success: true, data: { items: results, subtotal: grandTotal, tax: grandTax, total: grandTotal + grandTax } });
+  return c.json({ success: true, data: { items: results, subtotal: grandTotal, tax: grandTax, total: grandTotal } });
 });
 
 // ==================== FIELD OPERATIONS ROUTES ====================
