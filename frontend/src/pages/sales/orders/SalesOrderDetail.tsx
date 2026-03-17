@@ -22,7 +22,7 @@ export default function SalesOrderDetail() {
     setLoading(true)
     setError(null)
     try {
-      const response = await salesService.getOrder(Number(id))
+      const response = await salesService.getOrder(id!)
       setOrder(response.data)
     } catch (err: any) {
       console.error('Failed to load order:', err)

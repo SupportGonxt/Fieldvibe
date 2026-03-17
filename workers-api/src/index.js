@@ -2029,7 +2029,7 @@ api.post('/orders/create', authMiddleware, async (c) => {
       if (!product) { errors.push(`Item ${idx + 1}: product not found`); continue; }
 
       let unitPrice = item.unit_price || product.price || 0;
-      const discountPct = item.discount || item.discount_percent || 0;
+      const discountPct = Math.min(100, Math.max(0, item.discount ?? item.discount_percent ?? 0));
       const finalPrice = unitPrice * (1 - discountPct / 100);
       const qty = item.quantity || 1;
       const lineTotal = finalPrice * qty;
@@ -2241,6 +2241,8 @@ api.post('/sales/payments', authMiddleware, async (c) => {
   const linkedOrderId = body.order_id || body.sales_order_id || null;
   try {
     if (linkedOrderId) {
+      const linkedOrder = await db.prepare('SELECT id FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(linkedOrderId, tenantId).first();
+      if (!linkedOrder) return c.json({ success: false, message: 'Order not found or access denied' }, 404);
       await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, linkedOrderId, body.amount, body.method || 'cash', body.reference || null, 'completed').run();
     } else {
       return c.json({ success: false, message: 'order_id or sales_order_id is required — payments must be linked to an order' }, 400);
@@ -2286,12 +2288,23 @@ api.post('/credit-notes/create', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
+
+  if (!body.customer_id || typeof body.customer_id !== 'string' || body.customer_id.trim() === '') {
+    return c.json({ success: false, message: 'customer_id is required' }, 400);
+  }
+  if (body.amount == null || typeof body.amount !== 'number' || body.amount <= 0) {
+    return c.json({ success: false, message: 'amount must be a positive number' }, 400);
+  }
+
+  const customer = await db.prepare('SELECT id FROM customers WHERE id = ? AND tenant_id = ?').bind(body.customer_id, tenantId).first();
+  if (!customer) return c.json({ success: false, message: 'Customer not found' }, 404);
+
   const cnId = uuidv4();
   const cnNumber = 'CN-' + Date.now().toString(36).toUpperCase();
-  await db.prepare('INSERT INTO credit_notes (id, tenant_id, customer_id, credit_number, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now"))').bind(cnId, tenantId, body.customer_id, cnNumber, body.amount || 0, 'ISSUED').run();
-  if (body.customer_id) {
-    await db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ? AND tenant_id = ?').bind(body.amount || 0, body.customer_id, tenantId).run();
-  }
+  await db.batch([
+    db.prepare('INSERT INTO credit_notes (id, tenant_id, customer_id, credit_number, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now"))').bind(cnId, tenantId, body.customer_id, cnNumber, body.amount, 'ISSUED'),
+    db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ? AND tenant_id = ?').bind(body.amount, body.customer_id, tenantId)
+  ]);
   return c.json({ success: true, data: { id: cnId, credit_number: cnNumber, amount: body.amount } }, 201);
 });
 

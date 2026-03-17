@@ -21,7 +21,7 @@ export default function SalesOrderEdit() {
     setLoading(true)
     try {
       const [orderRes, customersRes, salesRepsRes] = await Promise.all([
-        salesService.getOrder(Number(id)),
+        salesService.getOrder(id!),
         salesService.getCustomers(),
         salesService.getSalesReps()
       ])
@@ -90,7 +90,7 @@ export default function SalesOrderEdit() {
 
   const handleSubmit = async (data: any) => {
     try {
-      await salesService.updateOrder(Number(id), data)
+      await salesService.updateOrder(id!, data)
       navigate(`/sales/orders/${id}`)
     } catch (error: any) {
       throw new Error(error.message || 'Failed to update order')
