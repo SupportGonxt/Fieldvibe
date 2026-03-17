@@ -35,7 +35,9 @@ import {
   Pause as SuspendIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { apiClient } from '../../services/api.service';
+import { apiClient } from '../../services/api.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Tenant {
   id: number;
@@ -67,6 +69,7 @@ interface TenantFormData {
 const TenantManagement: React.FC = () => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTenantId, setDeleteTenantId] = useState<number | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -167,22 +170,29 @@ const TenantManagement: React.FC = () => {
   };
 
   const handleStatusChange = async (tenantId: number, action: 'activate' | 'suspend' | 'delete') => {
+    if (action === 'delete') {
+      setDeleteTenantId(tenantId);
+      return;
+    }
     try {
-      if (action === 'delete') {
-        if (!window.confirm('Are you sure you want to delete this tenant?')) {
-          return;
-        }
-        await apiClient.delete(`/tenants/${tenantId}`);
-        showSnackbar('Tenant deleted successfully', 'success');
-      } else {
-        await apiClient.post(`/tenants/${tenantId}/${action}`, {});
-        showSnackbar(`Tenant ${action}d successfully`, 'success');
-      }
-      
+      await apiClient.post(`/tenants/${tenantId}/${action}`, {});
+      showSnackbar(`Tenant ${action}d successfully`, 'success');
       fetchTenants();
     } catch (error: any) {
       showSnackbar(`Failed to ${action} tenant`, 'error');
     }
+  };
+
+  const confirmDeleteTenant = async () => {
+    if (deleteTenantId === null) return;
+    try {
+      await apiClient.delete(`/tenants/${deleteTenantId}`);
+      showSnackbar('Tenant deleted successfully', 'success');
+      fetchTenants();
+    } catch (error: any) {
+      showSnackbar('Failed to delete tenant', 'error');
+    }
+    setDeleteTenantId(null);
   };
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
@@ -256,7 +266,7 @@ const TenantManagement: React.FC = () => {
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} align="center">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} align="center"><LoadingSpinner size="sm" /></TableCell></TableRow>
             ) : tenants.length === 0 ? (
               <TableRow><TableCell colSpan={6} align="center">No tenants found</TableCell></TableRow>
             ) : (
@@ -368,6 +378,16 @@ const TenantManagement: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <ConfirmDialog
+        isOpen={deleteTenantId !== null}
+        onClose={() => setDeleteTenantId(null)}
+        onConfirm={confirmDeleteTenant}
+        title="Delete Tenant"
+        message="Are you sure you want to delete this tenant? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </Box>
   );
 };

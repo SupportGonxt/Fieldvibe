@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, ShoppingCart, Eye } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function BatchAllocation() {
   const { batchId } = useParams<{ batchId: string }>()
@@ -65,7 +66,7 @@ export default function BatchAllocation() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading allocations...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

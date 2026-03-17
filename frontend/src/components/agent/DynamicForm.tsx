@@ -24,6 +24,7 @@ import {
   Alert,
 } from '@mui/material';
 import { CameraAlt, Create } from '@mui/icons-material';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface FormField {
   name: string;
@@ -64,6 +65,7 @@ export default function DynamicForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [signatureField, setSignatureField] = useState<string | null>(null);
 
   const handleChange = (name: string, value: any) => {
     setFormData({ ...formData, [name]: value });
@@ -158,11 +160,15 @@ export default function DynamicForm({
   };
 
   const handleCaptureSignature = (fieldName: string) => {
-    const signature = prompt('Enter signature (in real app, this would be a signature pad):');
-    if (signature) {
-      setSignatures({ ...signatures, [fieldName]: signature });
-      handleChange(fieldName, signature);
+    setSignatureField(fieldName);
+  };
+
+  const confirmSignature = (signature?: string) => {
+    if (signature && signatureField) {
+      setSignatures({ ...signatures, [signatureField]: signature });
+      handleChange(signatureField, signature);
     }
+    setSignatureField(null);
   };
 
   const renderField = (field: FormField) => {
@@ -315,6 +321,19 @@ export default function DynamicForm({
           </Grid>
         ))}
       </Grid>
+
+      <ConfirmDialog
+        isOpen={signatureField !== null}
+        onClose={() => setSignatureField(null)}
+        onConfirm={confirmSignature}
+        title="Capture Signature"
+        message="Enter your signature below. In a real app, this would be a signature pad."
+        confirmLabel="Save Signature"
+        variant="info"
+        showReasonInput
+        reasonPlaceholder="Enter signature..."
+        reasonRequired
+      />
 
       <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
         {onCancel && (

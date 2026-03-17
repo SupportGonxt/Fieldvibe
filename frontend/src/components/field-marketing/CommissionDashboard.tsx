@@ -10,11 +10,14 @@ import {
   Eye
 } from 'lucide-react'
 import { fieldMarketingService, Commission, CommissionSummary } from '../../services/field-marketing.service'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 export default function CommissionDashboard() {
   const [commissions, setCommissions] = useState<Commission[]>([])
   const [summary, setSummary] = useState<CommissionSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [approveConfirmId, setApproveConfirmId] = useState<string | null>(null)
+  const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
   const [selectedCommission, setSelectedCommission] = useState<Commission | null>(null)
@@ -56,27 +59,34 @@ export default function CommissionDashboard() {
     }
   }
 
-  const handleApprove = async (id: string) => {
-    if (!window.confirm('Are you sure you want to approve this commission?')) return
-    
+  const handleApprove = (id: string) => {
+    setApproveConfirmId(id)
+  }
+
+  const confirmApprove = async () => {
+    if (!approveConfirmId) return
     try {
-      await fieldMarketingService.approveCommission(id)
+      await fieldMarketingService.approveCommission(approveConfirmId)
       loadCommissions()
     } catch (error) {
       console.error('Error approving commission:', error)
     }
+    setApproveConfirmId(null)
   }
 
-  const handleReject = async (id: string) => {
-    const reason = window.prompt('Please enter rejection reason:')
-    if (!reason) return
-    
+  const handleReject = (id: string) => {
+    setRejectConfirmId(id)
+  }
+
+  const confirmReject = async (reason?: string) => {
+    if (!rejectConfirmId || !reason) return
     try {
-      await fieldMarketingService.rejectCommission(id, { rejection_reason: reason })
+      await fieldMarketingService.rejectCommission(rejectConfirmId, { rejection_reason: reason })
       loadCommissions()
     } catch (error) {
       console.error('Error rejecting commission:', error)
     }
+    setRejectConfirmId(null)
   }
 
   const getStatusColor = (status: string) => {
@@ -427,6 +437,28 @@ export default function CommissionDashboard() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={approveConfirmId !== null}
+        onClose={() => setApproveConfirmId(null)}
+        onConfirm={confirmApprove}
+        title="Approve Commission"
+        message="Are you sure you want to approve this commission?"
+        confirmLabel="Approve"
+        variant="info"
+      />
+
+      <ConfirmDialog
+        isOpen={rejectConfirmId !== null}
+        onClose={() => setRejectConfirmId(null)}
+        onConfirm={confirmReject}
+        title="Reject Commission"
+        message="Please enter a reason for rejecting this commission."
+        confirmLabel="Reject"
+        variant="danger"
+        showReasonInput
+        reasonPlaceholder="Enter rejection reason..."
+        reasonRequired
+      />
     </div>
   )
 }

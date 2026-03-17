@@ -4,6 +4,8 @@ import { ArrowLeft, Save, Send, RotateCcw, FileText } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Order {
   id: string
@@ -21,6 +23,7 @@ interface Product {
 }
 
 export default function SalesReturnCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -58,15 +61,15 @@ export default function SalesReturnCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedOrder) {
-      alert('Please select an order')
+      toast.info('Please select an order')
       return
     }
     if (!reason) {
-      alert('Please select a return reason')
+      toast.info('Please select a return reason')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product to return')
+      toast.info('Please add at least one product to return')
       return
     }
 
@@ -93,7 +96,7 @@ export default function SalesReturnCreate() {
       navigate('/sales/returns')
     } catch (error: any) {
       console.error('Failed to create return:', error)
-      alert(error.message || 'Failed to create return')
+      toast.error(error.message || 'Failed to create return')
     } finally {
       setSaving(false)
     }
@@ -102,7 +105,7 @@ export default function SalesReturnCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

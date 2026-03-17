@@ -6,6 +6,8 @@ import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
 import { customersService } from '../../../services/customers.service'
 import { discountsService } from '../../../services/discounts.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Customer {
   id: string
@@ -22,6 +24,7 @@ interface Product {
 }
 
 export default function CreditNoteCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -60,15 +63,15 @@ export default function CreditNoteCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedCustomer) {
-      alert('Please select a customer')
+      toast.info('Please select a customer')
       return
     }
     if (!reason) {
-      alert('Please select a reason')
+      toast.info('Please select a reason')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one item')
+      toast.info('Please add at least one item')
       return
     }
 
@@ -96,7 +99,7 @@ export default function CreditNoteCreate() {
       navigate('/sales/credit-notes')
     } catch (error: any) {
       console.error('Failed to create credit note:', error)
-      alert(error.message || 'Failed to create credit note')
+      toast.error(error.message || 'Failed to create credit note')
     } finally {
       setSaving(false)
     }
@@ -105,7 +108,7 @@ export default function CreditNoteCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

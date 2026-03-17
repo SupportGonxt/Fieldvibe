@@ -5,6 +5,8 @@ import { ordersService } from '../../services/orders.service'
 import { customersService } from '../../services/customers.service'
 import { productsService } from '../../services/products.service'
 import { discountsService, Discount } from '../../services/discounts.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { useToast } from '../../components/ui/Toast'
 
 interface Product {
   id: string
@@ -39,6 +41,7 @@ interface OrderLineItem {
 }
 
 export default function OrderCreatePage() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -197,12 +200,12 @@ export default function OrderCreatePage() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedCustomer) {
-      alert('Please select a customer')
+      toast.info('Please select a customer')
       return
     }
 
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product')
+      toast.info('Please add at least one product')
       return
     }
 
@@ -230,7 +233,7 @@ export default function OrderCreatePage() {
       }
     } catch (error: any) {
       console.error('Failed to create order:', error)
-      alert(error.response?.data?.message || 'Failed to create order')
+      toast.error(error.response?.data?.message || 'Failed to create order')
     } finally {
       setSaving(false)
     }
@@ -239,7 +242,7 @@ export default function OrderCreatePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

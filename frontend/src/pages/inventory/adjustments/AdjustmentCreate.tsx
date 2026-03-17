@@ -4,6 +4,8 @@ import { ArrowLeft, Save, Send, Package, Warehouse } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { inventoryService } from '../../../services/inventory.service'
 import { productsService } from '../../../services/products.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface WarehouseType {
   id: string
@@ -20,6 +22,7 @@ interface Product {
 }
 
 export default function AdjustmentCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -56,19 +59,19 @@ export default function AdjustmentCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedWarehouse) {
-      alert('Please select a warehouse')
+      toast.info('Please select a warehouse')
       return
     }
     if (!adjustmentType) {
-      alert('Please select an adjustment type')
+      toast.info('Please select an adjustment type')
       return
     }
     if (!reason) {
-      alert('Please provide a reason')
+      toast.info('Please provide a reason')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product')
+      toast.info('Please add at least one product')
       return
     }
 
@@ -94,7 +97,7 @@ export default function AdjustmentCreate() {
       navigate('/inventory/adjustments')
     } catch (error: any) {
       console.error('Failed to create adjustment:', error)
-      alert(error.message || 'Failed to create adjustment')
+      toast.error(error.message || 'Failed to create adjustment')
     } finally {
       setSaving(false)
     }
@@ -103,7 +106,7 @@ export default function AdjustmentCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

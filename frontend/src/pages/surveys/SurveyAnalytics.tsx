@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, Users, Star, BarChart3 } from 'lucide-react'
 import { surveysService } from '../../services/surveys.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function SurveyAnalytics() {
   const { id } = useParams<{ id: string }>()
@@ -20,7 +21,7 @@ export default function SurveyAnalytics() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading analytics...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

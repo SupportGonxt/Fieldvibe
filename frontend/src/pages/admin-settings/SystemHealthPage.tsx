@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '../../services/api.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface HealthMetric {
   name: string
@@ -12,25 +14,51 @@ interface HealthMetric {
 export const SystemHealthPage: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true)
 
+  const checkEndpoint = async (name: string, endpoint: string) => {
+    const start = Date.now()
+    try {
+      await apiClient.get(endpoint)
+      return { name, status: 'running' as const, uptime: 'Online', latency: Date.now() - start }
+    } catch {
+      return { name, status: 'stopped' as const, uptime: 'Offline', latency: 0 }
+    }
+  }
+
+  const { data: healthData, isLoading } = useQuery({
+    queryKey: ['system-health'],
+    queryFn: async () => {
+      const checks = await Promise.all([
+        checkEndpoint('API Server', '/health'),
+        checkEndpoint('Authentication', '/users?limit=1'),
+        checkEndpoint('Products Service', '/products?limit=1'),
+        checkEndpoint('Orders Service', '/orders?limit=1'),
+        checkEndpoint('Customers Service', '/customers?limit=1'),
+      ])
+      const healthy = checks.filter(c => c.status === 'running').length
+      const avgLatency = checks.filter(c => c.latency > 0).reduce((s, c) => s + c.latency, 0) / Math.max(checks.filter(c => c.latency > 0).length, 1)
+      return {
+        status: healthy === checks.length ? 'healthy' : healthy > 0 ? 'warning' : 'critical',
+        services: checks,
+        avgLatency: Math.round(avgLatency),
+        healthyCount: healthy,
+        totalCount: checks.length,
+      }
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  })
+
+  if (isLoading) return <LoadingSpinner />
+
   const mockHealthData = {
-    status: 'healthy' as const,
-    uptime: 99.98,
+    status: (healthData?.status || 'healthy') as 'healthy' | 'warning' | 'critical',
+    uptime: healthData ? (healthData.healthyCount / healthData.totalCount * 100) : 99.98,
     last_check: new Date().toISOString(),
     metrics: [
-      { name: 'CPU Usage', value: 45, unit: '%', status: 'healthy' as const, threshold: 80 },
-      { name: 'Memory Usage', value: 62, unit: '%', status: 'healthy' as const, threshold: 85 },
-      { name: 'Disk Usage', value: 38, unit: '%', status: 'healthy' as const, threshold: 90 },
-      { name: 'Database Connections', value: 12, unit: 'active', status: 'healthy' as const, threshold: 100 },
-      { name: 'API Response Time', value: 145, unit: 'ms', status: 'healthy' as const, threshold: 500 },
-      { name: 'Error Rate', value: 0.02, unit: '%', status: 'healthy' as const, threshold: 1 }
+      { name: 'API Response Time', value: healthData?.avgLatency || 0, unit: 'ms', status: (healthData?.avgLatency || 0) < 500 ? 'healthy' as const : 'warning' as const, threshold: 500 },
+      { name: 'Services Online', value: healthData?.healthyCount || 0, unit: `of ${healthData?.totalCount || 0}`, status: healthData?.healthyCount === healthData?.totalCount ? 'healthy' as const : 'warning' as const, threshold: healthData?.totalCount || 5 },
+      { name: 'Error Rate', value: healthData ? ((healthData.totalCount - healthData.healthyCount) / healthData.totalCount * 100) : 0, unit: '%', status: 'healthy' as const, threshold: 10 },
     ],
-    services: [
-      { name: 'API Server', status: 'running' as const, uptime: '15 days' },
-      { name: 'Database', status: 'running' as const, uptime: '15 days' },
-      { name: 'Cache Server', status: 'running' as const, uptime: '15 days' },
-      { name: 'Background Jobs', status: 'running' as const, uptime: '15 days' },
-      { name: 'Email Service', status: 'running' as const, uptime: '15 days' }
-    ],
+    services: healthData?.services || [],
     recent_incidents: []
   }
 

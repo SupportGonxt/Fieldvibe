@@ -28,6 +28,8 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { apiClient as api } from '../../services/api.service'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 interface AdminMetrics {
   totalUsers: number

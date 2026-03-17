@@ -2,7 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, MapPin, Clock } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
-import { vanSalesService } from '../../../services/vanSales.service'
+import { vanSalesService } from '../../../services/van-sales.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function RouteStopList() {
   const { routeId } = useParams<{ routeId: string }>()
@@ -27,7 +28,7 @@ export default function RouteStopList() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading stops...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

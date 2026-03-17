@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { financeService } from '../../services/finance.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface InvoiceFormData {
   issue_date: string
@@ -29,7 +30,7 @@ export default function InvoiceEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id }
     },
     onSuccess: () => {
@@ -43,7 +44,7 @@ export default function InvoiceEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading invoice...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

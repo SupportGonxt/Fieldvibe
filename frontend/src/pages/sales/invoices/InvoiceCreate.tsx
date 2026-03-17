@@ -6,6 +6,8 @@ import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
 import { customersService } from '../../../services/customers.service'
 import { discountsService } from '../../../services/discounts.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Customer {
   id: string
@@ -22,6 +24,7 @@ interface Product {
 }
 
 export default function InvoiceCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -69,11 +72,11 @@ export default function InvoiceCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedCustomer) {
-      alert('Please select a customer')
+      toast.info('Please select a customer')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one item')
+      toast.info('Please add at least one item')
       return
     }
 
@@ -102,7 +105,7 @@ export default function InvoiceCreate() {
       navigate('/sales/invoices')
     } catch (error: any) {
       console.error('Failed to create invoice:', error)
-      alert(error.message || 'Failed to create invoice')
+      toast.error(error.message || 'Failed to create invoice')
     } finally {
       setSaving(false)
     }
@@ -111,7 +114,7 @@ export default function InvoiceCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

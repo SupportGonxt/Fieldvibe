@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionForm from '../../components/transactions/TransactionForm'
 import { productsService } from '../../services/products.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function ProductEditPage() {
   const { id } = useParams()
@@ -127,11 +129,15 @@ export default function ProductEditPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!product) {
-    return <div className="flex items-center justify-center h-64">Product not found</div>
+    return <ErrorState title="Product not found" message="The product you are looking for does not exist or has been deleted." />
   }
 
   return (

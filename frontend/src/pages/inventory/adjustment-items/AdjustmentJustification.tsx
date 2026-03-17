@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, User, Clock } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function AdjustmentJustification() {
   const { adjustmentId, itemId } = useParams<{ adjustmentId: string; itemId: string }>()
@@ -52,7 +54,7 @@ export default function AdjustmentJustification() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading justification...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!item) {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { Plus, Edit, Trash2, MapPin, TrendingUp, Calendar, Truck } from 'lucide-react'
 
 export default function VanRoutesListPage() {

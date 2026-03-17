@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface HierarchyNode {
   id: string
@@ -15,7 +16,24 @@ export const ProductHierarchyPage: React.FC = () => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<HierarchyNode | null>(null)
 
-  const mockHierarchy: HierarchyNode[] = []
+  const { data: productsData, isLoading } = useQuery({
+    queryKey: ['products-hierarchy'],
+    queryFn: () => productsService.getProducts({ limit: 200 }),
+  })
+
+  const mockHierarchy: HierarchyNode[] = (() => {
+    const products = productsData?.products || productsData || []
+    const categories: Record<string, any> = {}
+    products.forEach((p: any) => {
+      const cat = p.category_name || p.category || 'Uncategorized'
+      if (!categories[cat]) categories[cat] = { id: cat, name: cat, type: 'category' as const, children: [], product_count: 0 }
+      categories[cat].children.push({ id: String(p.id), name: p.name, type: 'product' as const, children: [], product_count: 0 })
+      categories[cat].product_count++
+    })
+    return Object.values(categories)
+  })()
+
+  if (isLoading) return <LoadingSpinner />
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

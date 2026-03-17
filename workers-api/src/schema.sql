@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS users (
   team_lead_id TEXT,
   status TEXT DEFAULT 'active',
   is_active INTEGER DEFAULT 1,
-  admin_viewable_password TEXT,
   last_login TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -156,8 +155,10 @@ CREATE TABLE IF NOT EXISTS customers (
   status TEXT DEFAULT 'active',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  price_list_id TEXT,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  FOREIGN KEY (route_id) REFERENCES routes(id)
+  FOREIGN KEY (route_id) REFERENCES routes(id),
+  FOREIGN KEY (price_list_id) REFERENCES price_lists(id)
 );
 
 -- ==================== VISITS / CHECK-INS ====================
@@ -1203,6 +1204,171 @@ CREATE INDEX IF NOT EXISTS idx_visit_activities_visit ON visit_activities(visit_
 CREATE INDEX IF NOT EXISTS idx_competitor_sightings_tenant ON competitor_sightings(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_anomaly_flags_tenant ON anomaly_flags(tenant_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_feature_flags_tenant ON feature_flags(tenant_id, feature_key);
+
+-- ==================== TRADE MARKETING & AI PHOTO ====================
+
+-- Visit Photos (with AI analysis)
+CREATE TABLE IF NOT EXISTS visit_photos (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  visit_id TEXT NOT NULL,
+  photo_type TEXT NOT NULL DEFAULT 'general',
+  r2_key TEXT NOT NULL,
+  r2_url TEXT,
+  thumbnail_r2_key TEXT,
+  original_size_bytes INTEGER,
+  compressed_size_bytes INTEGER,
+  width INTEGER,
+  height INTEGER,
+  gps_latitude REAL,
+  gps_longitude REAL,
+  captured_at TEXT NOT NULL,
+  ai_analysis_status TEXT DEFAULT 'pending',
+  ai_brands_detected TEXT,
+  ai_share_of_voice REAL,
+  ai_shelf_position TEXT,
+  ai_facing_count INTEGER,
+  ai_competitor_facings INTEGER,
+  ai_compliance_score REAL,
+  ai_labels TEXT,
+  ai_raw_response TEXT,
+  ai_processed_at TEXT,
+  uploaded_by TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (visit_id) REFERENCES visits(id),
+  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_photos_visit ON visit_photos(visit_id);
+CREATE INDEX IF NOT EXISTS idx_photos_tenant_type ON visit_photos(tenant_id, photo_type);
+CREATE INDEX IF NOT EXISTS idx_photos_ai_status ON visit_photos(ai_analysis_status);
+
+-- Share of Voice Snapshots
+CREATE TABLE IF NOT EXISTS share_of_voice_snapshots (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  visit_id TEXT,
+  photo_id TEXT,
+  brand_id TEXT NOT NULL,
+  brand_name TEXT NOT NULL,
+  total_facings INTEGER DEFAULT 0,
+  brand_facings INTEGER DEFAULT 0,
+  share_percentage REAL DEFAULT 0,
+  shelf_position TEXT,
+  competitor_brands TEXT,
+  snapshot_date TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id),
+  FOREIGN KEY (brand_id) REFERENCES brands(id)
+);
+CREATE INDEX IF NOT EXISTS idx_sov_tenant_brand ON share_of_voice_snapshots(tenant_id, brand_id);
+CREATE INDEX IF NOT EXISTS idx_sov_customer ON share_of_voice_snapshots(customer_id, snapshot_date);
+
+-- Survey Templates (Enhanced with 12 question types)
+CREATE TABLE IF NOT EXISTS survey_templates (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  survey_type TEXT NOT NULL DEFAULT 'visit',
+  trigger_type TEXT NOT NULL DEFAULT 'manual',
+  brand_id TEXT,
+  customer_type_filter TEXT,
+  questions TEXT NOT NULL,
+  scoring_enabled INTEGER DEFAULT 0,
+  max_score INTEGER DEFAULT 100,
+  passing_score INTEGER DEFAULT 70,
+  photo_required INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  version INTEGER DEFAULT 1,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (brand_id) REFERENCES brands(id)
+);
+CREATE INDEX IF NOT EXISTS idx_survey_templates_tenant ON survey_templates(tenant_id, is_active);
+
+-- Activation Tasks
+CREATE TABLE IF NOT EXISTS activation_tasks (
+  id TEXT PRIMARY KEY,
+  activation_id TEXT NOT NULL,
+  task_type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  sequence_order INTEGER DEFAULT 0,
+  requires_photo INTEGER DEFAULT 0,
+  requires_quantity INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'pending',
+  completed_at TEXT,
+  completed_by TEXT,
+  photo_ids TEXT,
+  quantity_value REAL,
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (activation_id) REFERENCES activations(id)
+);
+CREATE INDEX IF NOT EXISTS idx_activation_tasks ON activation_tasks(activation_id);
+
+-- POSM Materials
+CREATE TABLE IF NOT EXISTS posm_materials (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  material_type TEXT NOT NULL,
+  brand_id TEXT,
+  description TEXT,
+  quantity_available INTEGER DEFAULT 0,
+  unit_cost REAL DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (brand_id) REFERENCES brands(id)
+);
+
+-- POSM Installations
+CREATE TABLE IF NOT EXISTS posm_installations (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  material_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  visit_id TEXT,
+  photo_id TEXT,
+  installed_by TEXT NOT NULL,
+  installed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  condition TEXT DEFAULT 'good',
+  gps_latitude REAL,
+  gps_longitude REAL,
+  notes TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (material_id) REFERENCES posm_materials(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+
+-- POSM Audits
+CREATE TABLE IF NOT EXISTS posm_audits (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  installation_id TEXT NOT NULL,
+  audited_by TEXT NOT NULL,
+  visit_id TEXT,
+  photo_id TEXT,
+  condition TEXT NOT NULL,
+  visibility_score REAL,
+  ai_condition TEXT,
+  ai_visibility_score REAL,
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (installation_id) REFERENCES posm_installations(id)
+);
+CREATE INDEX IF NOT EXISTS idx_posm_materials_tenant ON posm_materials(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_posm_installations_tenant ON posm_installations(tenant_id, customer_id);
+CREATE INDEX IF NOT EXISTS idx_posm_audits_installation ON posm_audits(installation_id);
 CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_report_subs_tenant ON report_subscriptions(tenant_id, user_id);
@@ -1210,6 +1376,47 @@ CREATE INDEX IF NOT EXISTS idx_import_jobs_tenant ON import_jobs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_error_logs_tenant ON error_logs(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_commission_payouts_tenant ON commission_payouts(tenant_id, earner_id);
 CREATE INDEX IF NOT EXISTS idx_stock_adjustments_tenant ON stock_adjustments(tenant_id);
+
+-- ==================== EMAIL QUEUE (SECTION 9) ====================
+CREATE TABLE IF NOT EXISTS email_queue (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  to_email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  retry_count INTEGER DEFAULT 0,
+  sent_at TEXT,
+  error TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status, created_at);
+
+-- ==================== PASSWORD RESETS (SECTION 9) ====================
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+
+-- ==================== IDEMPOTENCY KEYS (SECTION 2.6) ====================
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  response_body TEXT,
+  response_status INTEGER,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  UNIQUE(tenant_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_lookup ON idempotency_keys(tenant_id, idempotency_key);
 
 -- ==================== FIELD OPERATIONS: COMPANIES & HIERARCHY ====================
 

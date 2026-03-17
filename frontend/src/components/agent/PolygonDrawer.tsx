@@ -11,6 +11,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Box, Button, Typography, Paper, Alert } from '@mui/material';
 import { Undo, Check, Clear } from '@mui/icons-material';
+import { useToast } from '../../components/ui/Toast'
 
 interface Point {
   x: number;
@@ -30,6 +31,7 @@ export default function PolygonDrawer({
   label,
   color = '#00ff00',
 }: PolygonDrawerProps) {
+  const { toast } = useToast()
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [points, setPoints] = useState<Point[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -152,7 +154,7 @@ export default function PolygonDrawer({
 
   const handleComplete = () => {
     if (points.length < 3) {
-      alert('Please draw at least 3 points to form a polygon');
+      toast.error('Please draw at least 3 points to form a polygon');
       return;
     }
 

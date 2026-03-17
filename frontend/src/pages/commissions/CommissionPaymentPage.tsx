@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface CommissionPayment {
   id: string
@@ -21,7 +22,25 @@ export const CommissionPaymentPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const mockPayments: CommissionPayment[] = []
+  const { data: payoutsData, isLoading } = useQuery({
+    queryKey: ['commission-payouts'],
+    queryFn: () => commissionsService.getCommissions({ status: 'paid' }),
+  })
+
+  const mockPayments: CommissionPayment[] = (payoutsData?.commissions || []).map((c: any) => ({
+    id: String(c.id),
+    agent_name: c.agent_name || c.user_name || 'Unknown Agent',
+    agent_id: String(c.agent_id || c.user_id || ''),
+    payment_date: c.paid_at || c.updated_at || new Date().toISOString(),
+    amount: Number(c.amount || 0),
+    payment_method: c.payment_method || 'Bank Transfer',
+    reference_number: c.reference || c.id?.toString() || '',
+    status: (c.status === 'paid' ? 'completed' : c.status || 'pending') as any,
+    commission_count: 1,
+    notes: c.notes,
+  }))
+
+  if (isLoading) return <LoadingSpinner />
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

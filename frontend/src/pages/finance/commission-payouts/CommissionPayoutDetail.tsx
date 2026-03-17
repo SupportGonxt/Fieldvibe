@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { financeService } from '../../../services/finance.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CommissionPayoutDetail() {
   const { id } = useParams()
@@ -26,11 +28,15 @@ export default function CommissionPayoutDetail() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!payout) {
-    return <div className="flex items-center justify-center h-64">Commission payout not found</div>
+    return <ErrorState title="Commission payout not found" message="The commission payout you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

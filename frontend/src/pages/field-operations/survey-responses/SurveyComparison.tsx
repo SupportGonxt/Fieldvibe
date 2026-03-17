@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function SurveyComparison() {
   const { surveyId } = useParams<{ surveyId: string }>()
@@ -66,7 +68,7 @@ export default function SurveyComparison() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading comparison...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!comparison) {

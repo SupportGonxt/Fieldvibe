@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, CheckCircle, Clock, Eye } from 'lucide-react'
 import { ordersService } from '../../../services/orders.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function DeliveryStops() {
   const { orderId, deliveryId } = useParams<{ orderId: string; deliveryId: string }>()
@@ -20,7 +21,7 @@ export default function DeliveryStops() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading stops...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

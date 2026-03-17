@@ -106,7 +106,6 @@ export default function ActivationsList() {
       data={activations}
       loading={loading}
       onRefresh={loadActivations}
-      onExport={() => console.log('Export activations')}
       createPath="/marketing/activations/create"
       createLabel="Create Activation"
     />

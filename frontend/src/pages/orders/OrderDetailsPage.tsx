@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Printer, Download, Package, DollarSign, Calendar, User, MapPin, CheckCircle, XCircle, Clock, Truck, FileText, CreditCard, Save, X, Plus, Trash2, History, RefreshCw } from 'lucide-react'
 import { ordersService } from '../../services/orders.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import { useToast } from '../../components/ui/Toast'
 
 interface OrderItem {
   id: string
@@ -50,6 +53,7 @@ interface TimelineEvent {
 }
 
 export default function OrderDetailsPage() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState<Order | null>(null)
@@ -183,7 +187,6 @@ export default function OrderDetailsPage() {
   }
 
   const handleDownload = () => {
-    console.log('Downloading invoice...')
   }
 
   const updateOrderStatus = async (newStatus: string) => {
@@ -196,7 +199,7 @@ export default function OrderDetailsPage() {
       await loadStatusHistory()
     } catch (error: any) {
       console.error('Failed to update order status:', error)
-      alert(error.response?.data?.message || 'Failed to update order status')
+      toast.error(error.response?.data?.message || 'Failed to update order status')
     } finally {
       setTransitioning(false)
     }
@@ -225,7 +228,7 @@ export default function OrderDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

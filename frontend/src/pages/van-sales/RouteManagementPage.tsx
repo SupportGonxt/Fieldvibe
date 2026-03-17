@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button'
 import { MapPin, Clock, Truck, Navigation, Plus, Edit, Trash2 } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface Route {
   id: string
@@ -40,7 +41,7 @@ export default function RouteManagementPage() {
   const fetchRoutes = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with real API calls
+      // FUTURE: Replace with real API calls
       setRoutes([
         {
           id: '1',

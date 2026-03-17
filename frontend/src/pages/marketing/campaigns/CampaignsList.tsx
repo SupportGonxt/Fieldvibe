@@ -123,7 +123,6 @@ export default function CampaignsList() {
       data={campaigns}
       loading={loading}
       onRefresh={loadCampaigns}
-      onExport={() => console.log('Export campaigns')}
       createPath="/marketing/campaigns/create"
       createLabel="Create Campaign"
     />

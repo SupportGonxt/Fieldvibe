@@ -122,7 +122,6 @@ apiClient.interceptors.response.use(
       originalRequest._retryCount++
       const delay = getRetryDelay(originalRequest._retryCount)
       
-      console.log(`Retrying ${method} request (attempt ${originalRequest._retryCount}/3) after ${delay}ms...`)
       
       await new Promise(resolve => setTimeout(resolve, delay))
       return apiClient(originalRequest)
@@ -276,22 +275,15 @@ export const getErrorCode = (error: any): string => {
 // Request/Response logging (development only)
 if (import.meta.env.DEV) {
   apiClient.interceptors.request.use((config) => {
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`, {
-      headers: config.headers,
-      data: config.data,
-    })
     return config
   })
 
   apiClient.interceptors.response.use(
     (response) => {
-      console.log(`✅ API Response: ${response.status} ${response.config.url}`, {
-        data: response.data,
-      })
       return response
     },
     (error) => {
-      console.error(`❌ API Error: ${error.response?.status} ${error.config?.url}`, {
+      console.error(`API Error: ${error.response?.status} ${error.config?.url}`, {
         error: error.response?.data || error.message,
       })
       return Promise.reject(error)

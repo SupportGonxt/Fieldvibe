@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Package } from 'lucide-react'
 import { brandService } from '../../services/brand.service'
 import { EntityRefLink } from '../../components/generic/EntityRefLink'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function BrandProducts() {
   const { id } = useParams<{ id: string }>()
@@ -45,7 +46,7 @@ export default function BrandProducts() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading products...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : products.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />

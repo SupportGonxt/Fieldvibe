@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface RouteFormData {
   route_name: string
@@ -31,7 +32,7 @@ export default function RouteEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: RouteFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id }
     },
     onSuccess: () => {
@@ -45,7 +46,7 @@ export default function RouteEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading route...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

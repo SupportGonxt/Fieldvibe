@@ -5,13 +5,15 @@ export const formatCurrency = formatCurrencyUtil
 
 // Date formatting utilities
 export const formatDate = (
-  date: string | Date, 
+  date: string | Date | null | undefined, 
   optionsOrFormat?: {
     format?: 'short' | 'medium' | 'long' | 'full'
     includeTime?: boolean
     locale?: string
   } | string
 ): string => {
+  if (!date) return '-'
+
   let options: {
     format?: 'short' | 'medium' | 'long' | 'full'
     includeTime?: boolean
@@ -120,31 +122,33 @@ export const formatRelativeTime = (date: string | Date): string => {
 }
 
 // Number formatting utilities
-export const formatNumber = (num: number, options?: {
+export const formatNumber = (num: number | null | undefined, options?: {
   decimals?: number
   compact?: boolean
   locale?: string
 }): string => {
+  const safeNum = (num === null || num === undefined || isNaN(num)) ? 0 : num
   const { decimals = 0, compact = false, locale = 'en-GB' } = options || {}
   
   if (compact) {
-    if (Math.abs(num) >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}M`
+    if (Math.abs(safeNum) >= 1000000) {
+      return `${(safeNum / 1000000).toFixed(1)}M`
     }
-    if (Math.abs(num) >= 1000) {
-      return `${(num / 1000).toFixed(1)}K`
+    if (Math.abs(safeNum) >= 1000) {
+      return `${(safeNum / 1000).toFixed(1)}K`
     }
   }
   
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
-  }).format(num)
+  }).format(safeNum)
 }
 
 // Percentage formatting
-export const formatPercentage = (value: number, decimals: number = 1): string => {
-  return `${value.toFixed(decimals)}%`
+export const formatPercentage = (value: number | null | undefined, decimals: number = 1): string => {
+  const safeValue = (value === null || value === undefined || isNaN(value)) ? 0 : value
+  return `${safeValue.toFixed(decimals)}%`
 }
 
 // File size formatting

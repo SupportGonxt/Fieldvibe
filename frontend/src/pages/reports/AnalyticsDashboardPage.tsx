@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Users, Package, DollarSign, Activity } from 'lucide-react';
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 const AnalyticsDashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<any>({});
@@ -29,7 +32,7 @@ const AnalyticsDashboardPage: React.FC = () => {
     </div>
   );
 
-  if (loading) return <div className="p-6 text-center">Loading analytics...</div>;
+  if (loading) return <div className="p-6 text-center"><LoadingSpinner size="md" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">

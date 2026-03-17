@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, DollarSign, Calendar, FileText } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { financeService } from '../../services/finance.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>()
@@ -14,7 +16,7 @@ export default function InvoiceDetail() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading invoice...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!invoice) {

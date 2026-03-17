@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PhotoEvidence() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -75,7 +77,7 @@ export default function PhotoEvidence() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading evidence...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!evidence) {

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Save, X, AlertCircle } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges'
 
 interface Field {
   name: string
@@ -38,6 +39,11 @@ export default function TransactionForm({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const isDirty = useMemo(() => {
+    return Object.keys(formData).some(key => (formData[key] ?? '') !== (initialData[key] ?? ''))
+  }, [formData, initialData])
+  useUnsavedChanges(isDirty)
 
   const handleChange = (name: string, value: any) => {
     setFormData({ ...formData, [name]: value })

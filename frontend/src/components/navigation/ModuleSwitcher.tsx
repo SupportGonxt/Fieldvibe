@@ -105,7 +105,6 @@ const ModuleSwitcher: React.FC<ModuleSwitcherProps> = ({
   const toggleFavorite = (moduleId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     // Implementation for favoriting modules
-    console.log('Toggle favorite:', moduleId);
   };
 
   return (

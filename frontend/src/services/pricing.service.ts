@@ -106,6 +106,18 @@ class PricingService {
     }
   }
 
+  async getCustomerPrices(customerId: string): Promise<Array<{ product_id: string; resolved_price: number; source: string }>> {
+    try {
+      const response = await apiClient.get('/api/pricing/customer-prices', {
+        params: { customer_id: customerId }
+      })
+      return response.data.data || []
+    } catch (error) {
+      console.error('Failed to fetch customer prices:', error)
+      return []
+    }
+  }
+
   async getProductPrice(productId: string, customerId?: string, quantity?: number): Promise<any> {
     try {
       const response = await apiClient.get('/api/pricing/quote', {

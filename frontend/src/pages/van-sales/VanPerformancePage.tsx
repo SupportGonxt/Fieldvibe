@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { TrendingUp, DollarSign, ShoppingCart, Package, Calendar } from 'lucide-react'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function VanPerformancePage() {
   const [filter, setFilter] = useState({ van_id: '', period: 'today' })

@@ -2,8 +2,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, DollarSign, Users, Package } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { beatRoutesService } from '../../services/beat-routes.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function RoutePerformance() {
   const { id } = useParams<{ id: string }>()
@@ -19,7 +20,7 @@ export default function RoutePerformance() {
     queryFn: () => beatRoutesService.getBeatStats(id),
   })
 
-  if (isLoading) return <div className="p-6">Loading performance...</div>
+  if (isLoading) return <div className="p-6"><LoadingSpinner size="md" /></div>
 
   return (
     <div className="p-6">

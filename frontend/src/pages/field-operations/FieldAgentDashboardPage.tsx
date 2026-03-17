@@ -1,7 +1,9 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fieldOperationsService } from '../../services/fieldOperations.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
 import { MapPin, CheckCircle, Clock, TrendingUp, Calendar } from 'lucide-react'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 export default function FieldAgentDashboardPage() {
   const { data: todayVisits, isLoading } = useQuery({

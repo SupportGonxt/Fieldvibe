@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import tradeMarketingService from '../services/tradeMarketing.service';
+import { tradeMarketingService } from '../services/tradeMarketing.service';
+import { useToast } from '../components/ui/Toast'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 
 const ShelfAnalyticsFormPage: React.FC = () => {
+  const { toast } = useToast()
   const location = useLocation();
   const navigate = useNavigate();
   const { visit, store } = location.state || {};
   
   const [loading, setLoading] = useState(false);
+  const [showAddCompetitor, setShowAddCompetitor] = useState(false);
   const [formData, setFormData] = useState({
     category: 'beverages',
     totalShelfSpace: 10,
@@ -47,16 +51,23 @@ const ShelfAnalyticsFormPage: React.FC = () => {
   const captureShelfPhoto = () => {
     const photoUrl = `https://storage.example.com/shelf/${Date.now()}.jpg`;
     setFormData({ ...formData, shelfPhoto: photoUrl });
-    alert('📸 Shelf photo captured! (Simulated)');
+    toast.info('📸 Shelf photo captured! (Simulated)');
   };
 
   const addCompetitor = () => {
-    const competitorName = prompt('Enter competitor brand name:');
+    setShowAddCompetitor(true);
+  };
+
+  const confirmAddCompetitor = (input?: string) => {
+    setShowAddCompetitor(false);
+    if (!input) return;
+    const parts = input.split(',');
+    const competitorName = parts[0]?.trim();
+    const facings = parseInt(parts[1]?.trim() || '10');
     if (competitorName) {
-      const facings = prompt('Number of facings:', '10');
       setFormData({
         ...formData,
-        competitors: [...formData.competitors, { name: competitorName, facings: parseInt(facings || '0') }]
+        competitors: [...formData.competitors, { name: competitorName, facings: isNaN(facings) ? 10 : facings }]
       });
     }
   };
@@ -65,7 +76,7 @@ const ShelfAnalyticsFormPage: React.FC = () => {
     e.preventDefault();
     
     if (!formData.shelfPhoto) {
-      alert('Please capture shelf photo');
+      toast.info('Please capture shelf photo');
       return;
     }
 
@@ -85,11 +96,11 @@ const ShelfAnalyticsFormPage: React.FC = () => {
         competitorAnalysis: formData.competitors
       });
 
-      alert('✅ Shelf analytics recorded successfully!');
+      toast.success('✅ Shelf analytics recorded successfully!');
       navigate(-1);
     } catch (error) {
       console.error('Failed to create shelf analytics:', error);
-      alert('Failed to record shelf analytics. Please try again.');
+      toast.error('Failed to record shelf analytics. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -333,6 +344,18 @@ const ShelfAnalyticsFormPage: React.FC = () => {
           </button>
         </form>
       </div>
+      <ConfirmDialog
+        isOpen={showAddCompetitor}
+        onClose={() => setShowAddCompetitor(false)}
+        onConfirm={confirmAddCompetitor}
+        title="Add Competitor"
+        message="Enter competitor brand name and number of facings separated by comma (e.g. 'Brand X, 10')."
+        confirmLabel="Add"
+        variant="info"
+        showReasonInput
+        reasonPlaceholder="Brand name, facings (e.g. Coca-Cola, 10)"
+        reasonRequired
+      />
     </div>
   );
 };

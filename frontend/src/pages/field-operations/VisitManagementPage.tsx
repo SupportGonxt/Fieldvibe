@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fieldOperationsService } from '../../services/fieldOperations.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
 import { Plus, Edit, Trash2, MapPin, Calendar, Map, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import LiveVisitMap from '../../components/maps/LiveVisitMap'

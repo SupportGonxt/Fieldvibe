@@ -30,7 +30,7 @@ export default function KYCCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: KYCFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id: 'new-kyc-id' }
     },
     onSuccess: (data) => {

@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { ordersService } from '../../../services/orders.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function OrderItemEdit() {
   const { orderId, itemId } = useParams<{ orderId: string; itemId: string }>()
@@ -35,7 +37,7 @@ export default function OrderItemEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
 
   return (

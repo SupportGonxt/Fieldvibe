@@ -70,6 +70,16 @@ class AttachmentsService {
     }
   }
 
+  async updateAttachmentMetadata(attachmentId: string, metadata: { description?: string; tags?: string[]; category?: string }): Promise<Attachment> {
+    try {
+      const response = await apiClient.patch(`${this.baseUrl}/${attachmentId}/metadata`, metadata)
+      return response.data.data?.file || response.data.data
+    } catch (error) {
+      console.error('Failed to update attachment metadata:', error)
+      throw error
+    }
+  }
+
   async deleteAttachment(attachmentId: string): Promise<void> {
     try {
       await apiClient.delete(`${this.baseUrl}/${attachmentId}`)

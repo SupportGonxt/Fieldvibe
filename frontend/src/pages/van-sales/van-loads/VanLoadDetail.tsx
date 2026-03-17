@@ -3,8 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function VanLoadDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [vanLoad, setVanLoad] = useState<any>(null)
@@ -36,16 +40,20 @@ export default function VanLoadDetail() {
       navigate('/van-sales/van-loads')
     } catch (error) {
       console.error('Failed to confirm van load:', error)
-      alert('Failed to confirm van load')
+      toast.error('Failed to confirm van load')
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!vanLoad) {
-    return <div className="flex items-center justify-center h-64">Van load not found</div>
+    return <ErrorState title="Van load not found" message="The van load you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

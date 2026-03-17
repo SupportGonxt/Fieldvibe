@@ -3,8 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function StockCountDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [stockCount, setStockCount] = useState<any>(null)
@@ -36,16 +40,20 @@ export default function StockCountDetail() {
       navigate('/inventory/stock-counts')
     } catch (error) {
       console.error('Failed to confirm stock count:', error)
-      alert('Failed to confirm stock count')
+      toast.error('Failed to confirm stock count')
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!stockCount) {
-    return <div className="flex items-center justify-center h-64">Stock count not found</div>
+    return <ErrorState title="Stock count not found" message="The stock count you are looking for does not exist or has been deleted." />
   }
 
   const typeLabels: Record<string, string> = {

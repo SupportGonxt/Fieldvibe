@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, User, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function ApprovalDetail() {
   const { calculationId } = useParams<{ calculationId: string }>()
@@ -22,7 +24,7 @@ export default function ApprovalDetail() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading approval...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   if (!approval) {

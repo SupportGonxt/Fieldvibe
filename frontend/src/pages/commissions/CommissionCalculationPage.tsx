@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface CommissionCalculation {
   id: string
@@ -24,7 +25,28 @@ export const CommissionCalculationPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const mockCalculations: CommissionCalculation[] = []
+  const { data: calcData, isLoading } = useQuery({
+    queryKey: ['commission-calculations'],
+    queryFn: () => commissionsService.getCommissions(),
+  })
+
+  const mockCalculations: CommissionCalculation[] = (calcData?.commissions || []).map((c: any) => ({
+    id: String(c.id),
+    agent_name: c.agent_name || c.user_name || 'Unknown',
+    transaction_type: c.transaction_type || c.type || 'Sale',
+    transaction_id: String(c.order_id || c.transaction_id || ''),
+    transaction_date: c.transaction_date || c.created_at || new Date().toISOString(),
+    base_amount: Number(c.base_amount || c.order_amount || 0),
+    commission_rate: Number(c.rate || c.commission_rate || 0),
+    commission_amount: Number(c.commission_amount || c.amount || 0),
+    tier: c.tier || 'Standard',
+    bonus_applied: Boolean(c.bonus_amount),
+    bonus_amount: Number(c.bonus_amount || 0),
+    total_commission: Number(c.amount || c.commission_amount || 0),
+    status: (c.status || 'pending') as any,
+  }))
+
+  if (isLoading) return <LoadingSpinner />
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit2, Package, DollarSign, TrendingUp, TrendingDown, BarChart3, ShoppingCart, AlertCircle, CheckCircle, Image as ImageIcon, Save, X, Plus } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 
 interface Product {
   id: string
@@ -102,7 +104,6 @@ export default function ProductDetailsPage() {
 
   const handleSave = async () => {
     try {
-      console.log('Saving product:', editForm)
       setProduct({ ...product!, ...editForm })
       setIsEditing(false)
     } catch (error) {
@@ -129,7 +130,7 @@ export default function ProductDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

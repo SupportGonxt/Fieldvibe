@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, CheckCircle, Clock } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VisitTaskList() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -65,7 +66,7 @@ export default function VisitTaskList() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading tasks...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 
   return (

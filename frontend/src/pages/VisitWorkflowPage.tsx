@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import fieldMarketingService from '../services/fieldMarketing.service';
+import { fieldMarketingService } from '../services/field-marketing.service';
+import { useToast } from '../components/ui/Toast'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 
 const VisitWorkflowPage: React.FC = () => {
+  const { toast } = useToast()
   const location = useLocation();
   const navigate = useNavigate();
   const { customer, location: gpsLocation } = location.state || {};
@@ -10,6 +13,7 @@ const VisitWorkflowPage: React.FC = () => {
   const [visit, setVisit] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<'create' | 'boards' | 'products' | 'survey' | 'complete'>('create');
   const [loading, setLoading] = useState(false);
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [boards, setBoards] = useState<any[]>([]);
   const [selectedBoards, setSelectedBoards] = useState<number[]>([]);
   const [activities, setActivities] = useState({
@@ -40,7 +44,7 @@ const VisitWorkflowPage: React.FC = () => {
       loadBoards();
     } catch (error) {
       console.error('Failed to create visit:', error);
-      alert('Failed to create visit. Please try again.');
+      toast.error('Failed to create visit. Please try again.');
       navigate(-1);
     } finally {
       setLoading(false);
@@ -68,25 +72,25 @@ const VisitWorkflowPage: React.FC = () => {
     });
   };
 
-  const completeVisit = async () => {
-    if (!window.confirm('Complete this visit? You cannot add more activities after completion.')) {
-      return;
-    }
+  const completeVisit = () => {
+    setShowCompleteDialog(true);
+  };
 
+  const confirmCompleteVisit = async (notes?: string) => {
+    setShowCompleteDialog(false);
     setLoading(true);
     try {
-      const visitNotes = prompt('Add any final notes (optional):');
       await fieldMarketingService.completeVisit(visit.id, {
         endLatitude: gpsLocation.latitude,
         endLongitude: gpsLocation.longitude,
-        visitNotes: visitNotes || undefined
+        visitNotes: notes || undefined
       });
       
-      alert('Visit completed successfully!');
+      toast.success('Visit completed successfully!');
       navigate('/field-marketing');
     } catch (error) {
       console.error('Failed to complete visit:', error);
-      alert('Failed to complete visit. Please try again.');
+      toast.error('Failed to complete visit. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -173,7 +177,7 @@ const VisitWorkflowPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => alert('Survey feature coming soon!')}
+            onClick={() => toast.info('Survey feature is not configured for this visit type')}
             className="w-full bg-white rounded-lg shadow p-6 hover:shadow-md transition text-left opacity-75"
           >
             <div className="flex items-center">
@@ -216,6 +220,18 @@ const VisitWorkflowPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showCompleteDialog}
+        onClose={() => setShowCompleteDialog(false)}
+        onConfirm={confirmCompleteVisit}
+        title="Complete Visit"
+        message="Complete this visit? You cannot add more activities after completion. Add any final notes below (optional)."
+        confirmLabel="Complete Visit"
+        variant="warning"
+        showReasonInput
+        reasonPlaceholder="Add any final notes (optional)..."
+      />
     </div>
   );
 };

@@ -16,11 +16,6 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import AnalyticsPage from './pages/dashboard/AnalyticsPage'
 
-import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard'
-import OrdersAnalytics from './pages/analytics/OrdersAnalytics'
-import FieldOpsAnalytics from './pages/analytics/FieldOpsAnalytics'
-import CommissionsAnalytics from './pages/analytics/CommissionsAnalytics'
-
 // Van Sales Pages
 import VanSalesPage from './pages/van-sales/VanSalesPage'
 import VanSalesDashboard from './pages/van-sales/VanSalesDashboard'
@@ -43,31 +38,13 @@ import EventsPage from './pages/events/EventsPage'
 import CampaignsPage from './pages/campaigns/CampaignsPage'
 
 // Field Operations Pages
-import FieldAgentsPage from './pages/field-agents/FieldAgentsPage'
-import AgentWorkflowPage from './pages/field-agents/AgentWorkflowPage'
 import FieldOperationsDashboard from './pages/field-operations/FieldOperationsDashboard'
-import LiveMappingPage from './pages/field-agents/LiveMappingPage'
-import BoardPlacementPage from './pages/field-agents/BoardPlacementPage'
-import ProductDistributionPage from './pages/field-agents/ProductDistributionPage'
-import CommissionTrackingPage from './pages/field-agents/CommissionTrackingPage'
-import AgentCommissionDashboard from './pages/field-agents/AgentCommissionDashboard'
 
 // Field Marketing Pages
-import FieldMarketingDashboard from './pages/field-marketing/FieldMarketingDashboard'
 
-import AgentWorkflowPageMobile from './pages/field-agents/AgentWorkflowPageMobile'
 import VanSalesWorkflowPageMobile from './pages/van-sales/VanSalesWorkflowPageMobile'
 import BoardPlacementFormPage from './pages/field-operations/BoardPlacementFormPage'
 import ProductDistributionFormPage from './pages/field-operations/ProductDistributionFormPage'
-import CustomerSelection from './pages/field-marketing/CustomerSelection'
-import GPSVerification from './pages/field-marketing/GPSVerification'
-import BrandSelection from './pages/field-marketing/BrandSelection'
-import VisitList from './pages/field-marketing/VisitList'
-import BoardPlacement from './pages/field-marketing/BoardPlacement'
-import ProductDistribution from './pages/field-marketing/ProductDistribution'
-import NewCustomerRegistration from './pages/field-marketing/NewCustomerRegistration'
-import VisitSummary from './pages/field-marketing/VisitSummary'
-import MyCommissions from './pages/field-marketing/MyCommissions'
 
 // KYC Pages
 import KYCDashboard from './pages/kyc/KYCDashboard'
@@ -157,13 +134,6 @@ import RuleDetail from './pages/commissions/RuleDetail'
 import RuleEdit from './pages/commissions/RuleEdit'
 import RuleCreate from './pages/commissions/RuleCreate'
 
-import SessionDetail from './pages/cash-reconciliation/SessionDetail'
-import SessionEdit from './pages/cash-reconciliation/SessionEdit'
-import DepositDetail from './pages/cash-reconciliation/DepositDetail'
-import DepositEdit from './pages/cash-reconciliation/DepositEdit'
-import SessionCollections from './pages/cash-reconciliation/SessionCollections'
-import SessionDeposits from './pages/cash-reconciliation/SessionDeposits'
-
 import KYCDetail from './pages/kyc/KYCDetail'
 import KYCEdit from './pages/kyc/KYCEdit'
 import KYCCreate from './pages/kyc/KYCCreate'
@@ -185,7 +155,6 @@ import InvoicePayments from './pages/finance/InvoicePayments'
 import InvoiceItems from './pages/finance/InvoiceItems'
 
 // Inventory Detail Pages
-import StockCountDetailsPage from './pages/inventory-management/StockCountDetailsPage'
 import AdjustmentCreate from './pages/inventory/adjustments/AdjustmentCreate'
 import AdjustmentDetail from './pages/inventory/adjustments/AdjustmentDetail'
 import IssueCreate from './pages/inventory/issues/IssueCreate'
@@ -232,14 +201,6 @@ import VisitEdit from './pages/field-operations/visits/VisitEdit'
 import VisitManagementPage from './pages/field-operations/VisitManagementPage'
 import VisitConfigurationPage from './pages/field-operations/VisitConfigurationPage'
 
-import CRMCustomerCreate from './pages/crm/customers/CustomerCreate'
-import CRMCustomerDetail from './pages/crm/customers/CustomerDetail'
-import CRMCustomerEdit from './pages/crm/customers/CustomerEdit'
-import KYCCaseCreate from './pages/crm/kyc-cases/KYCCaseCreate'
-import KYCCaseDetail from './pages/crm/kyc-cases/KYCCaseDetail'
-import SurveyCreate from './pages/crm/surveys/SurveyCreate'
-import SurveyDetail from './pages/crm/surveys/SurveyDetail'
-
 import CashReconciliationCreate from './pages/finance/cash-reconciliation/CashReconciliationCreate'
 import CashReconciliationDetail from './pages/finance/cash-reconciliation/CashReconciliationDetail'
 import CommissionPayoutDetail from './pages/finance/commission-payouts/CommissionPayoutDetail'
@@ -254,7 +215,7 @@ import AuditLogsPage from './pages/admin/AuditLogsPage'
 import SmokeTestPage from './pages/admin/SmokeTestPage'
 import RouteAuditPage from './pages/admin/RouteAuditPage'
 import BrandManagementPage from './pages/admin/BrandManagementPage'
-import CampaignManagementPage from './pages/admin/CampaignManagementPage'
+import AdminCampaignManagementPage from './pages/admin/CampaignManagementPage'
 import CommissionRuleBuilderPage from './pages/admin/CommissionRuleBuilderPage'
 import DataImportExportPage from './pages/admin/DataImportExportPage'
 import POSLibraryPage from './pages/admin/POSLibraryPage'
@@ -265,6 +226,7 @@ import BoardManagementPage from './pages/admin/BoardManagementPage'
 import PriceListManagementPage from './pages/admin/PriceListManagementPage'
 import PriceListEditPage from './pages/admin/PriceListEditPage'
 
+import { RoleManagementPage } from './pages/admin-settings/RoleManagementPage'
 import { BackupManagementPage } from './pages/admin-settings/BackupManagementPage'
 import { IntegrationsPage } from './pages/admin-settings/IntegrationsPage'
 import { SystemHealthPage } from './pages/admin-settings/SystemHealthPage'
@@ -289,14 +251,6 @@ import FinanceDashboard from './pages/finance/FinanceDashboard'
 import InvoiceManagementPage from './pages/finance/InvoiceManagementPage'
 import PaymentCollectionPage from './pages/finance/PaymentCollectionPage'
 
-import { BankDepositPage } from './pages/cash-reconciliation/BankDepositPage'
-import { CashCollectionPage } from './pages/cash-reconciliation/CashCollectionPage'
-import { CashReportsPage } from './pages/cash-reconciliation/CashReportsPage'
-import { CashSessionDashboardPage } from './pages/cash-reconciliation/CashSessionDashboardPage'
-import { CloseCashSessionPage } from './pages/cash-reconciliation/CloseCashSessionPage'
-import { StartCashSessionPage } from './pages/cash-reconciliation/StartCashSessionPage'
-import { VarianceApprovalPage } from './pages/cash-reconciliation/VarianceApprovalPage'
-
 import { CommissionApprovalPage } from './pages/commissions/CommissionApprovalPage'
 import { CommissionCalculationPage } from './pages/commissions/CommissionCalculationPage'
 import { CommissionDashboardPage } from './pages/commissions/CommissionDashboardPage'
@@ -309,22 +263,10 @@ import CampaignsList from './pages/marketing/campaigns/CampaignsList'
 import EventsList from './pages/marketing/events/EventsList'
 import PromotionsList from './pages/marketing/promotions/PromotionsList'
 
-import CustomersList from './pages/crm/customers/CustomersList'
-import KYCCasesList from './pages/crm/kyc-cases/KYCCasesList'
-import SurveysList from './pages/crm/surveys/SurveysList'
-
 // Field Operations List Pages
 import BoardPlacementsList from './pages/field-operations/board-placements/BoardPlacementsList'
 import CommissionLedgerList from './pages/field-operations/commission-ledger/CommissionLedgerList'
 import ProductDistributionsList from './pages/field-operations/product-distributions/ProductDistributionsList'
-
-import { CustomerAnalyticsPage } from './pages/customer-management/CustomerAnalyticsPage'
-import { CustomerCreditManagementPage } from './pages/customer-management/CustomerCreditManagementPage'
-import { CustomerHierarchyPage } from './pages/customer-management/CustomerHierarchyPage'
-import { CustomerImportExportPage } from './pages/customer-management/CustomerImportExportPage'
-import { CustomerListPage } from './pages/customer-management/CustomerListPage'
-import { CustomerSegmentationPage } from './pages/customer-management/CustomerSegmentationPage'
-import { CustomerVisitHistoryPage } from './pages/customer-management/CustomerVisitHistoryPage'
 
 import { ProductAnalyticsPage } from './pages/product-management/ProductAnalyticsPage'
 import { ProductHierarchyPage } from './pages/product-management/ProductHierarchyPage'
@@ -333,21 +275,7 @@ import { ProductInventoryPage } from './pages/product-management/ProductInventor
 import { ProductListPage } from './pages/product-management/ProductListPage'
 import { ProductPricingPage } from './pages/product-management/ProductPricingPage'
 
-import { CreditNotesPage } from './pages/order-lifecycle/CreditNotesPage'
-import { DeliveryTrackingPage } from './pages/order-lifecycle/DeliveryTrackingPage'
-import { OrderFulfillmentPage } from './pages/order-lifecycle/OrderFulfillmentPage'
-import { QuotationApprovalPage } from './pages/order-lifecycle/QuotationApprovalPage'
-import { QuotationManagementPage } from './pages/order-lifecycle/QuotationManagementPage'
-import { RefundProcessingPage } from './pages/order-lifecycle/RefundProcessingPage'
-import { ReturnManagementPage } from './pages/order-lifecycle/ReturnManagementPage'
-
 // Inventory Management Pages
-import InventoryAnalyticsPage from './pages/inventory-management/InventoryAnalyticsPage'
-import StockCountListPage from './pages/inventory-management/StockCountListPage'
-import StockMovementsPage from './pages/inventory-management/StockMovementsPage'
-import StockOverviewPage from './pages/inventory-management/StockOverviewPage'
-import StockTransferPage from './pages/inventory-management/StockTransferPage'
-import WarehouseManagementPage from './pages/inventory-management/WarehouseManagementPage'
 
 import AnalyticsDashboardPage from './pages/reports/AnalyticsDashboardPage'
 import ReportBuilderPage from './pages/reports/ReportBuilderPage'
@@ -360,26 +288,12 @@ import FieldOperationsProductivityReport from './pages/reports/operations/FieldO
 import SalesExceptionsReport from './pages/reports/sales/SalesExceptionsReport'
 import SalesSummaryReport from './pages/reports/sales/SalesSummaryReport'
 
-import { CustomerAnalyticsPage as CustomerAnalyticsReportPage } from './pages/reports-analytics/CustomerAnalyticsPage'
-import { ExecutiveDashboardPage } from './pages/reports-analytics/ExecutiveDashboardPage'
-import { FinancialReportsPage } from './pages/reports-analytics/FinancialReportsPage'
-import { InventoryReportsPage } from './pages/reports-analytics/InventoryReportsPage'
-import { PerformanceAnalyticsPage } from './pages/reports-analytics/PerformanceAnalyticsPage'
-import { SalesReportsPage } from './pages/reports-analytics/SalesReportsPage'
-
 // KYC Surveys Pages
-import { AuditTrailPage } from './pages/kyc-surveys/AuditTrailPage'
-import { KYCAnalyticsPage } from './pages/kyc-surveys/KYCAnalyticsPage'
-import { KYCListPage } from './pages/kyc-surveys/KYCListPage'
-import { SurveyListPage } from './pages/kyc-surveys/SurveyListPage'
-import { SurveyResponsesPage } from './pages/kyc-surveys/SurveyResponsesPage'
 
 // Additional Dashboard Pages
 import CustomerDashboard from './pages/customers/CustomerDashboard'
 import OrderDashboard from './pages/orders/OrderDashboard'
 import AgentDashboard from './pages/agent/AgentDashboard'
-import AdvancedAnalyticsDashboard from './pages/analytics/AdvancedAnalyticsDashboard'
-import ExecutiveDashboard from './pages/analytics/ExecutiveDashboard'
 import SalesDashboard from './pages/sales/SalesDashboard'
 import BrandActivationsPage from './pages/brand-activations/BrandActivationsPage'
 import TenantManagement from './pages/superadmin/TenantManagement'
@@ -388,7 +302,6 @@ import TenantManagement from './pages/superadmin/TenantManagement'
 import FieldAgentDashboardPage from './pages/field-operations/FieldAgentDashboardPage'
 import LiveGPSTrackingPage from './pages/field-operations/LiveGPSTrackingPage'
 import VisitHistoryPage from './pages/field-operations/VisitHistoryPage'
-import VisitManagementPage from './pages/field-operations/VisitManagementPage'
 
 // Field Operations Refactor: New Pages
 import FieldOpsPerformancePage from './pages/field-operations/FieldOpsPerformancePage'
@@ -409,9 +322,6 @@ import VanOrdersListPage from './pages/van-sales/VanOrdersListPage'
 import VanPerformancePage from './pages/van-sales/VanPerformancePage'
 import VanRoutesListPage from './pages/van-sales/VanRoutesListPage'
 
-import SurveyPage from './pages/field-agents/SurveyPage'
-import TaskPage from './pages/field-agents/TaskPage'
-
 // Insights Pages
 import ExecutiveInsightsDashboard from './pages/insights/ExecutiveDashboard'
 import SalesInsights from './pages/insights/SalesInsights'
@@ -422,11 +332,125 @@ import StockInsights from './pages/insights/StockInsights'
 import CommissionInsights from './pages/insights/CommissionInsights'
 import GoalsInsights from './pages/insights/GoalsInsights'
 import AnomalyInsights from './pages/insights/AnomalyInsights'
+import ShareOfVoiceInsights from './pages/insights/ShareOfVoiceInsights'
+import CompetitorInsights from './pages/insights/CompetitorInsights'
+import BrandOwnerDashboard from './pages/brand-owner/BrandOwnerDashboard'
+import BrandOwnerReports from './pages/brand-owner/BrandOwnerReports'
 
 // Components
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LandingPage from './pages/marketing/LandingPage'
+import ToastContainer from './components/ui/Toast'
+
+
+// BUG-007: Register previously unrouted drill-down pages
+import AdjustmentItemDetail from './pages/inventory/adjustment-items/AdjustmentItemDetail'
+import AdjustmentItemEdit from './pages/inventory/adjustment-items/AdjustmentItemEdit'
+import AdjustmentItemList from './pages/inventory/adjustment-items/AdjustmentItemList'
+import AdjustmentJustification from './pages/inventory/adjustment-items/AdjustmentJustification'
+import ApprovalDetail from './pages/commissions/calculation-details/ApprovalDetail'
+import BatchAllocation from './pages/inventory/batch-tracking/BatchAllocation'
+import BatchDetail from './pages/inventory/batch-tracking/BatchDetail'
+import BatchExpiry from './pages/inventory/batch-tracking/BatchExpiry'
+import BatchMovementHistory from './pages/inventory/batch-tracking/BatchMovementHistory'
+import BoardComplianceChecks from './pages/field-operations/board-management/BoardComplianceChecks'
+import BoardLocationChanges from './pages/field-operations/board-management/BoardLocationChanges'
+import BoardMaintenanceLog from './pages/field-operations/board-management/BoardMaintenanceLog'
+import BoardPhotoHistory from './pages/field-operations/board-management/BoardPhotoHistory'
+import BoardPlacementHistory from './pages/field-operations/board-management/BoardPlacementHistory'
+import BrandActivationFormPage from './pages/BrandActivationFormPage'
+import CalculationDetail from './pages/commissions/calculation-details/CalculationDetail'
+import CalculationLog from './pages/commissions/calculation-details/CalculationLog'
+import CashVariance from './pages/van-sales/cash-session-lines/CashVariance'
+import CollectionDetail from './pages/van-sales/cash-session-lines/CollectionDetail'
+import CountLineApproval from './pages/inventory/stock-count-lines/CountLineApproval'
+import CountLineDetail from './pages/inventory/stock-count-lines/CountLineDetail'
+import CountLineEdit from './pages/inventory/stock-count-lines/CountLineEdit'
+import CountLineList from './pages/inventory/stock-count-lines/CountLineList'
+import CustomerSelectionPage from './pages/CustomerSelectionPage'
+import CustomersAdvanced from './pages/CustomersAdvanced'
+import DeliveryDetail from './pages/orders/deliveries/DeliveryDetail'
+import DeliveryEdit from './pages/orders/deliveries/DeliveryEdit'
+import DeliveryList from './pages/orders/deliveries/DeliveryList'
+import DeliveryPOD from './pages/orders/deliveries/DeliveryPOD'
+import DeliveryStopDetail from './pages/orders/deliveries/DeliveryStopDetail'
+import DeliveryStops from './pages/orders/deliveries/DeliveryStops'
+import DepositDetail from './pages/van-sales/cash-session-lines/DepositDetail'
+import ExceptionDetail from './pages/commissions/calculation-details/ExceptionDetail'
+import FOBoardPlacementDetail from './pages/field-operations/visit-tasks/BoardPlacementDetail'
+import FOProductDistributionDetail from './pages/field-operations/visit-tasks/ProductDistributionDetail'
+import FOSurveyDetail from './pages/field-operations/visit-tasks/SurveyDetail'
+import FOVisitTaskDetail from './pages/field-operations/visit-tasks/VisitTaskDetail'
+import FOVisitTaskEdit from './pages/field-operations/visit-tasks/VisitTaskEdit'
+import FOVisitTaskList from './pages/field-operations/visit-tasks/VisitTaskList'
+import FieldMarketingAgentPage from './pages/FieldMarketingAgentPage'
+import InvoiceItemDetail from './pages/finance/invoice-items/InvoiceItemDetail'
+import InvoiceItemEdit from './pages/finance/invoice-items/InvoiceItemEdit'
+import InvoiceItemHistory from './pages/finance/invoice-items/InvoiceItemHistory'
+import InvoiceItemList from './pages/finance/invoice-items/InvoiceItemList'
+import InvoiceStatusHistory from './pages/finance/invoice-status-history/InvoiceStatusHistory'
+import LotDetail from './pages/inventory/batch-tracking/LotDetail'
+import LotTracking from './pages/inventory/batch-tracking/LotTracking'
+import MobileLoginPage from './pages/auth/MobileLoginPage'
+import MovementDetail from './pages/inventory/stock-ledger/MovementDetail'
+import OrderItemDetail from './pages/orders/items/OrderItemDetail'
+import OrderItemEdit from './pages/orders/items/OrderItemEdit'
+import OrderItemHistory from './pages/orders/items/OrderItemHistory'
+import OrderItemList from './pages/orders/items/OrderItemList'
+import OrderStatusHistory from './pages/orders/status-history/OrderStatusHistory'
+import OrdersKanban from './pages/OrdersKanban'
+import POSMaterialTrackerPage from './pages/POSMaterialTrackerPage'
+import PaymentAllocationCreate from './pages/finance/payment-allocations/PaymentAllocationCreate'
+import PaymentAllocationDetail from './pages/finance/payment-allocations/PaymentAllocationDetail'
+import PaymentAllocationEdit from './pages/finance/payment-allocations/PaymentAllocationEdit'
+import PaymentAllocationList from './pages/finance/payment-allocations/PaymentAllocationList'
+import PaymentStatusHistory from './pages/finance/payment-status-history/PaymentStatusHistory'
+import PayoutAuditTrail from './pages/commissions/payout-lines/PayoutAuditTrail'
+import PayoutLineDetail from './pages/commissions/payout-lines/PayoutLineDetail'
+import PayoutLineEdit from './pages/commissions/payout-lines/PayoutLineEdit'
+import PayoutLineList from './pages/commissions/payout-lines/PayoutLineList'
+import PhotoDetail from './pages/field-operations/photos/PhotoDetail'
+import PhotoEvidence from './pages/field-operations/photos/PhotoEvidence'
+import PhotoGallery from './pages/field-operations/photos/PhotoGallery'
+import PhotoTimeline from './pages/field-operations/photos/PhotoTimeline'
+import ReturnItemApproval from './pages/orders/returns-items/ReturnItemApproval'
+import ReturnItemDetail from './pages/orders/returns-items/ReturnItemDetail'
+import ReturnItemEdit from './pages/orders/returns-items/ReturnItemEdit'
+import ReturnItemList from './pages/orders/returns-items/ReturnItemList'
+import RouteStopDetail from './pages/van-sales/route-stops/RouteStopDetail'
+import RouteStopEdit from './pages/van-sales/route-stops/RouteStopEdit'
+import RouteStopExceptions from './pages/van-sales/route-stops/RouteStopExceptions'
+import RouteStopList from './pages/van-sales/route-stops/RouteStopList'
+import RouteStopPerformance from './pages/van-sales/route-stops/RouteStopPerformance'
+import RuleConditionDetail from './pages/commissions/calculation-details/RuleConditionDetail'
+import SKUAvailabilityCheckerPage from './pages/SKUAvailabilityCheckerPage'
+import SerialDetail from './pages/inventory/batch-tracking/SerialDetail'
+import SerialTracking from './pages/inventory/batch-tracking/SerialTracking'
+import ShelfAnalyticsFormPage from './pages/ShelfAnalyticsFormPage'
+import SourceTransactions from './pages/commissions/payout-lines/SourceTransactions'
+import StatusTransitionDetail from './pages/orders/status-history/StatusTransitionDetail'
+import StockLedgerByProduct from './pages/inventory/stock-ledger/StockLedgerByProduct'
+import StockLedgerByWarehouse from './pages/inventory/stock-ledger/StockLedgerByWarehouse'
+import StockLedgerDetail from './pages/inventory/stock-ledger/StockLedgerDetail'
+import SurveyAnalysis from './pages/field-operations/survey-responses/SurveyAnalysis'
+import SurveyAnswerDetail from './pages/field-operations/survey-responses/SurveyAnswerDetail'
+import SurveyComparison from './pages/field-operations/survey-responses/SurveyComparison'
+import SurveyResponseDetail from './pages/field-operations/survey-responses/SurveyResponseDetail'
+import SurveyResponseEdit from './pages/field-operations/survey-responses/SurveyResponseEdit'
+import TradeMarketingAgentPage from './pages/TradeMarketingAgentPage'
+import TransferItemDetail from './pages/inventory/transfer-items/TransferItemDetail'
+import TransferItemEdit from './pages/inventory/transfer-items/TransferItemEdit'
+import TransferItemList from './pages/inventory/transfer-items/TransferItemList'
+import TransferItemTracking from './pages/inventory/transfer-items/TransferItemTracking'
+import VanLoadItemDetail from './pages/van-sales/van-load-items/VanLoadItemDetail'
+import VanLoadItemEdit from './pages/van-sales/van-load-items/VanLoadItemEdit'
+import VanLoadItemList from './pages/van-sales/van-load-items/VanLoadItemList'
+import VanLoadReconciliation from './pages/van-sales/van-load-items/VanLoadReconciliation'
+import VanLoadVariance from './pages/van-sales/van-load-items/VanLoadVariance'
+import VarianceResolution from './pages/inventory/stock-count-lines/VarianceResolution'
+import VisitWorkflowPage from './pages/VisitWorkflowPage'
+import VisitsList from './pages/field-operations/visits/VisitsList'
 
 function App() {
   const { isAuthenticated, isLoading, initialize, hydrated } = useAuthStore()
@@ -439,7 +463,7 @@ function App() {
 
   if (!hydrated || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#06090F]">
         <LoadingSpinner size="lg" />
       </div>
     )
@@ -447,7 +471,8 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gray-50">
+      <ToastContainer />
+      <div className="min-h-screen bg-[#06090F]">
         <Routes>
           {/* Marketing Landing Page */}
           <Route path="/" element={<LandingPage />} />
@@ -459,6 +484,7 @@ function App() {
             <Route path="login" element={<LoginPage />} />
             <Route path="forgot-password" element={<ForgotPasswordPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
+            <Route path="mobile-login" element={<MobileLoginPage />} />
             <Route index element={<Navigate to="login" replace />} />
           </Route>
 
@@ -475,13 +501,7 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             
-            {/* Analytics Routes */}
-            <Route path="analytics-dashboard" element={<AnalyticsDashboard />} />
-            <Route path="analytics-dashboard/orders" element={<OrdersAnalytics />} />
-            <Route path="analytics-dashboard/field-ops" element={<FieldOpsAnalytics />} />
-            <Route path="analytics-dashboard/commissions" element={<CommissionsAnalytics />} />
-            <Route path="analytics-dashboard/advanced" element={<AdvancedAnalyticsDashboard />} />
-            <Route path="analytics-dashboard/executive" element={<ExecutiveDashboard />} />
+            <Route path="analytics-dashboard/*" element={<Navigate to="/insights" replace />} />
             
                         {/* Reports Routes */}
                         <Route path="reports" element={<ReportsHub />} />
@@ -498,13 +518,7 @@ function App() {
             <Route path="reports/inventory/variance" element={<VarianceAnalysisReport />} />
             <Route path="reports/operations/field-ops-productivity" element={<FieldOperationsProductivityReport />} />
             
-            {/* Reports Analytics Routes */}
-            <Route path="reports-analytics/customer" element={<CustomerAnalyticsReportPage />} />
-            <Route path="reports-analytics/executive" element={<ExecutiveDashboardPage />} />
-            <Route path="reports-analytics/financial" element={<FinancialReportsPage />} />
-            <Route path="reports-analytics/inventory" element={<InventoryReportsPage />} />
-            <Route path="reports-analytics/performance" element={<PerformanceAnalyticsPage />} />
-            <Route path="reports-analytics/sales" element={<SalesReportsPage />} />
+            <Route path="reports-analytics/*" element={<Navigate to="/reports" replace />} />
 
             {/* Van Sales Routes */}
             <Route path="van-sales" element={<VanSalesDashboard />} />
@@ -541,8 +555,8 @@ function App() {
             <Route path="field-operations" element={<FieldOperationsDashboard />} />
             <Route path="field-operations/dashboard" element={<FieldOperationsDashboard />} />
             <Route path="field-operations/agent-dashboard" element={<FieldAgentDashboardPage />} />
-            <Route path="field-operations/agents" element={<FieldAgentsPage />} />
-            <Route path="field-operations/mapping" element={<LiveMappingPage />} />
+            <Route path="field-operations/agents" element={<Navigate to="/field-operations" replace />} />
+            <Route path="field-operations/mapping" element={<Navigate to="/field-operations/gps-tracking" replace />} />
             <Route path="field-operations/gps-tracking" element={<LiveGPSTrackingPage />} />
             <Route path="field-operations/boards" element={<BoardPlacementsList />} />
             <Route path="field-operations/boards/create" element={<BoardPlacementFormPage />} />
@@ -571,18 +585,7 @@ function App() {
             <Route path="field-operations/brand-insights" element={<BrandInsightsPage />} />
             <Route path="field-operations/company-logins" element={<CompanyLoginsPage />} />
 
-            {/* Field Marketing Routes */}
-            <Route path="field-marketing" element={<FieldMarketingDashboard />} />
-            <Route path="field-marketing/dashboard" element={<FieldMarketingDashboard />} />
-            <Route path="field-marketing/customer-selection" element={<CustomerSelection />} />
-            <Route path="field-marketing/gps-verification" element={<GPSVerification />} />
-            <Route path="field-marketing/brand-selection" element={<BrandSelection />} />
-            <Route path="field-marketing/visit-list" element={<VisitList />} />
-            <Route path="field-marketing/board-placement" element={<BoardPlacement />} />
-            <Route path="field-marketing/product-distribution" element={<ProductDistribution />} />
-            <Route path="field-marketing/new-customer" element={<NewCustomerRegistration />} />
-            <Route path="field-marketing/visit-summary" element={<VisitSummary />} />
-            <Route path="field-marketing/my-commissions" element={<MyCommissions />} />
+            <Route path="field-marketing/*" element={<Navigate to="/field-operations" replace />} />
 
             {/* KYC Routes */}
             <Route path="kyc" element={<KYCDashboard />} />
@@ -593,12 +596,7 @@ function App() {
             <Route path="kyc/:id/edit" element={<KYCEdit />} />
             <Route path="kyc/reports" element={<KYCReports />} />
             
-            {/* KYC Surveys Routes */}
-            <Route path="kyc-surveys/list" element={<KYCListPage />} />
-            <Route path="kyc-surveys/analytics" element={<KYCAnalyticsPage />} />
-            <Route path="kyc-surveys/surveys" element={<SurveyListPage />} />
-            <Route path="kyc-surveys/responses" element={<SurveyResponsesPage />} />
-            <Route path="kyc-surveys/audit-trail" element={<AuditTrailPage />} />
+            <Route path="kyc-surveys/*" element={<Navigate to="/kyc" replace />} />
 
             {/* Surveys Routes */}
             <Route path="surveys" element={<SurveysDashboard />} />
@@ -613,7 +611,7 @@ function App() {
             <Route path="inventory" element={<InventoryDashboard />} />
             <Route path="inventory/dashboard" element={<InventoryDashboard />} />
             <Route path="inventory/stock-count" element={<StockCountWorkflowPage />} />
-            <Route path="inventory/stock-count/:id" element={<StockCountDetailsPage />} />
+            <Route path="inventory/stock-count/:id" element={<StockCountDetail />} />
             <Route path="inventory/management" element={<InventoryManagement />} />
             <Route path="inventory/reports" element={<InventoryReports />} />
             <Route path="inventory/adjustments" element={<AdjustmentsList />} />
@@ -632,13 +630,7 @@ function App() {
             <Route path="inventory/transfers/create" element={<TransferCreate />} />
             <Route path="inventory/transfers/:id" element={<TransferDetail />} />
             
-            {/* Inventory Management Routes */}
-            <Route path="inventory-management/overview" element={<StockOverviewPage />} />
-            <Route path="inventory-management/analytics" element={<InventoryAnalyticsPage />} />
-            <Route path="inventory-management/movements" element={<StockMovementsPage />} />
-            <Route path="inventory-management/stock-counts" element={<StockCountListPage />} />
-            <Route path="inventory-management/transfers" element={<StockTransferPage />} />
-            <Route path="inventory-management/warehouses" element={<WarehouseManagementPage />} />
+            <Route path="inventory-management/*" element={<Navigate to="/inventory" replace />} />
 
             {/* Promotions Routes */}
             <Route path="promotions" element={<PromotionsDashboard />} />
@@ -665,16 +657,7 @@ function App() {
             {/* Superadmin Routes */}
             <Route path="superadmin/tenants" element={<TenantManagement />} />
 
-            {/* Legacy Field Agent Routes (for backward compatibility) */}
-            <Route path="field-agents" element={<FieldAgentsPage />} />
-            <Route path="field-agents/dashboard" element={<AgentDashboard />} />
-            <Route path="field-agents/workflow" element={<AgentWorkflowPageMobile />} />
-            <Route path="field-agents/mapping" element={<LiveMappingPage />} />
-            <Route path="field-agents/boards" element={<BoardPlacementPage />} />
-            <Route path="field-agents/products" element={<ProductDistributionPage />} />
-            <Route path="field-agents/commission" element={<AgentCommissionDashboard />} />
-            <Route path="field-agents/surveys" element={<SurveyPage />} />
-            <Route path="field-agents/tasks" element={<TaskPage />} />
+            <Route path="field-agents/*" element={<Navigate to="/field-operations" replace />} />
 
             {/* Business Routes */}
             <Route path="customers" element={<CustomersPage />} />
@@ -713,14 +696,7 @@ function App() {
             <Route path="brands/:id/boards" element={<BrandBoards />} />
             <Route path="brands/:id/products" element={<BrandProducts />} />
             
-            {/* Customer Management Routes */}
-            <Route path="customer-management/list" element={<CustomerListPage />} />
-            <Route path="customer-management/analytics" element={<CustomerAnalyticsPage />} />
-            <Route path="customer-management/credit" element={<CustomerCreditManagementPage />} />
-            <Route path="customer-management/hierarchy" element={<CustomerHierarchyPage />} />
-            <Route path="customer-management/import-export" element={<CustomerImportExportPage />} />
-            <Route path="customer-management/segmentation" element={<CustomerSegmentationPage />} />
-            <Route path="customer-management/visit-history" element={<CustomerVisitHistoryPage />} />
+            <Route path="customer-management/*" element={<Navigate to="/customers" replace />} />
             
             {/* Product Management Routes */}
             <Route path="product-management/list" element={<ProductListPage />} />
@@ -730,14 +706,7 @@ function App() {
             <Route path="product-management/inventory" element={<ProductInventoryPage />} />
             <Route path="product-management/pricing" element={<ProductPricingPage />} />
             
-            {/* Order Lifecycle Routes */}
-            <Route path="order-lifecycle/quotations" element={<QuotationManagementPage />} />
-            <Route path="order-lifecycle/quotation-approval" element={<QuotationApprovalPage />} />
-            <Route path="order-lifecycle/fulfillment" element={<OrderFulfillmentPage />} />
-            <Route path="order-lifecycle/delivery-tracking" element={<DeliveryTrackingPage />} />
-            <Route path="order-lifecycle/returns" element={<ReturnManagementPage />} />
-            <Route path="order-lifecycle/credit-notes" element={<CreditNotesPage />} />
-            <Route path="order-lifecycle/refunds" element={<RefundProcessingPage />} />
+            <Route path="order-lifecycle/*" element={<Navigate to="/sales" replace />} />
 
             {/* Sales Routes */}
             <Route path="sales" element={<SalesDashboard />} />
@@ -774,17 +743,7 @@ function App() {
             <Route path="marketing/promotions/create" element={<PromotionCreate />} />
             <Route path="marketing/promotions/:id" element={<PromotionDetail />} />
 
-            {/* CRM Routes */}
-            <Route path="crm/customers" element={<CustomersList />} />
-            <Route path="crm/customers/create" element={<CRMCustomerCreate />} />
-            <Route path="crm/customers/:id" element={<CRMCustomerDetail />} />
-            <Route path="crm/customers/:id/edit" element={<CRMCustomerEdit />} />
-            <Route path="crm/kyc-cases" element={<KYCCasesList />} />
-            <Route path="crm/kyc-cases/create" element={<KYCCaseCreate />} />
-            <Route path="crm/kyc-cases/:id" element={<KYCCaseDetail />} />
-            <Route path="crm/surveys" element={<SurveysList />} />
-            <Route path="crm/surveys/create" element={<SurveyCreate />} />
-            <Route path="crm/surveys/:id" element={<SurveyDetail />} />
+            <Route path="crm/*" element={<Navigate to="/customers" replace />} />
 
             {/* Finance Routes */}
             <Route path="finance" element={<FinanceDashboard />} />
@@ -804,20 +763,7 @@ function App() {
             <Route path="finance/commission-payouts" element={<CommissionPayoutsList />} />
             <Route path="finance/commission-payouts/:id" element={<CommissionPayoutDetail />} />
             
-            {/* Cash Reconciliation Routes */}
-            <Route path="cash-reconciliation" element={<CashSessionDashboardPage />} />
-            <Route path="cash-reconciliation/start" element={<StartCashSessionPage />} />
-            <Route path="cash-reconciliation/close" element={<CloseCashSessionPage />} />
-            <Route path="cash-reconciliation/collection" element={<CashCollectionPage />} />
-            <Route path="cash-reconciliation/deposit" element={<BankDepositPage />} />
-            <Route path="cash-reconciliation/variance" element={<VarianceApprovalPage />} />
-            <Route path="cash-reconciliation/reports" element={<CashReportsPage />} />
-            <Route path="cash-reconciliation/sessions/:id" element={<SessionDetail />} />
-            <Route path="cash-reconciliation/sessions/:id/edit" element={<SessionEdit />} />
-            <Route path="cash-reconciliation/sessions/:id/collections" element={<SessionCollections />} />
-            <Route path="cash-reconciliation/sessions/:id/deposits" element={<SessionDeposits />} />
-            <Route path="cash-reconciliation/deposits/:id" element={<DepositDetail />} />
-            <Route path="cash-reconciliation/deposits/:id/edit" element={<DepositEdit />} />
+            <Route path="cash-reconciliation/*" element={<Navigate to="/finance/cash-reconciliation" replace />} />
             
             {/* Commission Routes */}
             <Route path="commissions" element={<CommissionDashboardPage />} />
@@ -871,7 +817,7 @@ function App() {
             } />
             <Route path="admin/campaigns" element={
               <ProtectedRoute requiredRole="admin">
-                <CampaignManagementPage />
+                <AdminCampaignManagementPage />
               </ProtectedRoute>
             } />
             <Route path="admin/commissions" element={
@@ -944,6 +890,11 @@ function App() {
                 <PriceListEditPage />
               </ProtectedRoute>
             } />
+            <Route path="admin/role-management" element={
+              <ProtectedRoute requiredRole="admin">
+                <RoleManagementPage />
+              </ProtectedRoute>
+            } />
 
             {/* Insights Dashboard Routes */}
             <Route path="insights" element={<ExecutiveInsightsDashboard />} />
@@ -956,6 +907,118 @@ function App() {
             <Route path="insights/commissions" element={<CommissionInsights />} />
             <Route path="insights/goals" element={<GoalsInsights />} />
             <Route path="insights/anomalies" element={<AnomalyInsights />} />
+            <Route path="insights/share-of-voice" element={<ShareOfVoiceInsights />} />
+            <Route path="insights/competitors" element={<CompetitorInsights />} />
+            <Route path="brand-owner/dashboard" element={<BrandOwnerDashboard />} />
+            <Route path="brand-owner/reports" element={<BrandOwnerReports />} />
+
+
+            {/* BUG-007: Previously unrouted drill-down pages */}
+            <Route path="inventory/adjustments/:id/items/:itemId" element={<AdjustmentItemDetail />} />
+            <Route path="inventory/adjustments/:id/items/:itemId/edit" element={<AdjustmentItemEdit />} />
+            <Route path="inventory/adjustments/:id/items" element={<AdjustmentItemList />} />
+            <Route path="inventory/adjustments/:id/justification" element={<AdjustmentJustification />} />
+            <Route path="commissions/approvals/:id" element={<ApprovalDetail />} />
+            <Route path="inventory/batches/:id/allocation" element={<BatchAllocation />} />
+            <Route path="inventory/batches/:id" element={<BatchDetail />} />
+            <Route path="inventory/batches/expiry" element={<BatchExpiry />} />
+            <Route path="inventory/batches/:id/movements" element={<BatchMovementHistory />} />
+            <Route path="field-operations/boards/:id/compliance" element={<BoardComplianceChecks />} />
+            <Route path="field-operations/boards/:id/location-changes" element={<BoardLocationChanges />} />
+            <Route path="field-operations/boards/:id/maintenance" element={<BoardMaintenanceLog />} />
+            <Route path="field-operations/boards/:id/photos" element={<BoardPhotoHistory />} />
+            <Route path="field-operations/boards/:id/history" element={<BoardPlacementHistory />} />
+            <Route path="field-operations/brand-activation" element={<BrandActivationFormPage />} />
+            <Route path="commissions/calculations/:id" element={<CalculationDetail />} />
+            <Route path="commissions/calculations/:id/log" element={<CalculationLog />} />
+            <Route path="van-sales/cash-reconciliation/:sessionId/variance" element={<CashVariance />} />
+            <Route path="van-sales/cash-reconciliation/:sessionId/collections/:collectionId" element={<CollectionDetail />} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/approval" element={<CountLineApproval />} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId" element={<CountLineDetail />} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/edit" element={<CountLineEdit />} />
+            <Route path="inventory/stock-counts/:countId/lines" element={<CountLineList />} />
+            <Route path="customer-selection" element={<CustomerSelectionPage />} />
+            <Route path="customers/advanced" element={<CustomersAdvanced />} />
+            <Route path="orders/:id/deliveries/:deliveryId" element={<DeliveryDetail />} />
+            <Route path="orders/:id/deliveries/:deliveryId/edit" element={<DeliveryEdit />} />
+            <Route path="orders/:id/deliveries" element={<DeliveryList />} />
+            <Route path="orders/:id/deliveries/:deliveryId/pod" element={<DeliveryPOD />} />
+            <Route path="orders/:id/deliveries/:deliveryId/stops/:stopId" element={<DeliveryStopDetail />} />
+            <Route path="orders/:id/deliveries/:deliveryId/stops" element={<DeliveryStops />} />
+            <Route path="van-sales/cash-reconciliation/:sessionId/deposits/:depositId" element={<DepositDetail />} />
+            <Route path="commissions/exceptions/:id" element={<ExceptionDetail />} />
+            <Route path="field-operations/visits/:id/board-placement" element={<FOBoardPlacementDetail />} />
+            <Route path="field-operations/visits/:id/product-distribution" element={<FOProductDistributionDetail />} />
+            <Route path="field-operations/visits/:id/survey" element={<FOSurveyDetail />} />
+            <Route path="field-operations/visits/:id/tasks/:taskId" element={<FOVisitTaskDetail />} />
+            <Route path="field-operations/visits/:id/tasks/:taskId/edit" element={<FOVisitTaskEdit />} />
+            <Route path="field-operations/visits/:id/tasks" element={<FOVisitTaskList />} />
+            <Route path="field-marketing/agent" element={<FieldMarketingAgentPage />} />
+            <Route path="finance/invoices/:invoiceId/items/:itemId" element={<InvoiceItemDetail />} />
+            <Route path="finance/invoices/:invoiceId/items/:itemId/edit" element={<InvoiceItemEdit />} />
+            <Route path="finance/invoices/:invoiceId/items/:itemId/history" element={<InvoiceItemHistory />} />
+            <Route path="finance/invoices/:invoiceId/items-list" element={<InvoiceItemList />} />
+            <Route path="finance/invoices/:invoiceId/status-history" element={<InvoiceStatusHistory />} />
+            <Route path="inventory/lots/:id" element={<LotDetail />} />
+            <Route path="inventory/lots" element={<LotTracking />} />
+            <Route path="inventory/stock-ledger/movements/:id" element={<MovementDetail />} />
+            <Route path="orders/:id/items/:itemId" element={<OrderItemDetail />} />
+            <Route path="orders/:id/items/:itemId/edit" element={<OrderItemEdit />} />
+            <Route path="orders/:id/items/:itemId/history" element={<OrderItemHistory />} />
+            <Route path="orders/:id/items-list" element={<OrderItemList />} />
+            <Route path="orders/:id/status-history" element={<OrderStatusHistory />} />
+            <Route path="orders/kanban" element={<OrdersKanban />} />
+            <Route path="field-operations/pos-tracker" element={<POSMaterialTrackerPage />} />
+            <Route path="finance/payments/:paymentId/allocations/create" element={<PaymentAllocationCreate />} />
+            <Route path="finance/payments/:paymentId/allocations/:allocId" element={<PaymentAllocationDetail />} />
+            <Route path="finance/payments/:paymentId/allocations/:allocId/edit" element={<PaymentAllocationEdit />} />
+            <Route path="finance/payments/:paymentId/allocations" element={<PaymentAllocationList />} />
+            <Route path="finance/payments/:paymentId/status-history" element={<PaymentStatusHistory />} />
+            <Route path="commissions/payouts/:payoutId/audit" element={<PayoutAuditTrail />} />
+            <Route path="commissions/payouts/:payoutId/lines/:lineId" element={<PayoutLineDetail />} />
+            <Route path="commissions/payouts/:payoutId/lines/:lineId/edit" element={<PayoutLineEdit />} />
+            <Route path="commissions/payouts/:payoutId/lines" element={<PayoutLineList />} />
+            <Route path="field-operations/photos/:id" element={<PhotoDetail />} />
+            <Route path="field-operations/photos/:id/evidence" element={<PhotoEvidence />} />
+            <Route path="field-operations/photos" element={<PhotoGallery />} />
+            <Route path="field-operations/photos/timeline" element={<PhotoTimeline />} />
+            <Route path="orders/:id/return-items/:itemId/approval" element={<ReturnItemApproval />} />
+            <Route path="orders/:id/return-items/:itemId" element={<ReturnItemDetail />} />
+            <Route path="orders/:id/return-items/:itemId/edit" element={<ReturnItemEdit />} />
+            <Route path="orders/:id/return-items" element={<ReturnItemList />} />
+            <Route path="van-sales/routes/:routeId/stops/:stopId" element={<RouteStopDetail />} />
+            <Route path="van-sales/routes/:routeId/stops/:stopId/edit" element={<RouteStopEdit />} />
+            <Route path="van-sales/routes/:routeId/stops/exceptions" element={<RouteStopExceptions />} />
+            <Route path="van-sales/routes/:routeId/stops" element={<RouteStopList />} />
+            <Route path="van-sales/routes/:routeId/stops/performance" element={<RouteStopPerformance />} />
+            <Route path="commissions/rules/:id/conditions" element={<RuleConditionDetail />} />
+            <Route path="field-operations/sku-checker" element={<SKUAvailabilityCheckerPage />} />
+            <Route path="inventory/serials/:id" element={<SerialDetail />} />
+            <Route path="inventory/serials" element={<SerialTracking />} />
+            <Route path="field-operations/shelf-analytics" element={<ShelfAnalyticsFormPage />} />
+            <Route path="commissions/payouts/:payoutId/transactions" element={<SourceTransactions />} />
+            <Route path="orders/:id/status-history/:transitionId" element={<StatusTransitionDetail />} />
+            <Route path="inventory/stock-ledger/by-product" element={<StockLedgerByProduct />} />
+            <Route path="inventory/stock-ledger/by-warehouse" element={<StockLedgerByWarehouse />} />
+            <Route path="inventory/stock-ledger" element={<StockLedgerDetail />} />
+            <Route path="field-operations/surveys/:id/analysis" element={<SurveyAnalysis />} />
+            <Route path="field-operations/surveys/:id/answers/:answerId" element={<SurveyAnswerDetail />} />
+            <Route path="field-operations/surveys/comparison" element={<SurveyComparison />} />
+            <Route path="field-operations/surveys/:id/responses/:responseId" element={<SurveyResponseDetail />} />
+            <Route path="field-operations/surveys/:id/responses/:responseId/edit" element={<SurveyResponseEdit />} />
+            <Route path="trade-marketing/agent" element={<TradeMarketingAgentPage />} />
+            <Route path="inventory/transfers/:id/items/:itemId" element={<TransferItemDetail />} />
+            <Route path="inventory/transfers/:id/items/:itemId/edit" element={<TransferItemEdit />} />
+            <Route path="inventory/transfers/:id/items" element={<TransferItemList />} />
+            <Route path="inventory/transfers/:id/tracking" element={<TransferItemTracking />} />
+            <Route path="van-sales/van-loads/:loadId/items/:itemId" element={<VanLoadItemDetail />} />
+            <Route path="van-sales/van-loads/:loadId/items/:itemId/edit" element={<VanLoadItemEdit />} />
+            <Route path="van-sales/van-loads/:loadId/items" element={<VanLoadItemList />} />
+            <Route path="van-sales/van-loads/:loadId/reconciliation" element={<VanLoadReconciliation />} />
+            <Route path="van-sales/van-loads/:loadId/variance" element={<VanLoadVariance />} />
+            <Route path="inventory/stock-counts/:countId/variance" element={<VarianceResolution />} />
+            <Route path="field-operations/visit-workflow" element={<VisitWorkflowPage />} />
+            <Route path="field-operations/visits/list" element={<VisitsList />} />
 
             {/* Default redirect */}
             <Route index element={<Navigate to="dashboard" replace />} />
