@@ -6,7 +6,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function VanInventoryPage() {
   const [selectedVanId, setSelectedVanId] = useState<string>('')
-  const { data: inventory, isLoading, error } = useQuery({
+  const { data: inventory, isLoading, isError, error } = useQuery({
     queryKey: ['van-inventory', selectedVanId],
     queryFn: () => vanSalesService.getVanInventory(selectedVanId),
     enabled: !!selectedVanId

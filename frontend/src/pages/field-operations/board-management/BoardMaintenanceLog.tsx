@@ -20,7 +20,7 @@ export default function BoardMaintenanceLog() {
     },
   })
 
-  const { data: logs, isLoading } = useQuery({
+  const { data: logs, isLoading, isError } = useQuery({
     queryKey: ['board-maintenance-log', boardId],
     queryFn: async () => {
       const response = await fetch(`/api/boards/${boardId}/maintenance`, {
@@ -80,6 +80,18 @@ export default function BoardMaintenanceLog() {
   if (isLoading) {
     return <div className="p-6">Loading maintenance log...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

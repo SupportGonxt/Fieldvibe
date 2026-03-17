@@ -8,7 +8,7 @@ export default function RuleConditionDetail() {
   const { ruleId, conditionId } = useParams<{ ruleId: string; conditionId: string }>()
   const navigate = useNavigate()
 
-  const { data: condition, isLoading } = useQuery({
+  const { data: condition, isLoading, isError } = useQuery({
     queryKey: ['commission-rule-condition', ruleId, conditionId],
     queryFn: async () => {
       const response = await fetch(`/api/commissions/rules/${ruleId}/conditions/${conditionId}`, {
@@ -25,6 +25,18 @@ export default function RuleConditionDetail() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!condition) {
     return <div className="p-6">Condition not found</div>

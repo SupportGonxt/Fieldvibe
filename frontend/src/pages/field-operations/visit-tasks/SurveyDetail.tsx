@@ -8,7 +8,7 @@ export default function SurveyDetail() {
   const { visitId, surveyId } = useParams<{ visitId: string; surveyId: string }>()
   const navigate = useNavigate()
 
-  const { data: survey, isLoading } = useQuery({
+  const { data: survey, isLoading, isError } = useQuery({
     queryKey: ['survey', visitId, surveyId],
     queryFn: async () => {
       const response = await fetch(`/api/surveys/${surveyId}`, {
@@ -42,6 +42,18 @@ export default function SurveyDetail() {
   if (isLoading) {
     return <div className="p-6">Loading survey details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!survey) {
     return <div className="p-6">Survey not found</div>

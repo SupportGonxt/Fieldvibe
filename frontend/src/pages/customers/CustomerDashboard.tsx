@@ -271,7 +271,7 @@ export default function CustomerDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    metrics.topCustomers.map((customer) => (
+                    (metrics?.topCustomers || []).map((customer) => (
                       <TableRow key={customer.id} hover>
                         <TableCell>
                           <Typography fontWeight="medium">{customer.name}</Typography>

@@ -23,7 +23,7 @@ export default function RouteStopPerformance() {
     },
   })
 
-  const { data: performance, isLoading } = useQuery({
+  const { data: performance, isLoading, isError } = useQuery({
     queryKey: ['route-performance', routeId],
     queryFn: async () => {
       const response = await fetch(`/api/routes/${routeId}/performance`, {
@@ -40,6 +40,18 @@ export default function RouteStopPerformance() {
   if (isLoading) {
     return <div className="p-6">Loading performance data...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!performance) {
     return <div className="p-6">Performance data not found</div>

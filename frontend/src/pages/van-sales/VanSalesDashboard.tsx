@@ -51,25 +51,26 @@ export default function VanSalesDashboard() {
     end_date: new Date().toISOString().split('T')[0]
   })
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['van-sales-dashboard-stats', dateRange],
     queryFn: () => vanSalesService.getVanSalesStats(dateRange),
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError } = useQuery({
     queryKey: ['van-sales-analytics', dateRange],
     queryFn: () => vanSalesService.getVanSalesAnalytics(),
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: trends, isLoading: trendsLoading } = useQuery({
+  const { data: trends, isLoading: trendsLoading, isError: trendsError } = useQuery({
     queryKey: ['van-sales-trends', dateRange],
     queryFn: () => vanSalesService.getVanSalesTrends(dateRange),
     staleTime: 1000 * 60 * 5,
   })
 
   const isLoading = statsLoading || analyticsLoading || trendsLoading
+  const isError = statsError || analyticsError || trendsError
 
   const handleRefresh = () => {
     refetchStats()
@@ -86,6 +87,18 @@ export default function VanSalesDashboard() {
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">
@@ -544,7 +557,7 @@ export default function VanSalesDashboard() {
             <TrendingUp className="w-5 h-5 text-blue-500" />
           </div>
           <div className="space-y-3">
-            {analytics.insights.map((insight: any, index: number) => (
+            {(analytics?.insights || []).map((insight: any, index: number) => (
               <div key={index} className="flex items-start p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-blue-500 mt-0.5 mr-3" />
                 <div>

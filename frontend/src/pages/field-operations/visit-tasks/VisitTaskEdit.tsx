@@ -18,7 +18,7 @@ export default function VisitTaskEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: task, isLoading } = useQuery({
+  const { data: task, isLoading, isError } = useQuery({
     queryKey: ['visit-task', visitId, taskId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/tasks/${taskId}`, {
@@ -63,6 +63,18 @@ export default function VisitTaskEdit() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!task) {
     return <div className="p-6">Task not found</div>

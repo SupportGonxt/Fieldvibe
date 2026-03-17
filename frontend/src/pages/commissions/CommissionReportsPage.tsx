@@ -17,20 +17,33 @@ export const CommissionReportsPage: React.FC = () => {
     }).format(amount)
   }
 
-  const { data: statsData, isLoading: statsLoading } = useQuery({
+  const { data: statsData, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['commission-stats'],
     queryFn: () => commissionsService.getCommissionStats(),
   })
 
-  const { data: commissionsData, isLoading: commissionsLoading } = useQuery({
+  const { data: commissionsData, isLoading: commissionsLoading, isError: commissionsError } = useQuery({
     queryKey: ['commissions-report', dateRange],
     queryFn: () => commissionsService.getCommissions(),
   })
 
   const isLoading = statsLoading || commissionsLoading
+  const isError = statsError || commissionsError
   const commissionsList = commissionsData?.commissions || []
 
   if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const mockReportData = {
     by_agent: commissionsList.reduce((acc: any[], c: any) => {

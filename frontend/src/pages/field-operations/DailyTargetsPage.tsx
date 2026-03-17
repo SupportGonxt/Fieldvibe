@@ -19,7 +19,7 @@ export default function DailyTargetsPage() {
     target_date: today
   })
 
-  const { data: targets, isLoading } = useQuery({
+  const { data: targets, isLoading, isError } = useQuery({
     queryKey: ['daily-targets', selectedDate],
     queryFn: () => fieldOperationsService.getDailyTargets({ date: selectedDate }),
   })
@@ -62,6 +62,18 @@ export default function DailyTargetsPage() {
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6 p-6">

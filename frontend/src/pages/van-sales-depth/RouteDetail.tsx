@@ -10,7 +10,7 @@ export default function RouteDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: route, isLoading } = useQuery({
+  const { data: route, isLoading, isError } = useQuery({
     queryKey: ['route', id],
     queryFn: () => vanSalesService.getRoute(id!),
   })
@@ -18,6 +18,18 @@ export default function RouteDetail() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!route) {
     return <div className="p-6">Route not found</div>

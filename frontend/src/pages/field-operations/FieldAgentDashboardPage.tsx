@@ -6,7 +6,7 @@ import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 
 export default function FieldAgentDashboardPage() {
-  const { data: todayVisits, isLoading } = useQuery({
+  const { data: todayVisits, isLoading, isError } = useQuery({
     queryKey: ['today-visits'],
     queryFn: () => fieldOperationsService.getVisits({ date: new Date().toISOString().split('T')[0] })
   })
@@ -22,6 +22,18 @@ export default function FieldAgentDashboardPage() {
   const completed = visits.filter(v => v.status === 'completed')
 
   if (isLoading) return <div className="p-6"><div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="grid grid-cols-4 gap-4">{[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-200 rounded"></div>)}</div></div></div>
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">

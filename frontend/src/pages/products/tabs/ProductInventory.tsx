@@ -7,7 +7,7 @@ import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 export default function ProductInventory() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: inventory = [], isLoading } = useQuery({
+  const { data: inventory = [], isLoading, isError } = useQuery({
     queryKey: ['product-inventory', id],
     queryFn: () => inventoryService.getProductInventory(id!),
   })

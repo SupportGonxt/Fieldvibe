@@ -14,7 +14,7 @@ export default function InvoicePayments() {
     queryFn: () => financeService.getInvoice(id!),
   })
 
-  const { data: payments, isLoading } = useQuery({
+  const { data: payments, isLoading, isError } = useQuery({
     queryKey: ['invoice-payments', id],
     queryFn: async () => {
       const result = await financeService.getPayments({ invoice_id: id })
@@ -27,6 +27,18 @@ export default function InvoicePayments() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

@@ -9,7 +9,7 @@ export default function PayoutLineDetail() {
   const { payoutId, lineId } = useParams<{ payoutId: string; lineId: string }>()
   const navigate = useNavigate()
 
-  const { data: line, isLoading } = useQuery({
+  const { data: line, isLoading, isError } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
       const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}`, {
@@ -26,6 +26,18 @@ export default function PayoutLineDetail() {
   if (isLoading) {
     return <div className="p-6">Loading payout line...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!line) {
     return <div className="p-6">Payout line not found</div>

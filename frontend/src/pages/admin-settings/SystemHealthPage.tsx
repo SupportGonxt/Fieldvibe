@@ -24,7 +24,7 @@ export const SystemHealthPage: React.FC = () => {
     }
   }
 
-  const { data: healthData, isLoading } = useQuery({
+  const { data: healthData, isLoading, isError } = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => {
       const checks = await Promise.all([
@@ -48,6 +48,18 @@ export const SystemHealthPage: React.FC = () => {
   })
 
   if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const mockHealthData = {
     status: (healthData?.status || 'healthy') as 'healthy' | 'warning' | 'critical',

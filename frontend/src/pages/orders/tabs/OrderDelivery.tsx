@@ -6,7 +6,7 @@ import { ordersService as orderService } from '../../../services/orders.service'
 export default function OrderDelivery() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: deliveryData, isLoading } = useQuery({
+  const { data: deliveryData, isLoading, isError } = useQuery({
     queryKey: ['order-delivery', id],
     queryFn: () => orderService.getOrderDelivery(id!),
   })

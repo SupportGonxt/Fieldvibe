@@ -10,7 +10,7 @@ export default function BrandOwnerReports() {
     return params.get('brand_id') || ''
   })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['brand-owner-reports', brandId],
     queryFn: () => tradeMarketingService.getBrandOwnerReports({ brand_id: brandId }),
     enabled: !!brandId,
@@ -18,6 +18,18 @@ export default function BrandOwnerReports() {
 
   if (!brandId) return <div className="p-8 text-center text-gray-500">No brand selected. Add ?brand_id=... to URL.</div>
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const d = data || {}
 

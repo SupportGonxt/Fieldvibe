@@ -10,7 +10,7 @@ interface AuditTrailSearchProps {
 export default function AuditTrailSearch({ entityType, entityId }: AuditTrailSearchProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { data: results, isLoading } = useQuery({
+  const { data: results, isLoading, isError } = useQuery({
     queryKey: ['audit-search', entityType, entityId, searchQuery],
     queryFn: async () => {
       if (!searchQuery) return []

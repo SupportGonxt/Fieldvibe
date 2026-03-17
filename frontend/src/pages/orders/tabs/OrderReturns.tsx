@@ -8,7 +8,7 @@ export default function OrderReturns() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: returns = [], isLoading } = useQuery({
+  const { data: returns = [], isLoading, isError } = useQuery({
     queryKey: ['order-returns', id],
     queryFn: () => orderService.getOrderReturns(id!),
   })

@@ -8,7 +8,7 @@ export default function PhotoDetail() {
   const { visitId, photoId } = useParams<{ visitId: string; photoId: string }>()
   const navigate = useNavigate()
 
-  const { data: photo, isLoading } = useQuery({
+  const { data: photo, isLoading, isError } = useQuery({
     queryKey: ['photo', visitId, photoId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/photos/${photoId}`, {
@@ -45,6 +45,18 @@ export default function PhotoDetail() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!photo) {
     return <div className="p-6">Photo not found</div>

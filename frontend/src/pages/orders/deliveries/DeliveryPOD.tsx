@@ -14,7 +14,7 @@ export default function DeliveryPOD() {
     queryFn: async () => ordersService.getOrderDelivery(orderId!, deliveryId!),
   })
 
-  const { data: pod, isLoading } = useQuery({
+  const { data: pod, isLoading, isError } = useQuery({
     queryKey: ['delivery-pod', orderId, deliveryId],
     queryFn: async () => {
       const response = await fetch(`/api/orders/${orderId}/deliveries/${deliveryId}/pod`, {
@@ -31,6 +31,18 @@ export default function DeliveryPOD() {
   if (isLoading) {
     return <div className="p-6">Loading proof of delivery...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!pod) {
     return <div className="p-6">Proof of delivery not found</div>

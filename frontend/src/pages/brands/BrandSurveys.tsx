@@ -13,7 +13,7 @@ export default function BrandSurveys() {
     queryFn: () => brandService.getBrand(id!),
   })
 
-  const { data: surveys = [], isLoading } = useQuery({
+  const { data: surveys = [], isLoading, isError } = useQuery({
     queryKey: ['brand-surveys', id],
     queryFn: () => brandService.getBrandSurveys(id!),
   })

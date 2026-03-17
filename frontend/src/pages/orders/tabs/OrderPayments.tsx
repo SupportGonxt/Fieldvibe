@@ -8,7 +8,7 @@ export default function OrderPayments() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: payments = [], isLoading } = useQuery({
+  const { data: payments = [], isLoading, isError } = useQuery({
     queryKey: ['order-payments', id],
     queryFn: () => paymentService.getPayments({ order_id: id }),
   })

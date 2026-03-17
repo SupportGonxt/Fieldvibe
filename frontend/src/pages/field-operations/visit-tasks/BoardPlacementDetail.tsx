@@ -8,7 +8,7 @@ export default function BoardPlacementDetail() {
   const { visitId, placementId } = useParams<{ visitId: string; placementId: string }>()
   const navigate = useNavigate()
 
-  const { data: placement, isLoading } = useQuery({
+  const { data: placement, isLoading, isError } = useQuery({
     queryKey: ['board-placement', visitId, placementId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/board-placements/${placementId}`, {
@@ -42,6 +42,18 @@ export default function BoardPlacementDetail() {
   if (isLoading) {
     return <div className="p-6">Loading placement details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!placement) {
     return <div className="p-6">Placement not found</div>

@@ -8,7 +8,7 @@ export default function CustomerVisits() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: visits = [], isLoading } = useQuery({
+  const { data: visits = [], isLoading, isError } = useQuery({
     queryKey: ['customer-visits', id],
     queryFn: () => visitService.getVisits({ customer_id: id }),
   })

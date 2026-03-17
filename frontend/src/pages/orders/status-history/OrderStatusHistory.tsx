@@ -12,7 +12,7 @@ export default function OrderStatusHistory() {
     queryFn: async () => ordersService.getOrder(orderId!),
   })
 
-  const { data: history = [], isLoading } = useQuery({
+  const { data: history = [], isLoading, isError } = useQuery({
     queryKey: ['order-status-history', orderId],
     queryFn: async () => ordersService.getOrderStatusHistory(orderId!),
   })
@@ -20,6 +20,18 @@ export default function OrderStatusHistory() {
   if (isLoading) {
     return <div className="p-6">Loading status history...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

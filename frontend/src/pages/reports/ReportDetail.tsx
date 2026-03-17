@@ -9,7 +9,7 @@ export default function ReportDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading, isError } = useQuery({
     queryKey: ['report', id],
     queryFn: () => reportsService.getReport(id!),
   })
@@ -17,6 +17,18 @@ export default function ReportDetail() {
   if (isLoading) {
     return <div className="p-6">Loading report details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!report) {
     return <div className="p-6">Report not found</div>

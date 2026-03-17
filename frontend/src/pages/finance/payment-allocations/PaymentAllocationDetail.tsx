@@ -15,7 +15,7 @@ export default function PaymentAllocationDetail() {
     queryFn: async () => financeService.getPayment(paymentId!),
   })
 
-  const { data: allocation, isLoading } = useQuery({
+  const { data: allocation, isLoading, isError } = useQuery({
     queryKey: ['payment-allocation', paymentId, allocationId],
     queryFn: async () => financeService.getPaymentAllocation(paymentId!, allocationId!),
   })
@@ -23,6 +23,18 @@ export default function PaymentAllocationDetail() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!allocation) {
     return <div className="p-6">Allocation not found</div>

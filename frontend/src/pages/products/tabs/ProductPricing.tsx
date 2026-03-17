@@ -6,7 +6,7 @@ import { productsService as productService } from '../../../services/products.se
 export default function ProductPricing() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: pricing = [], isLoading } = useQuery({
+  const { data: pricing = [], isLoading, isError } = useQuery({
     queryKey: ['product-pricing', id],
     queryFn: () => productService.getProductPricing(id!),
   })

@@ -336,7 +336,7 @@ export default function OrderDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    metrics.recentOrders.map((order) => (
+                    (metrics?.recentOrders || []).map((order) => (
                       <TableRow key={order.id} hover>
                         <TableCell>
                           <Typography fontWeight="medium">{order.order_number}</Typography>

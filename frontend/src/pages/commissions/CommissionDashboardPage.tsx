@@ -12,7 +12,7 @@ export const CommissionDashboardPage: React.FC = () => {
     end: new Date().toISOString().split('T')[0]
   })
 
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['commission-stats', dateRange],
     queryFn: () => commissionsService.getCommissionStats(dateRange)
   })
@@ -31,6 +31,18 @@ export const CommissionDashboardPage: React.FC = () => {
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   const commissionStats = stats || {
     total_commissions: 0,
@@ -174,7 +186,7 @@ export const CommissionDashboardPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {commissionStats.commissions_by_type.map((type: any, index: number) => (
+              {(commissionStats?.commissions_by_type || []).map((type: any, index: number) => (
                 <div key={index}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">{type.type}</span>
@@ -206,7 +218,7 @@ export const CommissionDashboardPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {commissionStats.top_earners.slice(0, 5).map((earner: any, index: number) => (
+              {((commissionStats?.top_earners) || []).slice(0, 5).map((earner: any, index: number) => (
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">

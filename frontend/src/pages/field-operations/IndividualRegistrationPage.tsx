@@ -25,7 +25,7 @@ export default function IndividualRegistrationPage() {
     converted: false
   })
 
-  const { data: individualsResp, isLoading } = useQuery({
+  const { data: individualsResp, isLoading, isError } = useQuery({
     queryKey: ['individuals', search, filterConverted, filterCompany],
     queryFn: () => fieldOperationsService.getIndividuals({ search, converted: filterConverted, company_id: filterCompany }),
   })
@@ -64,6 +64,18 @@ export default function IndividualRegistrationPage() {
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6 p-6">

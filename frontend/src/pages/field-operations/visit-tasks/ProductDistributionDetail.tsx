@@ -8,7 +8,7 @@ export default function ProductDistributionDetail() {
   const { visitId, distributionId } = useParams<{ visitId: string; distributionId: string }>()
   const navigate = useNavigate()
 
-  const { data: distribution, isLoading } = useQuery({
+  const { data: distribution, isLoading, isError } = useQuery({
     queryKey: ['product-distribution', visitId, distributionId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/product-distributions/${distributionId}`, {
@@ -54,6 +54,18 @@ export default function ProductDistributionDetail() {
   if (isLoading) {
     return <div className="p-6">Loading distribution details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!distribution) {
     return <div className="p-6">Distribution not found</div>

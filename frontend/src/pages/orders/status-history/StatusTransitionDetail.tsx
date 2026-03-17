@@ -14,7 +14,7 @@ export default function StatusTransitionDetail() {
     queryFn: async () => ordersService.getOrder(orderId!),
   })
 
-  const { data: transition, isLoading } = useQuery({
+  const { data: transition, isLoading, isError } = useQuery({
     queryKey: ['status-transition', orderId, transitionId],
     queryFn: async () => {
       const history = await ordersService.getOrderStatusHistory(orderId!)
@@ -25,6 +25,18 @@ export default function StatusTransitionDetail() {
   if (isLoading) {
     return <div className="p-6">Loading transition details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!transition) {
     return <div className="p-6">Transition not found</div>

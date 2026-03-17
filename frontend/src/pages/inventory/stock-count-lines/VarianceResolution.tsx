@@ -17,7 +17,7 @@ export default function VarianceResolution() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: line, isLoading } = useQuery({
+  const { data: line, isLoading, isError } = useQuery({
     queryKey: ['count-line', countId, lineId],
     queryFn: async () => {
       const response = await fetch(`/api/stock-counts/${countId}/lines/${lineId}`, {
@@ -66,6 +66,18 @@ export default function VarianceResolution() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!line) {
     return <div className="p-6">Count line not found</div>

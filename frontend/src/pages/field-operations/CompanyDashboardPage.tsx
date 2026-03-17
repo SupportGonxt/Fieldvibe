@@ -27,7 +27,7 @@ export default function CompanyDashboardPage() {
   })
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'registrations'>('overview')
 
-  const { data: dashboard, isLoading: dashLoading, error: dashError } = useQuery({
+  const { data: dashboard, isLoading: dashLoading, isError: dashError } = useQuery({
     queryKey: ['company-dashboard', companyId, isCompanyPortal],
     queryFn: () => isCompanyPortal
       ? fieldOperationsService.getCompanyPortalDashboard()
@@ -35,7 +35,7 @@ export default function CompanyDashboardPage() {
     enabled: (!!companyId || isCompanyPortal) && !(isCompanyPortal && !companyToken),
   })
 
-  const { data: insights, isLoading: insightsLoading } = useQuery({
+  const { data: insights, isLoading: insightsLoading, isError: insightsError } = useQuery({
     queryKey: ['company-brand-insights', dateRange, isCompanyPortal, companyId],
     queryFn: () => isCompanyPortal
       ? fieldOperationsService.getCompanyPortalBrandInsights(dateRange)

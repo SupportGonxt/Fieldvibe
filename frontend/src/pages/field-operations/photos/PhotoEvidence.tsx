@@ -22,7 +22,7 @@ export default function PhotoEvidence() {
     },
   })
 
-  const { data: evidence, isLoading } = useQuery({
+  const { data: evidence, isLoading, isError } = useQuery({
     queryKey: ['visit-photo-evidence', visitId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/photos/evidence`, {
@@ -79,6 +79,18 @@ export default function PhotoEvidence() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!evidence) {
     return <div className="p-6">Evidence not found</div>

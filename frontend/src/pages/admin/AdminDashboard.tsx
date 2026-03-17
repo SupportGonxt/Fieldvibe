@@ -369,7 +369,7 @@ export default function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    metrics.agentPerformance.map((agent) => (
+                    (metrics?.agentPerformance || []).map((agent) => (
                       <TableRow key={agent.id} hover>
                         <TableCell>
                           <Typography fontWeight="medium">{agent.name}</Typography>
@@ -414,7 +414,7 @@ export default function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    metrics.recentUsers.map((user) => (
+                    (metrics?.recentUsers || []).map((user) => (
                       <TableRow key={user.id} hover>
                         <TableCell>
                           <Typography fontWeight="medium">

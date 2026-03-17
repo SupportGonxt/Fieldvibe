@@ -18,7 +18,7 @@ export default function AttachmentMetadata() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: attachment, isLoading } = useQuery({
+  const { data: attachment, isLoading, isError } = useQuery({
     queryKey: ['attachment-metadata', entityType, entityId, attachmentId],
     queryFn: async () => attachmentsService.getAttachment(entityType!, entityId!, attachmentId!),
   })
@@ -45,6 +45,18 @@ export default function AttachmentMetadata() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!attachment) {
     return <div className="p-6">Attachment not found</div>

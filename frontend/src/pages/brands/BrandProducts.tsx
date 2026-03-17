@@ -14,7 +14,7 @@ export default function BrandProducts() {
     queryFn: () => brandService.getBrand(id!),
   })
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: products = [], isLoading, isError } = useQuery({
     queryKey: ['brand-products', id],
     queryFn: () => brandService.getBrandProducts(id!),
   })

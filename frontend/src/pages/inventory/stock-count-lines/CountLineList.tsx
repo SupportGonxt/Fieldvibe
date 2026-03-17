@@ -20,7 +20,7 @@ export default function CountLineList() {
     },
   })
 
-  const { data: lines, isLoading } = useQuery({
+  const { data: lines, isLoading, isError } = useQuery({
     queryKey: ['count-lines', countId],
     queryFn: async () => {
       const response = await fetch(`/api/stock-counts/${countId}/lines`, {
@@ -70,6 +70,18 @@ export default function CountLineList() {
   if (isLoading) {
     return <div className="p-6">Loading count lines...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

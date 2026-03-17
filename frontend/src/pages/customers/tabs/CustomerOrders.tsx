@@ -8,7 +8,7 @@ export default function CustomerOrders() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ['customer-orders', id],
     queryFn: () => orderService.getOrders({ customer_id: id }),
   })

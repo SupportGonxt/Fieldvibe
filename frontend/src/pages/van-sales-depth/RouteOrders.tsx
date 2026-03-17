@@ -15,7 +15,7 @@ export default function RouteOrders() {
     queryFn: () => vanSalesService.getRoute(id!),
   })
 
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders, isLoading, isError } = useQuery({
     queryKey: ['route-orders', id],
     queryFn: async () => {
       const result = await ordersService.getOrders({ route_id: id })
@@ -26,6 +26,18 @@ export default function RouteOrders() {
   const total = orders?.reduce((sum, o) => sum + o.amount, 0) || 0
 
   if (isLoading) return <div className="p-6"><LoadingSpinner size="md" /></div>
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6">

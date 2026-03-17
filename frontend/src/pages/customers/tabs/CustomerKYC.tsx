@@ -7,7 +7,7 @@ export default function CustomerKYC() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: kycRecords = [], isLoading } = useQuery({
+  const { data: kycRecords = [], isLoading, isError } = useQuery({
     queryKey: ['customer-kyc', id],
     queryFn: () => kycService.getKYCRecords({ customer_id: id }),
   })

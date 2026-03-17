@@ -9,13 +9,25 @@ const COLORS = ['#00E87B', '#36A2EB', '#FFCE56', '#FF6384', '#9966FF', '#FF9F40'
 
 export default function ShareOfVoiceInsights() {
   const [period, setPeriod] = useState('month')
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['sov-insights', period],
     queryFn: () => tradeMarketingService.getShareOfVoice({ period }),
   })
 
   if (isLoading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>
   const d = data || {}
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
   const summary = d.summary || {}
 
   return (

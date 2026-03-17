@@ -26,7 +26,7 @@ export const IntegrationsPage: React.FC = () => {
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null)
 
-  const { data: integrations = DEFAULT_INTEGRATIONS, isLoading } = useQuery({
+  const { data: integrations = DEFAULT_INTEGRATIONS, isLoading, isError } = useQuery({
     queryKey: ['integrations'],
     queryFn: async () => {
       try {
@@ -39,6 +39,18 @@ export const IntegrationsPage: React.FC = () => {
   })
 
   if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const getStatusBadge = (status: string) => {
     const badges = {

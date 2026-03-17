@@ -16,7 +16,7 @@ export const ProductHierarchyPage: React.FC = () => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedNode, setSelectedNode] = useState<HierarchyNode | null>(null)
 
-  const { data: productsData, isLoading } = useQuery({
+  const { data: productsData, isLoading, isError } = useQuery({
     queryKey: ['products-hierarchy'],
     queryFn: () => productsService.getProducts({ limit: 200 }),
   })
@@ -34,6 +34,18 @@ export const ProductHierarchyPage: React.FC = () => {
   })()
 
   if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

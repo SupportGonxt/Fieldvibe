@@ -27,7 +27,7 @@ export const UserManagementPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['users', searchTerm, roleFilter, statusFilter, page],
     queryFn: () => usersService.getUsers({
       search: searchTerm || undefined,
@@ -95,6 +95,18 @@ export const UserManagementPage: React.FC = () => {
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">

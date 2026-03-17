@@ -22,7 +22,7 @@ export default function VanLoadItemDetail() {
     },
   })
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['van-load-item', loadId, itemId],
     queryFn: async () => {
       const response = await fetch(`/api/van-loads/${loadId}/items/${itemId}`, {
@@ -39,6 +39,18 @@ export default function VanLoadItemDetail() {
   if (isLoading) {
     return <div className="p-6">Loading item details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!item) {
     return <div className="p-6">Item not found</div>

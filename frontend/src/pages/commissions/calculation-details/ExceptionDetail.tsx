@@ -9,7 +9,7 @@ export default function ExceptionDetail() {
   const { calculationId, exceptionId } = useParams<{ calculationId: string; exceptionId: string }>()
   const navigate = useNavigate()
 
-  const { data: exception, isLoading } = useQuery({
+  const { data: exception, isLoading, isError } = useQuery({
     queryKey: ['commission-exception', calculationId, exceptionId],
     queryFn: async () => {
       const response = await fetch(`/api/commissions/calculations/${calculationId}/exceptions/${exceptionId}`, {
@@ -26,6 +26,18 @@ export default function ExceptionDetail() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!exception) {
     return <div className="p-6">Exception not found</div>

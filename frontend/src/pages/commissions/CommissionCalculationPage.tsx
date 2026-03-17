@@ -25,7 +25,7 @@ export const CommissionCalculationPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const { data: calcData, isLoading } = useQuery({
+  const { data: calcData, isLoading, isError } = useQuery({
     queryKey: ['commission-calculations'],
     queryFn: () => commissionsService.getCommissions(),
   })
@@ -47,6 +47,18 @@ export const CommissionCalculationPage: React.FC = () => {
   }))
 
   if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

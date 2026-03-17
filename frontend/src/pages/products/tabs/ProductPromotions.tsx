@@ -8,7 +8,7 @@ export default function ProductPromotions() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: promotions = [], isLoading } = useQuery({
+  const { data: promotions = [], isLoading, isError } = useQuery({
     queryKey: ['product-promotions', id],
     queryFn: () => promotionService.getProductPromotions(id!),
   })

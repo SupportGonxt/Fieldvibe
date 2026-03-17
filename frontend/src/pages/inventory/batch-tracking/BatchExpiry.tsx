@@ -22,7 +22,7 @@ export default function BatchExpiry() {
     },
   })
 
-  const { data: expiryInfo, isLoading } = useQuery({
+  const { data: expiryInfo, isLoading, isError } = useQuery({
     queryKey: ['batch-expiry', batchId],
     queryFn: async () => {
       const response = await fetch(`/api/batches/${batchId}/expiry`, {
@@ -80,6 +80,18 @@ export default function BatchExpiry() {
   if (isLoading) {
     return <div className="p-6">Loading expiry information...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!expiryInfo) {
     return <div className="p-6">Expiry information not found</div>

@@ -8,7 +8,7 @@ export default function CustomerSurveys() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: surveys = [], isLoading } = useQuery({
+  const { data: surveys = [], isLoading, isError } = useQuery({
     queryKey: ['customer-surveys', id],
     queryFn: () => surveyService.getSurveyResponses({ customer_id: id }),
   })

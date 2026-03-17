@@ -11,7 +11,7 @@ export default function CompanyLoginsPage() {
   const [filterCompany, setFilterCompany] = useState('')
   const [form, setForm] = useState({ company_id: '', email: '', password: '', name: '', role: 'viewer' })
 
-  const { data: loginsResp, isLoading } = useQuery({
+  const { data: loginsResp, isLoading, isError } = useQuery({
     queryKey: ['company-logins', filterCompany],
     queryFn: () => fieldOperationsService.getCompanyLogins(filterCompany || undefined),
   })
@@ -47,6 +47,18 @@ export default function CompanyLoginsPage() {
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6 p-6">

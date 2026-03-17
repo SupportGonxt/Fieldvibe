@@ -10,7 +10,7 @@ export default function BrandsList() {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
 
-  const { data: brands = [], isLoading } = useQuery({
+  const { data: brands = [], isLoading, isError } = useQuery({
     queryKey: ['brands', searchTerm],
     queryFn: () => brandService.getBrands({ search: searchTerm }),
   })

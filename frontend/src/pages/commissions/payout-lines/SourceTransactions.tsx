@@ -21,7 +21,7 @@ export default function SourceTransactions() {
     },
   })
 
-  const { data: transactions, isLoading } = useQuery({
+  const { data: transactions, isLoading, isError } = useQuery({
     queryKey: ['payout-line-transactions', payoutId, lineId],
     queryFn: async () => {
       const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}/transactions`, {
@@ -86,6 +86,18 @@ export default function SourceTransactions() {
   if (isLoading) {
     return <div className="p-6">Loading source transactions...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   const totalCommission = transactions?.reduce((sum, t) => sum + t.commission_amount, 0) || 0
 

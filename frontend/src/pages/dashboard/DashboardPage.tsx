@@ -423,7 +423,7 @@ export default function DashboardPage() {
             <AlertTriangle className="w-5 h-5 text-red-500" />
           </div>
           <div className="space-y-3">
-            {dashboardData.alerts.map((alert: any, index: number) => (
+            {(dashboardData?.alerts || []).map((alert: any, index: number) => (
               <div key={index} className={`flex items-start p-4 rounded-lg border ${
                 alert.priority === 'high' ? 'bg-red-50 border-red-200' :
                 alert.priority === 'medium' ? 'bg-yellow-50 border-yellow-200' :

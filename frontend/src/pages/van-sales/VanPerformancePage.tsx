@@ -6,7 +6,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function VanPerformancePage() {
   const [filter, setFilter] = useState({ van_id: '', period: 'today' })
-  const { data: stats, isLoading, error } = useQuery({
+  const { data: stats, isLoading, isError, error } = useQuery({
     queryKey: ['van-performance', filter],
     queryFn: () => vanSalesService.getVanSalesStats(filter),
     enabled: !!filter.van_id

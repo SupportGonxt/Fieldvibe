@@ -22,7 +22,7 @@ export default function TransferItemTracking() {
     },
   })
 
-  const { data: tracking, isLoading } = useQuery({
+  const { data: tracking, isLoading, isError } = useQuery({
     queryKey: ['transfer-item-tracking', transferId, itemId],
     queryFn: async () => {
       const response = await fetch(`/api/transfers/${transferId}/items/${itemId}/tracking`, {
@@ -80,6 +80,18 @@ export default function TransferItemTracking() {
   if (isLoading) {
     return <div className="p-6">Loading tracking information...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!tracking) {
     return <div className="p-6">Tracking information not found</div>

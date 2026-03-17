@@ -12,7 +12,7 @@ export default function BrandBoards() {
     queryFn: () => brandService.getBrand(id!),
   })
 
-  const { data: boards = [], isLoading } = useQuery({
+  const { data: boards = [], isLoading, isError } = useQuery({
     queryKey: ['brand-boards', id],
     queryFn: () => brandService.getBrandBoards(id!),
   })

@@ -23,7 +23,7 @@ export default function CollectionDetail() {
     },
   })
 
-  const { data: collection, isLoading } = useQuery({
+  const { data: collection, isLoading, isError } = useQuery({
     queryKey: ['collection', sessionId, collectionId],
     queryFn: async () => {
       const response = await fetch(`/api/cash-sessions/${sessionId}/collections/${collectionId}`, {
@@ -55,6 +55,18 @@ export default function CollectionDetail() {
   if (isLoading) {
     return <div className="p-6">Loading collection details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!collection) {
     return <div className="p-6">Collection not found</div>

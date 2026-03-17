@@ -10,7 +10,7 @@ interface RelatedDocumentsPanelProps {
 export default function RelatedDocumentsPanel({ entityType, entityId }: RelatedDocumentsPanelProps) {
   const navigate = useNavigate()
 
-  const { data: relatedDocs, isLoading } = useQuery({
+  const { data: relatedDocs, isLoading, isError } = useQuery({
     queryKey: ['related-documents', entityType, entityId],
     queryFn: async () => [
       {
@@ -55,6 +55,18 @@ export default function RelatedDocumentsPanel({ entityType, entityId }: RelatedD
   if (isLoading) {
     return <div className="p-4">Loading related documents...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="bg-white rounded-lg shadow p-6">

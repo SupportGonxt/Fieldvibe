@@ -15,7 +15,7 @@ export default function SurveyResponseEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: response, isLoading } = useQuery({
+  const { data: response, isLoading, isError } = useQuery({
     queryKey: ['survey-response', surveyId, responseId],
     queryFn: async () => {
       const response = await fetch(`/api/survey-responses/${responseId}`, {
@@ -59,6 +59,18 @@ export default function SurveyResponseEdit() {
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!response) {
     return <div className="p-6">Response not found</div>

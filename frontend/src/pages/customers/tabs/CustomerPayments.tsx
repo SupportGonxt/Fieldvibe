@@ -8,7 +8,7 @@ export default function CustomerPayments() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: payments = [], isLoading } = useQuery({
+  const { data: payments = [], isLoading, isError } = useQuery({
     queryKey: ['customer-payments', id],
     queryFn: () => paymentService.getPayments({ customer_id: id }),
   })

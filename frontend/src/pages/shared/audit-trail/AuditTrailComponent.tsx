@@ -8,7 +8,7 @@ interface AuditTrailComponentProps {
 }
 
 export default function AuditTrailComponent({ entityType, entityId }: AuditTrailComponentProps) {
-  const { data: auditTrail, isLoading } = useQuery({
+  const { data: auditTrail, isLoading, isError } = useQuery({
     queryKey: ['audit-trail', entityType, entityId],
     queryFn: async () => auditService.getAuditTrail(entityType, entityId),
   })
@@ -16,6 +16,18 @@ export default function AuditTrailComponent({ entityType, entityId }: AuditTrail
   if (isLoading) {
     return <div className="p-4">Loading audit trail...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="bg-white rounded-lg shadow p-6">

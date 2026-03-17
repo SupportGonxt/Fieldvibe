@@ -23,7 +23,7 @@ export default function ReturnItemDetail() {
     },
   })
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['return-item', returnId, itemId],
     queryFn: async () => {
       const response = await fetch(`/api/returns/${returnId}/items/${itemId}`, {
@@ -40,6 +40,18 @@ export default function ReturnItemDetail() {
   if (isLoading) {
     return <div className="p-6">Loading return item...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!item) {
     return <div className="p-6">Return item not found</div>

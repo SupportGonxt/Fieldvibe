@@ -13,7 +13,7 @@ export default function CompanyManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', code: '', description: '', contact_email: '', contact_phone: '' })
 
-  const { data: companiesResp, isLoading } = useQuery({
+  const { data: companiesResp, isLoading, isError } = useQuery({
     queryKey: ['field-companies'],
     queryFn: () => fieldOperationsService.getCompanies(),
   })
@@ -63,6 +63,18 @@ export default function CompanyManagementPage() {
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6 p-6">
