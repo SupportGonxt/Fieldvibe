@@ -1,6 +1,6 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { Building2, Users, Target, TrendingUp, UserPlus, CheckCircle, ArrowLeft, Calendar } from 'lucide-react'
@@ -13,13 +13,12 @@ export default function CompanyDashboardPage() {
   const companyToken = localStorage.getItem('company_token')
   const isCompanyPortal = !window.location.pathname.startsWith('/field-operations/')
   if (isCompanyPortal && !companyToken) {
-    navigate('/company-login')
-    return null
+    return <Navigate to="/company-login" replace />
   }
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['company-dashboard', companyId],
-    queryFn: () => fieldOperationsService.getCompanyDashboard(companyId!),
+    queryFn: () => fieldOperationsService.getCompanyDashboard(companyId!, isCompanyPortal ? companyToken || undefined : undefined),
     enabled: !!companyId,
   })
 

@@ -766,11 +766,22 @@ class FieldOperationsService extends ApiService {
 
   // ==================== FIELD OPS: COMPANY AUTH ====================
   async companyLogin(email: string, password: string) {
-    const response = await this.post('/field-ops/company-auth/login', { email, password })
+    // Use plain axios.post() to bypass the shared apiClient's 401 interceptor,
+    // which would try to refresh the main app token and redirect to /auth/login
+    const { default: axios } = await import('axios')
+    const { API_CONFIG } = await import('../config/api.config')
+    const response = await axios.post(`${API_CONFIG.BASE_URL}/field-ops/company-auth/login`, { email, password })
     return response.data || response
   }
 
-  async getCompanyDashboard(companyId: string) {
+  async getCompanyDashboard(companyId: string, companyToken?: string) {
+    // If a company_token is provided (company portal users), inject it into the request headers
+    if (companyToken) {
+      const response = await this.client.get(`/field-ops/company-dashboard?company_id=${companyId}`, {
+        headers: { Authorization: `Bearer ${companyToken}` },
+      })
+      return response.data || response
+    }
     const response = await this.get(`/field-ops/company-dashboard?company_id=${companyId}`)
     return response.data || response
   }
