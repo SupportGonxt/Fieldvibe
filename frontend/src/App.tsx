@@ -390,6 +390,18 @@ import LiveGPSTrackingPage from './pages/field-operations/LiveGPSTrackingPage'
 import VisitHistoryPage from './pages/field-operations/VisitHistoryPage'
 import VisitManagementPage from './pages/field-operations/VisitManagementPage'
 
+// Field Operations Refactor: New Pages
+import FieldOpsPerformancePage from './pages/field-operations/FieldOpsPerformancePage'
+import DailyTargetsPage from './pages/field-operations/DailyTargetsPage'
+import IndividualRegistrationPage from './pages/field-operations/IndividualRegistrationPage'
+import CompanyManagementPage from './pages/field-operations/CompanyManagementPage'
+import CompanyDashboardPage from './pages/field-operations/CompanyDashboardPage'
+import AgentHierarchyPage from './pages/field-operations/AgentHierarchyPage'
+import PerformanceDrillDownPage from './pages/field-operations/PerformanceDrillDownPage'
+import BrandInsightsPage from './pages/field-operations/BrandInsightsPage'
+import CompanyLoginPage from './pages/field-operations/CompanyLoginPage'
+import CompanyLoginsPage from './pages/field-operations/CompanyLoginsPage'
+
 // Van Sales Additional Pages
 import VanCashCollectionPage from './pages/van-sales/VanCashCollectionPage'
 import VanInventoryPage from './pages/van-sales/VanInventoryPage'
@@ -449,6 +461,9 @@ function App() {
             <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route index element={<Navigate to="login" replace />} />
           </Route>
+
+          {/* Company Portal Login (public) */}
+          <Route path="/company-login" element={<CompanyLoginPage />} />
 
           {/* Protected Routes - using pathless parent to avoid catch-all matching "/" */}
           <Route element={
@@ -544,6 +559,17 @@ function App() {
             <Route path="field-operations/visit-configurations" element={<VisitConfigurationPage />} />
             <Route path="field-operations/visit-history" element={<VisitHistoryPage />} />
             <Route path="field-operations/visit-management" element={<VisitManagementPage />} />
+
+            {/* Field Operations Refactor: New Routes */}
+            <Route path="field-operations/performance" element={<FieldOpsPerformancePage />} />
+            <Route path="field-operations/daily-targets" element={<DailyTargetsPage />} />
+            <Route path="field-operations/individuals" element={<IndividualRegistrationPage />} />
+            <Route path="field-operations/companies" element={<CompanyManagementPage />} />
+            <Route path="field-operations/company-dashboard/:companyId" element={<CompanyDashboardPage />} />
+            <Route path="field-operations/hierarchy" element={<AgentHierarchyPage />} />
+            <Route path="field-operations/drill-down/:userId" element={<PerformanceDrillDownPage />} />
+            <Route path="field-operations/brand-insights" element={<BrandInsightsPage />} />
+            <Route path="field-operations/company-logins" element={<CompanyLoginsPage />} />
 
             {/* Field Marketing Routes */}
             <Route path="field-marketing" element={<FieldMarketingDashboard />} />

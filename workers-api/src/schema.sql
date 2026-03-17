@@ -1210,3 +1210,104 @@ CREATE INDEX IF NOT EXISTS idx_import_jobs_tenant ON import_jobs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_error_logs_tenant ON error_logs(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_commission_payouts_tenant ON commission_payouts(tenant_id, earner_id);
 CREATE INDEX IF NOT EXISTS idx_stock_adjustments_tenant ON stock_adjustments(tenant_id);
+
+-- ==================== FIELD OPERATIONS: COMPANIES & HIERARCHY ====================
+
+-- Field Companies (Goldrush, Stellr, Lotto, Mondelez, etc.)
+CREATE TABLE IF NOT EXISTS field_companies (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  logo_url TEXT,
+  description TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- Agent-Company Links (agents can service multiple companies)
+CREATE TABLE IF NOT EXISTS agent_company_links (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  assigned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (agent_id) REFERENCES users(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- Daily Targets (per agent per company)
+CREATE TABLE IF NOT EXISTS daily_targets (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  company_id TEXT,
+  target_visits INTEGER DEFAULT 20,
+  target_conversions INTEGER DEFAULT 5,
+  target_registrations INTEGER DEFAULT 10,
+  target_date TEXT NOT NULL,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+
+-- Individual Registrations (people registered on-site by agents)
+CREATE TABLE IF NOT EXISTS individual_registrations (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  company_id TEXT,
+  visit_id TEXT,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  id_number TEXT,
+  phone TEXT,
+  email TEXT,
+  product_app_player_id TEXT,
+  converted INTEGER DEFAULT 0,
+  conversion_date TEXT,
+  notes TEXT,
+  gps_latitude REAL,
+  gps_longitude REAL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (visit_id) REFERENCES visits(id)
+);
+
+-- Company Logins (separate logins for company users to see their data)
+CREATE TABLE IF NOT EXISTS company_logins (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT DEFAULT 'viewer',
+  is_active INTEGER DEFAULT 1,
+  last_login TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_field_companies_tenant ON field_companies(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_agent_company_links_agent ON agent_company_links(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_company_links_company ON agent_company_links(company_id);
+CREATE INDEX IF NOT EXISTS idx_daily_targets_agent ON daily_targets(tenant_id, agent_id, target_date);
+CREATE INDEX IF NOT EXISTS idx_daily_targets_company ON daily_targets(company_id, target_date);
+CREATE INDEX IF NOT EXISTS idx_individual_registrations_agent ON individual_registrations(tenant_id, agent_id);
+CREATE INDEX IF NOT EXISTS idx_individual_registrations_company ON individual_registrations(company_id);
+CREATE INDEX IF NOT EXISTS idx_company_logins_company ON company_logins(company_id);
+CREATE INDEX IF NOT EXISTS idx_company_logins_email ON company_logins(email);
