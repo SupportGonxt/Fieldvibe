@@ -2232,7 +2232,8 @@ api.post('/sales/payments', authMiddleware, async (c) => {
   if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
 
   const paymentId = uuidv4();
-  await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, body.order_id || body.sales_order_id || null, body.amount, body.method || 'cash', body.reference || null, 'completed').run();
+  const linkedOrderId = body.order_id || body.sales_order_id || '';
+  await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, linkedOrderId, body.amount, body.method || 'cash', body.reference || null, 'completed').run();
 
   // Update order payment status if linked
   if (body.order_id || body.sales_order_id) {
