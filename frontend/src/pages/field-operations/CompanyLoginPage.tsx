@@ -19,7 +19,7 @@ export default function CompanyLoginPage() {
         localStorage.setItem('company_id', companyId)
         localStorage.setItem('company_name', data?.company_name || data?.data?.company_name || '')
         toast.success(`Logged in as ${data?.company_name || data?.data?.company_name || 'Company'}`)
-        navigate(`/field-operations/company-dashboard/${companyId}`)
+        navigate(`/company-portal/${companyId}`)
       } else {
         toast.error('Login failed: no company ID returned')
       }

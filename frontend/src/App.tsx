@@ -490,6 +490,8 @@ function App() {
 
           {/* Company Portal Login (public) */}
           <Route path="/company-login" element={<CompanyLoginPage />} />
+          {/* Company Portal Dashboard (uses company_token, not main auth) */}
+          <Route path="/company-portal/:companyId" element={<CompanyDashboardPage />} />
 
           {/* Protected Routes - using pathless parent to avoid catch-all matching "/" */}
           <Route element={

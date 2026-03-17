@@ -9,6 +9,14 @@ export default function CompanyDashboardPage() {
   const { companyId } = useParams<{ companyId: string }>()
   const navigate = useNavigate()
 
+  // Check for company_token (company portal auth) or main app auth
+  const companyToken = localStorage.getItem('company_token')
+  const isCompanyPortal = !!companyToken && !window.location.pathname.startsWith('/field-operations/')
+  if (isCompanyPortal && !companyToken) {
+    navigate('/company-login')
+    return null
+  }
+
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['company-dashboard', companyId],
     queryFn: () => fieldOperationsService.getCompanyDashboard(companyId!),
