@@ -19,10 +19,6 @@ export default function CompanyDashboardPage() {
 
   const companyToken = localStorage.getItem('company_token')
   const isCompanyPortal = !window.location.pathname.startsWith('/field-operations/')
-  if (isCompanyPortal && !companyToken) {
-    return <Navigate to="/company-login" replace />
-  }
-
   const companyName = localStorage.getItem('company_name') || 'Company'
 
   const [dateRange, setDateRange] = useState({
@@ -36,7 +32,7 @@ export default function CompanyDashboardPage() {
     queryFn: () => isCompanyPortal
       ? fieldOperationsService.getCompanyPortalDashboard()
       : fieldOperationsService.getCompanyDashboard(companyId!),
-    enabled: !!companyId || isCompanyPortal,
+    enabled: (!!companyId || isCompanyPortal) && !(isCompanyPortal && !companyToken),
   })
 
   const { data: insights, isLoading: insightsLoading } = useQuery({
@@ -44,8 +40,13 @@ export default function CompanyDashboardPage() {
     queryFn: () => isCompanyPortal
       ? fieldOperationsService.getCompanyPortalBrandInsights(dateRange)
       : fieldOperationsService.getBrandInsights({ company_id: companyId, ...dateRange }),
-    enabled: (!!companyId || isCompanyPortal) && activeTab !== 'overview',
+    enabled: (!!companyId || isCompanyPortal) && activeTab !== 'overview' && !(isCompanyPortal && !companyToken),
   })
+
+  // Redirect to login AFTER all hooks have been called (Rules of Hooks compliance)
+  if (isCompanyPortal && !companyToken) {
+    return <Navigate to="/company-login" replace />
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('company_token')

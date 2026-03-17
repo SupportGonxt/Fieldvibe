@@ -6987,7 +6987,10 @@ const companyAuthMiddleware = async (c, next) => {
     if (parts.length !== 3) {
       return c.json({ success: false, message: 'Malformed token' }, 401);
     }
-    const jwtSecret = c.env.JWT_SECRET || 'fieldvibe-secret';
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) {
+      return c.json({ success: false, message: 'Server configuration error' }, 500);
+    }
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       'raw', encoder.encode(jwtSecret),
@@ -7133,7 +7136,9 @@ app.post('/api/field-ops/company-auth/login', async (c) => {
     const passwordValid = await bcrypt.compare(password, login.password_hash);
     if (!passwordValid) return c.json({ message: 'Invalid credentials' }, 401);
     await db.prepare("UPDATE company_logins SET last_login = CURRENT_TIMESTAMP WHERE id = ?").bind(login.id).run();
-    const token = await generateToken({ userId: login.id, tenantId: login.tenant_id, role: 'company_' + login.role, companyId: login.company_id }, c.env.JWT_SECRET || 'fieldvibe-secret');
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) return c.json({ message: 'Server configuration error' }, 500);
+    const token = await generateToken({ userId: login.id, tenantId: login.tenant_id, role: 'company_' + login.role, companyId: login.company_id }, jwtSecret);
     return c.json({ token, company_id: login.company_id, company_name: login.company_name, role: login.role, name: login.name });
   } catch (e) {
     return c.json({ message: 'Login failed' }, 500);
