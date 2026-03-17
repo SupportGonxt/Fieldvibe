@@ -2046,12 +2046,14 @@ api.post('/orders/create', authMiddleware, async (c) => {
     const paymentMethod = body.payment_method || 'cash';
     const totalAmount = subtotal - totalDiscount + totalTax;
 
-    await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, payment_method, payment_status, subtotal, tax_amount, discount_amount, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(orderId, tenantId, orderNumber, body.customer_id, userId, body.submit ? 'confirmed' : 'draft', paymentMethod, 'pending', subtotal, totalTax, totalDiscount, totalAmount, body.notes || '').run();
-
-    // 4. Insert line items
+    // 4. Use db.batch() for atomic writes (order header + line items)
+    const batchStatements = [
+      db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, payment_method, payment_status, subtotal, tax_amount, discount_amount, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(orderId, tenantId, orderNumber, body.customer_id, userId, body.submit ? 'confirmed' : 'draft', paymentMethod, 'pending', subtotal, totalTax, totalDiscount, totalAmount, body.notes || '')
+    ];
     for (const item of resolvedItems) {
-      await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, discount_percent, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), orderId, item.product_id, item.quantity, item.unit_price, item.discount_percent, item.line_total).run();
+      batchStatements.push(db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, discount_percent, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), orderId, item.product_id, item.quantity, item.unit_price, item.discount_percent, item.line_total));
     }
+    await db.batch(batchStatements);
 
     return c.json({ success: true, data: { id: orderId, order_number: orderNumber, total_amount: totalAmount, items: resolvedItems } }, 201);
   } catch (error) {
@@ -2103,13 +2105,14 @@ api.post('/sales/returns/create', authMiddleware, async (c) => {
       resolvedItems.push({ product_id: item.product_id, quantity: item.quantity, unitPrice, lineCredit });
     }
 
-    // 2. Insert parent return record first (before child return_items)
-    await db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, return_type, status, total_credit_amount, restock_fee, net_credit_amount, reason, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(returnId, tenantId, body.order_id, returnNumber, 'PARTIAL', body.submit ? 'SUBMITTED' : 'DRAFT', totalCredit, 0, totalCredit, body.reason || body.notes || null, userId).run();
-
-    // 3. Insert child return_items after parent exists
+    // 2. Use db.batch() for atomic writes (return header + line items)
+    const batchStatements = [
+      db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, return_type, status, total_credit_amount, restock_fee, net_credit_amount, reason, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(returnId, tenantId, body.order_id, returnNumber, 'PARTIAL', body.submit ? 'SUBMITTED' : 'DRAFT', totalCredit, 0, totalCredit, body.reason || body.notes || null, userId)
+    ];
     for (const item of resolvedItems) {
-      await db.prepare('INSERT INTO return_items (id, return_id, product_id, quantity, condition, unit_price, line_credit) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), returnId, item.product_id, item.quantity, 'good', item.unitPrice, item.lineCredit).run();
+      batchStatements.push(db.prepare('INSERT INTO return_items (id, return_id, product_id, quantity, condition, unit_price, line_credit) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), returnId, item.product_id, item.quantity, 'good', item.unitPrice, item.lineCredit));
     }
+    await db.batch(batchStatements);
 
     return c.json({ success: true, data: { id: returnId, return_number: returnNumber, total_credit: totalCredit } }, 201);
   } catch (error) {

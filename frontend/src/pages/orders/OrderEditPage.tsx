@@ -47,10 +47,10 @@ export default function OrderEditPage() {
       disabled: true
     },
     {
-      name: 'order_date',
+      name: 'created_at',
       label: 'Order Date',
       type: 'date' as const,
-      required: true
+      disabled: true
     },
     {
       name: 'customer_id',
