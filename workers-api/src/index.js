@@ -7869,7 +7869,9 @@ api.get('/admin/settings', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const tenant = await db.prepare('SELECT * FROM tenants WHERE id = ?').bind(tenantId).first();
-  return c.json({ success: true, data: { tenant, settings: tenant?.settings ? JSON.parse(tenant.settings) : {} } });
+  let parsedSettings = {};
+  try { if (tenant?.settings) parsedSettings = JSON.parse(tenant.settings); } catch (e) { parsedSettings = {}; }
+  return c.json({ success: true, data: { tenant, settings: parsedSettings } });
 });
 
 api.get('/admin/roles', requireRole('admin'), async (c) => {
@@ -7927,12 +7929,7 @@ api.get('/insights/share-of-voice', authMiddleware, async (c) => {
   return c.json({ success: true, data: sov.results || [] });
 });
 
-api.get('/insights/competitors', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const competitors = await db.prepare('SELECT competitor_brand, activity_type, COUNT(*) as count, AVG(observed_price) as avg_price FROM competitor_sightings WHERE tenant_id = ? GROUP BY competitor_brand, activity_type ORDER BY count DESC LIMIT 50').bind(tenantId).all();
-  return c.json({ success: true, data: competitors.results || [] });
-});
+// Duplicate /insights/competitors removed - already defined above at line ~7568
 
 // ==================== COMPANY PORTAL AUTH MIDDLEWARE ====================
 const companyAuthMiddleware = async (c, next) => {
