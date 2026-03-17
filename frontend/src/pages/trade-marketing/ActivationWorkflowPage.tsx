@@ -224,13 +224,13 @@ const ActivationWorkflowPage: React.FC = () => {
           const { compressed } = await compressPhoto(file);
           const reader = new FileReader();
           reader.onload = (event) => {
-            setTaskPhotos({ ...taskPhotos, [taskId]: event.target?.result as string });
+            setTaskPhotos(prev => ({ ...prev, [taskId]: event.target?.result as string }));
           };
           reader.readAsDataURL(compressed);
         } catch {
           const reader = new FileReader();
           reader.onload = (event) => {
-            setTaskPhotos({ ...taskPhotos, [taskId]: event.target?.result as string });
+            setTaskPhotos(prev => ({ ...prev, [taskId]: event.target?.result as string }));
           };
           reader.readAsDataURL(file);
         }

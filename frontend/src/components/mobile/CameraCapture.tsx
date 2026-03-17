@@ -45,6 +45,10 @@ export default function CameraCapture({
         onPhotoCapture(result)
         setLoading(false)
       }
+      reader.onerror = () => {
+        console.error('FileReader error in fallback path')
+        setLoading(false)
+      }
       reader.readAsDataURL(file)
     }
   }

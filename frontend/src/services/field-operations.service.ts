@@ -774,14 +774,8 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  async getCompanyDashboard(companyId: string, companyToken?: string) {
-    // If a company_token is provided (company portal users), inject it into the request headers
-    if (companyToken) {
-      const response = await this.client.get(`/field-ops/company-dashboard?company_id=${companyId}`, {
-        headers: { Authorization: `Bearer ${companyToken}` },
-      })
-      return response.data || response
-    }
+  async getCompanyDashboard(companyId: string) {
+    // Admin users access via main auth token; company portal users use getCompanyPortalDashboard() instead
     const response = await this.get(`/field-ops/company-dashboard?company_id=${companyId}`)
     return response.data || response
   }

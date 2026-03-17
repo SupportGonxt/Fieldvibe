@@ -152,7 +152,7 @@ export default function DynamicForm({
           const reader = new FileReader();
           reader.onload = (event) => {
             const dataUrl = event.target?.result as string;
-            setPhotos({ ...photos, [fieldName]: dataUrl });
+            setPhotos(prev => ({ ...prev, [fieldName]: dataUrl }));
             handleChange(fieldName, dataUrl);
           };
           reader.readAsDataURL(compressed);
@@ -161,7 +161,7 @@ export default function DynamicForm({
           const reader = new FileReader();
           reader.onload = (event) => {
             const dataUrl = event.target?.result as string;
-            setPhotos({ ...photos, [fieldName]: dataUrl });
+            setPhotos(prev => ({ ...prev, [fieldName]: dataUrl }));
             handleChange(fieldName, dataUrl);
           };
           reader.readAsDataURL(file);
