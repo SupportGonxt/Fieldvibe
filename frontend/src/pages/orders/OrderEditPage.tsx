@@ -25,8 +25,12 @@ export default function OrderEditPage() {
         ordersService.getOrder(id!),
         customersService.getCustomers()
       ])
-      if (orderRes.status === 'fulfilled') {
-        setOrder(orderRes.value)
+      if (orderRes.status === 'fulfilled' && orderRes.value) {
+        const orderData = orderRes.value
+        if (orderData.created_at) {
+          orderData.created_at = orderData.created_at.split(' ')[0].split('T')[0]
+        }
+        setOrder(orderData)
       }
       if (customersRes.status === 'fulfilled') {
         setCustomers(customersRes.value.customers || [])
