@@ -2028,7 +2028,7 @@ api.post('/orders/create', authMiddleware, async (c) => {
       const lineSubtotal = unitPrice * qty;
       const discountAmt = lineSubtotal * (discountPct / 100);
       const afterDiscount = lineSubtotal - discountAmt;
-      const taxRate = product.tax_rate || 15;
+      const taxRate = product.tax_rate != null ? product.tax_rate : 15;
       const taxAmt = afterDiscount * (taxRate / 100);
       const lineTotal = afterDiscount + taxAmt;
 
@@ -3682,7 +3682,7 @@ api.post('/sales/orders/create', async (c) => {
       const finalPrice = unitPrice * (1 - discountPct / 100);
       const qty = item.quantity || 1;
       const lineTotal = finalPrice * qty;
-      const taxRate = product.tax_rate || 15;
+      const taxRate = product.tax_rate != null ? product.tax_rate : 15;
       const lineTax = lineTotal - (lineTotal / (1 + taxRate / 100));
 
       // Stock check
