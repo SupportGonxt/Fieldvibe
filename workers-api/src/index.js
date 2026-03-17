@@ -5947,7 +5947,7 @@ api.put('/route-plans/:id', requireRole('admin', 'manager', 'team_lead'), async 
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE route_plans SET status = COALESCE(?, status), total_stops = COALESCE(?, total_stops), completed_stops = COALESCE(?, completed_stops) WHERE id = ? AND tenant_id = ?').bind(body.status || null, body.total_stops || null, body.completed_stops || null, id, tenantId).run();
+  await db.prepare('UPDATE route_plans SET status = COALESCE(?, status), total_stops = COALESCE(?, total_stops), completed_stops = COALESCE(?, completed_stops) WHERE id = ? AND tenant_id = ?').bind(body.status ?? null, body.total_stops ?? null, body.completed_stops ?? null, id, tenantId).run();
   return c.json({ success: true, message: 'Route plan updated' });
 });
 
@@ -6378,7 +6378,7 @@ api.get('/insights/field-ops', async (c) => {
 
   const [visitSummary, routeCompliance, territories, competitorActivity] = await Promise.all([
     db.prepare("SELECT COUNT(*) as total_visits, COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed, COUNT(CASE WHEN check_out_time IS NOT NULL THEN 1 END) as checked_out, ROUND(AVG(CASE WHEN check_out_time IS NOT NULL THEN (julianday(check_out_time) - julianday(check_in_time)) * 1440 END), 1) as avg_duration_min FROM visits WHERE tenant_id = ? AND created_at >= datetime('now', '-30 days')").bind(tenantId).first(),
-    db.prepare("SELECT rp.status, COUNT(*) as count FROM route_plans rp WHERE rp.tenant_id = ? AND rp.plan_date >= datetime('now', '-30 days') GROUP BY rp.status").bind(tenantId).all(),
+    db.prepare("SELECT rp.status, COUNT(*) as count FROM route_plans rp WHERE rp.tenant_id = ? AND rp.route_date >= datetime('now', '-30 days') GROUP BY rp.status").bind(tenantId).all(),
     db.prepare("SELECT t.name, (SELECT COUNT(*) FROM territory_assignments WHERE territory_id = t.id) as agents, (SELECT COUNT(*) FROM customers WHERE route_id IN (SELECT id FROM routes WHERE tenant_id = ?) AND tenant_id = ?) as customers FROM territories t WHERE t.tenant_id = ?").bind(tenantId, tenantId, tenantId).all(),
     db.prepare("SELECT competitor_brand as competitor_name, COUNT(*) as sightings, AVG(observed_price) as avg_price FROM competitor_sightings WHERE tenant_id = ? AND created_at >= datetime('now', '-30 days') GROUP BY competitor_brand ORDER BY sightings DESC LIMIT 10").bind(tenantId).all(),
   ]);
