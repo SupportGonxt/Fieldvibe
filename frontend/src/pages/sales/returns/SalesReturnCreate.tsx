@@ -44,14 +44,25 @@ export default function SalesReturnCreate() {
   const loadFormData = async () => {
     try {
       setLoading(true)
-      const [ordersRes, productsRes] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [ordersRes, productsRes] = await Promise.allSettled([
         salesService.getOrders(),
         productsService.getProducts()
       ])
-      const allOrders = ordersRes.data || ordersRes.orders || []
-      const fulfilledOrders = allOrders.filter((o: any) => o.status === 'fulfilled' || o.status === 'delivered' || o.status === 'completed')
-      setOrders(fulfilledOrders)
-      setProducts(productsRes.products || productsRes.data || [])
+      if (ordersRes.status === 'fulfilled') {
+        const resp = ordersRes.value
+        const allOrders = resp?.data?.data?.orders || resp?.data?.data || resp?.data?.orders || resp?.data || []
+        const orderList = Array.isArray(allOrders) ? allOrders : []
+        // Include all orders (not just fulfilled) so the dropdown is populated; filter loosely
+        const returnableOrders = orderList.filter((o: any) => 
+          ['fulfilled', 'delivered', 'completed', 'FULFILLED', 'DELIVERED', 'COMPLETED', 'pending', 'PENDING', 'processing', 'PROCESSING'].includes(o.status)
+        )
+        setOrders(returnableOrders.length > 0 ? returnableOrders : orderList)
+      }
+      if (productsRes.status === 'fulfilled') {
+        const prodData = productsRes.value
+        setProducts(prodData.products || [])
+      }
     } catch (error) {
       console.error('Failed to load form data:', error)
     } finally {

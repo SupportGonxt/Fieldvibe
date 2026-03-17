@@ -111,15 +111,15 @@ export default function OrderDetailsPage() {
         const mappedOrder: Order = {
           id: orderData.id,
           orderNumber: orderData.order_number,
-          orderDate: orderData.order_date,
+          orderDate: orderData.order_date || orderData.created_at,
           deliveryDate: orderData.delivery_date || '',
           customerId: orderData.customer_id,
-          customerName: orderData.customer?.name || 'Unknown Customer',
-          customerEmail: orderData.customer?.email || '',
-          customerPhone: orderData.customer?.phone || '',
-          agentId: orderData.salesman_id || '',
-          agentName: 'Field Agent',
-          status: orderData.order_status,
+          customerName: orderData.customer_name || orderData.customer?.name || 'Unknown Customer',
+          customerEmail: orderData.customer_email || orderData.customer?.email || '',
+          customerPhone: orderData.customer_phone || orderData.customer?.phone || '',
+          agentId: orderData.agent_id || orderData.salesman_id || '',
+          agentName: orderData.agent_name || 'Field Agent',
+          status: orderData.status || orderData.order_status,
           paymentStatus: orderData.payment_status,
           paymentMethod: orderData.payment_method || '',
           shippingAddress: '',
@@ -133,13 +133,13 @@ export default function OrderDetailsPage() {
           items: (orderData.items || []).map((item: any) => ({
             id: item.id,
             productId: item.product_id,
-            productName: item.product?.name || 'Unknown Product',
-            sku: item.product?.sku || '',
-            quantity: item.quantity,
-            unitPrice: item.unit_price,
-            subtotal: item.quantity * item.unit_price,
-            taxAmount: item.tax_amount,
-            totalAmount: item.total_amount
+            productName: item.product_name || item.product?.name || 'Unknown Product',
+            sku: item.product_sku || item.product?.sku || '',
+            quantity: item.quantity || 0,
+            unitPrice: item.unit_price || 0,
+            subtotal: (item.quantity || 0) * (item.unit_price || 0),
+            taxAmount: item.tax_amount || 0,
+            totalAmount: item.line_total || item.total_amount || (item.quantity || 0) * (item.unit_price || 0)
           })),
           timeline: [
             {

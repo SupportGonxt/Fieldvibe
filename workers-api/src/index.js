@@ -1938,9 +1938,9 @@ api.get('/orders/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const order = await db.prepare('SELECT so.*, c.name as customer_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id WHERE so.id = ? AND so.tenant_id = ?').bind(id, tenantId).first();
-  if (!order) return c.json({ message: 'Order not found' }, 404);
+  if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
   const items = await db.prepare('SELECT soi.*, p.name as product_name FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ? LIMIT 500').bind(id).all();
-  return c.json({ ...order, items: items.results || [] });
+  return c.json({ success: true, data: { ...order, items: items.results || [] } });
 });
 
 api.post('/orders', authMiddleware, async (c) => {
@@ -1967,11 +1967,11 @@ api.put('/orders/:id', authMiddleware, async (c) => {
   const sets = [];
   const vals = [];
   for (const [k, v] of Object.entries(body)) {
-    if (['status', 'notes', 'total_amount', 'payment_status', 'delivery_date'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
+    if (['status', 'notes', 'total_amount', 'payment_status', 'payment_method', 'delivery_date', 'customer_id'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
   }
   if (sets.length === 0) return c.json({ message: 'No valid fields' }, 400);
-  await db.prepare('UPDATE sales_orders SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
-  return c.json({ message: 'Order updated' });
+  await db.prepare('UPDATE sales_orders SET ' + sets.join(', ') + ', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Order updated' });
 });
 
 api.delete('/orders/:id', authMiddleware, async (c) => {
@@ -4517,7 +4517,7 @@ api.post('/sales/orders/create', async (c) => {
       const finalPrice = unitPrice * (1 - discountPct / 100);
       const qty = item.quantity || 1;
       const lineTotal = finalPrice * qty;
-      const taxRate = product.tax_rate || 15;
+      const taxRate = product.tax_rate != null ? product.tax_rate : 15;
       const lineTax = lineTotal - (lineTotal / (1 + taxRate / 100));
 
       // Stock check

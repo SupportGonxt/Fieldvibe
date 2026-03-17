@@ -68,14 +68,22 @@ export default function OrderCreatePage() {
   const loadFormData = async () => {
     try {
       setLoading(true)
-      const [customersRes, productsRes, discountsRes] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [customersRes, productsRes, discountsRes] = await Promise.allSettled([
         customersService.getCustomers(),
         productsService.getProducts(),
         discountsService.getDiscounts({ is_active: true })
       ])
-      setCustomers(customersRes.customers || [])
-      setProducts(productsRes.products || productsRes || [])
-      setDiscounts(discountsRes || [])
+      if (customersRes.status === 'fulfilled') {
+        setCustomers(customersRes.value.customers || [])
+      }
+      if (productsRes.status === 'fulfilled') {
+        const prodData = productsRes.value
+        setProducts(prodData.products || [])
+      }
+      if (discountsRes.status === 'fulfilled') {
+        setDiscounts(discountsRes.value || [])
+      }
     } catch (error) {
       console.error('Failed to load form data:', error)
     } finally {

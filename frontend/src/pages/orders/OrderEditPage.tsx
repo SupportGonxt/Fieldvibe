@@ -20,12 +20,21 @@ export default function OrderEditPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [orderRes, customersRes] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [orderRes, customersRes] = await Promise.allSettled([
         ordersService.getOrder(id!),
         customersService.getCustomers()
       ])
-      setOrder(orderRes)
-      setCustomers(customersRes.customers || [])
+      if (orderRes.status === 'fulfilled' && orderRes.value) {
+        const orderData = orderRes.value
+        if (orderData.created_at) {
+          orderData.created_at = orderData.created_at.split(' ')[0].split('T')[0]
+        }
+        setOrder(orderData)
+      }
+      if (customersRes.status === 'fulfilled') {
+        setCustomers(customersRes.value.customers || [])
+      }
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -42,10 +51,10 @@ export default function OrderEditPage() {
       disabled: true
     },
     {
-      name: 'order_date',
+      name: 'created_at',
       label: 'Order Date',
       type: 'date' as const,
-      required: true
+      disabled: true
     },
     {
       name: 'customer_id',
