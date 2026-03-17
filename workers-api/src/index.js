@@ -2675,6 +2675,27 @@ api.get('/van-sales/dashboard', authMiddleware, async (c) => {
 });
 
 // ==================== INVENTORY ROUTES ====================
+api.get('/inventory/dashboard', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const [totalProducts, totalStock, lowStockItems, stockValue, recentMovements, warehouseCount] = await Promise.all([
+    db.prepare('SELECT COUNT(DISTINCT product_id) as count FROM stock_levels WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COALESCE(SUM(quantity), 0) as total FROM stock_levels WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM stock_levels WHERE tenant_id = ? AND quantity <= 10').bind(tenantId).first(),
+    db.prepare('SELECT COALESCE(SUM(sl.quantity * COALESCE(p.cost_price, 0)), 0) as value FROM stock_levels sl JOIN products p ON sl.product_id = p.id WHERE sl.tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT movement_type, COUNT(*) as count FROM stock_movements WHERE tenant_id = ? AND created_at >= datetime("now", "-7 days") GROUP BY movement_type').bind(tenantId).all(),
+    db.prepare('SELECT COUNT(*) as count FROM warehouses WHERE tenant_id = ?').bind(tenantId).first(),
+  ]);
+  return c.json({ success: true, data: { total_products: totalProducts?.count || 0, total_stock: totalStock?.total || 0, low_stock_items: lowStockItems?.count || 0, stock_value: stockValue?.value || 0, recent_movements: recentMovements.results || [], warehouse_count: warehouseCount?.count || 0 } });
+});
+
+api.get('/inventory/suppliers', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const suppliers = await db.prepare('SELECT DISTINCT supplier_name, COUNT(*) as order_count, COALESCE(SUM(total_amount), 0) as total_spent FROM purchase_orders WHERE tenant_id = ? AND supplier_name IS NOT NULL GROUP BY supplier_name ORDER BY total_spent DESC').bind(tenantId).all();
+  return c.json({ success: true, data: suppliers.results || [] });
+});
+
 api.get('/inventory', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -2925,6 +2946,19 @@ api.post('/inventory/warehouses', authMiddleware, async (c) => {
 });
 
 // ==================== INVOICES & FINANCE ROUTES ====================
+api.get('/finance/dashboard', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const [totalRevenue, totalPaid, totalPending, totalOverdue, recentPayments] = await Promise.all([
+    db.prepare('SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND status = 'completed'").bind(tenantId).first(),
+    db.prepare("SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders WHERE tenant_id = ? AND payment_status = 'pending'").bind(tenantId).first(),
+    db.prepare("SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders WHERE tenant_id = ? AND payment_status = 'overdue'").bind(tenantId).first(),
+    db.prepare('SELECT p.*, c.name as customer_name FROM payments p LEFT JOIN sales_orders so ON p.sales_order_id = so.id LEFT JOIN customers c ON so.customer_id = c.id WHERE p.tenant_id = ? ORDER BY p.created_at DESC LIMIT 10').bind(tenantId).all(),
+  ]);
+  return c.json({ success: true, data: { total_revenue: totalRevenue?.total || 0, total_paid: totalPaid?.total || 0, total_pending: totalPending?.total || 0, total_overdue: totalOverdue?.total || 0, recent_payments: recentPayments.results || [] } });
+});
+
 api.get('/finance/invoices', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -3011,6 +3045,13 @@ api.get('/commissions/dashboard', authMiddleware, async (c) => {
     db.prepare("SELECT u.first_name || ' ' || u.last_name as name, COALESCE(SUM(ce.amount), 0) as total FROM commission_earnings ce JOIN users u ON ce.earner_id = u.id WHERE ce.tenant_id = ? GROUP BY ce.earner_id ORDER BY total DESC LIMIT 10").bind(tenantId).all(),
   ]);
   return c.json({ success: true, data: { total: total?.total || 0, pending: pending?.total || 0, approved: approved?.total || 0, paid: paid?.total || 0, top_earners: topEarners.results || [] } });
+});
+
+api.get('/commissions/payouts', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const payouts = await db.prepare('SELECT * FROM commission_payouts WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(tenantId).all();
+  return c.json({ success: true, data: payouts.results || [] });
 });
 
 api.get('/commissions/:id', authMiddleware, async (c) => {
@@ -3463,11 +3504,7 @@ api.post('/commissions/:id/reverse', authMiddleware, async (c) => {
   return c.json({ message: 'Commission reversed' });
 });
 
-api.get('/commissions/payouts', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  return c.json({ data: [] });
-});
+// commissions/payouts moved before commissions/:id to avoid route shadowing
 
 api.get('/commissions/payouts/:payoutId', authMiddleware, async (c) => {
   return c.json({ data: null }, 404);
@@ -6400,7 +6437,7 @@ api.get('/insights/trade-promotions', async (c) => {
     db.prepare("SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'ACTIVE' THEN 1 END) as active, COALESCE(SUM(budget), 0) as total_budget, COALESCE(SUM(actual_spend), 0) as total_spent FROM trade_promotions WHERE tenant_id = ?").bind(tenantId).first(),
     db.prepare("SELECT promotion_type, COUNT(*) as count, COALESCE(SUM(budget), 0) as budget, COALESCE(SUM(actual_spend), 0) as spent FROM trade_promotions WHERE tenant_id = ? GROUP BY promotion_type").bind(tenantId).all(),
     db.prepare("SELECT tp.name, tp.promotion_type, tp.budget, tp.actual_spend as spent, (SELECT COUNT(*) FROM trade_promotion_enrollments WHERE promotion_id = tp.id) as enrollments, CASE WHEN tp.actual_spend > 0 THEN ROUND(CAST(tp.actual_spend AS FLOAT) / tp.budget * 100, 1) ELSE 0 END as spend_pct FROM trade_promotions tp WHERE tp.tenant_id = ? ORDER BY tp.actual_spend DESC LIMIT 10").bind(tenantId).all(),
-    db.prepare("SELECT tpc.status, COUNT(*) as count, COALESCE(SUM(tpc.claim_amount), 0) as amount FROM trade_promotion_claims tpc JOIN trade_promotions tp ON tpc.promotion_id = tp.id WHERE tp.tenant_id = ? GROUP BY tpc.status").bind(tenantId).all(),
+    db.prepare("SELECT tpc.status, COUNT(*) as count, COALESCE(SUM(tpc.amount), 0) as total_amount FROM trade_promotion_claims tpc JOIN trade_promotions tp ON tpc.promotion_id = tp.id WHERE tp.tenant_id = ? GROUP BY tpc.status").bind(tenantId).all(),
   ]);
 
   return c.json({ success: true, data: {
@@ -7426,7 +7463,7 @@ api.get('/posm-materials', async (c) => {
   if (brand_id) { where += ' AND brand_id = ?'; params.push(brand_id); }
   if (material_type) { where += ' AND material_type = ?'; params.push(material_type); }
   const offset = (parseInt(page) - 1) * parseInt(limit);
-  const materials = await db.prepare(`SELECT pm.*, b.name as brand_name FROM posm_materials pm LEFT JOIN brands b ON pm.brand_id = b.id ${where} ORDER BY pm.created_at DESC LIMIT ? OFFSET ?`).bind(...params, parseInt(limit), offset).all();
+  const materials = await db.prepare(`SELECT pm.*, b.name as brand_name FROM posm_materials pm LEFT JOIN brands b ON pm.brand_id = b.id ${where.replace('tenant_id', 'pm.tenant_id')} ORDER BY pm.created_at DESC LIMIT ? OFFSET ?`).bind(...params, parseInt(limit), offset).all();
   return c.json({ success: true, data: materials.results || [] });
 });
 
@@ -7557,7 +7594,7 @@ api.get('/brand-owner/reports', async (c) => {
 
   const [weeklyPerf, complianceCard, competitors] = await Promise.all([
     db.prepare(`SELECT strftime('%W', snapshot_date) as week, ROUND(AVG(share_percentage), 1) as avg_sov, COUNT(DISTINCT customer_id) as stores_visited, SUM(brand_facings) as total_facings FROM share_of_voice_snapshots WHERE tenant_id = ? AND brand_id = ? AND snapshot_date >= date('now', '-90 days') GROUP BY week ORDER BY week DESC LIMIT 12`).bind(tenantId, brandId).all(),
-    db.prepare(`SELECT CASE WHEN AVG(share_percentage) >= 50 THEN 'meeting_target' ELSE 'below_target' END as status, COUNT(DISTINCT customer_id) as store_count FROM share_of_voice_snapshots WHERE tenant_id = ? AND brand_id = ? AND snapshot_date >= date('now', '-30 days') GROUP BY status`).bind(tenantId, brandId).all(),
+    db.prepare(`SELECT 'meeting_target' as status, COUNT(DISTINCT customer_id) as store_count FROM share_of_voice_snapshots WHERE tenant_id = ? AND brand_id = ? AND snapshot_date >= date('now', '-30 days') AND share_percentage >= 50 UNION ALL SELECT 'below_target' as status, COUNT(DISTINCT customer_id) as store_count FROM share_of_voice_snapshots WHERE tenant_id = ? AND brand_id = ? AND snapshot_date >= date('now', '-30 days') AND share_percentage < 50`).bind(tenantId, brandId, tenantId, brandId).all(),
     db.prepare(`SELECT brand_name, ROUND(AVG(share_percentage), 1) as avg_sov, SUM(total_facings - brand_facings) as competitor_facings FROM share_of_voice_snapshots WHERE tenant_id = ? AND brand_id != ? AND snapshot_date >= date('now', '-30 days') GROUP BY brand_name ORDER BY competitor_facings DESC LIMIT 20`).bind(tenantId, brandId).all(),
   ]);
   return c.json({ success: true, data: { weekly_performance: weeklyPerf.results || [], compliance_scorecard: complianceCard.results || [], competitors: competitors.results || [] } });
@@ -7853,7 +7890,7 @@ api.get('/reports/trade-promotions', requireRole('admin', 'manager'), async (c) 
 api.get('/reports/compliance', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const data = await db.prepare('SELECT pa.*, c.name as customer_name FROM posm_audits pa LEFT JOIN customers c ON pa.customer_id = c.id WHERE pa.tenant_id = ? ORDER BY pa.created_at DESC LIMIT 100').bind(tenantId).all();
+  const data = await db.prepare('SELECT pa.*, c.name as customer_name FROM posm_audits pa LEFT JOIN posm_installations pi2 ON pa.installation_id = pi2.id LEFT JOIN customers c ON pi2.customer_id = c.id WHERE pa.tenant_id = ? ORDER BY pa.created_at DESC LIMIT 100').bind(tenantId).all();
   return c.json({ success: true, data: data.results || [] });
 });
 
