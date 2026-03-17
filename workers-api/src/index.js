@@ -2046,7 +2046,8 @@ api.post('/orders/create', authMiddleware, async (c) => {
     const paymentMethod = body.payment_method || 'cash';
     const totalAmount = subtotal - totalDiscount + totalTax;
 
-    await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, payment_method, payment_status, subtotal, tax_amount, discount_amount, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(orderId, tenantId, orderNumber, body.customer_id, userId, body.submit ? 'confirmed' : 'draft', paymentMethod, 'pending', subtotal, totalTax, totalDiscount, totalAmount, body.notes || '').run();
+    const orderDate = body.order_date || new Date().toISOString().split('T')[0];
+    await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, payment_method, payment_status, subtotal, tax_amount, discount_amount, total_amount, order_date, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(orderId, tenantId, orderNumber, body.customer_id, userId, body.submit ? 'confirmed' : 'draft', paymentMethod, 'pending', subtotal, totalTax, totalDiscount, totalAmount, orderDate, body.notes || '').run();
 
     // 4. Insert line items
     for (const item of resolvedItems) {
@@ -2104,7 +2105,7 @@ api.post('/sales/returns/create', authMiddleware, async (c) => {
     }
 
     // 2. Insert parent return record first (before child return_items)
-    await db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, return_type, status, total_credit_amount, restock_fee, net_credit_amount, reason, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(returnId, tenantId, body.order_id, returnNumber, 'PARTIAL', 'PENDING', totalCredit, 0, totalCredit, body.reason || body.notes || null, userId).run();
+    await db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, return_type, status, total_credit_amount, restock_fee, net_credit_amount, reason, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(returnId, tenantId, body.order_id, returnNumber, 'PARTIAL', body.submit ? 'SUBMITTED' : 'DRAFT', totalCredit, 0, totalCredit, body.reason || body.notes || null, userId).run();
 
     // 3. Insert child return_items after parent exists
     for (const item of resolvedItems) {
