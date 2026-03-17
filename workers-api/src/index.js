@@ -2272,7 +2272,7 @@ api.post('/credit-notes/create', authMiddleware, async (c) => {
   const cnNumber = 'CN-' + Date.now().toString(36).toUpperCase();
   await db.prepare('INSERT INTO credit_notes (id, tenant_id, customer_id, credit_number, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now"))').bind(cnId, tenantId, body.customer_id, cnNumber, body.amount || 0, 'ISSUED').run();
   if (body.customer_id) {
-    await db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ?').bind(body.amount || 0, body.customer_id).run();
+    await db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ? AND tenant_id = ?').bind(body.amount || 0, body.customer_id, tenantId).run();
   }
   return c.json({ success: true, data: { id: cnId, credit_number: cnNumber, amount: body.amount } }, 201);
 });
