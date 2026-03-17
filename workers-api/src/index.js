@@ -5759,7 +5759,7 @@ api.get('/trade-promotions/:id/roi', async (c) => {
 api.get('/territories', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const territories = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM territory_assignments WHERE territory_id = t.id AND is_active = 1) as assigned_agents FROM territories t WHERE t.tenant_id = ? ORDER BY t.name").bind(tenantId).all();
+  const territories = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM territory_assignments WHERE territory_id = t.id) as assigned_agents FROM territories t WHERE t.tenant_id = ? ORDER BY t.name").bind(tenantId).all();
   return c.json({ success: true, data: territories.results || [] });
 });
 
@@ -5795,7 +5795,7 @@ api.post('/territories/:id/assign', requireRole('admin', 'manager'), async (c) =
 api.delete('/territories/:id/unassign/:agentId', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const { id, agentId } = c.req.param();
-  await db.prepare('UPDATE territory_assignments SET is_active = 0 WHERE territory_id = ? AND agent_id = ?').bind(id, agentId).run();
+  await db.prepare('DELETE FROM territory_assignments WHERE territory_id = ? AND agent_id = ?').bind(id, agentId).run();
   return c.json({ success: true, message: 'Agent unassigned' });
 });
 
