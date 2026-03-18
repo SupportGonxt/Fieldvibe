@@ -2097,7 +2097,7 @@ api.post('/orders', authMiddleware, async (c) => {
       await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?, ?)').bind(uuidv4(), id, item.product_id, item.quantity, item.unit_price).run();
     }
   }
-  return c.json({ id, order_number: orderNum, message: 'Order created' }, 201);
+  return c.json({ success: true, data: { id, order_number: orderNum }, message: 'Order created' }, 201);
 });
 
 api.put('/orders/:id', authMiddleware, async (c) => {
@@ -2110,7 +2110,7 @@ api.put('/orders/:id', authMiddleware, async (c) => {
   for (const [k, v] of Object.entries(body)) {
     if (['status', 'notes', 'total_amount', 'payment_status', 'payment_method', 'delivery_date', 'customer_id'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
   }
-  if (sets.length === 0) return c.json({ message: 'No valid fields' }, 400);
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
   await db.prepare('UPDATE sales_orders SET ' + sets.join(', ') + ', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
   return c.json({ success: true, message: 'Order updated' });
 });
@@ -2121,7 +2121,7 @@ api.delete('/orders/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   await db.prepare('DELETE FROM sales_order_items WHERE sales_order_id IN (SELECT id FROM sales_orders WHERE id = ? AND tenant_id = ?)').bind(id, tenantId).run();
   await db.prepare('DELETE FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
-  return c.json({ message: 'Order deleted' });
+  return c.json({ success: true, message: 'Order deleted' });
 });
 
 api.get('/orders/:id/items', authMiddleware, async (c) => {
@@ -2138,7 +2138,7 @@ api.put('/orders/:id/status', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const { status } = await c.req.json();
   await db.prepare('UPDATE sales_orders SET status = ? WHERE id = ? AND tenant_id = ?').bind(status, id, tenantId).run();
-  return c.json({ message: 'Status updated' });
+  return c.json({ success: true, message: 'Status updated' });
 });
 
 // ==================== MISSING ROUTE ALIASES (frontend compatibility) ====================
@@ -2638,7 +2638,7 @@ api.get('/field-operations/agents/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const agent = await db.prepare("SELECT u.* FROM users u WHERE u.id = ? AND u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep')").bind(id, tenantId).first();
-  if (!agent) return c.json({ message: 'Agent not found' }, 404);
+  if (!agent) return c.json({ success: false, message: 'Agent not found' }, 404);
   const visitCount = await db.prepare('SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ?').bind(id, tenantId).first();
   return c.json({ ...agent, total_visits: visitCount?.count || 0 });
 });
@@ -2667,7 +2667,7 @@ api.post('/field-operations/visits/:id/check-in', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const { location } = await c.req.json();
   await db.prepare("UPDATE visits SET status = 'in_progress', check_in_time = CURRENT_TIMESTAMP, check_in_lat = ?, check_in_lng = ? WHERE id = ? AND tenant_id = ?").bind(location?.lat || 0, location?.lng || 0, id, tenantId).run();
-  return c.json({ message: 'Checked in successfully' });
+  return c.json({ success: true, message: 'Checked in successfully' });
 });
 
 api.post('/field-operations/visits/:id/check-out', authMiddleware, async (c) => {
@@ -2676,7 +2676,7 @@ api.post('/field-operations/visits/:id/check-out', authMiddleware, async (c) => 
   const id = c.req.param('id');
   const { location, notes } = await c.req.json();
   await db.prepare("UPDATE visits SET status = 'completed', check_out_time = CURRENT_TIMESTAMP, check_out_lat = ?, check_out_lng = ?, notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?").bind(location?.lat || 0, location?.lng || 0, notes || null, id, tenantId).run();
-  return c.json({ message: 'Checked out successfully' });
+  return c.json({ success: true, message: 'Checked out successfully' });
 });
 
 api.get('/field-operations/routes', authMiddleware, async (c) => {
@@ -2719,7 +2719,7 @@ api.get('/van-sales/routes/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const route = await db.prepare('SELECT * FROM routes WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  if (!route) return c.json({ message: 'Route not found' }, 404);
+  if (!route) return c.json({ success: false, message: 'Route not found' }, 404);
   return c.json(route);
 });
 
@@ -2962,7 +2962,7 @@ api.post('/inventory/receipts/:id/transition', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const { new_status, notes } = await c.req.json();
   await db.prepare('UPDATE stock_movements SET status = ?, notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?').bind(new_status, notes || null, id, tenantId).run();
-  return c.json({ message: 'Receipt status updated' });
+  return c.json({ success: true, message: 'Receipt status updated' });
 });
 
 // Inventory issues (goods issued out)
@@ -3014,7 +3014,7 @@ api.post('/inventory/issues/:id/transition', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const { new_status, notes } = await c.req.json();
   await db.prepare('UPDATE stock_movements SET status = ?, notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?').bind(new_status, notes || null, id, tenantId).run();
-  return c.json({ message: 'Issue status updated' });
+  return c.json({ success: true, message: 'Issue status updated' });
 });
 
 api.get('/inventory/warehouses', authMiddleware, async (c) => {
@@ -3147,7 +3147,7 @@ api.get('/commissions/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const commission = await db.prepare("SELECT ce.*, u.first_name || ' ' || u.last_name as earner_name, cr.name as rule_name FROM commission_earnings ce LEFT JOIN users u ON ce.earner_id = u.id LEFT JOIN commission_rules cr ON ce.rule_id = cr.id WHERE ce.id = ? AND ce.tenant_id = ?").bind(id, tenantId).first();
-  if (!commission) return c.json({ message: 'Commission not found' }, 404);
+  if (!commission) return c.json({ success: false, message: 'Commission not found' }, 404);
   return c.json(commission);
 });
 
@@ -3156,7 +3156,7 @@ api.post('/commissions/calculate', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const { order_id } = await c.req.json();
   const order = await db.prepare('SELECT * FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(order_id, tenantId).first();
-  if (!order) return c.json({ message: 'Order not found' }, 404);
+  if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
   const rules = await db.prepare("SELECT * FROM commission_rules WHERE tenant_id = ? AND is_active = 1").bind(tenantId).all();
   let totalCommission = 0;
   for (const rule of (rules.results || [])) {
@@ -3170,14 +3170,14 @@ api.post('/commissions/calculate', authMiddleware, async (c) => {
       totalCommission += amount;
     }
   }
-  return c.json({ message: 'Commission calculated', total: totalCommission });
+  return c.json({ success: true, message: 'Commission calculated', total: totalCommission });
 });
 
 api.post('/commissions/pay', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { commission_ids } = await c.req.json();
-  if (!commission_ids || !Array.isArray(commission_ids)) return c.json({ message: 'commission_ids required' }, 400);
+  if (!commission_ids || !Array.isArray(commission_ids)) return c.json({ success: false, message: 'commission_ids required' }, 400);
   for (const cid of commission_ids) {
     await db.prepare("UPDATE commission_earnings SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?").bind(cid, tenantId).run();
   }
@@ -3197,7 +3197,7 @@ api.get('/beat-routes/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const route = await db.prepare('SELECT * FROM routes WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  if (!route) return c.json({ message: 'Route not found' }, 404);
+  if (!route) return c.json({ success: false, message: 'Route not found' }, 404);
   return c.json(route);
 });
 
@@ -3214,7 +3214,7 @@ api.get('/surveys/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const survey = await db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  if (!survey) return c.json({ message: 'Survey not found' }, 404);
+  if (!survey) return c.json({ success: false, message: 'Survey not found' }, 404);
   return c.json(survey);
 });
 
@@ -3674,14 +3674,14 @@ api.post('/van-inventory/unload', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  return c.json({ message: 'Van unloaded' });
+  return c.json({ success: true, message: 'Van unloaded' });
 });
 
 api.post('/van-inventory/sale', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  return c.json({ message: 'Van sale recorded' });
+  return c.json({ success: true, message: 'Van sale recorded' });
 });
 
 api.get('/van-inventory/:vanId/movements', authMiddleware, async (c) => {
@@ -3722,7 +3722,7 @@ api.put('/vans/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   await db.prepare("UPDATE vans SET name = ?, registration_number = ?, status = ? WHERE id = ? AND tenant_id = ?").bind(body.name, body.registration_number || '', body.status || 'active', id, tenantId).run();
-  return c.json({ message: 'Van updated' });
+  return c.json({ success: true, message: 'Van updated' });
 });
 
 api.post('/vans/:vanId/assign-driver', authMiddleware, async (c) => {
@@ -3731,7 +3731,7 @@ api.post('/vans/:vanId/assign-driver', authMiddleware, async (c) => {
   const vanId = c.req.param('vanId');
   const body = await c.req.json();
   await db.prepare("UPDATE vans SET driver_id = ? WHERE id = ? AND tenant_id = ?").bind(body.driver_id, vanId, tenantId).run();
-  return c.json({ message: 'Driver assigned' });
+  return c.json({ success: true, message: 'Driver assigned' });
 });
 
 // ==================== COMMISSION ADDITIONAL ROUTES ====================
@@ -3748,7 +3748,7 @@ api.post('/commissions/:id/approve', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE commission_earnings SET status = 'approved' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Commission approved' });
+  return c.json({ success: true, message: 'Commission approved' });
 });
 
 api.post('/commissions/:id/pay', authMiddleware, async (c) => {
@@ -3757,7 +3757,7 @@ api.post('/commissions/:id/pay', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   await db.prepare("UPDATE commission_earnings SET status = 'paid', payment_method = ?, payment_reference = ? WHERE id = ? AND tenant_id = ?").bind(body.payment_method || 'bank_transfer', body.payment_reference || '', id, tenantId).run();
-  return c.json({ message: 'Commission paid' });
+  return c.json({ success: true, message: 'Commission paid' });
 });
 
 api.post('/commissions/:id/reverse', authMiddleware, async (c) => {
@@ -3766,7 +3766,7 @@ api.post('/commissions/:id/reverse', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   await db.prepare("UPDATE commission_earnings SET status = 'reversed', notes = ? WHERE id = ? AND tenant_id = ?").bind(body.reversal_reason || '', id, tenantId).run();
-  return c.json({ message: 'Commission reversed' });
+  return c.json({ success: true, message: 'Commission reversed' });
 });
 
 // commissions/payouts moved before commissions/:id to avoid route shadowing
@@ -3836,7 +3836,7 @@ api.get('/field-ops/companies/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const company = await db.prepare('SELECT * FROM field_companies WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  if (!company) return c.json({ message: 'Company not found' }, 404);
+  if (!company) return c.json({ success: false, message: 'Company not found' }, 404);
   const agentCount = await db.prepare('SELECT COUNT(*) as count FROM agent_company_links WHERE company_id = ? AND tenant_id = ? AND is_active = 1').bind(id, tenantId).first();
   return c.json({ ...company, agent_count: agentCount?.count || 0 });
 });
@@ -3860,10 +3860,10 @@ api.put('/field-ops/companies/:id', authMiddleware, async (c) => {
   for (const [k, v] of Object.entries(body)) {
     if (['name', 'code', 'logo_url', 'description', 'contact_email', 'contact_phone', 'status'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
   }
-  if (sets.length === 0) return c.json({ message: 'No valid fields' }, 400);
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
   sets.push('updated_at = CURRENT_TIMESTAMP');
   await db.prepare('UPDATE field_companies SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
-  return c.json({ message: 'Company updated' });
+  return c.json({ success: true, message: 'Company updated' });
 });
 
 api.delete('/field-ops/companies/:id', authMiddleware, async (c) => {
@@ -3871,7 +3871,7 @@ api.delete('/field-ops/companies/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE field_companies SET status = 'inactive' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Company deactivated' });
+  return c.json({ success: true, message: 'Company deactivated' });
 });
 
 // ==================== FIELD OPERATIONS: AGENT-COMPANY LINKS ====================
@@ -3901,7 +3901,7 @@ api.delete('/field-ops/agent-companies/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare('UPDATE agent_company_links SET is_active = 0 WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
-  return c.json({ message: 'Link removed' });
+  return c.json({ success: true, message: 'Link removed' });
 });
 
 // ==================== FIELD OPERATIONS: DAILY TARGETS ====================
@@ -3947,10 +3947,10 @@ api.put('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
   for (const [k, v] of Object.entries(body)) {
     if (['target_visits', 'target_conversions', 'target_registrations', 'target_date', 'agent_id', 'company_id'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
   }
-  if (sets.length === 0) return c.json({ message: 'No valid fields' }, 400);
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
   sets.push('updated_at = CURRENT_TIMESTAMP');
   await db.prepare('UPDATE daily_targets SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
-  return c.json({ message: 'Target updated' });
+  return c.json({ success: true, message: 'Target updated' });
 });
 
 api.delete('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
@@ -3958,7 +3958,7 @@ api.delete('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare('DELETE FROM daily_targets WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
-  return c.json({ message: 'Target deleted' });
+  return c.json({ success: true, message: 'Target deleted' });
 });
 
 // Bulk create daily targets for multiple agents
@@ -3968,7 +3968,7 @@ api.post('/field-ops/daily-targets/bulk', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const { agent_ids, company_id, target_visits, target_conversions, target_registrations, target_date } = body;
-  if (!agent_ids || !Array.isArray(agent_ids) || agent_ids.length === 0) return c.json({ message: 'agent_ids required' }, 400);
+  if (!agent_ids || !Array.isArray(agent_ids) || agent_ids.length === 0) return c.json({ success: false, message: 'agent_ids required' }, 400);
   const stmts = agent_ids.map(agentId => db.prepare('INSERT INTO daily_targets (id, tenant_id, agent_id, company_id, target_visits, target_conversions, target_registrations, target_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, agentId, company_id || null, target_visits || 20, target_conversions || 5, target_registrations || 10, target_date, userId));
   await db.batch(stmts);
   return c.json({ message: `Created targets for ${agent_ids.length} agents` }, 201);
@@ -4004,7 +4004,7 @@ api.get('/field-ops/individuals/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const individual = await db.prepare("SELECT ir.*, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM individual_registrations ir LEFT JOIN users u ON ir.agent_id = u.id LEFT JOIN field_companies fc ON ir.company_id = fc.id WHERE ir.id = ? AND ir.tenant_id = ?").bind(id, tenantId).first();
-  if (!individual) return c.json({ message: 'Individual not found' }, 404);
+  if (!individual) return c.json({ success: false, message: 'Individual not found' }, 404);
   return c.json(individual);
 });
 
@@ -4013,7 +4013,7 @@ api.post('/field-ops/individuals/register', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
-  if (!body.first_name || !body.last_name) return c.json({ message: 'first_name and last_name required' }, 400);
+  if (!body.first_name || !body.last_name) return c.json({ success: false, message: 'first_name and last_name required' }, 400);
   const id = uuidv4();
   await db.prepare('INSERT INTO individual_registrations (id, tenant_id, agent_id, company_id, visit_id, first_name, last_name, id_number, phone, email, product_app_player_id, converted, notes, gps_latitude, gps_longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.agent_id || userId, body.company_id || null, body.visit_id || null, body.first_name, body.last_name, body.id_number || null, body.phone || null, body.email || null, body.product_app_player_id || null, body.converted ? 1 : 0, body.notes || null, body.gps_latitude || null, body.gps_longitude || null).run();
   return c.json({ id, message: 'Individual registered' }, 201);
@@ -4029,10 +4029,10 @@ api.put('/field-ops/individuals/:id', authMiddleware, async (c) => {
   for (const [k, v] of Object.entries(body)) {
     if (['first_name', 'last_name', 'id_number', 'phone', 'email', 'product_app_player_id', 'converted', 'conversion_date', 'notes', 'company_id'].includes(k)) { sets.push(k + ' = ?'); vals.push(k === 'converted' ? (v ? 1 : 0) : v); }
   }
-  if (sets.length === 0) return c.json({ message: 'No valid fields' }, 400);
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
   sets.push('updated_at = CURRENT_TIMESTAMP');
   await db.prepare('UPDATE individual_registrations SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
-  return c.json({ message: 'Individual updated' });
+  return c.json({ success: true, message: 'Individual updated' });
 });
 
 api.post('/field-ops/individuals/:id/convert', authMiddleware, async (c) => {
@@ -4041,7 +4041,7 @@ api.post('/field-ops/individuals/:id/convert', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   await db.prepare('UPDATE individual_registrations SET converted = 1, conversion_date = CURRENT_TIMESTAMP, product_app_player_id = COALESCE(?, product_app_player_id), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(body.product_app_player_id || null, id, tenantId).run();
-  return c.json({ message: 'Individual marked as converted' });
+  return c.json({ success: true, message: 'Individual marked as converted' });
 });
 
 // ==================== FIELD OPERATIONS: HIERARCHY ====================
@@ -4072,15 +4072,15 @@ api.put('/field-ops/hierarchy/assign', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   const { user_id, manager_id, team_lead_id } = body;
-  if (!user_id) return c.json({ message: 'user_id required' }, 400);
+  if (!user_id) return c.json({ success: false, message: 'user_id required' }, 400);
   const sets = [];
   const vals = [];
   if (manager_id !== undefined) { sets.push('manager_id = ?'); vals.push(manager_id || null); }
   if (team_lead_id !== undefined) { sets.push('team_lead_id = ?'); vals.push(team_lead_id || null); }
-  if (sets.length === 0) return c.json({ message: 'manager_id or team_lead_id required' }, 400);
+  if (sets.length === 0) return c.json({ success: false, message: 'manager_id or team_lead_id required' }, 400);
   sets.push('updated_at = CURRENT_TIMESTAMP');
   await db.prepare('UPDATE users SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, user_id, tenantId).run();
-  return c.json({ message: 'Hierarchy updated' });
+  return c.json({ success: true, message: 'Hierarchy updated' });
 });
 
 // ==================== FIELD OPERATIONS: PERFORMANCE (ROLE-BASED) ====================
@@ -4174,7 +4174,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
   const endD = end_date || startD;
   try {
     const user = await db.prepare("SELECT id, first_name, last_name, role, manager_id, team_lead_id FROM users WHERE id = ? AND tenant_id = ?").bind(targetUserId, tenantId).first();
-    if (!user) return c.json({ message: 'User not found' }, 404);
+    if (!user) return c.json({ success: false, message: 'User not found' }, 404);
     if (user.role === 'team_lead') {
       const teamAgents = await db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(targetUserId, tenantId).all();
       const agentPerf = [];
@@ -4208,7 +4208,7 @@ api.get('/field-ops/company-dashboard', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { company_id } = c.req.query();
-  if (!company_id) return c.json({ message: 'company_id required' }, 400);
+  if (!company_id) return c.json({ success: false, message: 'company_id required' }, 400);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
   try {
@@ -4289,7 +4289,7 @@ api.post('/field-ops/company-logins', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  if (!body.company_id || !body.email || !body.password || !body.name) return c.json({ message: 'company_id, email, password, and name required' }, 400);
+  if (!body.company_id || !body.email || !body.password || !body.name) return c.json({ success: false, message: 'company_id, email, password, and name required' }, 400);
   const id = uuidv4();
   const hashedPassword = await bcrypt.hash(body.password, 10);
   await db.prepare('INSERT INTO company_logins (id, company_id, tenant_id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, body.company_id, tenantId, body.email, hashedPassword, body.name, body.role || 'viewer').run();
@@ -4301,7 +4301,7 @@ api.delete('/field-ops/company-logins/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare('UPDATE company_logins SET is_active = 0 WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
-  return c.json({ message: 'Login deactivated' });
+  return c.json({ success: true, message: 'Login deactivated' });
 });
 
 // ==================== CASH RECONCILIATION ROUTES ====================
@@ -4335,7 +4335,7 @@ api.get('/cash-reconciliation/sessions/:sessionId/collections', authMiddleware, 
 });
 
 api.post('/cash-reconciliation/sessions/:sessionId/collections', authMiddleware, async (c) => {
-  return c.json({ message: 'Collection added' }, 201);
+  return c.json({ success: false, message: 'Collection added' }, 201);
 });
 
 api.post('/cash-reconciliation/sessions/:sessionId/close', authMiddleware, async (c) => {
@@ -4343,7 +4343,7 @@ api.post('/cash-reconciliation/sessions/:sessionId/close', authMiddleware, async
   const tenantId = c.get('tenantId');
   const sessionId = c.req.param('sessionId');
   await db.prepare("UPDATE van_reconciliations SET status = 'closed' WHERE id = ? AND tenant_id = ?").bind(sessionId, tenantId).run();
-  return c.json({ message: 'Session closed' });
+  return c.json({ success: true, message: 'Session closed' });
 });
 
 api.post('/cash-reconciliation/sessions/:sessionId/approve-variance', authMiddleware, async (c) => {
@@ -4351,7 +4351,7 @@ api.post('/cash-reconciliation/sessions/:sessionId/approve-variance', authMiddle
   const tenantId = c.get('tenantId');
   const sessionId = c.req.param('sessionId');
   await db.prepare("UPDATE van_reconciliations SET status = 'approved' WHERE id = ? AND tenant_id = ?").bind(sessionId, tenantId).run();
-  return c.json({ message: 'Variance approved' });
+  return c.json({ success: true, message: 'Variance approved' });
 });
 
 api.get('/cash-reconciliation/bank-deposits', authMiddleware, async (c) => {
@@ -4359,7 +4359,7 @@ api.get('/cash-reconciliation/bank-deposits', authMiddleware, async (c) => {
 });
 
 api.post('/cash-reconciliation/bank-deposits', authMiddleware, async (c) => {
-  return c.json({ message: 'Deposit recorded' }, 201);
+  return c.json({ success: false, message: 'Deposit recorded' }, 201);
 });
 
 api.get('/cash-reconciliations', authMiddleware, async (c) => {
@@ -4403,11 +4403,11 @@ api.put('/cash-reconciliations/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const body = await c.req.json();
-  return c.json({ message: 'Updated' });
+  return c.json({ success: true, message: 'Updated' });
 });
 
 api.post('/cash-reconciliations/:id/items', authMiddleware, async (c) => {
-  return c.json({ message: 'Item added' }, 201);
+  return c.json({ success: false, message: 'Item added' }, 201);
 });
 
 api.post('/cash-reconciliations/:id/submit', authMiddleware, async (c) => {
@@ -4415,7 +4415,7 @@ api.post('/cash-reconciliations/:id/submit', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE van_reconciliations SET status = 'submitted' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Submitted' });
+  return c.json({ success: true, message: 'Submitted' });
 });
 
 api.post('/cash-reconciliations/:id/approve', authMiddleware, async (c) => {
@@ -4423,7 +4423,7 @@ api.post('/cash-reconciliations/:id/approve', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE van_reconciliations SET status = 'approved' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Approved' });
+  return c.json({ success: true, message: 'Approved' });
 });
 
 api.post('/cash-reconciliations/:id/reject', authMiddleware, async (c) => {
@@ -4431,7 +4431,7 @@ api.post('/cash-reconciliations/:id/reject', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE van_reconciliations SET status = 'rejected' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Rejected' });
+  return c.json({ success: true, message: 'Rejected' });
 });
 
 api.post('/cash-reconciliations/:id/close', authMiddleware, async (c) => {
@@ -4439,7 +4439,7 @@ api.post('/cash-reconciliations/:id/close', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE van_reconciliations SET status = 'closed' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Closed' });
+  return c.json({ success: true, message: 'Closed' });
 });
 
 // ==================== TRADE MARKETING ROUTES ====================
@@ -4473,7 +4473,7 @@ api.put('/trade-marketing/campaigns/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   await db.prepare("UPDATE campaigns SET name = ?, status = ? WHERE id = ? AND tenant_id = ?").bind(body.name, body.status || 'draft', id, tenantId).run();
-  return c.json({ message: 'Campaign updated' });
+  return c.json({ success: true, message: 'Campaign updated' });
 });
 
 api.delete('/trade-marketing/campaigns/:id', authMiddleware, async (c) => {
@@ -4481,7 +4481,7 @@ api.delete('/trade-marketing/campaigns/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("DELETE FROM campaigns WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Campaign deleted' });
+  return c.json({ success: true, message: 'Campaign deleted' });
 });
 
 api.get('/trade-marketing/board-installations', authMiddleware, async (c) => {
@@ -4491,7 +4491,7 @@ api.get('/trade-marketing/board-installations', authMiddleware, async (c) => {
 });
 
 api.post('/trade-marketing/board-installations', authMiddleware, async (c) => {
-  return c.json({ message: 'Board installation recorded' }, 201);
+  return c.json({ success: false, message: 'Board installation recorded' }, 201);
 });
 
 api.get('/trade-marketing/activations', authMiddleware, async (c) => {
@@ -4525,7 +4525,7 @@ api.get('/trade-marketing/promoters', authMiddleware, async (c) => {
 });
 
 api.delete('/trade-marketing/promoters/:id', authMiddleware, async (c) => {
-  return c.json({ message: 'Promoter removed' });
+  return c.json({ success: true, message: 'Promoter removed' });
 });
 
 api.get('/trade-marketing/merchandising-compliance', authMiddleware, async (c) => {
@@ -4599,7 +4599,7 @@ api.put('/warehouses/transfers/:id/status', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   await db.prepare("UPDATE stock_movements SET status = ? WHERE id = ? AND tenant_id = ?").bind(body.status, id, tenantId).run();
-  return c.json({ message: 'Transfer status updated' });
+  return c.json({ success: true, message: 'Transfer status updated' });
 });
 
 api.get('/warehouses/:warehouseId/stats', authMiddleware, async (c) => {
@@ -4661,15 +4661,15 @@ api.get('/finance/:id', authMiddleware, async (c) => {
 });
 
 api.post('/finance', authMiddleware, async (c) => {
-  return c.json({ message: 'Invoice created' }, 201);
+  return c.json({ success: false, message: 'Invoice created' }, 201);
 });
 
 api.put('/finance/:id', authMiddleware, async (c) => {
-  return c.json({ message: 'Invoice updated' });
+  return c.json({ success: true, message: 'Invoice updated' });
 });
 
 api.delete('/finance/:id', authMiddleware, async (c) => {
-  return c.json({ message: 'Invoice deleted' });
+  return c.json({ success: true, message: 'Invoice deleted' });
 });
 
 api.get('/finance/invoices/:invoiceId/items', authMiddleware, async (c) => {
@@ -4689,7 +4689,7 @@ api.get('/finance/invoices/:invoiceId/items/:itemId', authMiddleware, async (c) 
 });
 
 api.put('/finance/invoices/:invoiceId/items/:itemId', authMiddleware, async (c) => {
-  return c.json({ message: 'Item updated' });
+  return c.json({ success: true, message: 'Item updated' });
 });
 
 api.get('/payments/stats', authMiddleware, async (c) => {
@@ -4720,7 +4720,7 @@ api.post('/purchase-orders/:id/approve', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   await db.prepare("UPDATE purchase_orders SET status = 'approved' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
-  return c.json({ message: 'Purchase order approved' });
+  return c.json({ success: true, message: 'Purchase order approved' });
 });
 
 api.get('/purchase-orders/stats/summary', authMiddleware, async (c) => {
@@ -8387,19 +8387,19 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
 app.post('/api/field-ops/company-auth/login', async (c) => {
   const db = c.env.DB;
   const { email, password } = await c.req.json();
-  if (!email || !password) return c.json({ message: 'Email and password required' }, 400);
+  if (!email || !password) return c.json({ success: false, message: 'Email and password required' }, 400);
   try {
     const login = await db.prepare("SELECT cl.*, fc.name as company_name, fc.tenant_id FROM company_logins cl JOIN field_companies fc ON cl.company_id = fc.id WHERE cl.email = ? AND cl.is_active = 1").bind(email).first();
-    if (!login) return c.json({ message: 'Invalid credentials' }, 401);
+    if (!login) return c.json({ success: false, message: 'Invalid credentials' }, 401);
     const passwordValid = await bcrypt.compare(password, login.password_hash);
-    if (!passwordValid) return c.json({ message: 'Invalid credentials' }, 401);
+    if (!passwordValid) return c.json({ success: false, message: 'Invalid credentials' }, 401);
     await db.prepare("UPDATE company_logins SET last_login = CURRENT_TIMESTAMP WHERE id = ?").bind(login.id).run();
     const jwtSecret = c.env.JWT_SECRET;
-    if (!jwtSecret) return c.json({ message: 'Server configuration error' }, 500);
+    if (!jwtSecret) return c.json({ success: false, message: 'Server configuration error' }, 500);
     const token = await generateToken({ userId: login.id, tenantId: login.tenant_id, role: 'company_' + login.role, companyId: login.company_id }, jwtSecret);
     return c.json({ token, company_id: login.company_id, company_name: login.company_name, role: login.role, name: login.name });
   } catch (e) {
-    return c.json({ message: 'Login failed' }, 500);
+    return c.json({ success: false, message: 'Login failed' }, 500);
   }
 });
 
