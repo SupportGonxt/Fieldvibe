@@ -8,6 +8,7 @@ import { customersService } from '../../../services/customers.service'
 import { discountsService } from '../../../services/discounts.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface Customer {
   id: string
@@ -150,12 +151,14 @@ export default function InvoiceCreate() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
-                  <option value="">Select a customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  label="Customer *"
+                  options={customers.map(c => ({ value: c.id, label: c.name }))}
+                  value={selectedCustomer || null}
+                  onChange={(val) => setSelectedCustomer(val || '')}
+                  placeholder="Search customers..."
+                  required
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
@@ -163,14 +166,19 @@ export default function InvoiceCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms (days)</label>
-                <select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
-                  <option value="0">Due on Receipt</option>
-                  <option value="7">Net 7</option>
-                  <option value="14">Net 14</option>
-                  <option value="30">Net 30</option>
-                  <option value="60">Net 60</option>
-                  <option value="90">Net 90</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '0', label: 'Due on Receipt' },
+                    { value: '7', label: 'Net 7' },
+                    { value: '14', label: 'Net 14' },
+                    { value: '30', label: 'Net 30' },
+                    { value: '60', label: 'Net 60' },
+                    { value: '90', label: 'Net 90' },
+                  ]}
+                  value={paymentTerms}
+                  onChange={(val) => setPaymentTerms(val || '30')}
+                  placeholder="Select payment terms..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
