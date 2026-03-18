@@ -3377,19 +3377,6 @@ api.delete('/quotations/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Quotation deleted' });
 });
 
-// ==================== T-06: FINANCE INVOICE ALIASES ====================
-api.get('/finance/invoices', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const { status, page = 1, limit = 50 } = c.req.query();
-  let where = 'WHERE so.tenant_id = ?';
-  const params = [tenantId];
-  if (status) { where += ' AND so.status = ?'; params.push(status); }
-  const offset = (parseInt(page) - 1) * parseInt(limit);
-  const total = await db.prepare('SELECT COUNT(*) as count FROM sales_orders so ' + where).bind(...params).first();
-  const invoices = await db.prepare("SELECT so.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id LEFT JOIN users u ON so.agent_id = u.id " + where + ' ORDER BY so.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
-  return c.json({ success: true, data: { invoices: invoices.results || [], pagination: { total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) } } });
-});
 
 api.get('/finance/invoices/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -4858,27 +4845,7 @@ api.post('/pricing/resolve', async (c) => {
   return c.json({ success: true, data: { unit_price: unitPrice, max_discount_pct: maxDiscountPct, tax_rate: product.tax_rate || 15, cost_price: product.cost_price, product_name: product.name } });
 });
 
-// A.3 Promotion Rules (extended)
-api.get('/promotion-rules', async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const { active_only } = c.req.query();
-  let q = 'SELECT * FROM promotion_rules WHERE tenant_id = ?';
-  const params = [tenantId];
-  if (active_only === 'true') { q += ' AND is_active = 1'; }
-  q += ' ORDER BY created_at DESC';
-  const rules = await db.prepare(q).bind(...params).all();
-  return c.json({ success: true, data: rules.results || [] });
-});
 
-api.post('/promotion-rules', requireRole('admin', 'manager'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const body = await c.req.json();
-  const id = uuidv4();
-  await db.prepare('INSERT INTO promotion_rules (id, tenant_id, name, rule_type, config, product_filter, start_date, end_date, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.rule_type || 'discount', JSON.stringify(body.config || {}), body.product_filter || null, body.start_date || null, body.end_date || null, 1).run();
-  return c.json({ success: true, data: { id }, message: 'Promotion rule created' }, 201);
-});
 
 api.put('/promotion-rules/:id', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
@@ -5458,14 +5425,6 @@ api.post('/van-sales/loads/:id/reconcile', async (c) => {
   return c.json({ success: true, data: { id: reconId, expected: expectedCash, actual: actualCash, variance, status: autoApprove ? 'approved' : 'flagged' } });
 });
 
-api.put('/van-reconciliations/:id/approve', requireRole('admin', 'manager'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
-  const { id } = c.req.param();
-  await db.prepare("UPDATE van_reconciliations SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(userId, id, tenantId).run();
-  return c.json({ success: true, message: 'Reconciliation approved' });
-});
 
 api.put('/van-reconciliations/:id/reject', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
@@ -5710,13 +5669,6 @@ api.post('/inventory/transfers', requireRole('admin', 'manager'), async (c) => {
   return c.json({ success: true, message: 'Transfer completed' });
 });
 
-// Stock Adjustments
-api.get('/inventory/adjustments', async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const adjustments = await db.prepare('SELECT sa.*, p.name as product_name, w.name as warehouse_name FROM stock_adjustments sa LEFT JOIN products p ON sa.product_id = p.id LEFT JOIN warehouses w ON sa.warehouse_id = w.id WHERE sa.tenant_id = ? ORDER BY sa.created_at DESC LIMIT 500').bind(tenantId).all();
-  return c.json({ success: true, data: adjustments.results || [] });
-});
 
 // Stock Valuation Report
 api.get('/inventory/valuation', async (c) => {
@@ -5734,61 +5686,10 @@ api.get('/inventory/valuation', async (c) => {
 
 // ==================== F. COMMISSION CALCULATION ENGINE ====================
 
-// Commission Rules CRUD
-api.get('/commission-rules', async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const rules = await db.prepare('SELECT * FROM commission_rules WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 500').bind(tenantId).all();
-  return c.json({ success: true, data: rules.results || [] });
-});
 
-api.post('/commission-rules', requireRole('admin'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const body = await c.req.json();
-  const id = uuidv4();
-  await db.prepare('INSERT INTO commission_rules (id, tenant_id, name, source_type, rate, min_threshold, max_cap, product_filter, effective_from, effective_to, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.source_type, body.rate, body.min_threshold || 0, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null, 1).run();
-  return c.json({ success: true, data: { id }, message: 'Commission rule created' }, 201);
-});
 
-api.put('/commission-rules/:id', requireRole('admin'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const { id } = c.req.param();
-  const body = await c.req.json();
-  await db.prepare('UPDATE commission_rules SET name = COALESCE(?, name), source_type = COALESCE(?, source_type), rate = COALESCE(?, rate), min_threshold = COALESCE(?, min_threshold), max_cap = ?, product_filter = ?, effective_from = ?, effective_to = ?, is_active = COALESCE(?, is_active) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.source_type || null, body.rate || null, body.min_threshold || null, body.max_cap || null, body.product_filter || null, body.effective_from || null, body.effective_to || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
-  return c.json({ success: true, message: 'Commission rule updated' });
-});
 
-// Commission Earnings Management
-api.get('/commission-earnings', async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const role = c.get('role');
-  const userId = c.get('userId');
-  const { status, earner_id, period_start, period_end, page = 1, limit = 50 } = c.req.query();
-  let q = "SELECT ce.*, u.first_name || ' ' || u.last_name as earner_name FROM commission_earnings ce LEFT JOIN users u ON ce.earner_id = u.id WHERE ce.tenant_id = ?";
-  const params = [tenantId];
-  // Agents can only see their own
-  if (role === 'agent') { q += ' AND ce.earner_id = ?'; params.push(userId); }
-  else if (earner_id) { q += ' AND ce.earner_id = ?'; params.push(earner_id); }
-  if (status) { q += ' AND ce.status = ?'; params.push(status); }
-  if (period_start) { q += ' AND ce.created_at >= ?'; params.push(period_start); }
-  if (period_end) { q += ' AND ce.created_at <= ?'; params.push(period_end); }
-  q += ' ORDER BY ce.created_at DESC LIMIT ? OFFSET ?';
-  params.push(parseInt(limit), (parseInt(page) - 1) * parseInt(limit));
-  const earnings = await db.prepare(q).bind(...params).all();
-  return c.json({ success: true, data: earnings.results || [] });
-});
 
-api.put('/commission-earnings/:id/approve', requireRole('admin', 'manager'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
-  const { id } = c.req.param();
-  await db.prepare("UPDATE commission_earnings SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(userId, id, tenantId).run();
-  return c.json({ success: true, message: 'Commission approved' });
-});
 
 api.put('/commission-earnings/bulk-approve', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
@@ -5888,19 +5789,6 @@ api.get('/reports/stock-valuation', async (c) => {
   return c.json({ success: true, data: items.results || [] });
 });
 
-// Commission Report
-api.get('/reports/commissions', async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const { period_start, period_end } = c.req.query();
-  let q = "SELECT ce.earner_id, u.first_name || ' ' || u.last_name as name, ce.source_type, ce.status, COUNT(*) as count, SUM(ce.amount) as total_amount FROM commission_earnings ce JOIN users u ON ce.earner_id = u.id WHERE ce.tenant_id = ?";
-  const params = [tenantId];
-  if (period_start) { q += ' AND ce.created_at >= ?'; params.push(period_start); }
-  if (period_end) { q += ' AND ce.created_at <= ?'; params.push(period_end); }
-  q += ' GROUP BY ce.earner_id, ce.source_type, ce.status ORDER BY total_amount DESC';
-  const report = await db.prepare(q).bind(...params).all();
-  return c.json({ success: true, data: report.results || [] });
-});
 
 // Van Sales Report
 api.get('/reports/van-sales', async (c) => {
@@ -7263,20 +7151,6 @@ api.post('/error-logs', async (c) => {
   return c.json({ success: true, data: { id } }, 201);
 });
 
-// W.2 Audit Log
-api.get('/audit-log', requireRole('admin'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const { resource_type, user_id, limit = 100 } = c.req.query();
-  let q = "SELECT al.*, u.first_name || ' ' || u.last_name as user_name FROM audit_log al LEFT JOIN users u ON al.user_id = u.id WHERE al.tenant_id = ?";
-  const params = [tenantId];
-  if (resource_type) { q += ' AND al.resource_type = ?'; params.push(resource_type); }
-  if (user_id) { q += ' AND al.user_id = ?'; params.push(user_id); }
-  q += ' ORDER BY al.created_at DESC LIMIT ?';
-  params.push(parseInt(limit));
-  const logs = await db.prepare(q).bind(...params).all();
-  return c.json({ success: true, data: logs.results || [] });
-});
 
 // ==================== X. DATA SEEDING & TESTING ====================
 
@@ -8211,25 +8085,7 @@ api.get('/workflow/documentation', authMiddleware, async (c) => {
   }});
 });
 
-// POSM materials dashboard
-api.get('/posm-materials/dashboard', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const [total, byType, byBrand] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(quantity_available), 0) as total_qty FROM posm_materials WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare('SELECT material_type, COUNT(*) as count FROM posm_materials WHERE tenant_id = ? GROUP BY material_type').bind(tenantId).all(),
-    db.prepare('SELECT b.name as brand, COUNT(*) as count FROM posm_materials pm LEFT JOIN brands b ON pm.brand_id = b.id WHERE pm.tenant_id = ? GROUP BY pm.brand_id').bind(tenantId).all(),
-  ]);
-  return c.json({ success: true, data: { total: total?.count || 0, total_quantity: total?.total_qty || 0, by_type: byType.results || [], by_brand: byBrand.results || [] } });
-});
 
-// Insights share-of-voice and competitors (aliases for insights routes)
-api.get('/insights/share-of-voice', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const sov = await db.prepare("SELECT competitor_brand as brand, COUNT(*) as sightings, ROUND(CAST(COUNT(*) AS FLOAT) / NULLIF((SELECT COUNT(*) FROM competitor_sightings WHERE tenant_id = ?), 0) * 100, 1) as share_pct FROM competitor_sightings WHERE tenant_id = ? GROUP BY competitor_brand ORDER BY sightings DESC").bind(tenantId, tenantId).all();
-  return c.json({ success: true, data: sov.results || [] });
-});
 
 // Duplicate /insights/competitors removed - already defined above at line ~7568
 
