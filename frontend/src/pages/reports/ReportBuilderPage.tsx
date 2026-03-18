@@ -12,22 +12,21 @@ const ReportBuilderPage: React.FC = () => {
     setLoading(true);
     try {
       const res = await apiClient.post('/reports/generate', config);
-      setDatares.data;
+      setData(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
   const exportReport = async (format: string) => {
     try {
-      const res = await apiClient.post('/reports/export?format=${format}', { ...config, data });
-      {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${Date.now()}.${format}`;
-        a.click();
-      }
+      const res = await apiClient.post(`/reports/export?format=${format}`, { ...config, data }, { responseType: 'blob' });
+      const blob = new Blob([res.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-${Date.now()}.${format}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
     } catch (err) { console.error(err); }
   };
 

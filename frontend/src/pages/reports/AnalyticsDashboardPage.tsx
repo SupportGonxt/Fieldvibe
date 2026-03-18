@@ -14,7 +14,7 @@ const AnalyticsDashboardPage: React.FC = () => {
   const loadMetrics = async () => {
     try {
       const res = await apiClient.get('/reports/analytics');
-      setMetricsres.data;
+      setMetrics(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
