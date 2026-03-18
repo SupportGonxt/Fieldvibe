@@ -26,7 +26,7 @@ export default defineConfig({
                 theme_color: '#0A0F1C',
         background_color: '#ffffff',
         display: 'standalone',
-        version: '1.0.' + Date.now(),
+        version: '1.0.0',
         icons: [
           {
             src: 'favicon.svg',

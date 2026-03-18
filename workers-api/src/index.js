@@ -75,31 +75,37 @@ app.use('*', cors({
   credentials: true,
 }));
 
-// ==================== SECTION 3: RATE LIMITING ====================
-const rateLimitStore = new Map();
-
+// ==================== SECTION 3: RATE LIMITING (T-18: D1-backed for Cloudflare Workers) ====================
 const rateLimiter = (limit, windowMs) => async (c, next) => {
   const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
-  const windowKey = Math.floor(Date.now() / windowMs);
-  const key = `rl:${ip}:${windowKey}`;
-  const current = rateLimitStore.get(key) || 0;
-  if (current >= limit) {
-    c.header('Retry-After', String(Math.ceil(windowMs / 1000)));
-    c.header('X-RateLimit-Limit', String(limit));
-    c.header('X-RateLimit-Remaining', '0');
-    return c.json({ success: false, message: 'Too many requests. Please try again later.' }, 429);
-  }
-  rateLimitStore.set(key, current + 1);
-  // Cleanup old entries periodically
-  if (rateLimitStore.size > 10000) {
-    const cutoff = Math.floor(Date.now() / windowMs) - 2;
-    for (const [k] of rateLimitStore) {
-      const parts = k.split(':');
-      if (parseInt(parts[2]) < cutoff) rateLimitStore.delete(k);
+  const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs).toISOString();
+  const key = `rl:${ip}:${Math.floor(windowMs / 1000)}`;
+  try {
+    const db = c.env.DB;
+    const row = await db.prepare('SELECT count FROM rate_limits WHERE key = ? AND window_start = ?').bind(key, windowStart).first();
+    const current = row ? row.count : 0;
+    if (current >= limit) {
+      c.header('Retry-After', String(Math.ceil(windowMs / 1000)));
+      c.header('X-RateLimit-Limit', String(limit));
+      c.header('X-RateLimit-Remaining', '0');
+      return c.json({ success: false, message: 'Too many requests. Please try again later.' }, 429);
     }
+    if (row) {
+      await db.prepare('UPDATE rate_limits SET count = count + 1 WHERE key = ? AND window_start = ?').bind(key, windowStart).run();
+    } else {
+      await db.prepare('INSERT OR REPLACE INTO rate_limits (key, count, window_start) VALUES (?, 1, ?)').bind(key, windowStart).run();
+    }
+    // Cleanup old entries periodically (1 in 100 requests)
+    if (Math.random() < 0.01) {
+      await db.prepare('DELETE FROM rate_limits WHERE window_start < datetime("now", "-1 hour")').run();
+    }
+    c.header('X-RateLimit-Limit', String(limit));
+    c.header('X-RateLimit-Remaining', String(limit - current - 1));
+  } catch (e) {
+    // Fallback: allow request if rate limit check fails
+    c.header('X-RateLimit-Limit', String(limit));
+    c.header('X-RateLimit-Remaining', String(limit));
   }
-  c.header('X-RateLimit-Limit', String(limit));
-  c.header('X-RateLimit-Remaining', String(limit - current - 1));
   await next();
 };
 
@@ -299,6 +305,88 @@ app.post('/api/auth/reset-password', rateLimiter(5, 900000), async (c) => {
   } catch(e) {
     console.error('Reset password error:', e);
     return c.json({ success: false, message: 'An error occurred' }, 500);
+  }
+});
+
+// ==================== T-02: AUTH REFRESH, LOGOUT, VERIFY, CHANGE-PASSWORD ====================
+app.post('/api/auth/refresh', rateLimiter(10, 60000), async (c) => {
+  try {
+    const db = c.env.DB;
+    const { refresh_token } = await c.req.json();
+    if (!refresh_token) return c.json({ success: false, message: 'Refresh token required' }, 400);
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) return c.json({ success: false, message: 'Server configuration error' }, 500);
+    // Verify the refresh token JWT
+    try {
+      const [headerB64, payloadB64, signatureB64] = refresh_token.split('.');
+      const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+      if (!payload.userId || !payload.tenantId || payload.type !== 'refresh') return c.json({ success: false, message: 'Invalid refresh token' }, 401);
+      if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return c.json({ success: false, message: 'Refresh token expired' }, 401);
+      // Verify signature
+      const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(jwtSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+      const signatureBytes = Uint8Array.from(atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
+      const valid = await crypto.subtle.verify('HMAC', key, signatureBytes, new TextEncoder().encode(headerB64 + '.' + payloadB64));
+      if (!valid) return c.json({ success: false, message: 'Invalid refresh token' }, 401);
+      // Check user still exists and is active
+      const user = await db.prepare('SELECT id, tenant_id, role, email, first_name, last_name, is_active FROM users WHERE id = ? AND is_active = 1').bind(payload.userId).first();
+      if (!user) return c.json({ success: false, message: 'User not found or inactive' }, 401);
+      // Generate new tokens
+      const newAccessToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role }, jwtSecret);
+      const newRefreshToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role, type: 'refresh' }, jwtSecret, 604800);
+      return c.json({ success: true, data: { tokens: { access_token: newAccessToken, refresh_token: newRefreshToken, expires_in: 86400, token_type: 'Bearer' }, token: newAccessToken, access_token: newAccessToken } });
+    } catch (e) {
+      return c.json({ success: false, message: 'Invalid refresh token' }, 401);
+    }
+  } catch (e) {
+    console.error('Token refresh error:', e);
+    return c.json({ success: false, message: 'Token refresh failed' }, 500);
+  }
+});
+
+app.post('/api/auth/logout', async (c) => {
+  // Stateless logout - client should discard tokens
+  return c.json({ success: true, message: 'Logged out successfully' });
+});
+
+app.post('/api/auth/verify-token', async (c) => {
+  try {
+    const { token } = await c.req.json();
+    if (!token) return c.json({ success: false, message: 'Token required' }, 400);
+    const jwtSecret = c.env.JWT_SECRET;
+    try {
+      const [headerB64, payloadB64, signatureB64] = token.split('.');
+      const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+      if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return c.json({ success: false, message: 'Token expired' }, 401);
+      const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(jwtSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+      const signatureBytes = Uint8Array.from(atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
+      const valid = await crypto.subtle.verify('HMAC', key, signatureBytes, new TextEncoder().encode(headerB64 + '.' + payloadB64));
+      if (!valid) return c.json({ success: false, message: 'Invalid token' }, 401);
+      return c.json({ success: true, data: { userId: payload.userId, tenantId: payload.tenantId, role: payload.role } });
+    } catch (e) {
+      return c.json({ success: false, message: 'Invalid token' }, 401);
+    }
+  } catch (e) {
+    return c.json({ success: false, message: 'Verification failed' }, 500);
+  }
+});
+
+app.post('/api/auth/change-password', authMiddleware, rateLimiter(5, 900000), async (c) => {
+  try {
+    const db = c.env.DB;
+    const userId = c.get('userId');
+    const { currentPassword, newPassword } = await c.req.json();
+    if (!currentPassword || !newPassword) return c.json({ success: false, message: 'Current and new password required' }, 400);
+    if (newPassword.length < 8) return c.json({ success: false, message: 'New password must be at least 8 characters' }, 400);
+    const user = await db.prepare('SELECT password_hash FROM users WHERE id = ?').bind(userId).first();
+    if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+    const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!validPassword) return c.json({ success: false, message: 'Current password is incorrect' }, 400);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = datetime("now") WHERE id = ?').bind(hashedPassword, userId).run();
+    return c.json({ success: true, message: 'Password changed successfully' });
+  } catch (e) {
+    console.error('Change password error:', e);
+    return c.json({ success: false, message: 'Password change failed' }, 500);
   }
 });
 
@@ -3135,6 +3223,183 @@ api.get('/kyc', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const kyc = await db.prepare('SELECT c.id, c.name, c.status, c.updated_at, c.created_at FROM customers c WHERE c.tenant_id = ? ORDER BY c.created_at DESC LIMIT 500').bind(tenantId).all();
   return c.json({ data: (kyc.results || []).map(r => ({ ...r, kyc_status: r.status === 'active' ? 'verified' : 'pending', kyc_verified_at: r.updated_at })) });
+});
+
+// ==================== T-04: KYC CASES CRUD ====================
+api.get('/kyc/cases', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { status, customer_id, page = 1, limit = 50 } = c.req.query();
+  let where = 'WHERE kc.tenant_id = ?';
+  const params = [tenantId];
+  if (status) { where += ' AND kc.status = ?'; params.push(status); }
+  if (customer_id) { where += ' AND kc.customer_id = ?'; params.push(customer_id); }
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const total = await db.prepare('SELECT COUNT(*) as count FROM kyc_cases kc ' + where).bind(...params).first();
+  const cases = await db.prepare("SELECT kc.*, c.name as customer_name FROM kyc_cases kc LEFT JOIN customers c ON kc.customer_id = c.id " + where + ' ORDER BY kc.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  return c.json({ success: true, data: { cases: cases.results || [], pagination: { total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) } } });
+});
+
+api.get('/kyc/cases/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const kycCase = await db.prepare("SELECT kc.*, c.name as customer_name FROM kyc_cases kc LEFT JOIN customers c ON kc.customer_id = c.id WHERE kc.id = ? AND kc.tenant_id = ?").bind(id, tenantId).first();
+  if (!kycCase) return c.json({ success: false, message: 'KYC case not found' }, 404);
+  const docs = await db.prepare('SELECT * FROM kyc_documents WHERE kyc_case_id = ? AND tenant_id = ? ORDER BY created_at DESC').bind(id, tenantId).all();
+  return c.json({ success: true, data: { ...kycCase, documents: docs.results || [] } });
+});
+
+api.post('/kyc/cases', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  const caseNumber = 'KYC-' + Date.now().toString(36).toUpperCase();
+  await db.prepare('INSERT INTO kyc_cases (id, tenant_id, customer_id, case_number, status, risk_level, submitted_by, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(id, tenantId, body.customer_id, caseNumber, body.status || 'pending', body.risk_level || 'low', userId, body.notes || null).run();
+  return c.json({ success: true, data: { id, case_number: caseNumber } }, 201);
+});
+
+api.put('/kyc/cases/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM kyc_cases WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'KYC case not found' }, 404);
+  await db.prepare('UPDATE kyc_cases SET status = COALESCE(?, status), risk_level = COALESCE(?, risk_level), reviewed_by = ?, notes = COALESCE(?, notes), rejection_reason = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.status || null, body.risk_level || null, userId, body.notes || null, body.rejection_reason || null, id, tenantId).run();
+  return c.json({ success: true, message: 'KYC case updated' });
+});
+
+api.post('/kyc/cases/:id/approve', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  await db.prepare("UPDATE kyc_cases SET status = 'approved', reviewed_by = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(userId, id, tenantId).run();
+  return c.json({ success: true, message: 'KYC case approved' });
+});
+
+api.post('/kyc/cases/:id/reject', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  await db.prepare("UPDATE kyc_cases SET status = 'rejected', reviewed_by = ?, rejection_reason = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(userId, body.reason || '', id, tenantId).run();
+  return c.json({ success: true, message: 'KYC case rejected' });
+});
+
+api.post('/kyc/documents', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  await db.prepare('INSERT INTO kyc_documents (id, tenant_id, kyc_case_id, document_type, file_name, r2_key, r2_url, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))').bind(id, tenantId, body.kyc_case_id, body.document_type, body.file_name, body.r2_key || null, body.r2_url || null, body.file_size || 0).run();
+  return c.json({ success: true, data: { id } }, 201);
+});
+
+// ==================== T-07: QUOTATIONS CRUD ====================
+api.get('/quotations', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { status, customer_id, page = 1, limit = 50 } = c.req.query();
+  let where = 'WHERE q.tenant_id = ?';
+  const params = [tenantId];
+  if (status) { where += ' AND q.status = ?'; params.push(status); }
+  if (customer_id) { where += ' AND q.customer_id = ?'; params.push(customer_id); }
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const total = await db.prepare('SELECT COUNT(*) as count FROM quotations q ' + where).bind(...params).first();
+  const quotations = await db.prepare("SELECT q.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM quotations q LEFT JOIN customers c ON q.customer_id = c.id LEFT JOIN users u ON q.agent_id = u.id " + where + ' ORDER BY q.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  return c.json({ success: true, data: { quotations: quotations.results || [], pagination: { total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) } } });
+});
+
+api.get('/quotations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const quotation = await db.prepare("SELECT q.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM quotations q LEFT JOIN customers c ON q.customer_id = c.id LEFT JOIN users u ON q.agent_id = u.id WHERE q.id = ? AND q.tenant_id = ?").bind(id, tenantId).first();
+  if (!quotation) return c.json({ success: false, message: 'Quotation not found' }, 404);
+  return c.json({ success: true, data: quotation });
+});
+
+api.post('/quotations', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  const quotationNumber = 'QT-' + Date.now().toString(36).toUpperCase();
+  const items = JSON.stringify(body.items || []);
+  await db.prepare('INSERT INTO quotations (id, tenant_id, quotation_number, customer_id, agent_id, status, items, subtotal, tax_amount, discount_amount, total_amount, valid_until, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(id, tenantId, quotationNumber, body.customer_id, body.agent_id || userId, body.status || 'draft', items, body.subtotal || 0, body.tax_amount || 0, body.discount_amount || 0, body.total_amount || 0, body.valid_until || null, body.notes || null, userId).run();
+  return c.json({ success: true, data: { id, quotation_number: quotationNumber } }, 201);
+});
+
+api.put('/quotations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM quotations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Quotation not found' }, 404);
+  const items = body.items ? JSON.stringify(body.items) : null;
+  await db.prepare('UPDATE quotations SET status = COALESCE(?, status), items = COALESCE(?, items), subtotal = COALESCE(?, subtotal), tax_amount = COALESCE(?, tax_amount), discount_amount = COALESCE(?, discount_amount), total_amount = COALESCE(?, total_amount), valid_until = COALESCE(?, valid_until), notes = COALESCE(?, notes), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.status || null, items, body.subtotal || null, body.tax_amount || null, body.discount_amount || null, body.total_amount || null, body.valid_until || null, body.notes || null, id, tenantId).run();
+  return c.json({ success: true, message: 'Quotation updated' });
+});
+
+api.post('/quotations/:id/convert', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const quotation = await db.prepare('SELECT * FROM quotations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!quotation) return c.json({ success: false, message: 'Quotation not found' }, 404);
+  if (quotation.status === 'converted') return c.json({ success: false, message: 'Quotation already converted' }, 400);
+  const orderId = crypto.randomUUID();
+  const orderNumber = 'SO-' + Date.now().toString(36).toUpperCase();
+  await db.prepare("INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, subtotal, tax_amount, discount_amount, total_amount, notes, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, datetime('now'))").bind(orderId, tenantId, orderNumber, quotation.customer_id, quotation.agent_id, quotation.subtotal || 0, quotation.tax_amount || 0, quotation.discount_amount || 0, quotation.total_amount || 0, 'Converted from quotation ' + quotation.quotation_number, userId).run();
+  const items = JSON.parse(quotation.items || '[]');
+  for (const item of items) {
+    const itemId = crypto.randomUUID();
+    await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity || 1, item.unit_price || 0, (item.quantity || 1) * (item.unit_price || 0)).run();
+  }
+  await db.prepare("UPDATE quotations SET status = 'converted', converted_order_id = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(orderId, id, tenantId).run();
+  return c.json({ success: true, data: { order_id: orderId, order_number: orderNumber } });
+});
+
+api.delete('/quotations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM quotations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Quotation deleted' });
+});
+
+// ==================== T-06: FINANCE INVOICE ALIASES ====================
+api.get('/finance/invoices', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { status, page = 1, limit = 50 } = c.req.query();
+  let where = 'WHERE so.tenant_id = ?';
+  const params = [tenantId];
+  if (status) { where += ' AND so.status = ?'; params.push(status); }
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const total = await db.prepare('SELECT COUNT(*) as count FROM sales_orders so ' + where).bind(...params).first();
+  const invoices = await db.prepare("SELECT so.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id LEFT JOIN users u ON so.agent_id = u.id " + where + ' ORDER BY so.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  return c.json({ success: true, data: { invoices: invoices.results || [], pagination: { total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) } } });
+});
+
+api.get('/finance/invoices/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const invoice = await db.prepare("SELECT so.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id LEFT JOIN users u ON so.agent_id = u.id WHERE so.id = ? AND so.tenant_id = ?").bind(id, tenantId).first();
+  if (!invoice) return c.json({ success: false, message: 'Invoice not found' }, 404);
+  const items = await db.prepare('SELECT soi.*, p.name as product_name FROM sales_order_items soi LEFT JOIN products p ON soi.product_id = p.id WHERE soi.sales_order_id = ?').bind(id).all();
+  const payments = await db.prepare('SELECT * FROM payments WHERE sales_order_id = ? ORDER BY created_at DESC').bind(id).all();
+  return c.json({ success: true, data: { ...invoice, items: items.results || [], payments: payments.results || [] } });
 });
 
 // ==================== ANALYTICS ROUTES ====================
@@ -8153,7 +8418,7 @@ async function checkOverdueInvoices(db) {
 
 async function checkLowStock(db) {
   try {
-    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.min_stock_level, p.name, s.tenant_id FROM inventory_stock s JOIN products p ON s.product_id = p.id WHERE s.quantity <= COALESCE(p.min_stock_level, 10) AND s.quantity > 0").all();
+    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.min_stock_level, p.name, s.tenant_id FROM stock_levels s JOIN products p ON s.product_id = p.id WHERE s.quantity <= COALESCE(p.min_stock_level, 10) AND s.quantity > 0").all();
     for (const item of (lowStock.results || [])) {
       const id = crypto.randomUUID();
       await db.prepare("INSERT OR IGNORE INTO notifications (id, tenant_id, type, title, message, severity, created_at) VALUES (?, ?, 'low_stock', ?, ?, 'warning', datetime('now'))").bind(id, item.tenant_id, `Low stock: ${item.name}`, `${item.name} has ${item.quantity} units remaining in warehouse ${item.warehouse_id}`).run();
@@ -8178,7 +8443,18 @@ async function closeCommissionPeriod(db) {
 
 async function generateAgingReport(db) {
   try {
-    await db.prepare("UPDATE customers SET aging_bracket = CASE WHEN outstanding_balance <= 0 THEN 'current' WHEN julianday('now') - julianday(last_payment_date) <= 30 THEN '0-30' WHEN julianday('now') - julianday(last_payment_date) <= 60 THEN '31-60' WHEN julianday('now') - julianday(last_payment_date) <= 90 THEN '61-90' ELSE '90+' END WHERE outstanding_balance > 0").run();
+    // Use last payment date from payments table to calculate aging
+    const customersWithBalance = await db.prepare("SELECT c.id, c.tenant_id, c.outstanding_balance, (SELECT MAX(p.created_at) FROM payments p JOIN sales_orders so ON p.sales_order_id = so.id WHERE so.customer_id = c.id) as last_payment_date FROM customers c WHERE c.outstanding_balance > 0").all();
+    for (const cust of (customersWithBalance.results || [])) {
+      let bracket = '90+';
+      if (cust.last_payment_date) {
+        const daysSince = Math.floor((Date.now() - new Date(cust.last_payment_date).getTime()) / 86400000);
+        if (daysSince <= 30) bracket = '0-30';
+        else if (daysSince <= 60) bracket = '31-60';
+        else if (daysSince <= 90) bracket = '61-90';
+      }
+      await db.prepare("UPDATE customers SET notes = COALESCE(notes, '') || ' [aging:' || ? || ']' WHERE id = ? AND tenant_id = ?").bind(bracket, cust.id, cust.tenant_id).run();
+    }
   } catch (e) { console.error('generateAgingReport error:', e); }
 }
 
