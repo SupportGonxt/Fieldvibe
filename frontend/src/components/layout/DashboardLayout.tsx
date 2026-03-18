@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { X, HelpCircle } from 'lucide-react'
+import { X, HelpCircle, Plus, ShoppingCart, MapPin, FileText } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import MobileBottomTabs from './MobileBottomTabs'
@@ -9,6 +9,7 @@ import OfflineIndicator from '../ui/OfflineIndicator'
 import HelpPanel from '../help/HelpPanel'
 import Breadcrumbs from '../navigation/Breadcrumbs'
 import { useKeyboardShortcuts } from '../ui/KeyboardShortcuts'
+import { FloatingActionButton } from '../mobile/FloatingActionButton'
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -110,9 +111,21 @@ export default function DashboardLayout() {
       <MobileBottomTabs />
       <OfflineIndicator />
 
+      {/* ENH-14: Mobile FAB for quick actions */}
+      <div className="lg:hidden">
+        <FloatingActionButton
+          actions={[
+            { id: 'order', label: 'New Order', icon: <ShoppingCart className="w-5 h-5" />, href: '/sales/orders/create', color: 'bg-blue-500' },
+            { id: 'visit', label: 'New Visit', icon: <MapPin className="w-5 h-5" />, href: '/field-operations/visits/create', color: 'bg-green-500' },
+            { id: 'invoice', label: 'New Invoice', icon: <FileText className="w-5 h-5" />, href: '/sales/invoices/create', color: 'bg-purple-500' },
+          ]}
+          mainIcon={<Plus className="w-6 h-6" />}
+        />
+      </div>
+
       <button
         onClick={() => setHelpPanelOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-[#00E87B] hover:bg-[#00D06E] text-[#06090F] p-3 rounded-full shadow-lg transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 hidden lg:flex bg-[#00E87B] hover:bg-[#00D06E] text-[#06090F] p-3 rounded-full shadow-lg transition-all hover:scale-105"
         title="Help & Training"
       >
         <HelpCircle className="h-5 w-5" />
