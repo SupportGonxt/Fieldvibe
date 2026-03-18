@@ -6815,7 +6815,7 @@ api.post('/tenants', requireSuperAdmin, async (c) => {
       db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, status, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime("now"))').bind(adminUserId, tenantId, body.adminUser.email, body.adminUser.phone || null, hashedPassword, body.adminUser.firstName || 'Admin', body.adminUser.lastName || 'User', 'admin', 'active')
     );
     batch.push(
-      db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, details) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, adminUserId, 'CREATE', 'tenant', tenantId, JSON.stringify({ name: body.name, code, adminEmail: body.adminUser.email }))
+      db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, new_values) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, adminUserId, 'CREATE', 'tenant', tenantId, JSON.stringify({ name: body.name, code, adminEmail: body.adminUser.email }))
     );
   }
   

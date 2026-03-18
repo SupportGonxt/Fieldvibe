@@ -603,7 +603,7 @@ function App() {
             <Route path="brand-activations" element={<PageLoader><BrandActivationsPage /></PageLoader>} />
             
             {/* Superadmin Routes */}
-            <Route path="superadmin/tenants" element={<PageLoader><TenantManagement /></PageLoader>} />
+            <Route path="superadmin/tenants" element={<ProtectedRoute requiredRole="super_admin"><PageLoader><TenantManagement /></PageLoader></ProtectedRoute>} />
 
             <Route path="field-agents/*" element={<Navigate to="/field-operations" replace />} />
 
