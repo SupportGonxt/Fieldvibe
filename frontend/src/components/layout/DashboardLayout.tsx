@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { X, HelpCircle } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
@@ -8,12 +8,25 @@ import PageTransition from './PageTransition'
 import OfflineIndicator from '../ui/OfflineIndicator'
 import HelpPanel from '../help/HelpPanel'
 import Breadcrumbs from '../navigation/Breadcrumbs'
+import { useKeyboardShortcuts } from '../ui/KeyboardShortcuts'
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [helpPanelOpen, setHelpPanelOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+
+  // ENH-08: Global keyboard shortcuts
+  useKeyboardShortcuts({
+    shortcuts: [
+      { key: 'd', alt: true, handler: () => navigate('/dashboard'), description: 'Go to Dashboard' },
+      { key: 'o', alt: true, handler: () => navigate('/sales/orders'), description: 'Go to Orders' },
+      { key: 'c', alt: true, handler: () => navigate('/customers'), description: 'Go to Customers' },
+      { key: 'i', alt: true, handler: () => navigate('/inventory'), description: 'Go to Inventory' },
+      { key: 'h', alt: true, handler: () => setHelpPanelOpen(true), description: 'Open Help' },
+    ]
+  })
 
   useEffect(() => {
     setSidebarOpen(false)
