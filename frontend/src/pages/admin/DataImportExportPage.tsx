@@ -161,13 +161,15 @@ export default function DataImportExportPage() {
     setImporting(true)
     setImportProgress(0)
 
+    let progressInterval: ReturnType<typeof setInterval>
+
     try {
       const formData = new FormData()
       formData.append('file', uploadedFile)
       formData.append('type', selectedType)
 
       // Show progress while uploading
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setImportProgress(prev => Math.min(prev + 15, 90))
       }, 300)
 
