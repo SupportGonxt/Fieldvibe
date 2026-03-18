@@ -5,6 +5,7 @@ import { ArrowLeft, AlertTriangle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface VarianceFormData {
   resolution_action: string
@@ -20,7 +21,7 @@ export default function VanLoadVariance() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['van-load-item', loadId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/van-loads/${loadId}/items/${itemId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/van-loads/${loadId}/items/${itemId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

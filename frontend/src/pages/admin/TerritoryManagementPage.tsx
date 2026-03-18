@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, MapPin } from 'lucide-react';
+import { apiClient } from '../../services/api.service'
 
 interface Territory { id: number; name: string; region: string; agents: number; area: string; coordinates: string; }
 
@@ -12,14 +13,14 @@ const TerritoryManagementPage: React.FC = () => {
 
   const loadTerritories = async () => {
     try {
-      const res = await fetch('/api/admin/territories', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/territories`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setTerritories((await res.json()).territories || []);
     } catch (err) { console.error(err); }
   };
 
   const saveTerritory = async () => {
     try {
-      const url = editing ? `/api/admin/territories/${editing}` : '/api/admin/territories';
+      const url = editing ? `/api/admin/territories/${editing}` : `${apiClient.defaults.baseURL}/admin/territories`;
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
@@ -32,7 +33,7 @@ const TerritoryManagementPage: React.FC = () => {
   const deleteTerritory = async (id: number) => {
     if (!confirm('Delete territory?')) return;
     try {
-      const res = await fetch(`/api/admin/territories/${id}`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/territories/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });

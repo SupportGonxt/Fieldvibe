@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface ApprovalFormData {
   decision: 'approved' | 'rejected'
@@ -21,7 +22,7 @@ export default function ReturnItemApproval() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['return-item', returnId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/returns/${returnId}/items/${itemId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/returns/${returnId}/items/${itemId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

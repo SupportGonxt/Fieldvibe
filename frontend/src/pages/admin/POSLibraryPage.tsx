@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Package } from 'lucide-react';
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface Material { id: number; name: string; type: string; brand: string; stockQty: number; cost: number; supplier: string; }
 
@@ -13,14 +14,14 @@ const POSLibraryPage: React.FC = () => {
 
   const loadMaterials = async () => {
     try {
-      const res = await fetch('/api/admin/pos-library', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/pos-library`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setMaterials((await res.json()).materials || []);
     } catch (err) { console.error(err); }
   };
 
   const saveMaterial = async () => {
     try {
-      const url = editing ? `/api/admin/pos-library/${editing}` : '/api/admin/pos-library';
+      const url = editing ? `/api/admin/pos-library/${editing}` : `${apiClient.defaults.baseURL}/admin/pos-library`;
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
@@ -33,7 +34,7 @@ const POSLibraryPage: React.FC = () => {
   const deleteMaterial = async (id: number) => {
     if (!confirm('Delete material?')) return;
     try {
-      const res = await fetch(`/api/admin/pos-library/${id}`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/pos-library/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle, Info } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 interface ImpactAnalysisProps {
   entityType: string
@@ -11,7 +12,7 @@ export default function ImpactAnalysis({ entityType, entityId, action }: ImpactA
   const { data: impact, isLoading } = useQuery({
     queryKey: ['impact-analysis', entityType, entityId, action],
     queryFn: async () => {
-      const response = await fetch(`/api/${entityType}/${entityId}/impact-analysis?action=${action}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/${entityType}/${entityId}/impact-analysis?action=${action}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, Package, Truck, User } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function SerialTracking() {
   const { serialId } = useParams<{ serialId: string }>()
@@ -9,7 +10,7 @@ export default function SerialTracking() {
   const { data: serial } = useQuery({
     queryKey: ['serial', serialId],
     queryFn: async () => {
-      const response = await fetch(`/api/serials/${serialId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/serials/${serialId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function SerialTracking() {
   const { data: tracking, isLoading, isError } = useQuery({
     queryKey: ['serial-tracking', serialId],
     queryFn: async () => {
-      const response = await fetch(`/api/serials/${serialId}/tracking`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/serials/${serialId}/tracking`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

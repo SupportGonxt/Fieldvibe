@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, Eye, TrendingUp, TrendingDown } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function StockLedgerByProduct() {
   const { productId } = useParams<{ productId: string }>()
@@ -9,7 +10,7 @@ export default function StockLedgerByProduct() {
   const { data: product } = useQuery({
     queryKey: ['product', productId],
     queryFn: async () => {
-      const response = await fetch(`/api/products/${productId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/products/${productId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function StockLedgerByProduct() {
   const { data: entries, isLoading, isError } = useQuery({
     queryKey: ['stock-ledger-product', productId],
     queryFn: async () => {
-      const response = await fetch(`/api/products/${productId}/stock-ledger`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/products/${productId}/stock-ledger`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

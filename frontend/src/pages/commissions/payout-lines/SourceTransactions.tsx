@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Receipt, Eye } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import { apiClient } from '../../../services/api.service'
 
 export default function SourceTransactions() {
   const { payoutId, lineId } = useParams<{ payoutId: string; lineId: string }>()
@@ -10,7 +11,7 @@ export default function SourceTransactions() {
   const { data: line } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/payouts/${payoutId}/lines/${lineId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -24,7 +25,7 @@ export default function SourceTransactions() {
   const { data: transactions, isLoading, isError } = useQuery({
     queryKey: ['payout-line-transactions', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}/transactions`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/payouts/${payoutId}/lines/${lineId}/transactions`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

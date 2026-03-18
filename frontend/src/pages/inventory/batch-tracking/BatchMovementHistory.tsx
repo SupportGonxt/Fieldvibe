@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, TrendingDown, Clock } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BatchMovementHistory() {
   const { batchId } = useParams<{ batchId: string }>()
@@ -9,7 +10,7 @@ export default function BatchMovementHistory() {
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function BatchMovementHistory() {
   const { data: movements, isLoading, isError } = useQuery({
     queryKey: ['batch-movements', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}/movements`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}/movements`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, TrendingUp, TrendingDown } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import { apiClient } from '../../../services/api.service'
 
 export default function AdjustmentItemList() {
   const { adjustmentId } = useParams<{ adjustmentId: string }>()
@@ -10,7 +11,7 @@ export default function AdjustmentItemList() {
   const { data: adjustment } = useQuery({
     queryKey: ['adjustment', adjustmentId],
     queryFn: async () => {
-      const response = await fetch(`/api/adjustments/${adjustmentId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -24,7 +25,7 @@ export default function AdjustmentItemList() {
   const { data: items, isLoading, isError } = useQuery({
     queryKey: ['adjustment-items', adjustmentId],
     queryFn: async () => {
-      const response = await fetch(`/api/adjustments/${adjustmentId}/items`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}/items`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

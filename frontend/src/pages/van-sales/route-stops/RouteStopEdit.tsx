@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface StopFormData {
   planned_arrival: string
@@ -20,7 +21,7 @@ export default function RouteStopEdit() {
   const { data: stop, isLoading, isError } = useQuery({
     queryKey: ['route-stop', routeId, stopId],
     queryFn: async () => {
-      const response = await fetch(`/api/route-stops/${stopId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/route-stops/${stopId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

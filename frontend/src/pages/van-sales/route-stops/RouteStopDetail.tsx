@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin, Clock, CheckCircle, Package } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function RouteStopDetail() {
   const { routeId, stopId } = useParams<{ routeId: string; stopId: string }>()
@@ -12,7 +13,7 @@ export default function RouteStopDetail() {
   const { data: route } = useQuery({
     queryKey: ['route', routeId],
     queryFn: async () => {
-      const response = await fetch(`/api/routes/${routeId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/routes/${routeId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -26,7 +27,7 @@ export default function RouteStopDetail() {
   const { data: stop, isLoading, isError } = useQuery({
     queryKey: ['route-stop', routeId, stopId],
     queryFn: async () => {
-      const response = await fetch(`/api/route-stops/${stopId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/route-stops/${stopId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

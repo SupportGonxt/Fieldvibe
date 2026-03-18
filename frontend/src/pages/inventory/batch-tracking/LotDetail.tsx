@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, Factory, Calendar, CheckCircle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function LotDetail() {
   const { lotId } = useParams<{ lotId: string }>()
@@ -11,7 +12,7 @@ export default function LotDetail() {
   const { data: lot, isLoading, isError } = useQuery({
     queryKey: ['lot', lotId],
     queryFn: async () => {
-      const response = await fetch(`/api/lots/${lotId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/lots/${lotId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -65,7 +66,7 @@ export default function LotDetail() {
   const { data: batches } = useQuery({
     queryKey: ['lot-batches', lotId],
     queryFn: async () => {
-      const response = await fetch(`/api/lots/${lotId}/batches`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/lots/${lotId}/batches`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

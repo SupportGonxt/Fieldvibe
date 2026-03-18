@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, Calendar, AlertTriangle, CheckCircle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function BatchDetail() {
   const { batchId } = useParams<{ batchId: string }>()
@@ -11,7 +12,7 @@ export default function BatchDetail() {
   const { data: batch, isLoading, isError } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

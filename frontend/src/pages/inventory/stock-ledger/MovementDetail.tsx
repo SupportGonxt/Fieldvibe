@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, MapPin, User, Clock, FileText } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function MovementDetail() {
   const { movementId } = useParams<{ movementId: string }>()
@@ -11,7 +12,7 @@ export default function MovementDetail() {
   const { data: movement, isLoading, isError } = useQuery({
     queryKey: ['stock-movement', movementId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-movements/${movementId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/stock-movements/${movementId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

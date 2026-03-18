@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function PhotoEvidence() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -11,7 +12,7 @@ export default function PhotoEvidence() {
   const { data: visit } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -25,7 +26,7 @@ export default function PhotoEvidence() {
   const { data: evidence, isLoading, isError } = useQuery({
     queryKey: ['visit-photo-evidence', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/photos/evidence`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/photos/evidence`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

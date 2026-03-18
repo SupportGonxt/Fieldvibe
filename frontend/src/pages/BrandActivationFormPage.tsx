@@ -5,6 +5,7 @@ import {
   TrendingUp, MessageSquare, Star, Gift, Plus, X, Upload
 } from 'lucide-react';
 import SearchableSelect from '../components/ui/SearchableSelect'
+import { apiClient } from '../services/api.service'
 
 interface BrandActivation {
   id?: number;
@@ -154,7 +155,7 @@ const BrandActivationFormPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch('/api/trade-marketing-new/brand-activations', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing-new/brand-activations`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

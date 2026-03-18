@@ -4,6 +4,7 @@ import { ArrowLeft, DollarSign, Building, Clock, FileText } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function DepositDetail() {
   const { sessionId, depositId } = useParams<{ sessionId: string; depositId: string }>()
@@ -12,7 +13,7 @@ export default function DepositDetail() {
   const { data: session } = useQuery({
     queryKey: ['cash-session', sessionId],
     queryFn: async () => {
-      const response = await fetch(`/api/cash-sessions/${sessionId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/cash-sessions/${sessionId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -26,7 +27,7 @@ export default function DepositDetail() {
   const { data: deposit, isLoading, isError } = useQuery({
     queryKey: ['deposit', sessionId, depositId],
     queryFn: async () => {
-      const response = await fetch(`/api/cash-sessions/${sessionId}/deposits/${depositId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/cash-sessions/${sessionId}/deposits/${depositId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

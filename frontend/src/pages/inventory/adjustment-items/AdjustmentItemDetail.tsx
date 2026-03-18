@@ -4,6 +4,7 @@ import { ArrowLeft, Package, TrendingUp, TrendingDown } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function AdjustmentItemDetail() {
   const { adjustmentId, itemId } = useParams<{ adjustmentId: string; itemId: string }>()
@@ -12,7 +13,7 @@ export default function AdjustmentItemDetail() {
   const { data: adjustment } = useQuery({
     queryKey: ['adjustment', adjustmentId],
     queryFn: async () => {
-      const response = await fetch(`/api/adjustments/${adjustmentId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -26,7 +27,7 @@ export default function AdjustmentItemDetail() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['adjustment-item', adjustmentId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/adjustments/${adjustmentId}/items/${itemId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}/items/${itemId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

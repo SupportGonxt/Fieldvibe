@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, BarChart } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function SurveyAnswerDetail() {
   const { surveyId, questionId } = useParams<{ surveyId: string; questionId: string }>()
@@ -11,7 +12,7 @@ export default function SurveyAnswerDetail() {
   const { data: question, isLoading, isError } = useQuery({
     queryKey: ['survey-question-answers', surveyId, questionId],
     queryFn: async () => {
-      const response = await fetch(`/api/surveys/${surveyId}/questions/${questionId}/answers`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/surveys/${surveyId}/questions/${questionId}/answers`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

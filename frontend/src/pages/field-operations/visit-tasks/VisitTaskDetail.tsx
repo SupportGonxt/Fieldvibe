@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, Clock, User, FileText } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function VisitTaskDetail() {
   const { visitId, taskId } = useParams<{ visitId: string; taskId: string }>()
@@ -11,7 +12,7 @@ export default function VisitTaskDetail() {
   const { data: visit } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -25,7 +26,7 @@ export default function VisitTaskDetail() {
   const { data: task, isLoading, isError } = useQuery({
     queryKey: ['visit-task', visitId, taskId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/tasks/${taskId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/tasks/${taskId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

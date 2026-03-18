@@ -4,6 +4,7 @@ import { ArrowLeft, Package, DollarSign, AlertCircle } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function ReturnItemDetail() {
   const { returnId, itemId } = useParams<{ returnId: string; itemId: string }>()
@@ -12,7 +13,7 @@ export default function ReturnItemDetail() {
   const { data: returnOrder } = useQuery({
     queryKey: ['return', returnId],
     queryFn: async () => {
-      const response = await fetch(`/api/returns/${returnId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/returns/${returnId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -26,7 +27,7 @@ export default function ReturnItemDetail() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['return-item', returnId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/returns/${returnId}/items/${itemId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/returns/${returnId}/items/${itemId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

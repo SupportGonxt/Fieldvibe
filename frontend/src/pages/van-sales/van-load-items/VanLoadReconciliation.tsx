@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, AlertTriangle, Package } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function VanLoadReconciliation() {
   const { loadId } = useParams<{ loadId: string }>()
@@ -12,7 +13,7 @@ export default function VanLoadReconciliation() {
   const { data: load } = useQuery({
     queryKey: ['van-load', loadId],
     queryFn: async () => {
-      const response = await fetch(`/api/van-loads/${loadId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/van-loads/${loadId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -26,7 +27,7 @@ export default function VanLoadReconciliation() {
   const { data: reconciliation, isLoading, isError } = useQuery({
     queryKey: ['van-load-reconciliation', loadId],
     queryFn: async () => {
-      const response = await fetch(`/api/van-loads/${loadId}/reconciliation`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/van-loads/${loadId}/reconciliation`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

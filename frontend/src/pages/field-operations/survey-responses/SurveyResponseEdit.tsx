@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface ResponseFormData {
   answer: string
@@ -18,7 +19,7 @@ export default function SurveyResponseEdit() {
   const { data: response, isLoading, isError } = useQuery({
     queryKey: ['survey-response', surveyId, responseId],
     queryFn: async () => {
-      const response = await fetch(`/api/survey-responses/${responseId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/survey-responses/${responseId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image as ImageIcon, Calendar } from 'lucide-react'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function PhotoGallery() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -10,7 +11,7 @@ export default function PhotoGallery() {
   const { data: visit } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -24,7 +25,7 @@ export default function PhotoGallery() {
   const { data: photos, isLoading, isError } = useQuery({
     queryKey: ['visit-photos', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/photos`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/photos`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

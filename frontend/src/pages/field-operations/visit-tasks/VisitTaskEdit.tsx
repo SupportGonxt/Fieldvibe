@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface TaskFormData {
   task_title: string
@@ -21,7 +22,7 @@ export default function VisitTaskEdit() {
   const { data: task, isLoading, isError } = useQuery({
     queryKey: ['visit-task', visitId, taskId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/tasks/${taskId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/tasks/${taskId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

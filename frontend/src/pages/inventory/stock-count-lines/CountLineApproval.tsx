@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface ApprovalFormData {
   decision: 'approve' | 'reject'
@@ -19,7 +20,7 @@ export default function CountLineApproval() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['count-line', countId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-counts/${countId}/lines/${lineId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/stock-counts/${countId}/lines/${lineId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

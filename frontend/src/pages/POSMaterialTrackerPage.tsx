@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, MapPin, Package, QrCode, Search, Calendar, CheckCircle2, AlertCircle, Upload, Download } from 'lucide-react';
 import { useToast } from '../components/ui/Toast'
 import SearchableSelect from '../components/ui/SearchableSelect'
+import { apiClient } from '../services/api.service'
 
 interface POSMaterial {
   id: number;
@@ -67,7 +68,7 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const loadMaterialLibrary = async () => {
     try {
-      const response = await fetch('/api/trade-marketing-new/materials/library', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing-new/materials/library`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -84,7 +85,7 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const loadInstallationHistory = async () => {
     try {
-      const response = await fetch('/api/trade-marketing-new/pos-materials', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing-new/pos-materials`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -180,7 +181,7 @@ const POSMaterialTrackerPage: React.FC = () => {
     };
 
     try {
-      const response = await fetch('/api/trade-marketing-new/pos-materials', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing-new/pos-materials`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

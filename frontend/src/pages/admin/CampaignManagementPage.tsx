@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Calendar } from 'lucide-react';
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface Campaign { id: number; name: string; startDate: string; endDate: string; budget: number; status: string; target: number; }
 
@@ -13,14 +14,14 @@ const CampaignManagementPage: React.FC = () => {
 
   const loadCampaigns = async () => {
     try {
-      const res = await fetch('/api/admin/campaigns', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/campaigns`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setCampaigns((await res.json()).campaigns || []);
     } catch (err) { console.error(err); }
   };
 
   const saveCampaign = async () => {
     try {
-      const url = editing ? `/api/admin/campaigns/${editing}` : '/api/admin/campaigns';
+      const url = editing ? `/api/admin/campaigns/${editing}` : `${apiClient.defaults.baseURL}/admin/campaigns`;
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
@@ -33,7 +34,7 @@ const CampaignManagementPage: React.FC = () => {
   const deleteCampaign = async (id: number) => {
     if (!confirm('Delete campaign?')) return;
     try {
-      const res = await fetch(`/api/admin/campaigns/${id}`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/campaigns/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });

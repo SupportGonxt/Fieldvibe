@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Calendar } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BoardComplianceChecks() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -9,7 +10,7 @@ export default function BoardComplianceChecks() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function BoardComplianceChecks() {
   const { data: checks, isLoading, isError } = useQuery({
     queryKey: ['board-compliance-checks', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}/compliance`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}/compliance`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, CheckCircle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function ProductDistributionDetail() {
   const { visitId, distributionId } = useParams<{ visitId: string; distributionId: string }>()
@@ -11,7 +12,7 @@ export default function ProductDistributionDetail() {
   const { data: distribution, isLoading, isError } = useQuery({
     queryKey: ['product-distribution', visitId, distributionId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/product-distributions/${distributionId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/product-distributions/${distributionId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

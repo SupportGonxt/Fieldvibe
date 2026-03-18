@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface Board { id: number; name: string; type: string; width: number; height: number; commissionRate: number; installCost: number; }
 
@@ -13,14 +14,14 @@ const BoardManagementPage: React.FC = () => {
 
   const loadBoards = async () => {
     try {
-      const res = await fetch('/api/admin/boards', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/boards`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setBoards((await res.json()).boards || []);
     } catch (err) { console.error(err); }
   };
 
   const saveBoard = async () => {
     try {
-      const url = editing ? `/api/admin/boards/${editing}` : '/api/admin/boards';
+      const url = editing ? `/api/admin/boards/${editing}` : `${apiClient.defaults.baseURL}/admin/boards`;
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
@@ -33,7 +34,7 @@ const BoardManagementPage: React.FC = () => {
   const deleteBoard = async (id: number) => {
     if (!confirm('Delete this board?')) return;
     try {
-      const res = await fetch(`/api/admin/boards/${id}`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/boards/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });

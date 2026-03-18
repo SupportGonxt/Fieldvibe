@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface TransferItemFormData {
   quantity_requested: number
@@ -19,7 +20,7 @@ export default function TransferItemEdit() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['transfer-item', transferId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/transfers/${transferId}/items/${itemId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/transfers/${transferId}/items/${itemId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

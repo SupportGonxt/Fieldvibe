@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Warehouse, Eye } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function StockLedgerByWarehouse() {
   const { warehouseId } = useParams<{ warehouseId: string }>()
@@ -9,7 +10,7 @@ export default function StockLedgerByWarehouse() {
   const { data: warehouse } = useQuery({
     queryKey: ['warehouse', warehouseId],
     queryFn: async () => {
-      const response = await fetch(`/api/warehouses/${warehouseId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/warehouses/${warehouseId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function StockLedgerByWarehouse() {
   const { data: entries, isLoading, isError } = useQuery({
     queryKey: ['stock-ledger-warehouse', warehouseId],
     queryFn: async () => {
-      const response = await fetch(`/api/warehouses/${warehouseId}/stock-ledger`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/warehouses/${warehouseId}/stock-ledger`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

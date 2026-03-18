@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { TrendingUp, Target, DollarSign, Users, BarChart3, Calendar, Plus, Filter, Award, Zap, ShoppingCart, TrendingDown } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { apiClient } from '../../services/api.service'
 
 interface TradeMarketingMetrics {
   totalSpend: number
@@ -88,7 +89,7 @@ export default function TradeMarketingPage() {
       const tenantCode = localStorage.getItem('tenantCode') || 'DEMO'
       
       // Fetch metrics
-      const metricsResponse = await fetch('/api/trade-marketing/metrics', {
+      const metricsResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/metrics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode
@@ -100,7 +101,7 @@ export default function TradeMarketingPage() {
       }
 
       // Fetch promotions
-      const promotionsResponse = await fetch('/api/trade-marketing/promotions', {
+      const promotionsResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/promotions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode
@@ -112,7 +113,7 @@ export default function TradeMarketingPage() {
       }
 
       // Fetch channel partners
-      const partnersResponse = await fetch('/api/trade-marketing/channel-partners', {
+      const partnersResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/channel-partners`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode
@@ -124,7 +125,7 @@ export default function TradeMarketingPage() {
       }
 
       // Fetch competitor analysis
-      const competitorResponse = await fetch('/api/trade-marketing/competitor-analysis', {
+      const competitorResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/competitor-analysis`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode

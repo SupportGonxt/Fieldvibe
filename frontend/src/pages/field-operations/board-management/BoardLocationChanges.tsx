@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, ArrowRight, Calendar } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BoardLocationChanges() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -9,7 +10,7 @@ export default function BoardLocationChanges() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function BoardLocationChanges() {
   const { data: changes, isLoading, isError } = useQuery({
     queryKey: ['board-location-changes', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}/location-history`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}/location-history`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

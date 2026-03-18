@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, User, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function ApprovalDetail() {
   const { calculationId } = useParams<{ calculationId: string }>()
@@ -12,7 +13,7 @@ export default function ApprovalDetail() {
   const { data: approval, isLoading, isError } = useQuery({
     queryKey: ['commission-approval', calculationId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/calculations/${calculationId}/approval`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/calculations/${calculationId}/approval`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Download, FileText, Table } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { auditService } from '../../../services/audit.service'
+import { apiClient } from '../../../services/api.service'
 
 interface ExportFormData {
   format: 'csv' | 'excel' | 'pdf' | 'json'
@@ -20,7 +21,7 @@ export default function AuditExport() {
   const { data: entity } = useQuery({
     queryKey: [entityType, entityId],
     queryFn: async () => {
-      const response = await fetch(`/api/${entityType}/${entityId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/${entityType}/${entityId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

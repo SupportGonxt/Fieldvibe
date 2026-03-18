@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, Trash2, Calendar, MapPin, CheckSquare, Camera, BarChart3 } from 'lucide-react'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface VisitConfiguration {
   id: string
@@ -35,7 +36,7 @@ export default function VisitConfigurationPage() {
   const { data: configurations, isLoading, isError } = useQuery({
     queryKey: ['visit-configurations'],
     queryFn: async () => {
-      const response = await fetch('/api/visit-configurations', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/visit-configurations`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -49,7 +50,7 @@ export default function VisitConfigurationPage() {
   const { data: brands } = useQuery({
     queryKey: ['brands'],
     queryFn: async () => {
-      const response = await fetch('/api/brands', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/brands`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -63,7 +64,7 @@ export default function VisitConfigurationPage() {
   const { data: surveys } = useQuery({
     queryKey: ['surveys'],
     queryFn: async () => {
-      const response = await fetch('/api/surveys', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/surveys`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -77,7 +78,7 @@ export default function VisitConfigurationPage() {
   const { data: boards } = useQuery({
     queryKey: ['boards'],
     queryFn: async () => {
-      const response = await fetch('/api/boards', {
+      const response = await fetch(`${apiClient.defaults.baseURL}}/boards`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -90,7 +91,7 @@ export default function VisitConfigurationPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/visit-configurations/${id}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visit-configurations/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -312,7 +313,7 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
     mutationFn: async (data: any) => {
       const url = config
         ? `/api/visit-configurations/${config.id}`
-        : '/api/visit-configurations'
+        : `${apiClient.defaults.baseURL}/visit-configurations`
       const response = await fetch(url, {
         method: config ? 'PUT' : 'POST',
         headers: {

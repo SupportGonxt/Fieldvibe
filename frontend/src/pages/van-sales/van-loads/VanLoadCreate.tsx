@@ -147,10 +147,14 @@ export default function VanLoadCreate() {
                 <SearchableSelect
                   options={[
                     { value: '', label: 'Select a van' },
-                    { value: 'van.id', label: '{van.van_number} {van.driver_name ? `- ${van.driver_name}` : \'\'}' },
+                    ...vans.map((van: Van) => ({
+                      value: van.id,
+                      label: `${van.van_number}${van.driver_name ? ` - ${van.driver_name}` : ''}`
+                    }))
                   ]}
                   value={selectedVan || null}
-                  placeholder="Select a van"
+                  onChange={(val) => setSelectedVan(val as string || '')}
+                  placeholder="Search vans..."
                 />
               </div>
               <div>
@@ -158,10 +162,14 @@ export default function VanLoadCreate() {
                 <SearchableSelect
                   options={[
                     { value: '', label: 'Select a route' },
-                    { value: 'route.id', label: '{route.name}' },
+                    ...routes.map((route: Route) => ({
+                      value: route.id,
+                      label: route.name
+                    }))
                   ]}
                   value={selectedRoute || null}
-                  placeholder="Select a route"
+                  onChange={(val) => setSelectedRoute(val as string || '')}
+                  placeholder="Search routes..."
                 />
               </div>
               <div>

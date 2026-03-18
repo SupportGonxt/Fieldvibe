@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, TrendingUp, AlertTriangle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function CountLineDetail() {
   const { countId, lineId } = useParams<{ countId: string; lineId: string }>()
@@ -11,7 +12,7 @@ export default function CountLineDetail() {
   const { data: count } = useQuery({
     queryKey: ['stock-count', countId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-counts/${countId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/stock-counts/${countId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -25,7 +26,7 @@ export default function CountLineDetail() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['count-line', countId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-counts/${countId}/lines/${lineId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/stock-counts/${countId}/lines/${lineId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

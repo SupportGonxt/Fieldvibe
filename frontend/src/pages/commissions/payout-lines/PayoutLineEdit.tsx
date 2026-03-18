@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface PayoutLineFormData {
   payment_method: string
@@ -20,7 +21,7 @@ export default function PayoutLineEdit() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/payouts/${payoutId}/lines/${lineId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

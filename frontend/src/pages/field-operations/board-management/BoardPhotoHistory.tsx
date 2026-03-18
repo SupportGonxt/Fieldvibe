@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, Calendar, MapPin } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BoardPhotoHistory() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -9,7 +10,7 @@ export default function BoardPhotoHistory() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function BoardPhotoHistory() {
   const { data: photos, isLoading, isError } = useQuery({
     queryKey: ['board-photo-history', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}/photos`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}/photos`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

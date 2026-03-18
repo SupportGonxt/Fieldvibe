@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function RuleConditionDetail() {
   const { ruleId, conditionId } = useParams<{ ruleId: string; conditionId: string }>()
@@ -11,7 +12,7 @@ export default function RuleConditionDetail() {
   const { data: condition, isLoading, isError } = useQuery({
     queryKey: ['commission-rule-condition', ruleId, conditionId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/rules/${ruleId}/conditions/${conditionId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/rules/${ruleId}/conditions/${conditionId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, Package, Calendar, Image } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function BoardPlacementDetail() {
   const { visitId, placementId } = useParams<{ visitId: string; placementId: string }>()
@@ -11,7 +12,7 @@ export default function BoardPlacementDetail() {
   const { data: placement, isLoading, isError } = useQuery({
     queryKey: ['board-placement', visitId, placementId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/board-placements/${placementId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/board-placements/${placementId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

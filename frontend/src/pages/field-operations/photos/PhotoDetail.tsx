@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, MapPin, Calendar, User } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function PhotoDetail() {
   const { visitId, photoId } = useParams<{ visitId: string; photoId: string }>()
@@ -11,7 +12,7 @@ export default function PhotoDetail() {
   const { data: photo, isLoading, isError } = useQuery({
     queryKey: ['photo', visitId, photoId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/photos/${photoId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/photos/${photoId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

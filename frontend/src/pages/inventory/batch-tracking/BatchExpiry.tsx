@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, AlertTriangle, Calendar, Package } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function BatchExpiry() {
   const { batchId } = useParams<{ batchId: string }>()
@@ -11,7 +12,7 @@ export default function BatchExpiry() {
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -25,7 +26,7 @@ export default function BatchExpiry() {
   const { data: expiryInfo, isLoading, isError } = useQuery({
     queryKey: ['batch-expiry', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}/expiry`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}/expiry`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

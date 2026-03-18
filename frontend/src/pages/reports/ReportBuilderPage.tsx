@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart3, Download, Calendar, Filter } from 'lucide-react';
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 const ReportBuilderPage: React.FC = () => {
   const [config, setConfig] = useState({ type: 'sales', dateFrom: '', dateTo: '', groupBy: 'day', filters: {} });
@@ -10,7 +11,7 @@ const ReportBuilderPage: React.FC = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/reports/generate', {
+      const res = await fetch(`${apiClient.defaults.baseURL}}/reports/generate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -22,7 +23,7 @@ const ReportBuilderPage: React.FC = () => {
 
   const exportReport = async (format: string) => {
     try {
-      const res = await fetch(`/api/reports/export?format=${format}`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/reports/export?format=${format}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...config, data })

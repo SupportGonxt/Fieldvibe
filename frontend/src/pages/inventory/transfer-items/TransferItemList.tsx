@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, AlertTriangle } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function TransferItemList() {
   const { transferId } = useParams<{ transferId: string }>()
@@ -9,7 +10,7 @@ export default function TransferItemList() {
   const { data: transfer } = useQuery({
     queryKey: ['transfer', transferId],
     queryFn: async () => {
-      const response = await fetch(`/api/transfers/${transferId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/transfers/${transferId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
@@ -23,7 +24,7 @@ export default function TransferItemList() {
   const { data: items, isLoading, isError } = useQuery({
     queryKey: ['transfer-items', transferId],
     queryFn: async () => {
-      const response = await fetch(`/api/transfers/${transferId}/items`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/transfers/${transferId}/items`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

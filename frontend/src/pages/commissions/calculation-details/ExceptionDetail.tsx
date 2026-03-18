@@ -4,6 +4,7 @@ import { ArrowLeft, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function ExceptionDetail() {
   const { calculationId, exceptionId } = useParams<{ calculationId: string; exceptionId: string }>()
@@ -12,7 +13,7 @@ export default function ExceptionDetail() {
   const { data: exception, isLoading, isError } = useQuery({
     queryKey: ['commission-exception', calculationId, exceptionId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/calculations/${calculationId}/exceptions/${exceptionId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/calculations/${calculationId}/exceptions/${exceptionId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

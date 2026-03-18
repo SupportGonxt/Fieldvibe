@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface VarianceFormData {
   resolution_action: string
@@ -21,7 +22,7 @@ export default function CashVariance() {
   const { data: session, isLoading, isError } = useQuery({
     queryKey: ['cash-session', sessionId],
     queryFn: async () => {
-      const response = await fetch(`/api/cash-sessions/${sessionId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/cash-sessions/${sessionId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },
