@@ -8656,10 +8656,14 @@ async function checkStaleVanLoads(db) {
 
 async function closeCommissionPeriod(db) {
   try {
+    // TI-03: Scope by tenant to prevent cross-tenant updates
     const lastMonth = new Date();
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const periodName = lastMonth.toISOString().slice(0, 7);
-    await db.prepare("UPDATE commission_earnings SET status = 'closed' WHERE status = 'approved' AND period = ?").bind(periodName).run();
+    const tenants = await db.prepare("SELECT DISTINCT tenant_id FROM commission_earnings WHERE status = 'approved' AND period = ?").bind(periodName).all();
+    for (const t of (tenants.results || [])) {
+      await db.prepare("UPDATE commission_earnings SET status = 'closed' WHERE tenant_id = ? AND status = 'approved' AND period = ?").bind(t.tenant_id, periodName).run();
+    }
   } catch (e) { console.error('closeCommissionPeriod error:', e); }
 }
 

@@ -19,8 +19,11 @@ export default function MobileBottomTabs() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const userStr = localStorage.getItem('fieldvibe_user')
-  const userRole = userStr ? (JSON.parse(userStr).role || 'admin') : 'admin'
+  let userRole = 'admin'
+  try {
+    const userStr = localStorage.getItem('fieldvibe_user')
+    if (userStr) userRole = JSON.parse(userStr).role || 'admin'
+  } catch { /* malformed localStorage - default to admin */ }
 
   // Filter tabs by role - show max 5 tabs on mobile
   const visibleTabs = allTabs
