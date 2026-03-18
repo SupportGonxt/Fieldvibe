@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Search, Key, UserCheck, UserX, Mail, Phone, Shield } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface User {
@@ -323,26 +324,18 @@ export default function UserManagementPage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Roles</option>
-            {ROLES.map(role => (
-              <option key={role.value} value={role.value}>{role.label}</option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Statuses</option>
-            {STATUSES.map(status => (
-              <option key={status.value} value={status.value}>{status.label}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={[{ value: '', label: 'All Roles' }, ...ROLES.map(r => ({ value: r.value, label: r.label }))]}
+            value={roleFilter || null}
+            onChange={(val) => setRoleFilter(val || '')}
+            placeholder="Filter by role..."
+          />
+          <SearchableSelect
+            options={[{ value: '', label: 'All Statuses' }, ...STATUSES.map(s => ({ value: s.value, label: s.label }))]}
+            value={statusFilter || null}
+            onChange={(val) => setStatusFilter(val || '')}
+            placeholder="Filter by status..."
+          />
         </div>
       </div>
 
@@ -530,16 +523,13 @@ export default function UserManagementPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Role <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    required
+                  <SearchableSelect
+                    options={ROLES.map(r => ({ value: r.value, label: r.label }))}
                     value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {ROLES.map(role => (
-                      <option key={role.value} value={role.value}>{role.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormData({ ...formData, role: val || 'salesman' })}
+                    placeholder="Select role..."
+                    required
+                  />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
@@ -622,29 +612,23 @@ export default function UserManagementPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Role
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={ROLES.map(r => ({ value: r.value, label: r.label }))}
                     value={editFormData.role}
-                    onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {ROLES.map(role => (
-                      <option key={role.value} value={role.value}>{role.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditFormData({ ...editFormData, role: val || '' })}
+                    placeholder="Select role..."
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={STATUSES.map(s => ({ value: s.value, label: s.label }))}
                     value={editFormData.status}
-                    onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {STATUSES.map(status => (
-                      <option key={status.value} value={status.value}>{status.label}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditFormData({ ...editFormData, status: val || '' })}
+                    placeholder="Select status..."
+                  />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
