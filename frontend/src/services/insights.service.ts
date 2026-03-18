@@ -68,7 +68,7 @@ export const tradePromotionsService = {
     return res.data?.data || res.data
   },
   getROI: async (id: string) => {
-    const res = await apiClient.get(`/api/trade-promotions/${id}/roi`)
+    const res = await apiClient.get(`/trade-promotions/${id}/roi`)
     return res.data?.data || res.data
   },
 }
@@ -116,7 +116,7 @@ export const webhookService = {
     return res.data
   },
   deleteWebhook: async (id: string) => {
-    const res = await apiClient.delete(`/api/webhooks/${id}`)
+    const res = await apiClient.delete(`/webhooks/${id}`)
     return res.data
   },
 }
@@ -131,7 +131,7 @@ export const apiKeyService = {
     return res.data
   },
   deleteApiKey: async (id: string) => {
-    const res = await apiClient.delete(`/api/api-keys/${id}`)
+    const res = await apiClient.delete(`/api-keys/${id}`)
     return res.data
   },
 }
@@ -206,11 +206,11 @@ export const tradeMarketingService = {
     return res.data?.data || res.data
   },
   getPhoto: async (id: string) => {
-    const res = await apiClient.get(`/api/visit-photos/${id}`)
+    const res = await apiClient.get(`/visit-photos/${id}`)
     return res.data?.data || res.data
   },
   reanalyzePhoto: async (id: string) => {
-    const res = await apiClient.post(`/api/visit-photos/${id}/reanalyze`)
+    const res = await apiClient.post(`/visit-photos/${id}/reanalyze`)
     return res.data
   },
   // Share of Voice
@@ -228,32 +228,32 @@ export const tradeMarketingService = {
     return res.data
   },
   getSurveyTemplate: async (id: string) => {
-    const res = await apiClient.get(`/api/survey-templates/${id}`)
+    const res = await apiClient.get(`/survey-templates/${id}`)
     return res.data?.data || res.data
   },
   updateSurveyTemplate: async (id: string, data: any) => {
-    const res = await apiClient.put(`/api/survey-templates/${id}`, data)
+    const res = await apiClient.put(`/survey-templates/${id}`, data)
     return res.data
   },
   // Activations
   startActivation: async (id: string, data: any) => {
-    const res = await apiClient.post(`/api/activations/${id}/start`, data)
+    const res = await apiClient.post(`/activations/${id}/start`, data)
     return res.data?.data || res.data
   },
   completeTask: async (activationId: string, taskId: string, data: any) => {
-    const res = await apiClient.post(`/api/activations/${activationId}/tasks/${taskId}/complete`, data)
+    const res = await apiClient.post(`/activations/${activationId}/tasks/${taskId}/complete`, data)
     return res.data
   },
   submitActivation: async (id: string) => {
-    const res = await apiClient.post(`/api/activations/${id}/submit`)
+    const res = await apiClient.post(`/activations/${id}/submit`)
     return res.data
   },
   getActivationSummary: async (id: string) => {
-    const res = await apiClient.get(`/api/activations/${id}/summary`)
+    const res = await apiClient.get(`/activations/${id}/summary`)
     return res.data?.data || res.data
   },
   approveActivation: async (id: string) => {
-    const res = await apiClient.post(`/api/activations/${id}/approve`)
+    const res = await apiClient.post(`/activations/${id}/approve`)
     return res.data
   },
   // POSM
@@ -305,7 +305,7 @@ export const tradeMarketingService = {
   },
   // Enhanced Checkout
   enhancedCheckout: async (visitId: string, data: any) => {
-    const res = await apiClient.post(`/api/visits/${visitId}/checkout-enhanced`, data)
+    const res = await apiClient.post(`/visits/${visitId}/checkout-enhanced`, data)
     return res.data
   },
 }

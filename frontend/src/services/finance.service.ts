@@ -258,7 +258,7 @@ class FinanceService {
 
   async getInvoiceItemsList(invoiceId: string): Promise<any[]> {
     try {
-      const response = await apiClient.get(`/api/finance/invoices/${invoiceId}/items`)
+      const response = await apiClient.get(`/finance/invoices/${invoiceId}/items`)
       const items = response.data.data?.items || []
       return items.map((item: any) => this.normalizeInvoiceItem(item))
     } catch (error) {
@@ -269,7 +269,7 @@ class FinanceService {
 
   async getInvoiceItem(invoiceId: string, itemId: string): Promise<any | null> {
     try {
-      const response = await apiClient.get(`/api/finance/invoices/${invoiceId}/items/${itemId}`)
+      const response = await apiClient.get(`/finance/invoices/${invoiceId}/items/${itemId}`)
       const item = response.data.data?.item || null
       return this.normalizeInvoiceItem(item)
     } catch (error) {
@@ -280,7 +280,7 @@ class FinanceService {
 
   async updateInvoiceItem(invoiceId: string, itemId: string, updates: any): Promise<any> {
     try {
-      const response = await apiClient.put(`/api/finance/invoices/${invoiceId}/items/${itemId}`, updates)
+      const response = await apiClient.put(`/finance/invoices/${invoiceId}/items/${itemId}`, updates)
       const item = response.data.data?.item || response.data.data
       return this.normalizeInvoiceItem(item)
     } catch (error) {
@@ -291,7 +291,7 @@ class FinanceService {
 
   async getPaymentAllocationsList(paymentId: string): Promise<any[]> {
     try {
-      const response = await apiClient.get(`/api/payments/${paymentId}/allocations`)
+      const response = await apiClient.get(`/payments/${paymentId}/allocations`)
       return response.data.data?.allocations || []
     } catch (error) {
       console.error('Failed to fetch payment allocations list:', error)
@@ -301,7 +301,7 @@ class FinanceService {
 
   async getPaymentAllocation(paymentId: string, allocationId: string): Promise<any | null> {
     try {
-      const response = await apiClient.get(`/api/payments/${paymentId}/allocations/${allocationId}`)
+      const response = await apiClient.get(`/payments/${paymentId}/allocations/${allocationId}`)
       return response.data.data?.allocation || null
     } catch (error) {
       console.error('Failed to fetch payment allocation:', error)
@@ -311,7 +311,7 @@ class FinanceService {
 
   async updatePaymentAllocation(paymentId: string, allocationId: string, updates: any): Promise<any> {
     try {
-      const response = await apiClient.put(`/api/payments/${paymentId}/allocations/${allocationId}`, updates)
+      const response = await apiClient.put(`/payments/${paymentId}/allocations/${allocationId}`, updates)
       return response.data.data?.allocation || response.data.data
     } catch (error) {
       console.error('Failed to update payment allocation:', error)
