@@ -14,7 +14,7 @@ const POSLibraryPage: React.FC = () => {
 
   const loadMaterials = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/pos-library`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/pos-library`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setMaterials((await res.json()).materials || []);
     } catch (err) { console.error(err); }
   };

@@ -14,7 +14,7 @@ const CampaignManagementPage: React.FC = () => {
 
   const loadCampaigns = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/campaigns`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/campaigns`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setCampaigns((await res.json()).campaigns || []);
     } catch (err) { console.error(err); }
   };

@@ -36,7 +36,7 @@ export default function VisitConfigurationPage() {
   const { data: configurations, isLoading, isError } = useQuery({
     queryKey: ['visit-configurations'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}}/visit-configurations`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/visit-configurations`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -50,7 +50,7 @@ export default function VisitConfigurationPage() {
   const { data: brands } = useQuery({
     queryKey: ['brands'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}}/brands`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/brands`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -64,7 +64,7 @@ export default function VisitConfigurationPage() {
   const { data: surveys } = useQuery({
     queryKey: ['surveys'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}}/surveys`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/surveys`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
@@ -78,7 +78,7 @@ export default function VisitConfigurationPage() {
   const { data: boards } = useQuery({
     queryKey: ['boards'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}}/boards`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/boards`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'

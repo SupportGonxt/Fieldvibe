@@ -149,7 +149,7 @@ export default function EventsPage() {
   const fetchMetrics = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${apiClient.defaults.baseURL}}/events/analytics/summary`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/events/analytics/summary`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

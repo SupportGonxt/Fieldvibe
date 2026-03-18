@@ -13,14 +13,14 @@ const CommissionRuleBuilderPage: React.FC = () => {
 
   const loadRules = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/commission-rules`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/commission-rules`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setRules((await res.json()).rules || []);
     } catch (err) { console.error(err); }
   };
 
   const saveRule = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/commission-rules`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/commission-rules`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(form)

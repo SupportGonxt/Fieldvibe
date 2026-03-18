@@ -14,7 +14,7 @@ const BoardManagementPage: React.FC = () => {
 
   const loadBoards = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/boards`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/boards`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setBoards((await res.json()).boards || []);
     } catch (err) { console.error(err); }
   };

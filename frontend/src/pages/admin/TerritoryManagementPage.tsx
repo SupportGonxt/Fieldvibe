@@ -13,7 +13,7 @@ const TerritoryManagementPage: React.FC = () => {
 
   const loadTerritories = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/admin/territories`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${apiClient.defaults.baseURL}/admin/territories`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setTerritories((await res.json()).territories || []);
     } catch (err) { console.error(err); }
   };

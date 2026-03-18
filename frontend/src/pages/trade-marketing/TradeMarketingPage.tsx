@@ -89,7 +89,7 @@ export default function TradeMarketingPage() {
       const tenantCode = localStorage.getItem('tenantCode') || 'DEMO'
       
       // Fetch metrics
-      const metricsResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/metrics`, {
+      const metricsResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/metrics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode
@@ -101,7 +101,7 @@ export default function TradeMarketingPage() {
       }
 
       // Fetch promotions
-      const promotionsResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/promotions`, {
+      const promotionsResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/promotions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode
@@ -113,7 +113,7 @@ export default function TradeMarketingPage() {
       }
 
       // Fetch channel partners
-      const partnersResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/channel-partners`, {
+      const partnersResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/channel-partners`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode
@@ -125,7 +125,7 @@ export default function TradeMarketingPage() {
       }
 
       // Fetch competitor analysis
-      const competitorResponse = await fetch(`${apiClient.defaults.baseURL}}/trade-marketing/competitor-analysis`, {
+      const competitorResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/competitor-analysis`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-Code': tenantCode

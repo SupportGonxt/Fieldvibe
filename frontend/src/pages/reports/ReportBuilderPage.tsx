@@ -11,7 +11,7 @@ const ReportBuilderPage: React.FC = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}}/reports/generate`, {
+      const res = await fetch(`${apiClient.defaults.baseURL}/reports/generate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
