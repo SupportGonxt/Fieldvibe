@@ -13,7 +13,7 @@ export default function MegaMenu() {
   const closeTimerRef = useRef<number | null>(null)
 
   const isNavItemVisible = (item: NavigationItem) => {
-    if (item.requiresRole && user?.role !== item.requiresRole) {
+    if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') {
       return false
     }
     if (!item.permission) return true

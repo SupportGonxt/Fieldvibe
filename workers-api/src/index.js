@@ -178,12 +178,21 @@ const authMiddleware = async (c, next) => {
 const requireRole = (...roles) => {
   return async (c, next) => {
     const role = c.get('role');
-    if (role === 'admin' || roles.includes(role)) {
+    if (role === 'super_admin' || role === 'admin' || roles.includes(role)) {
       await next();
     } else {
       return c.json({ success: false, message: 'Insufficient permissions' }, 403);
     }
   };
+};
+
+const requireSuperAdmin = async (c, next) => {
+  const role = c.get('role');
+  if (role === 'super_admin') {
+    await next();
+  } else {
+    return c.json({ success: false, message: 'Super admin access required' }, 403);
+  }
 };
 
 // ==================== AUTH ROUTES (with rate limiting + validation) ====================
@@ -6759,27 +6768,121 @@ api.get('/process/audit', requireRole('admin'), async (c) => {
 
 // ==================== Q. SUPER ADMIN PLATFORM MANAGEMENT ====================
 
-// Q.1 Tenant Management (super admin only)
-api.get('/platform/tenants', requireRole('admin'), async (c) => {
+// Q.1 Tenant Management — List all tenants (super_admin sees all, admin sees own)
+api.get('/tenants', requireRole('admin'), async (c) => {
   const db = c.env.DB;
-  const tenants = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count, (SELECT COUNT(*) FROM customers WHERE tenant_id = t.id) as customer_count, (SELECT COUNT(*) FROM sales_orders WHERE tenant_id = t.id) as order_count FROM tenants t ORDER BY t.created_at DESC").all();
+  const role = c.get('role');
+  const tenantId = c.get('tenantId');
+  let tenants;
+  if (role === 'super_admin') {
+    tenants = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count, (SELECT COUNT(*) FROM customers WHERE tenant_id = t.id) as customer_count, (SELECT COUNT(*) FROM sales_orders WHERE tenant_id = t.id) as order_count FROM tenants t ORDER BY t.created_at DESC").all();
+  } else {
+    tenants = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count, (SELECT COUNT(*) FROM customers WHERE tenant_id = t.id) as customer_count, (SELECT COUNT(*) FROM sales_orders WHERE tenant_id = t.id) as order_count FROM tenants t WHERE t.id = ? ORDER BY t.created_at DESC").bind(tenantId).all();
+  }
   return c.json({ success: true, data: tenants.results || [] });
 });
 
-api.post('/platform/tenants', requireRole('admin'), async (c) => {
+// Alias: platform/tenants -> tenants
+api.get('/platform/tenants', requireRole('admin'), async (c) => {
   const db = c.env.DB;
-  const body = await c.req.json();
-  const id = uuidv4();
-  await db.prepare('INSERT INTO tenants (id, name, slug, domain, settings) VALUES (?, ?, ?, ?, ?)').bind(id, body.name, body.slug || body.name.toLowerCase().replace(/\s+/g, '-'), body.domain || null, body.settings ? JSON.stringify(body.settings) : null).run();
-  return c.json({ success: true, data: { id }, message: 'Tenant created' }, 201);
+  const role = c.get('role');
+  const tenantId = c.get('tenantId');
+  let tenants;
+  if (role === 'super_admin') {
+    tenants = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count, (SELECT COUNT(*) FROM customers WHERE tenant_id = t.id) as customer_count, (SELECT COUNT(*) FROM sales_orders WHERE tenant_id = t.id) as order_count FROM tenants t ORDER BY t.created_at DESC").all();
+  } else {
+    tenants = await db.prepare("SELECT t.*, (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count, (SELECT COUNT(*) FROM customers WHERE tenant_id = t.id) as customer_count, (SELECT COUNT(*) FROM sales_orders WHERE tenant_id = t.id) as order_count FROM tenants t WHERE t.id = ? ORDER BY t.created_at DESC").bind(tenantId).all();
+  }
+  return c.json({ success: true, data: tenants.results || [] });
 });
 
-api.put('/platform/tenants/:id', requireRole('admin'), async (c) => {
+// Q.1b Create tenant with admin user (super_admin only)
+api.post('/tenants', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const body = await c.req.json();
+  const tenantId = uuidv4();
+  const code = body.code || body.name.toUpperCase().replace(/\s+/g, '_').substring(0, 20);
+  
+  const batch = [
+    db.prepare('INSERT INTO tenants (id, name, code, domain, status, subscription_plan, max_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))').bind(tenantId, body.name, code, body.domain || null, 'active', body.subscriptionPlan || 'basic', body.maxUsers || 10)
+  ];
+  
+  // Create admin user for the new tenant if adminUser data provided
+  if (body.adminUser && body.adminUser.email && body.adminUser.password) {
+    const adminUserId = uuidv4();
+    const hashedPassword = await bcrypt.hash(body.adminUser.password, 10);
+    batch.push(
+      db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, status, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime("now"))').bind(adminUserId, tenantId, body.adminUser.email, body.adminUser.phone || null, hashedPassword, body.adminUser.firstName || 'Admin', body.adminUser.lastName || 'User', 'admin', 'active')
+    );
+    batch.push(
+      db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, details) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, adminUserId, 'CREATE', 'tenant', tenantId, JSON.stringify({ name: body.name, code, adminEmail: body.adminUser.email }))
+    );
+  }
+  
+  await db.batch(batch);
+  return c.json({ success: true, data: { id: tenantId, code }, message: 'Tenant created successfully' }, 201);
+});
+
+api.post('/platform/tenants', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const body = await c.req.json();
+  const tenantId = uuidv4();
+  const code = body.code || body.name.toUpperCase().replace(/\s+/g, '_').substring(0, 20);
+  await db.prepare('INSERT INTO tenants (id, name, code, domain, status, subscription_plan, max_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime("now"))').bind(tenantId, body.name, code, body.domain || null, 'active', body.subscriptionPlan || 'basic', body.maxUsers || 10).run();
+  return c.json({ success: true, data: { id: tenantId }, message: 'Tenant created' }, 201);
+});
+
+// Q.1c Update tenant (super_admin only)
+api.put('/tenants/:id', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE tenants SET name = COALESCE(?, name), domain = COALESCE(?, domain), settings = COALESCE(?, settings), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ?').bind(body.name || null, body.domain || null, body.settings ? JSON.stringify(body.settings) : null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id).run();
+  await db.prepare('UPDATE tenants SET name = COALESCE(?, name), domain = COALESCE(?, domain), subscription_plan = COALESCE(?, subscription_plan), max_users = COALESCE(?, max_users), updated_at = datetime("now") WHERE id = ?').bind(body.name || null, body.domain || null, body.subscriptionPlan || null, body.maxUsers || null, id).run();
   return c.json({ success: true, message: 'Tenant updated' });
+});
+
+api.put('/platform/tenants/:id', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  await db.prepare('UPDATE tenants SET name = COALESCE(?, name), domain = COALESCE(?, domain), subscription_plan = COALESCE(?, subscription_plan), max_users = COALESCE(?, max_users), updated_at = datetime("now") WHERE id = ?').bind(body.name || null, body.domain || null, body.subscriptionPlan || null, body.maxUsers || null, id).run();
+  return c.json({ success: true, message: 'Tenant updated' });
+});
+
+// Q.1d Delete tenant (super_admin only)
+api.delete('/tenants/:id', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  // Don't allow deleting the super admin tenant
+  const tenant = await db.prepare('SELECT code FROM tenants WHERE id = ?').bind(id).first();
+  if (tenant && (tenant.code === 'SUPERADMIN' || tenant.code === 'DEMO')) {
+    return c.json({ success: false, message: 'Cannot delete system tenants' }, 400);
+  }
+  await db.prepare("UPDATE tenants SET status = 'deleted', updated_at = datetime('now') WHERE id = ?").bind(id).run();
+  return c.json({ success: true, message: 'Tenant deleted' });
+});
+
+// Q.1e Activate/suspend tenant (super_admin only)
+api.post('/tenants/:id/activate', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  await db.prepare("UPDATE tenants SET status = 'active', updated_at = datetime('now') WHERE id = ?").bind(id).run();
+  return c.json({ success: true, message: 'Tenant activated' });
+});
+
+api.post('/tenants/:id/suspend', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  await db.prepare("UPDATE tenants SET status = 'suspended', updated_at = datetime('now') WHERE id = ?").bind(id).run();
+  return c.json({ success: true, message: 'Tenant suspended' });
+});
+
+// Q.1f Get tenant users (super_admin can see any tenant's users)
+api.get('/tenants/:id/users', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  const users = await db.prepare("SELECT id, email, first_name, last_name, phone, role, status, is_active, last_login, created_at FROM users WHERE tenant_id = ? ORDER BY created_at DESC").bind(id).all();
+  return c.json({ success: true, data: users.results || [] });
 });
 
 // Q.2 Platform Settings

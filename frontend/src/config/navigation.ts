@@ -9,6 +9,7 @@ import {
   Megaphone,
   DollarSign,
   Settings,
+  ShieldCheck,
   LucideIcon
 } from 'lucide-react'
 
@@ -204,6 +205,18 @@ export const navigation: NavigationItem[] = [
       { name: 'Settings', href: '/admin/settings', permission: null, description: 'System settings' },
       { name: 'Audit Log', href: '/admin/audit', permission: null, description: 'Activity audit trail' },
       { name: 'Import/Export', href: '/admin/data-import-export', permission: null, description: 'Data import & export' },
+    ],
+  },
+  {
+    name: 'Super Admin',
+    href: '/superadmin',
+    icon: ShieldCheck,
+    permission: null,
+    requiresRole: 'super_admin',
+    section: 'Platform',
+    category: 'System',
+    children: [
+      { name: 'Tenant Management', href: '/superadmin/tenants', permission: null, description: 'Manage tenants & companies' },
     ],
   },
 ]
