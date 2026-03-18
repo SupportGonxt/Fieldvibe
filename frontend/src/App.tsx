@@ -190,6 +190,7 @@ const LotDetail = lazy(() => import('./pages/inventory/batch-tracking/LotDetail'
 const LotTracking = lazy(() => import('./pages/inventory/batch-tracking/LotTracking'))
 const MerchandisingCompliancePage = lazy(() => import('./pages/trade-marketing/MerchandisingCompliancePage'))
 const MobileLoginPage = lazy(() => import('./pages/auth/MobileLoginPage'))
+const MoreMenuPage = lazy(() => import('./pages/mobile/MoreMenuPage'))
 const MovementDetail = lazy(() => import('./pages/inventory/stock-ledger/MovementDetail'))
 const OrderCreatePage = lazy(() => import('./pages/orders/OrderCreatePage'))
 const OrderDashboard = lazy(() => import('./pages/orders/OrderDashboard'))
@@ -970,6 +971,9 @@ function App() {
             <Route path="inventory/stock-counts/:countId/variance" element={<PageLoader><VarianceResolution /></PageLoader>} />
             <Route path="field-operations/visit-workflow" element={<PageLoader><VisitWorkflowPage /></PageLoader>} />
             <Route path="field-operations/visits/list" element={<PageLoader><VisitsList /></PageLoader>} />
+
+            {/* Mobile More Menu */}
+            <Route path="more" element={<PageLoader><MoreMenuPage /></PageLoader>} />
 
             {/* Default redirect */}
             <Route index element={<Navigate to="dashboard" replace />} />
