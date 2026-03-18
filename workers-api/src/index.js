@@ -8259,6 +8259,257 @@ app.post('/api/field-ops/company-auth/login', async (c) => {
   }
 });
 
+// ==================== v2 T-10: EVENTS CRUD ====================
+api.get('/events', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { status, event_type, search } = c.req.query();
+    let sql = 'SELECT * FROM events WHERE tenant_id = ?';
+    const binds = [tenantId];
+    if (status) { sql += ' AND status = ?'; binds.push(status); }
+    if (event_type) { sql += ' AND event_type = ?'; binds.push(event_type); }
+    if (search) { sql += ' AND (name LIKE ? OR description LIKE ?)'; binds.push(`%${search}%`, `%${search}%`); }
+    sql += ' ORDER BY start_date DESC LIMIT 100';
+    const result = await db.prepare(sql).bind(...binds).all();
+    return c.json({ success: true, data: result.results || [] });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.get('/events/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const event = await db.prepare('SELECT * FROM events WHERE id = ? AND tenant_id = ?').bind(c.req.param('id'), tenantId).first();
+    if (!event) return c.json({ success: false, message: 'Event not found' }, 404);
+    return c.json({ success: true, data: event });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.post('/events', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO events (id, tenant_id, name, event_type, description, location, start_date, end_date, status, budget, organizer_id, max_attendees, tags, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(
+      id, tenantId, body.name, body.event_type || 'general', body.description || null, body.location || null,
+      body.start_date || null, body.end_date || null, body.status || 'planned', body.budget || 0,
+      body.organizer_id || userId, body.max_attendees || null, JSON.stringify(body.tags || []), body.notes || null, userId
+    ).run();
+    return c.json({ success: true, data: { id, ...body } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.put('/events/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = c.req.param('id');
+    await db.prepare('UPDATE events SET name=?, event_type=?, description=?, location=?, start_date=?, end_date=?, status=?, budget=?, max_attendees=?, tags=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?').bind(
+      body.name, body.event_type, body.description || null, body.location || null,
+      body.start_date || null, body.end_date || null, body.status, body.budget || 0,
+      body.max_attendees || null, JSON.stringify(body.tags || []), body.notes || null, id, tenantId
+    ).run();
+    return c.json({ success: true, data: { id, ...body } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.delete('/events/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    await db.prepare('DELETE FROM events WHERE id = ? AND tenant_id = ?').bind(c.req.param('id'), tenantId).run();
+    return c.json({ success: true, message: 'Event deleted' });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ==================== v2 T-19: RBAC ROLES CRUD ====================
+api.get('/rbac/roles', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const roles = await db.prepare('SELECT * FROM roles WHERE tenant_id = ? OR tenant_id IS NULL ORDER BY name').bind(tenantId).all();
+    const rolesWithPermissions = [];
+    for (const role of (roles.results || [])) {
+      const perms = await db.prepare('SELECT p.* FROM permissions p JOIN role_permissions rp ON p.id = rp.permission_id WHERE rp.role_id = ?').bind(role.id).all();
+      rolesWithPermissions.push({ ...role, permissions: perms.results || [] });
+    }
+    return c.json({ success: true, data: rolesWithPermissions });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.post('/rbac/roles', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO roles (id, tenant_id, name, description, created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)').bind(id, tenantId, body.name, body.description || null).run();
+    if (body.permission_ids && body.permission_ids.length > 0) {
+      for (const pid of body.permission_ids) {
+        await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, pid).run();
+      }
+    }
+    return c.json({ success: true, data: { id, name: body.name } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.put('/rbac/roles/:id', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = c.req.param('id');
+    await db.prepare('UPDATE roles SET name=?, description=? WHERE id=? AND (tenant_id=? OR tenant_id IS NULL)').bind(body.name, body.description || null, id, tenantId).run();
+    if (body.permission_ids) {
+      await db.prepare('DELETE FROM role_permissions WHERE role_id = ?').bind(id).run();
+      for (const pid of body.permission_ids) {
+        await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, pid).run();
+      }
+    }
+    return c.json({ success: true, data: { id, ...body } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.delete('/rbac/roles/:id', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    await db.prepare('DELETE FROM role_permissions WHERE role_id = ?').bind(c.req.param('id')).run();
+    await db.prepare('DELETE FROM roles WHERE id = ? AND tenant_id = ?').bind(c.req.param('id'), tenantId).run();
+    return c.json({ success: true, message: 'Role deleted' });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ==================== v2: MARKETING ALIAS ROUTES ====================
+api.get('/marketing/campaigns', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const result = await db.prepare('SELECT * FROM campaigns WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(tenantId).all();
+    return c.json({ success: true, data: result.results || [] });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.get('/marketing/campaigns/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const item = await db.prepare('SELECT * FROM campaigns WHERE id = ? AND tenant_id = ?').bind(c.req.param('id'), tenantId).first();
+    return c.json({ success: true, data: item || null });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.post('/marketing/campaigns', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO campaigns (id, tenant_id, name, description, campaign_type, status, start_date, end_date, budget, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)').bind(
+      id, tenantId, body.name, body.description || null, body.campaign_type || 'general', body.status || 'draft',
+      body.start_date || null, body.end_date || null, body.budget || 0, c.get('userId')
+    ).run();
+    return c.json({ success: true, data: { id, ...body } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.put('/marketing/campaigns/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    await db.prepare('UPDATE campaigns SET name=?, description=?, campaign_type=?, status=?, start_date=?, end_date=?, budget=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?').bind(
+      body.name, body.description || null, body.campaign_type, body.status, body.start_date || null, body.end_date || null, body.budget || 0, c.req.param('id'), tenantId
+    ).run();
+    return c.json({ success: true, data: { id: c.req.param('id'), ...body } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.get('/marketing/events', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const result = await db.prepare('SELECT * FROM events WHERE tenant_id = ? ORDER BY start_date DESC LIMIT 100').bind(tenantId).all();
+    return c.json({ success: true, data: result.results || [] });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.get('/marketing/events/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const item = await db.prepare('SELECT * FROM events WHERE id = ? AND tenant_id = ?').bind(c.req.param('id'), tenantId).first();
+    return c.json({ success: true, data: item || null });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.post('/marketing/events', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO events (id, tenant_id, name, event_type, description, location, start_date, end_date, status, budget, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(
+      id, tenantId, body.name, body.event_type || 'general', body.description || null, body.location || null,
+      body.start_date || null, body.end_date || null, body.status || 'planned', body.budget || 0, c.get('userId')
+    ).run();
+    return c.json({ success: true, data: { id, ...body } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.put('/marketing/events/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    await db.prepare('UPDATE events SET name=?, event_type=?, description=?, location=?, start_date=?, end_date=?, status=?, budget=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND tenant_id=?').bind(
+      body.name, body.event_type, body.description || null, body.location || null,
+      body.start_date || null, body.end_date || null, body.status, body.budget || 0, c.req.param('id'), tenantId
+    ).run();
+    return c.json({ success: true, data: { id: c.req.param('id'), ...body } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.get('/marketing/promotions', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const result = await db.prepare('SELECT * FROM trade_promotions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(tenantId).all();
+    return c.json({ success: true, data: result.results || [] });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.post('/marketing/promotions', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO trade_promotions (id, tenant_id, name, promotion_type, description, start_date, end_date, budget, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)').bind(
+      id, tenantId, body.name, body.promotion_type || 'discount', body.description || null, body.start_date || null, body.end_date || null, body.budget || 0, body.status || 'draft'
+    ).run();
+    return c.json({ success: true, data: { id, ...body } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.get('/marketing/activations', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const result = await db.prepare('SELECT * FROM activations WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(tenantId).all();
+    return c.json({ success: true, data: result.results || [] });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.post('/marketing/activations', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO activations (id, tenant_id, name, activation_type, description, status, start_date, end_date, budget, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)').bind(
+      id, tenantId, body.name, body.activation_type || 'general', body.description || null, body.status || 'planned', body.start_date || null, body.end_date || null, body.budget || 0
+    ).run();
+    return c.json({ success: true, data: { id, ...body } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
 

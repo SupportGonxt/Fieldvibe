@@ -1641,3 +1641,29 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   window_start INTEGER NOT NULL,
   PRIMARY KEY (key, window_start)
 );
+
+-- ==================== v2 T-10: EVENTS ====================
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  event_type TEXT DEFAULT 'general',
+  description TEXT,
+  location TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  status TEXT DEFAULT 'planned',
+  budget REAL DEFAULT 0,
+  actual_cost REAL DEFAULT 0,
+  organizer_id TEXT,
+  max_attendees INTEGER,
+  attendee_count INTEGER DEFAULT 0,
+  tags TEXT DEFAULT '[]',
+  notes TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_events_dates ON events(start_date, end_date);
