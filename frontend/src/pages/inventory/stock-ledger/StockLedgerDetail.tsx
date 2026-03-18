@@ -12,13 +12,8 @@ export default function StockLedgerDetail() {
   const { data: product } = useQuery({
     queryKey: ['product', productId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/products/${productId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/products/${productId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -26,13 +21,8 @@ export default function StockLedgerDetail() {
   const { data: entry, isLoading, isError } = useQuery({
     queryKey: ['stock-ledger-entry', productId, entryId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/stock-ledger/${entryId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/stock-ledger/${entryId}`)
+      const result = response.data
       return result.data
     },
   })

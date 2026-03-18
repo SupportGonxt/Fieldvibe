@@ -12,13 +12,8 @@ export default function LotDetail() {
   const { data: lot, isLoading, isError } = useQuery({
     queryKey: ['lot', lotId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/lots/${lotId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/lots/${lotId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -66,14 +61,8 @@ export default function LotDetail() {
   const { data: batches } = useQuery({
     queryKey: ['lot-batches', lotId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/lots/${lotId}/batches`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/lots/${lotId}/batches`)
+      return response.data.data || []
     },
   })
 

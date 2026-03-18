@@ -12,13 +12,8 @@ export default function BatchExpiry() {
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/batches/${batchId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -26,13 +21,8 @@ export default function BatchExpiry() {
   const { data: expiryInfo, isLoading, isError } = useQuery({
     queryKey: ['batch-expiry', batchId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}/expiry`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/batches/${batchId}/expiry`)
+      const result = response.data
       return result.data
     },
   })

@@ -12,13 +12,8 @@ export default function PhotoEvidence() {
   const { data: visit } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -26,13 +21,8 @@ export default function PhotoEvidence() {
   const { data: evidence, isLoading, isError } = useQuery({
     queryKey: ['visit-photo-evidence', visitId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/photos/evidence`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}/photos/evidence`)
+      const result = response.data
       return result.data
     },
   })

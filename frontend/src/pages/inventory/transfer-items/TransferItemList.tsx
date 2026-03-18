@@ -10,13 +10,8 @@ export default function TransferItemList() {
   const { data: transfer } = useQuery({
     queryKey: ['transfer', transferId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/transfers/${transferId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/transfers/${transferId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +19,8 @@ export default function TransferItemList() {
   const { data: items, isLoading, isError } = useQuery({
     queryKey: ['transfer-items', transferId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/transfers/${transferId}/items`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/transfers/${transferId}/items`)
+      return response.data.data || []
     },
   })
 

@@ -31,7 +31,7 @@ export default function ReceiptDetail() {
   }
 
   const handleReverse = async () => {
-    if (!confirm('Are you sure you want to reverse this receipt? This will reverse all inventory movements.')) {
+    if (!window.confirm('Are you sure you want to reverse this receipt? This will reverse all inventory movements.')) {
       return
     }
 

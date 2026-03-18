@@ -31,7 +31,7 @@ export default function StockCountsList() {
   }
 
   const handleConfirm = async (countId: number) => {
-    if (!confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) return
+    if (!window.confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) return
 
     try {
       await inventoryService.confirmStockCount(countId)

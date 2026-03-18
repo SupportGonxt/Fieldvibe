@@ -22,13 +22,8 @@ export default function CashVariance() {
   const { data: session, isLoading, isError } = useQuery({
     queryKey: ['cash-session', sessionId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/cash-sessions/${sessionId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/cash-sessions/${sessionId}`)
+      const result = response.data
       return result.data
     },
   })

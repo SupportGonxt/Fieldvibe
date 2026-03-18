@@ -68,16 +68,8 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const loadMaterialLibrary = async () => {
     try {
-      const response = await fetch(`${apiClient.defaults.baseURL}/trade-marketing-new/materials/library`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMaterials(data.materials || []);
-      }
+      const response = await apiClient.get('/trade-marketing-new/materials/library');
+      setMaterials(response.data?.materials || []);
     } catch (error) {
       console.error('Error loading material library:', error);
     }
@@ -85,16 +77,8 @@ const POSMaterialTrackerPage: React.FC = () => {
 
   const loadInstallationHistory = async () => {
     try {
-      const response = await fetch(`${apiClient.defaults.baseURL}/trade-marketing-new/pos-materials`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setInstallations(data.installations || []);
-      }
+      const response = await apiClient.get('/trade-marketing-new/pos-materials');
+      setInstallations(response.data?.installations || []);
     } catch (error) {
       console.error('Error loading installation history:', error);
     }
@@ -181,18 +165,10 @@ const POSMaterialTrackerPage: React.FC = () => {
     };
 
     try {
-      const response = await fetch(`${apiClient.defaults.baseURL}/trade-marketing-new/pos-materials`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(installationData)
-      });
+      const response = await apiClient.post('/trade-marketing-new/pos-materials', installationData);
 
-      if (response.ok) {
-        toast.success('Installation recorded successfully!');
-        await loadInstallationHistory(); // Reload list
+      toast.success('Installation recorded successfully!');
+      await loadInstallationHistory(); // Reload list
         setShowInstallForm(false);
         setSelectedMaterial(null);
         setFormData({
@@ -203,9 +179,6 @@ const POSMaterialTrackerPage: React.FC = () => {
           photosAfter: [],
           verificationStatus: 'pending'
         });
-      } else {
-        toast.error('Failed to record installation');
-      }
     } catch (error) {
       console.error('Error submitting installation:', error);
       toast.error('Error recording installation');

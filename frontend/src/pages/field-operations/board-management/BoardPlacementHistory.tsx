@@ -10,13 +10,8 @@ export default function BoardPlacementHistory() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/boards/${boardId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +19,8 @@ export default function BoardPlacementHistory() {
   const { data: placements, isLoading, isError } = useQuery({
     queryKey: ['board-placement-history', boardId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}/placements`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/boards/${boardId}/placements`)
+      return response.data.data || []
     },
   })
 

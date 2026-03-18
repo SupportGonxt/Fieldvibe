@@ -31,7 +31,7 @@ export default function TransfersList() {
   }
 
   const handleReverse = async (transferId: number) => {
-    if (!confirm('Are you sure you want to reverse this transfer?')) return
+    if (!window.confirm('Are you sure you want to reverse this transfer?')) return
 
     try {
       await inventoryService.reverseTransfer(transferId)

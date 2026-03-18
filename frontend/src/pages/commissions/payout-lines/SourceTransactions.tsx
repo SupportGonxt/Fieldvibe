@@ -11,13 +11,8 @@ export default function SourceTransactions() {
   const { data: line } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/payouts/${payoutId}/lines/${lineId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -25,14 +20,8 @@ export default function SourceTransactions() {
   const { data: transactions, isLoading, isError } = useQuery({
     queryKey: ['payout-line-transactions', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/payouts/${payoutId}/lines/${lineId}/transactions`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}/transactions`)
+      return response.data.data || []
     },
   })
 

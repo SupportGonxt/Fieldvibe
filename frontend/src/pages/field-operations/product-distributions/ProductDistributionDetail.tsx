@@ -31,7 +31,7 @@ export default function ProductDistributionDetail() {
   }
 
   const handleReverse = async () => {
-    if (!confirm('Are you sure you want to reverse this product distribution? This will reverse the commission.')) {
+    if (!window.confirm('Are you sure you want to reverse this product distribution? This will reverse the commission.')) {
       return
     }
 

@@ -12,13 +12,8 @@ export default function BoardPlacementDetail() {
   const { data: placement, isLoading, isError } = useQuery({
     queryKey: ['board-placement', visitId, placementId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/board-placements/${placementId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}/board-placements/${placementId}`)
+      const result = response.data
       return result.data
     },
   })

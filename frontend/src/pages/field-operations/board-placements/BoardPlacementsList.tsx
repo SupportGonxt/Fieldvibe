@@ -29,7 +29,7 @@ export default function BoardPlacementsList() {
   }
 
   const handleReverse = async (placementId: number) => {
-    if (!confirm('Are you sure you want to reverse this board placement?')) return
+    if (!window.confirm('Are you sure you want to reverse this board placement?')) return
 
     try {
       await fieldOperationsService.reverseBoardPlacement(placementId)

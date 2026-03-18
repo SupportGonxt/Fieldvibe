@@ -158,7 +158,7 @@ const VisitManagement: React.FC = () => {
   }
 
   const handleDeleteVisit = async (visitId: string) => {
-    if (!confirm('Are you sure you want to delete this visit?')) return
+    if (!window.confirm('Are you sure you want to delete this visit?')) return
     
     try {
       await apiClient.delete(`/visits/${visitId}`)

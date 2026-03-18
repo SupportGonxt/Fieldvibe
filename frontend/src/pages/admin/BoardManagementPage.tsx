@@ -14,31 +14,27 @@ const BoardManagementPage: React.FC = () => {
 
   const loadBoards = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/boards`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setBoards((await res.json()).boards || []);
+      const res = await apiClient.get('/admin/boards');
+      setBoards(res.data.boards || []);
     } catch (err) { console.error(err); }
   };
 
   const saveBoard = async () => {
     try {
-      const url = editing ? `${apiClient.defaults.baseURL}/admin/boards/${editing}` : `${apiClient.defaults.baseURL}/admin/boards`;
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadBoards(); setEditing(null); setForm({}); }
+      if (editing) {
+        await apiClient.put(`/admin/boards/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/boards', form);
+      }
+      loadBoards(); setEditing(null); setForm({});
     } catch (err) { console.error(err); }
   };
 
   const deleteBoard = async (id: number) => {
-    if (!confirm('Delete this board?')) return;
+    if (!window.confirm('Delete this board?')) return;
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/boards/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadBoards();
+      const res = await apiClient.delete(`/admin/boards/${id}`);
+      loadBoards();
     } catch (err) { console.error(err); }
   };
 

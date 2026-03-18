@@ -10,13 +10,8 @@ export default function StockLedgerByWarehouse() {
   const { data: warehouse } = useQuery({
     queryKey: ['warehouse', warehouseId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/warehouses/${warehouseId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/warehouses/${warehouseId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +19,8 @@ export default function StockLedgerByWarehouse() {
   const { data: entries, isLoading, isError } = useQuery({
     queryKey: ['stock-ledger-warehouse', warehouseId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/warehouses/${warehouseId}/stock-ledger`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/warehouses/${warehouseId}/stock-ledger`)
+      return response.data.data || []
     },
   })
 

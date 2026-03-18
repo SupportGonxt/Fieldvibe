@@ -13,8 +13,8 @@ const AnalyticsDashboardPage: React.FC = () => {
 
   const loadMetrics = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/reports/analytics`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setMetrics(await res.json());
+      const res = await apiClient.get('/reports/analytics');
+      setMetrics(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };

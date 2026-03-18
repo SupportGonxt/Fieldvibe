@@ -22,13 +22,8 @@ export default function ReturnItemEdit() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['return-item', returnId, itemId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/returns/${returnId}/items/${itemId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/returns/${returnId}/items/${itemId}`)
+      const result = response.data
       return result.data
     },
   })

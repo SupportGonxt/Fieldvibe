@@ -13,30 +13,23 @@ const CommissionRuleBuilderPage: React.FC = () => {
 
   const loadRules = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/commission-rules`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setRules((await res.json()).rules || []);
+      const res = await apiClient.get('/admin/commission-rules');
+      setRules(res.data.rules || []);
     } catch (err) { console.error(err); }
   };
 
   const saveRule = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/commission-rules`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadRules(); setForm({}); }
+      const res = await apiClient.post('/admin/commission-rules', form);
+      { loadRules(); setForm({}); }
     } catch (err) { console.error(err); }
   };
 
   const deleteRule = async (id: number) => {
-    if (!confirm('Delete rule?')) return;
+    if (!window.confirm('Delete rule?')) return;
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/commission-rules/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadRules();
+      const res = await apiClient.delete(`/admin/commission-rules/${id}`);
+      loadRules();
     } catch (err) { console.error(err); }
   };
 

@@ -85,55 +85,29 @@ export default function TradeMarketingPage() {
   const fetchTradeMarketingData = async () => {
     try {
       setLoading(true)
-      const token = localStorage.getItem('token')
-      const tenantCode = localStorage.getItem('tenantCode') || 'DEMO'
       
       // Fetch metrics
-      const metricsResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/metrics`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Code': tenantCode
-        }
-      })
-      const metricsData = await metricsResponse.json()
-      if (metricsData.success) {
-        setMetrics(metricsData.data)
+      const metricsRes = await apiClient.get('/trade-marketing/metrics')
+      if (metricsRes.data?.success) {
+        setMetrics(metricsRes.data.data)
       }
 
       // Fetch promotions
-      const promotionsResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/promotions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Code': tenantCode
-        }
-      })
-      const promotionsData = await promotionsResponse.json()
-      if (promotionsData.success) {
-        setPromotions(promotionsData.data)
+      const promotionsRes = await apiClient.get('/trade-marketing/promotions')
+      if (promotionsRes.data?.success) {
+        setPromotions(promotionsRes.data.data)
       }
 
       // Fetch channel partners
-      const partnersResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/channel-partners`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Code': tenantCode
-        }
-      })
-      const partnersData = await partnersResponse.json()
-      if (partnersData.success) {
-        setChannelPartners(partnersData.data)
+      const partnersRes = await apiClient.get('/trade-marketing/channel-partners')
+      if (partnersRes.data?.success) {
+        setChannelPartners(partnersRes.data.data)
       }
 
       // Fetch competitor analysis
-      const competitorResponse = await fetch(`${apiClient.defaults.baseURL}/trade-marketing/competitor-analysis`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Code': tenantCode
-        }
-      })
-      const competitorData = await competitorResponse.json()
-      if (competitorData.success) {
-        setCompetitorData(competitorData.data)
+      const competitorRes = await apiClient.get('/trade-marketing/competitor-analysis')
+      if (competitorRes.data?.success) {
+        setCompetitorData(competitorRes.data.data)
       } else {
         // Fallback to mock data if API returns nothing
         setCompetitorData([

@@ -11,31 +11,22 @@ const ReportBuilderPage: React.FC = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/reports/generate`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
-      if (res.ok) setData(await res.json());
+      const res = await apiClient.post('/reports/generate', config);
+      setData(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
   const exportReport = async (format: string) => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/reports/export?format=${format}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...config, data })
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${Date.now()}.${format}`;
-        a.click();
-      }
+      const res = await apiClient.post(`/reports/export?format=${format}`, { ...config, data }, { responseType: 'blob' });
+      const blob = new Blob([res.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-${Date.now()}.${format}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
     } catch (err) { console.error(err); }
   };
 

@@ -90,25 +90,16 @@ const ReportsHub: React.FC = () => {
           setReportData(response.data.data);
         }
       } else {
-        const token = localStorage.getItem('token');
-        const baseUrl = import.meta.env.VITE_API_URL || 'https://fieldvibe-api.reshigan-085.workers.dev/api';
-        const fullUrl = `${baseUrl}${url}`;
-        
-        const response = await fetch(fullUrl, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const blob = await response.blob();
-          const downloadUrl = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = downloadUrl;
-          a.download = `${selectedReport.id}-${Date.now()}.${format === 'html' ? 'html' : format}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(downloadUrl);
-        }
+        const response = await apiClient.get(url, { responseType: 'blob' });
+        const blob = new Blob([response.data]);
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${selectedReport.id}-${Date.now()}.${format === 'html' ? 'html' : format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
       }
     } catch (error) {
       console.error('Failed to generate report:', error);

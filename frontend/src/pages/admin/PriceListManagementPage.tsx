@@ -35,7 +35,7 @@ export default function PriceListManagementPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this price list?')) return
+    if (!window.confirm('Are you sure you want to delete this price list?')) return
     
     try {
       await pricingService.deletePriceList(id)

@@ -13,13 +13,8 @@ export default function ApprovalDetail() {
   const { data: approval, isLoading, isError } = useQuery({
     queryKey: ['commission-approval', calculationId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/calculations/${calculationId}/approval`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/calculations/${calculationId}/approval`)
+      const result = response.data
       return result.data
     },
   })

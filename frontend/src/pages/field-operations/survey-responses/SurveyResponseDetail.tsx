@@ -12,13 +12,8 @@ export default function SurveyResponseDetail() {
   const { data: response, isLoading, isError } = useQuery({
     queryKey: ['survey-response', surveyId, responseId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/survey-responses/${responseId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/survey-responses/${responseId}`)
+      const result = response.data
       return result.data
     },
   })

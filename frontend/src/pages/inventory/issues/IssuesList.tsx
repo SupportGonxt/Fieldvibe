@@ -31,7 +31,7 @@ export default function IssuesList() {
   }
 
   const handleReverse = async (issueId: number) => {
-    if (!confirm('Are you sure you want to reverse this issue?')) return
+    if (!window.confirm('Are you sure you want to reverse this issue?')) return
 
     try {
       await inventoryService.reverseIssue(issueId)

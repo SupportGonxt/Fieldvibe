@@ -29,7 +29,7 @@ export default function ProductDistributionsList() {
   }
 
   const handleReverse = async (distributionId: number) => {
-    if (!confirm('Are you sure you want to reverse this product distribution?')) return
+    if (!window.confirm('Are you sure you want to reverse this product distribution?')) return
 
     try {
       await fieldOperationsService.reverseProductDistribution(distributionId)

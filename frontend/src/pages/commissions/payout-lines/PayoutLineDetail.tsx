@@ -13,13 +13,8 @@ export default function PayoutLineDetail() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/payouts/${payoutId}/lines/${lineId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}`)
+      const result = response.data
       return result.data
     },
   })

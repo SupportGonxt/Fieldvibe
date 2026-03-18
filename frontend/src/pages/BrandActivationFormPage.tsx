@@ -155,35 +155,23 @@ const BrandActivationFormPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${apiClient.defaults.baseURL}/trade-marketing-new/brand-activations`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      await apiClient.post('/trade-marketing-new/brand-activations', formData);
 
-      if (response.ok) {
-        toast.success('Brand Activation event created successfully!');
-        // Reset form
-        setFormData({
-          eventType: 'sampling',
-          teamMembers: [],
-          customerFeedback: [],
-          photos: [],
-          activities: [],
-          status: 'planned',
-          targetAttendance: 100,
-          actualAttendance: 0,
-          samplesDistributed: 0,
-          leadsCaptured: 0,
-          engagementScore: 7
-        });
-      } else {
-        const error = await response.json();
-        toast.error('Failed to create event: ' + (error.message || 'Unknown error'));
-      }
+      toast.success('Brand Activation event created successfully!');
+      // Reset form
+      setFormData({
+        eventType: 'sampling',
+        teamMembers: [],
+        customerFeedback: [],
+        photos: [],
+        activities: [],
+        status: 'planned',
+        targetAttendance: 100,
+        actualAttendance: 0,
+        samplesDistributed: 0,
+        leadsCaptured: 0,
+        engagementScore: 7
+      });
     } catch (error) {
       console.error('Error creating brand activation:', error);
       toast.error('Error creating brand activation event');

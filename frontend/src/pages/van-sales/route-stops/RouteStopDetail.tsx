@@ -13,13 +13,8 @@ export default function RouteStopDetail() {
   const { data: route } = useQuery({
     queryKey: ['route', routeId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/routes/${routeId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/routes/${routeId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -27,13 +22,8 @@ export default function RouteStopDetail() {
   const { data: stop, isLoading, isError } = useQuery({
     queryKey: ['route-stop', routeId, stopId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/route-stops/${stopId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/route-stops/${stopId}`)
+      const result = response.data
       return result.data
     },
   })

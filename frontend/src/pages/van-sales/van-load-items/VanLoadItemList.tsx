@@ -12,13 +12,8 @@ export default function VanLoadItemList() {
   const { data: load } = useQuery({
     queryKey: ['van-load', loadId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/van-loads/${loadId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/van-loads/${loadId}`)
+      const result = response.data
       return result.data
     },
   })

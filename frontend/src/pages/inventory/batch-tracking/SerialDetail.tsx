@@ -12,13 +12,8 @@ export default function SerialDetail() {
   const { data: serial, isLoading, isError } = useQuery({
     queryKey: ['serial', serialId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/serials/${serialId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/serials/${serialId}`)
+      const result = response.data
       return result.data
     },
   })

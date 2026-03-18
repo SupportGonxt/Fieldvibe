@@ -11,13 +11,8 @@ export default function AdjustmentItemList() {
   const { data: adjustment } = useQuery({
     queryKey: ['adjustment', adjustmentId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/adjustments/${adjustmentId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -25,14 +20,8 @@ export default function AdjustmentItemList() {
   const { data: items, isLoading, isError } = useQuery({
     queryKey: ['adjustment-items', adjustmentId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}/items`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/adjustments/${adjustmentId}/items`)
+      return response.data.data || []
     },
   })
 

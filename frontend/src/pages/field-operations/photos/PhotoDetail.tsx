@@ -12,13 +12,8 @@ export default function PhotoDetail() {
   const { data: photo, isLoading, isError } = useQuery({
     queryKey: ['photo', visitId, photoId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/photos/${photoId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}/photos/${photoId}`)
+      const result = response.data
       return result.data
     },
   })

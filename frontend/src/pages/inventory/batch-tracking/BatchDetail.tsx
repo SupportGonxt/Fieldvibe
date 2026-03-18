@@ -12,13 +12,8 @@ export default function BatchDetail() {
   const { data: batch, isLoading, isError } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/batches/${batchId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/batches/${batchId}`)
+      const result = response.data
       return result.data
     },
   })

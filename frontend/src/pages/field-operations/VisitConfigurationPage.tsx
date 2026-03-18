@@ -36,70 +36,39 @@ export default function VisitConfigurationPage() {
   const { data: configurations, isLoading, isError } = useQuery({
     queryKey: ['visit-configurations'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visit-configurations`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/visit-configurations')
+      return response.data.data || []
     }
   })
 
   const { data: brands } = useQuery({
     queryKey: ['brands'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/brands`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/brands')
+      return response.data.data || []
     }
   })
 
   const { data: surveys } = useQuery({
     queryKey: ['surveys'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/surveys`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/surveys')
+      return response.data.data || []
     }
   })
 
   const { data: boards } = useQuery({
     queryKey: ['boards'],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/boards')
+      return response.data.data || []
     }
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visit-configurations/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      if (!response.ok) throw new Error('Failed to delete configuration')
-      return response.json()
+      const response = await apiClient.delete(`/visit-configurations/${id}`)
+      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['visit-configurations'] })
@@ -241,7 +210,7 @@ export default function VisitConfigurationPage() {
                         <button
                           onClick={() => {
                             // TODO: Replace with ConfirmDialog
-            if (confirm('Delete this configuration?')) {
+            if (window.confirm('Delete this configuration?')) {
                               deleteMutation.mutate(config.id)
                             }
                           }}
@@ -311,20 +280,13 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
-      const url = config
-        ? `${apiClient.defaults.baseURL}/visit-configurations/${config.id}`
-        : `${apiClient.defaults.baseURL}/visit-configurations`
-      const response = await fetch(url, {
-        method: config ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        },
-        body: JSON.stringify(data)
-      })
-      if (!response.ok) throw new Error('Failed to save configuration')
-      return response.json()
+      if (config) {
+        const response = await apiClient.put(`/visit-configurations/${config.id}`, data)
+        return response.data
+      } else {
+        const response = await apiClient.post('/visit-configurations', data)
+        return response.data
+      }
     },
     onSuccess
   })

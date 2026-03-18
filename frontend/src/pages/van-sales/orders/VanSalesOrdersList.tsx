@@ -121,7 +121,7 @@ export default function VanSalesOrdersList() {
   ]
 
   const handleReverse = async (orderId: number) => {
-    if (!confirm('Are you sure you want to reverse this order?')) return
+    if (!window.confirm('Are you sure you want to reverse this order?')) return
 
     try {
       await vanSalesService.reverseOrder(orderId)

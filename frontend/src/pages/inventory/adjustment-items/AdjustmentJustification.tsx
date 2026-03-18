@@ -12,13 +12,8 @@ export default function AdjustmentJustification() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['adjustment-item', adjustmentId, itemId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/adjustments/${adjustmentId}/items/${itemId}/justification`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/adjustments/${adjustmentId}/items/${itemId}/justification`)
+      const result = response.data
       return result.data
     },
   })

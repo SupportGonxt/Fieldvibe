@@ -12,13 +12,8 @@ export default function SurveyComparison() {
   const { data: comparison, isLoading, isError } = useQuery({
     queryKey: ['survey-comparison', surveyId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/surveys/${surveyId}/comparison`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/surveys/${surveyId}/comparison`)
+      const result = response.data
       return result.data
     },
   })

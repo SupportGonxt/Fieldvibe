@@ -31,7 +31,7 @@ export default function StockCountDetail() {
   }
 
   const handleConfirm = async () => {
-    if (!confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) {
+    if (!window.confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) {
       return
     }
 

@@ -12,13 +12,8 @@ export default function RuleConditionDetail() {
   const { data: condition, isLoading, isError } = useQuery({
     queryKey: ['commission-rule-condition', ruleId, conditionId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/rules/${ruleId}/conditions/${conditionId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/rules/${ruleId}/conditions/${conditionId}`)
+      const result = response.data
       return result.data
     },
   })

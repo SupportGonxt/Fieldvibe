@@ -10,13 +10,8 @@ export default function BoardComplianceChecks() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/boards/${boardId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +19,8 @@ export default function BoardComplianceChecks() {
   const { data: checks, isLoading, isError } = useQuery({
     queryKey: ['board-compliance-checks', boardId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}/compliance`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/boards/${boardId}/compliance`)
+      return response.data.data || []
     },
   })
 

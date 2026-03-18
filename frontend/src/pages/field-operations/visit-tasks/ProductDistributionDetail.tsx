@@ -12,13 +12,8 @@ export default function ProductDistributionDetail() {
   const { data: distribution, isLoading, isError } = useQuery({
     queryKey: ['product-distribution', visitId, distributionId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/product-distributions/${distributionId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}/product-distributions/${distributionId}`)
+      const result = response.data
       return result.data
     },
   })

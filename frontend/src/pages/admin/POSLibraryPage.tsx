@@ -14,31 +14,27 @@ const POSLibraryPage: React.FC = () => {
 
   const loadMaterials = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/pos-library`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setMaterials((await res.json()).materials || []);
+      const res = await apiClient.get('/admin/pos-library');
+      setMaterials(res.data.materials || []);
     } catch (err) { console.error(err); }
   };
 
   const saveMaterial = async () => {
     try {
-      const url = editing ? `${apiClient.defaults.baseURL}/admin/pos-library/${editing}` : `${apiClient.defaults.baseURL}/admin/pos-library`;
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadMaterials(); setEditing(null); setForm({}); }
+      if (editing) {
+        await apiClient.put(`/admin/pos-library/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/pos-library', form);
+      }
+      loadMaterials(); setEditing(null); setForm({});
     } catch (err) { console.error(err); }
   };
 
   const deleteMaterial = async (id: number) => {
-    if (!confirm('Delete material?')) return;
+    if (!window.confirm('Delete material?')) return;
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/pos-library/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadMaterials();
+      const res = await apiClient.delete(`/admin/pos-library/${id}`);
+      loadMaterials();
     } catch (err) { console.error(err); }
   };
 

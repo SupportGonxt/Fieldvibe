@@ -22,13 +22,8 @@ export default function VisitTaskEdit() {
   const { data: task, isLoading, isError } = useQuery({
     queryKey: ['visit-task', visitId, taskId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/visits/${visitId}/tasks/${taskId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}/tasks/${taskId}`)
+      const result = response.data
       return result.data
     },
   })

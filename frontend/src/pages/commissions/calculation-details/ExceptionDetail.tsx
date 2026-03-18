@@ -13,13 +13,8 @@ export default function ExceptionDetail() {
   const { data: exception, isLoading, isError } = useQuery({
     queryKey: ['commission-exception', calculationId, exceptionId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/commissions/calculations/${calculationId}/exceptions/${exceptionId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/calculations/${calculationId}/exceptions/${exceptionId}`)
+      const result = response.data
       return result.data
     },
   })

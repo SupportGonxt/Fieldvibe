@@ -12,13 +12,8 @@ export default function MovementDetail() {
   const { data: movement, isLoading, isError } = useQuery({
     queryKey: ['stock-movement', movementId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/stock-movements/${movementId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/stock-movements/${movementId}`)
+      const result = response.data
       return result.data
     },
   })

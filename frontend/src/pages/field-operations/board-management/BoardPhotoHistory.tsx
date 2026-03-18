@@ -10,13 +10,8 @@ export default function BoardPhotoHistory() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/boards/${boardId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +19,8 @@ export default function BoardPhotoHistory() {
   const { data: photos, isLoading, isError } = useQuery({
     queryKey: ['board-photo-history', boardId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/boards/${boardId}/photos`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/boards/${boardId}/photos`)
+      return response.data.data || []
     },
   })
 

@@ -20,13 +20,8 @@ export default function CountLineApproval() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['count-line', countId, lineId],
     queryFn: async () => {
-      const response = await fetch(`${apiClient.defaults.baseURL}/stock-counts/${countId}/lines/${lineId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/stock-counts/${countId}/lines/${lineId}`)
+      const result = response.data
       return result.data
     },
   })

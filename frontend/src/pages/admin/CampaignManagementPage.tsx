@@ -14,31 +14,27 @@ const CampaignManagementPage: React.FC = () => {
 
   const loadCampaigns = async () => {
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/campaigns`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setCampaigns((await res.json()).campaigns || []);
+      const res = await apiClient.get('/admin/campaigns');
+      setCampaigns(res.data.campaigns || []);
     } catch (err) { console.error(err); }
   };
 
   const saveCampaign = async () => {
     try {
-      const url = editing ? `${apiClient.defaults.baseURL}/admin/campaigns/${editing}` : `${apiClient.defaults.baseURL}/admin/campaigns`;
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadCampaigns(); setEditing(null); setForm({ status: 'planned' }); }
+      if (editing) {
+        await apiClient.put(`/admin/campaigns/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/campaigns', form);
+      }
+      loadCampaigns(); setEditing(null); setForm({ status: 'planned' });
     } catch (err) { console.error(err); }
   };
 
   const deleteCampaign = async (id: number) => {
-    if (!confirm('Delete campaign?')) return;
+    if (!window.confirm('Delete campaign?')) return;
     try {
-      const res = await fetch(`${apiClient.defaults.baseURL}/admin/campaigns/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadCampaigns();
+      const res = await apiClient.delete(`/admin/campaigns/${id}`);
+      loadCampaigns();
     } catch (err) { console.error(err); }
   };
 
