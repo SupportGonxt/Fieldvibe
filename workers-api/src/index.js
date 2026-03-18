@@ -8626,7 +8626,11 @@ app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 // ==================== SECTION 9: SCHEDULED JOBS ====================
 async function checkOverdueInvoices(db) {
   try {
-    await db.prepare("UPDATE sales_orders SET payment_status = 'overdue' WHERE payment_status = 'pending' AND due_date < datetime('now') AND due_date IS NOT NULL").run();
+    // TI-03: Scope by tenant to prevent cross-tenant updates
+    const tenants = await db.prepare('SELECT DISTINCT tenant_id FROM sales_orders WHERE payment_status = ? AND due_date IS NOT NULL').bind('pending').all();
+    for (const t of (tenants.results || [])) {
+      await db.prepare("UPDATE sales_orders SET payment_status = 'overdue' WHERE tenant_id = ? AND payment_status = 'pending' AND due_date < datetime('now') AND due_date IS NOT NULL").bind(t.tenant_id).run();
+    }
   } catch (e) { console.error('checkOverdueInvoices error:', e); }
 }
 
@@ -8642,7 +8646,11 @@ async function checkLowStock(db) {
 
 async function checkStaleVanLoads(db) {
   try {
-    await db.prepare("UPDATE van_stock_loads SET status = 'stale' WHERE status = 'active' AND created_at < datetime('now', '-3 days')").run();
+    // TI-03: Scope by tenant to prevent cross-tenant updates
+    const tenants = await db.prepare("SELECT DISTINCT tenant_id FROM van_stock_loads WHERE status = 'active'").all();
+    for (const t of (tenants.results || [])) {
+      await db.prepare("UPDATE van_stock_loads SET status = 'stale' WHERE tenant_id = ? AND status = 'active' AND created_at < datetime('now', '-3 days')").bind(t.tenant_id).run();
+    }
   } catch (e) { console.error('checkStaleVanLoads error:', e); }
 }
 
