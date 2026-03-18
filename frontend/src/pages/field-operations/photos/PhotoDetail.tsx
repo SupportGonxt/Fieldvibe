@@ -22,21 +22,6 @@ export default function PhotoDetail() {
     },
   })
 
-      caption: 'Coca-Cola promotional board installed at store entrance',
-      taken_at: '2024-01-20T09:35:00Z',
-      taken_by: 'John Field Agent',
-      location: {
-        latitude: -1.2921,
-        longitude: 36.8219,
-        address: 'ABC Store, Nairobi',
-      },
-      metadata: {
-        device: 'iPhone 13',
-        resolution: '4032x3024',
-        file_size: '2.4 MB',
-      },
-    }
-
   if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
@@ -68,7 +53,7 @@ export default function PhotoDetail() {
           Back to Visit
         </button>
         <h1 className="text-2xl font-bold text-gray-900">Photo Detail</h1>
-        <p className="text-gray-600 capitalize">{photo.photo_type.replace('_', ' ')}</p>
+        <p className="text-gray-600 capitalize">{(photo.photo_type || 'photo').replace('_', ' ')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -92,7 +77,7 @@ export default function PhotoDetail() {
               <div>
                 <dt className="text-sm font-medium text-gray-500">Type</dt>
                 <dd className="mt-1 text-sm text-gray-900 capitalize">
-                  {photo.photo_type.replace('_', ' ')}
+                  {(photo.photo_type || 'photo').replace('_', ' ')}
                 </dd>
               </div>
               <div>
@@ -119,13 +104,13 @@ export default function PhotoDetail() {
                 <dt className="text-sm font-medium text-gray-500">Address</dt>
                 <dd className="mt-1 text-sm text-gray-900 flex items-start gap-1">
                   <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
-                  {photo.location.address}
+                  {photo.location?.address || 'Unknown'}
                 </dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Coordinates</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {photo.location.latitude.toFixed(6)}, {photo.location.longitude.toFixed(6)}
+                  {photo.location?.latitude?.toFixed(6) || '0'}, {photo.location?.longitude?.toFixed(6) || '0'}
                 </dd>
               </div>
             </dl>
@@ -136,15 +121,15 @@ export default function PhotoDetail() {
             <dl className="space-y-3">
               <div>
                 <dt className="text-sm font-medium text-gray-500">Device</dt>
-                <dd className="mt-1 text-sm text-gray-900">{photo.metadata.device}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{photo.metadata?.device || 'Unknown'}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Resolution</dt>
-                <dd className="mt-1 text-sm text-gray-900">{photo.metadata.resolution}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{photo.metadata?.resolution || 'Unknown'}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">File Size</dt>
-                <dd className="mt-1 text-sm text-gray-900">{photo.metadata.file_size}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{photo.metadata?.file_size || 'Unknown'}</dd>
               </div>
             </dl>
           </div>
