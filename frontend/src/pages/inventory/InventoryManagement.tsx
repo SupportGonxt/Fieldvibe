@@ -27,6 +27,7 @@ import { inventoryService, InventoryItem, InventoryFilter } from '../../services
 import { formatDate, formatNumber, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { DataTable } from '../../components/ui/tables/DataTable'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 import toast from 'react-hot-toast'
 
 export default function InventoryManagement() {
@@ -530,53 +531,49 @@ export default function InventoryManagement() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Location
               </label>
-              <select
-                className="input"
-                value={filter.location_id || ''}
-                onChange={(e) => setFilter({ ...filter, location_id: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Locations</option>
-                {(locations || []).map((location: any) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={[{ value: '', label: 'All Locations' }, ...(locations || []).map((l: any) => ({ value: l.id, label: l.name }))]}
+                value={filter.location_id || null}
+                onChange={(val) => setFilter({ ...filter, location_id: val || undefined, page: 1 })}
+                placeholder="Filter by location..."
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Stock Status
               </label>
-              <select
-                className="input"
-                value={filter.stock_status || ''}
-                onChange={(e) => setFilter({ ...filter, stock_status: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Status</option>
-                <option value="in_stock">In Stock</option>
-                <option value="low_stock">Low Stock</option>
-                <option value="out_of_stock">Out of Stock</option>
-                <option value="overstock">Overstock</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Status' },
+                  { value: 'in_stock', label: 'In Stock' },
+                  { value: 'low_stock', label: 'Low Stock' },
+                  { value: 'out_of_stock', label: 'Out of Stock' },
+                  { value: 'overstock', label: 'Overstock' },
+                ]}
+                value={filter.stock_status || null}
+                onChange={(val) => setFilter({ ...filter, stock_status: val || undefined, page: 1 })}
+                placeholder="Filter by stock status..."
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Category
               </label>
-              <select
-                className="input"
-                value={filter.category || ''}
-                onChange={(e) => setFilter({ ...filter, category: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Categories</option>
-                <option value="beverages">Beverages</option>
-                <option value="snacks">Snacks</option>
-                <option value="dairy">Dairy</option>
-                <option value="frozen">Frozen</option>
-                <option value="household">Household</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Categories' },
+                  { value: 'beverages', label: 'Beverages' },
+                  { value: 'snacks', label: 'Snacks' },
+                  { value: 'dairy', label: 'Dairy' },
+                  { value: 'frozen', label: 'Frozen' },
+                  { value: 'household', label: 'Household' },
+                ]}
+                value={filter.category || null}
+                onChange={(val) => setFilter({ ...filter, category: val || undefined, page: 1 })}
+                placeholder="Filter by category..."
+              />
             </div>
           </div>
         </div>
@@ -648,15 +645,16 @@ export default function InventoryManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Adjustment Type
                 </label>
-                <select
-                  className="input"
+                <SearchableSelect
+                  options={[
+                    { value: 'add', label: 'Add Stock' },
+                    { value: 'remove', label: 'Remove Stock' },
+                    { value: 'set', label: 'Set Stock Level' },
+                  ]}
                   value={stockAdjustment.type}
-                  onChange={(e) => setStockAdjustment({ ...stockAdjustment, type: e.target.value })}
-                >
-                  <option value="add">Add Stock</option>
-                  <option value="remove">Remove Stock</option>
-                  <option value="set">Set Stock Level</option>
-                </select>
+                  onChange={(val) => setStockAdjustment({ ...stockAdjustment, type: val || 'add' })}
+                  placeholder="Select adjustment type..."
+                />
               </div>
 
               <div>
