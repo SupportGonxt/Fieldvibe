@@ -169,6 +169,7 @@ export interface ApprovalCriteria {
 
 class KYCService extends ApiService {
   private baseUrl = '/kyc'
+  private casesUrl = '/kyc/cases'
 
   async getKYCSubmissions(filter: KYCFilter = {}) {
     const params = new URLSearchParams()
@@ -394,12 +395,12 @@ class KYCService extends ApiService {
         params.append(key, String(value))
       }
     })
-    const response = await this.get(`/kyc-cases?${params.toString()}`)
+    const response = await this.get(`${this.casesUrl}?${params.toString()}`)
     return response.data
   }
 
   async getKYCCase(id: string) {
-    const response = await this.get(`/kyc-cases/${id}`)
+    const response = await this.get(`${this.casesUrl}/${id}`)
     return response.data
   }
 
@@ -415,12 +416,12 @@ class KYCService extends ApiService {
     address?: string
     notes?: string
   }) {
-    const response = await this.post('/kyc-cases', data)
+    const response = await this.post(this.casesUrl, data)
     return response.data
   }
 
   async updateKYCCase(id: string, data: any) {
-    const response = await this.put(`/kyc-cases/${id}`, data)
+    const response = await this.put(`${this.casesUrl}/${id}`, data)
     return response.data
   }
 
@@ -430,32 +431,32 @@ class KYCService extends ApiService {
     file_url: string
     expiry_date?: string
   }) {
-    const response = await this.post(`/kyc-cases/${id}/documents`, data)
+    const response = await this.post(`${this.casesUrl}/${id}/documents`, data)
     return response.data
   }
 
   async startKYCReview(id: string) {
-    const response = await this.post(`/kyc-cases/${id}/start-review`)
+    const response = await this.post(`${this.casesUrl}/${id}/start-review`)
     return response.data
   }
 
   async requestKYCDocuments(id: string, data: { documents_requested: string; notes?: string }) {
-    const response = await this.post(`/kyc-cases/${id}/request-documents`, data)
+    const response = await this.post(`${this.casesUrl}/${id}/request-documents`, data)
     return response.data
   }
 
   async approveKYCCase(id: string, notes?: string) {
-    const response = await this.post(`/kyc-cases/${id}/approve`, { notes })
+    const response = await this.post(`${this.casesUrl}/${id}/approve`, { notes })
     return response.data
   }
 
   async rejectKYCCase(id: string, reason: string, notes?: string) {
-    const response = await this.post(`/kyc-cases/${id}/reject`, { rejection_reason: reason, notes })
+    const response = await this.post(`${this.casesUrl}/${id}/reject`, { rejection_reason: reason, notes })
     return response.data
   }
 
   async getKYCCaseStats() {
-    const response = await this.get('/kyc-cases/stats')
+    const response = await this.get(`${this.baseUrl}/stats`)
     return response.data
   }
 }
