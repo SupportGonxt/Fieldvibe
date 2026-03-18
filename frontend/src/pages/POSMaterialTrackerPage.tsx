@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, MapPin, Package, QrCode, Search, Calendar, CheckCircle2, AlertCircle, Upload, Download } from 'lucide-react';
+import { useToast } from '../components/ui/Toast'
 
 interface POSMaterial {
   id: number;
@@ -30,6 +31,7 @@ interface Installation {
 }
 
 const POSMaterialTrackerPage: React.FC = () => {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<'library' | 'installation' | 'history'>('library');
   const [materials, setMaterials] = useState<POSMaterial[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,10 +49,19 @@ const POSMaterialTrackerPage: React.FC = () => {
     verificationStatus: 'pending'
   });
 
+  // Track blob URLs for cleanup
+  const blobUrlsRef = useRef<string[]>([]);
+
   useEffect(() => {
     loadMaterialLibrary();
     loadInstallationHistory();
     getCurrentLocation();
+
+    // Cleanup blob URLs on unmount
+    return () => {
+      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      blobUrlsRef.current = [];
+    };
   }, []);
 
   const loadMaterialLibrary = async () => {
@@ -114,31 +125,42 @@ const POSMaterialTrackerPage: React.FC = () => {
   };
 
   const handlePhotoCapture = (type: 'before' | 'after') => {
-    // Simulate photo capture
-    const mockPhoto = `photo-${type}-${Date.now()}.jpg`;
-    if (type === 'before') {
-      setFormData({
-        ...formData,
-        photosBefore: [...(formData.photosBefore || []), mockPhoto]
-      });
-    } else {
-      setFormData({
-        ...formData,
-        photosAfter: [...(formData.photosAfter || []), mockPhoto]
-      });
-    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e: Event) => {
+      const file = (e.target as HTMLInputElement)?.files?.[0];
+      if (file) {
+        const photoUrl = URL.createObjectURL(file);
+        blobUrlsRef.current.push(photoUrl);
+        if (type === 'before') {
+          setFormData(prev => ({
+            ...prev,
+            photosBefore: [...(prev.photosBefore || []), photoUrl]
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            photosAfter: [...(prev.photosAfter || []), photoUrl]
+          }));
+        }
+        toast.success(`${type === 'before' ? 'Before' : 'After'} photo captured`);
+      }
+    };
+    input.click();
   };
 
   const handleQRScan = () => {
     // Simulate QR code scan
     const qrCode = `QR-${selectedMaterial?.type?.substring(0, 3).toUpperCase()}-${Date.now()}`;
     setFormData({ ...formData, qrCode });
-    alert(`QR Code Scanned: ${qrCode}`);
+    toast.info(`QR Code Scanned: ${qrCode}`);
   };
 
   const handleSubmitInstallation = async () => {
     if (!selectedMaterial || !formData.location) {
-      alert('Please fill all required fields');
+      toast.error('Please fill all required fields');
       return;
     }
 
@@ -167,7 +189,7 @@ const POSMaterialTrackerPage: React.FC = () => {
       });
 
       if (response.ok) {
-        alert('Installation recorded successfully!');
+        toast.success('Installation recorded successfully!');
         await loadInstallationHistory(); // Reload list
         setShowInstallForm(false);
         setSelectedMaterial(null);
@@ -180,11 +202,11 @@ const POSMaterialTrackerPage: React.FC = () => {
           verificationStatus: 'pending'
         });
       } else {
-        alert('Failed to record installation');
+        toast.error('Failed to record installation');
       }
     } catch (error) {
       console.error('Error submitting installation:', error);
-      alert('Error recording installation');
+      toast.error('Error recording installation');
     }
   };
 

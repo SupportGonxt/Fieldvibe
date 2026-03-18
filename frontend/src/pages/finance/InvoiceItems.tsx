@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { financeService } from '../../services/finance.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function InvoiceItems() {
   const { id } = useParams<{ id: string }>()
@@ -13,7 +14,7 @@ export default function InvoiceItems() {
     queryFn: () => financeService.getInvoice(id!),
   })
 
-  const { data: items, isLoading } = useQuery({
+  const { data: items, isLoading, isError } = useQuery({
     queryKey: ['invoice-items', id],
     queryFn: () => financeService.getInvoiceItemsList(id!),
   })
@@ -21,8 +22,20 @@ export default function InvoiceItems() {
   const subtotal = items?.reduce((sum, item) => sum + item.total, 0) || 0
 
   if (isLoading) {
-    return <div className="p-6">Loading items...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import { useToast } from '../../components/ui/Toast'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface PendingCommission {
   id: string
@@ -16,11 +18,51 @@ interface PendingCommission {
 
 export const CommissionApprovalPage: React.FC = () => {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [selectedCommissions, setSelectedCommissions] = useState<Set<string>>(new Set())
   const [rejectionReason, setRejectionReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
-  const mockPendingCommissions: PendingCommission[] = []
+  const { data: pendingData, isLoading, isError } = useQuery({
+    queryKey: ['commission-earnings-pending'],
+    queryFn: () => commissionsService.getCommissions({ status: 'pending' }),
+  })
+
+  const approveMutation = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map(id => commissionsService.approveCommission(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
+      toast.success('Commissions approved successfully')
+      setSelectedCommissions(new Set())
+    },
+    onError: () => toast.error('Failed to approve commissions'),
+  })
+
+  const mockPendingCommissions: PendingCommission[] = (pendingData?.commissions || []).map((c: any) => ({
+    id: String(c.id),
+    agent_name: c.agent_name || c.earner_name || c.user_name || 'Unknown Agent',
+    agent_id: String(c.agent_id || c.earner_id || c.user_id || ''),
+    transaction_type: c.transaction_type || c.source_type || c.type || 'Sale',
+    transaction_date: c.transaction_date || c.created_at || new Date().toISOString(),
+    amount: Number(c.base_amount || c.amount || 0),
+    commission_amount: Number(c.commission_amount || c.amount || 0),
+    submitted_date: c.submitted_date || c.created_at || new Date().toISOString(),
+    notes: c.notes,
+  }))
+
+  if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -49,16 +91,20 @@ export const CommissionApprovalPage: React.FC = () => {
 
   const handleBulkApprove = () => {
     if (selectedCommissions.size === 0) return
-    console.log('Approving commissions:', Array.from(selectedCommissions))
-    setSelectedCommissions(new Set())
+    approveMutation.mutate(Array.from(selectedCommissions))
   }
 
   const handleBulkReject = () => {
     if (selectedCommissions.size === 0 || !rejectionReason) return
-    console.log('Rejecting commissions:', Array.from(selectedCommissions), rejectionReason)
-    setSelectedCommissions(new Set())
-    setRejectionReason('')
-    setShowRejectModal(false)
+    Promise.all(Array.from(selectedCommissions).map(id =>
+      commissionsService.reverseCommission(id, rejectionReason)
+    )).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['commission-earnings-pending'] })
+      toast.success('Commissions rejected')
+      setSelectedCommissions(new Set())
+      setRejectionReason('')
+      setShowRejectModal(false)
+    }).catch(() => toast.error('Failed to reject commissions'))
   }
 
   const selectedTotal = mockPendingCommissions
@@ -244,7 +290,7 @@ export const CommissionApprovalPage: React.FC = () => {
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-surface-secondary0 bg-opacity-75 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Reject Commissions</h3>
             <p className="text-sm text-gray-500 mb-4">

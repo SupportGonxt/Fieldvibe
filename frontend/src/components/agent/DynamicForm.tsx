@@ -24,6 +24,8 @@ import {
   Alert,
 } from '@mui/material';
 import { CameraAlt, Create } from '@mui/icons-material';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { compressPhoto } from '../../utils/photo-compression';
 
 interface FormField {
   name: string;
@@ -64,6 +66,7 @@ export default function DynamicForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [signatureField, setSignatureField] = useState<string | null>(null);
 
   const handleChange = (name: string, value: any) => {
     setFormData({ ...formData, [name]: value });
@@ -141,16 +144,28 @@ export default function DynamicForm({
     input.accept = 'image/*';
     input.capture = 'environment';
     
-    input.onchange = (e: any) => {
+    input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const dataUrl = event.target?.result as string;
-          setPhotos({ ...photos, [fieldName]: dataUrl });
-          handleChange(fieldName, dataUrl);
-        };
-        reader.readAsDataURL(file);
+        try {
+          const { compressed } = await compressPhoto(file);
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const dataUrl = event.target?.result as string;
+            setPhotos(prev => ({ ...prev, [fieldName]: dataUrl }));
+            handleChange(fieldName, dataUrl);
+          };
+          reader.readAsDataURL(compressed);
+        } catch {
+          // Fallback to uncompressed if compression fails
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const dataUrl = event.target?.result as string;
+            setPhotos(prev => ({ ...prev, [fieldName]: dataUrl }));
+            handleChange(fieldName, dataUrl);
+          };
+          reader.readAsDataURL(file);
+        }
       }
     };
     
@@ -158,11 +173,15 @@ export default function DynamicForm({
   };
 
   const handleCaptureSignature = (fieldName: string) => {
-    const signature = prompt('Enter signature (in real app, this would be a signature pad):');
-    if (signature) {
-      setSignatures({ ...signatures, [fieldName]: signature });
-      handleChange(fieldName, signature);
+    setSignatureField(fieldName);
+  };
+
+  const confirmSignature = (signature?: string) => {
+    if (signature && signatureField) {
+      setSignatures({ ...signatures, [signatureField]: signature });
+      handleChange(signatureField, signature);
     }
+    setSignatureField(null);
   };
 
   const renderField = (field: FormField) => {
@@ -315,6 +334,19 @@ export default function DynamicForm({
           </Grid>
         ))}
       </Grid>
+
+      <ConfirmDialog
+        isOpen={signatureField !== null}
+        onClose={() => setSignatureField(null)}
+        onConfirm={confirmSignature}
+        title="Capture Signature"
+        message="Enter your signature below. In a real app, this would be a signature pad."
+        confirmLabel="Save Signature"
+        variant="info"
+        showReasonInput
+        reasonPlaceholder="Enter signature..."
+        reasonRequired
+      />
 
       <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
         {onCancel && (

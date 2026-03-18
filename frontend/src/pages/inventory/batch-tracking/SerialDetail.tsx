@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Hash, Package, MapPin, User, Clock } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function SerialDetail() {
   const { serialId } = useParams<{ serialId: string }>()
   const navigate = useNavigate()
 
-  const { data: serial, isLoading } = useQuery({
+  const { data: serial, isLoading, isError } = useQuery({
     queryKey: ['serial', serialId],
     queryFn: async () => {
       const response = await fetch(`/api/serials/${serialId}`, {
@@ -44,6 +46,18 @@ export default function SerialDetail() {
   if (isLoading) {
     return <div className="p-6">Loading serial details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!serial) {
     return <div className="p-6">Serial not found</div>

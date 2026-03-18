@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Search, Key, UserCheck, UserX, Mail, Phone, Shield } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface User {
   id: string
@@ -53,6 +55,7 @@ export default function UserManagementPage() {
   const [errorMessage, setErrorMessage] = useState('')
 
   // Stats
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null)
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -146,19 +149,21 @@ export default function UserManagementPage() {
     }
   }
 
-  const handleDeleteUser = async (user: User) => {
-    if (!window.confirm(`Are you sure you want to delete ${user.first_name} ${user.last_name}?`)) {
-      return
-    }
+  const handleDeleteUser = (user: User) => {
+    setDeleteConfirmUser(user)
+  }
 
+  const confirmDeleteUser = async () => {
+    if (!deleteConfirmUser) return
     try {
-      await apiClient.delete(`/users/${user.id}`)
+      await apiClient.delete(`/users/${deleteConfirmUser.id}`)
       showSuccess('User deleted successfully')
       fetchUsers()
     } catch (error: any) {
       console.error('Error deleting user:', error)
       showError(error.response?.data?.message || 'Failed to delete user')
     }
+    setDeleteConfirmUser(null)
   }
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -345,8 +350,7 @@ export default function UserManagementPage() {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading users...</p>
+            <LoadingSpinner size="lg" />
           </div>
         ) : users.length === 0 ? (
           <div className="text-center py-12">
@@ -737,6 +741,15 @@ export default function UserManagementPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={deleteConfirmUser !== null}
+        onClose={() => setDeleteConfirmUser(null)}
+        onConfirm={confirmDeleteUser}
+        title="Delete User"
+        message={deleteConfirmUser ? `Are you sure you want to delete ${deleteConfirmUser.first_name} ${deleteConfirmUser.last_name}?` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   )
 }

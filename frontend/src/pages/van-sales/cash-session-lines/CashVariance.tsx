@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, AlertTriangle, DollarSign } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface VarianceFormData {
   resolution_action: string
@@ -16,7 +18,7 @@ export default function CashVariance() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading, isError } = useQuery({
     queryKey: ['cash-session', sessionId],
     queryFn: async () => {
       const response = await fetch(`/api/cash-sessions/${sessionId}`, {
@@ -30,16 +32,15 @@ export default function CashVariance() {
     },
   })
 
-  const oldSession = {
-      id: sessionId,
-      session_number: 'CASH-2024-001',
-      agent_name: 'John Van Sales',
-      expected_cash: 2450.00,
-      actual_cash: 2430.00,
-      variance: -20.00,
-      variance_percentage: -0.82,
-    }),
-  })
+  const fallbackSession = {
+    id: sessionId,
+    session_number: 'CASH-2024-001',
+    agent_name: 'John Van Sales',
+    expected_cash: 2450.00,
+    actual_cash: 2430.00,
+    variance: -20.00,
+    variance_percentage: -0.82,
+  }
 
   const { register, handleSubmit, formState: { errors } } = useForm<VarianceFormData>()
 
@@ -58,8 +59,20 @@ export default function CashVariance() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!session) {
     return <div className="p-6">Session not found</div>

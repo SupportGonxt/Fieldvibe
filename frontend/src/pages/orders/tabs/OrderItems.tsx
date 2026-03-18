@@ -7,7 +7,7 @@ import { EntityRefLink } from '../../../components/generic/EntityRefLink'
 export default function OrderItems() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: orderData, isLoading } = useQuery({
+  const { data: orderData, isLoading, isError } = useQuery({
     queryKey: ['order-items', id],
     queryFn: () => orderService.getOrder(id!),
   })

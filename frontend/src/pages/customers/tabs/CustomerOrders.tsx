@@ -2,12 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, ShoppingCart } from 'lucide-react'
 import { ordersService as orderService } from '../../../services/orders.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CustomerOrders() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ['customer-orders', id],
     queryFn: () => orderService.getOrders({ customer_id: id }),
   })
@@ -27,7 +28,7 @@ export default function CustomerOrders() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading orders...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : orders.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-400" />

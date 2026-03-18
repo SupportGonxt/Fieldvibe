@@ -2,11 +2,12 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Package, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { inventoryService } from '../../../services/inventory.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function ProductInventory() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: inventory = [], isLoading } = useQuery({
+  const { data: inventory = [], isLoading, isError } = useQuery({
     queryKey: ['product-inventory', id],
     queryFn: () => inventoryService.getProductInventory(id!),
   })
@@ -51,7 +52,7 @@ export default function ProductInventory() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading inventory...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : inventory.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />

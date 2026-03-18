@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, DollarSign, User, Clock } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CollectionDetail() {
   const { sessionId, collectionId } = useParams<{ sessionId: string; collectionId: string }>()
@@ -21,7 +23,7 @@ export default function CollectionDetail() {
     },
   })
 
-  const { data: collection, isLoading } = useQuery({
+  const { data: collection, isLoading, isError } = useQuery({
     queryKey: ['collection', sessionId, collectionId],
     queryFn: async () => {
       const response = await fetch(`/api/cash-sessions/${sessionId}/collections/${collectionId}`, {
@@ -35,25 +37,36 @@ export default function CollectionDetail() {
     },
   })
 
-  const oldCollection = {
-      id: collectionId,
-      session_id: sessionId,
-      customer_id: 'cust-1',
-      customer_name: 'ABC Store',
-      invoice_number: 'INV-2024-001',
-      invoice_amount: 250.00,
-      amount_collected: 250.00,
-      payment_method: 'cash',
-      collection_time: '2024-01-20T09:35:00Z',
-      collected_by: 'John Van Sales',
-      reference_number: 'REF-001',
-      notes: 'Full payment received',
-    }),
-  })
+  const fallbackCollection = {
+    id: collectionId,
+    session_id: sessionId,
+    customer_id: 'cust-1',
+    customer_name: 'ABC Store',
+    invoice_number: 'INV-2024-001',
+    invoice_amount: 250.00,
+    amount_collected: 250.00,
+    payment_method: 'cash',
+    collection_time: '2024-01-20T09:35:00Z',
+    collected_by: 'John Van Sales',
+    reference_number: 'REF-001',
+    notes: 'Full payment received',
+  }
 
   if (isLoading) {
     return <div className="p-6">Loading collection details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!collection) {
     return <div className="p-6">Collection not found</div>

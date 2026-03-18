@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Shield, Users, Plus, Edit, Trash2, Save, X, Check, Lock, Eye, FileEdit, Search, Filter } from 'lucide-react'
+import { useToast } from '../../components/ui/Toast'
 
 interface Permission {
   id: string
@@ -86,6 +87,7 @@ const PERMISSIONS: Permission[] = [
 ]
 
 export default function RolePermissionsPage() {
+  const { toast } = useToast()
   const [roles, setRoles] = useState<Role[]>([
     {
       id: '1',
@@ -193,7 +195,7 @@ export default function RolePermissionsPage() {
 
   const handleEditRole = (role: Role) => {
     if (role.isSystem) {
-      alert('System roles cannot be edited')
+      toast.error('System roles cannot be edited')
       return
     }
     setEditingRole(role)
@@ -203,7 +205,7 @@ export default function RolePermissionsPage() {
 
   const handleDeleteRole = (role: Role) => {
     if (role.isSystem) {
-      alert('System roles cannot be deleted')
+      toast.error('System roles cannot be deleted')
       return
     }
     setSelectedRole(role)
@@ -212,7 +214,7 @@ export default function RolePermissionsPage() {
 
   const handleSaveRole = () => {
     if (!editingRole.name || !editingRole.description) {
-      alert('Please fill all required fields')
+      toast.error('Please fill all required fields')
       return
     }
 

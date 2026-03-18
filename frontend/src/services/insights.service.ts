@@ -195,6 +195,121 @@ export const auditLogService = {
   },
 }
 
+export const tradeMarketingService = {
+  // Visit Photos
+  uploadPhoto: async (formData: FormData) => {
+    const res = await apiClient.post('/api/visit-photos/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return res.data?.data || res.data
+  },
+  getVisitPhotos: async (params?: any) => {
+    const res = await apiClient.get('/api/visit-photos', { params })
+    return res.data?.data || res.data
+  },
+  getPhoto: async (id: string) => {
+    const res = await apiClient.get(`/api/visit-photos/${id}`)
+    return res.data?.data || res.data
+  },
+  reanalyzePhoto: async (id: string) => {
+    const res = await apiClient.post(`/api/visit-photos/${id}/reanalyze`)
+    return res.data
+  },
+  // Share of Voice
+  getShareOfVoice: async (params?: any) => {
+    const res = await apiClient.get('/api/insights/share-of-voice', { params })
+    return res.data?.data || res.data
+  },
+  // Survey Templates
+  getSurveyTemplates: async (params?: any) => {
+    const res = await apiClient.get('/api/survey-templates', { params })
+    return res.data?.data || res.data
+  },
+  createSurveyTemplate: async (data: any) => {
+    const res = await apiClient.post('/api/survey-templates', data)
+    return res.data
+  },
+  getSurveyTemplate: async (id: string) => {
+    const res = await apiClient.get(`/api/survey-templates/${id}`)
+    return res.data?.data || res.data
+  },
+  updateSurveyTemplate: async (id: string, data: any) => {
+    const res = await apiClient.put(`/api/survey-templates/${id}`, data)
+    return res.data
+  },
+  // Activations
+  startActivation: async (id: string, data: any) => {
+    const res = await apiClient.post(`/api/activations/${id}/start`, data)
+    return res.data?.data || res.data
+  },
+  completeTask: async (activationId: string, taskId: string, data: any) => {
+    const res = await apiClient.post(`/api/activations/${activationId}/tasks/${taskId}/complete`, data)
+    return res.data
+  },
+  submitActivation: async (id: string) => {
+    const res = await apiClient.post(`/api/activations/${id}/submit`)
+    return res.data
+  },
+  getActivationSummary: async (id: string) => {
+    const res = await apiClient.get(`/api/activations/${id}/summary`)
+    return res.data?.data || res.data
+  },
+  approveActivation: async (id: string) => {
+    const res = await apiClient.post(`/api/activations/${id}/approve`)
+    return res.data
+  },
+  // POSM
+  getPOSMMaterials: async (params?: any) => {
+    const res = await apiClient.get('/api/posm-materials', { params })
+    return res.data?.data || res.data
+  },
+  createPOSMMaterial: async (data: any) => {
+    const res = await apiClient.post('/api/posm-materials', data)
+    return res.data
+  },
+  getPOSMInstallations: async (params?: any) => {
+    const res = await apiClient.get('/api/posm-installations', { params })
+    return res.data?.data || res.data
+  },
+  createPOSMInstallation: async (data: any) => {
+    const res = await apiClient.post('/api/posm-installations', data)
+    return res.data
+  },
+  getPOSMAudits: async (params?: any) => {
+    const res = await apiClient.get('/api/posm-audits', { params })
+    return res.data?.data || res.data
+  },
+  createPOSMAudit: async (data: any) => {
+    const res = await apiClient.post('/api/posm-audits', data)
+    return res.data
+  },
+  getPOSMDashboard: async () => {
+    const res = await apiClient.get('/api/posm-materials/dashboard')
+    return res.data?.data || res.data
+  },
+  // Brand Owner
+  getBrandOwnerDashboard: async (params?: any) => {
+    const res = await apiClient.get('/api/brand-owner/dashboard', { params })
+    return res.data?.data || res.data
+  },
+  getBrandOwnerReports: async (params?: any) => {
+    const res = await apiClient.get('/api/brand-owner/reports', { params })
+    return res.data?.data || res.data
+  },
+  // Competitor Intelligence
+  getCompetitorInsights: async (params?: any) => {
+    const res = await apiClient.get('/api/insights/competitors', { params })
+    return res.data?.data || res.data
+  },
+  createCompetitorSighting: async (data: any) => {
+    const res = await apiClient.post('/api/competitor-sightings-enhanced', data)
+    return res.data
+  },
+  // Enhanced Checkout
+  enhancedCheckout: async (visitId: string, data: any) => {
+    const res = await apiClient.post(`/api/visits/${visitId}/checkout-enhanced`, data)
+    return res.data
+  },
+}
+
 export const rbacService = {
   getPermissions: async () => {
     const res = await apiClient.get('/api/rbac/permissions')

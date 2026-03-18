@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, DollarSign, FileText, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PaymentAllocationDetail() {
   const { paymentId, allocationId } = useParams<{ paymentId: string; allocationId: string }>()
@@ -13,14 +15,26 @@ export default function PaymentAllocationDetail() {
     queryFn: async () => financeService.getPayment(paymentId!),
   })
 
-  const { data: allocation, isLoading } = useQuery({
+  const { data: allocation, isLoading, isError } = useQuery({
     queryKey: ['payment-allocation', paymentId, allocationId],
     queryFn: async () => financeService.getPaymentAllocation(paymentId!, allocationId!),
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading allocation...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!allocation) {
     return <div className="p-6">Allocation not found</div>

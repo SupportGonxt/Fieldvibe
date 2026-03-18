@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { financeService } from '../../../services/finance.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface AllocationFormData {
   allocated_amount: number
@@ -16,7 +18,7 @@ export default function PaymentAllocationEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: allocation, isLoading } = useQuery({
+  const { data: allocation, isLoading, isError } = useQuery({
     queryKey: ['payment-allocation', paymentId, allocationId],
     queryFn: async () => financeService.getPaymentAllocation(paymentId!, allocationId!),
   })
@@ -41,8 +43,20 @@ export default function PaymentAllocationEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!allocation) {
     return <div className="p-6">Allocation not found</div>

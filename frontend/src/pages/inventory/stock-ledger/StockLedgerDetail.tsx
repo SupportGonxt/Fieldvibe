@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, TrendingUp, TrendingDown } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function StockLedgerDetail() {
   const { productId, entryId } = useParams<{ productId: string; entryId: string }>()
@@ -20,7 +22,7 @@ export default function StockLedgerDetail() {
     },
   })
 
-  const { data: entry, isLoading } = useQuery({
+  const { data: entry, isLoading, isError } = useQuery({
     queryKey: ['stock-ledger-entry', productId, entryId],
     queryFn: async () => {
       const response = await fetch(`/api/stock-ledger/${entryId}`, {
@@ -53,6 +55,18 @@ export default function StockLedgerDetail() {
   if (isLoading) {
     return <div className="p-6">Loading ledger entry...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!entry) {
     return <div className="p-6">Ledger entry not found</div>

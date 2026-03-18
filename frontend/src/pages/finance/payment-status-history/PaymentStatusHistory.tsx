@@ -13,7 +13,7 @@ export default function PaymentStatusHistory() {
     queryFn: async () => financeService.getPayment(paymentId!),
   })
 
-  const { data: history = [], isLoading } = useQuery({
+  const { data: history = [], isLoading, isError } = useQuery({
     queryKey: ['payment-status-history', paymentId],
     queryFn: async () => {
       return []
@@ -23,6 +23,18 @@ export default function PaymentStatusHistory() {
   if (isLoading) {
     return <div className="p-6">Loading status history...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

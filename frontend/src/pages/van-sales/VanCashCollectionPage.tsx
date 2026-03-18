@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { DollarSign, TrendingUp, Calendar, AlertCircle } from 'lucide-react'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function VanCashCollectionPage() {
   const [filter, setFilter] = useState({ van_id: '', date: new Date().toISOString().split('T')[0] })
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['van-cash-collection', filter],
     queryFn: () => vanSalesService.getVanCashCollection(filter),
     enabled: !!filter.van_id
@@ -57,7 +58,7 @@ export default function VanCashCollectionPage() {
 
           <div className="bg-white rounded-lg shadow overflow-hidden">
             {isLoading ? (
-              <div className="p-12 text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-600">Loading...</p></div>
+              <div className="p-12 text-center"><LoadingSpinner size="lg" /></div>
             ) : error ? (
               <div className="p-12 text-center text-red-600"><AlertCircle className="h-12 w-12 mx-auto mb-2" /><p>Failed to load cash collections</p></div>
             ) : collections.length === 0 ? (

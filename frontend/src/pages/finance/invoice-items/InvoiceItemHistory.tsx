@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Clock } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function InvoiceItemHistory() {
   const { invoiceId, itemId } = useParams<{ invoiceId: string; itemId: string }>()
@@ -13,7 +14,7 @@ export default function InvoiceItemHistory() {
     queryFn: async () => financeService.getInvoiceItem(invoiceId!, itemId!),
   })
 
-  const { data: history = [], isLoading } = useQuery({
+  const { data: history = [], isLoading, isError } = useQuery({
     queryKey: ['invoice-item-history', invoiceId, itemId],
     queryFn: async () => {
       return []
@@ -21,8 +22,20 @@ export default function InvoiceItemHistory() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading history...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

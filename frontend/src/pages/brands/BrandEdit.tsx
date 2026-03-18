@@ -4,13 +4,15 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { brandService } from '../../services/brand.service'
 import { toast } from 'react-hot-toast'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function BrandEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: brand, isLoading } = useQuery({
+  const { data: brand, isLoading, isError } = useQuery({
     queryKey: ['brand', id],
     queryFn: () => brandService.getBrand(id!),
   })
@@ -37,8 +39,20 @@ export default function BrandEdit() {
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading brand...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!brand) {
     return <div className="p-6">Brand not found</div>

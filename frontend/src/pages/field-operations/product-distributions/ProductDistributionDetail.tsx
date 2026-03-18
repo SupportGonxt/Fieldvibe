@@ -3,8 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function ProductDistributionDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [distribution, setDistribution] = useState<any>(null)
@@ -36,16 +40,20 @@ export default function ProductDistributionDetail() {
       navigate('/field-operations/product-distributions')
     } catch (error) {
       console.error('Failed to reverse product distribution:', error)
-      alert('Failed to reverse product distribution')
+      toast.error('Failed to reverse product distribution')
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!distribution) {
-    return <div className="flex items-center justify-center h-64">Product distribution not found</div>
+    return <ErrorState title="Product distribution not found" message="The product distribution you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

@@ -28,6 +28,8 @@ import {
   Award,
 } from 'lucide-react'
 import { apiClient as api } from '../../services/api.service'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
 
 interface CustomerMetrics {
   totalCustomers: number
@@ -269,7 +271,7 @@ export default function CustomerDashboard() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    metrics.topCustomers.map((customer) => (
+                    (metrics?.topCustomers || []).map((customer) => (
                       <TableRow key={customer.id} hover>
                         <TableCell>
                           <Typography fontWeight="medium">{customer.name}</Typography>

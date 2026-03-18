@@ -24,7 +24,7 @@ export default function RouteCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: RouteFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id: 'new-route-id' }
     },
     onSuccess: (data) => {

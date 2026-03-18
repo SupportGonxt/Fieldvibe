@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { customersService, Customer, CustomerFilter, CustomerStats } from '../../services/customers.service'
 import { formatCurrency, formatDate, formatPhoneNumber } from '../../utils/format'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export default function CustomersPage() {
   const navigate = useNavigate()
@@ -31,6 +32,8 @@ export default function CustomersPage() {
 
   const customers = customersData?.customers || []
   const pagination = customersData?.pagination || {}
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const deleteCustomerMutation = useMutation({
     mutationFn: (id: string) => customersService.deleteCustomer(id),
@@ -84,14 +87,18 @@ export default function CustomersPage() {
     }
   }
 
-  const handleDeleteCustomer = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
-      try {
-        await deleteCustomerMutation.mutateAsync(id)
-      } catch (error) {
-        console.error('Failed to delete customer:', error)
-      }
+  const handleDeleteCustomer = (id: string) => {
+    setDeleteConfirmId(id)
+  }
+
+  const confirmDeleteCustomer = async () => {
+    if (!deleteConfirmId) return
+    try {
+      await deleteCustomerMutation.mutateAsync(deleteConfirmId)
+    } catch (error) {
+      console.error('Failed to delete customer:', error)
     }
+    setDeleteConfirmId(null)
   }
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
@@ -533,6 +540,15 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={confirmDeleteCustomer}
+        title="Delete Customer"
+        message="Are you sure you want to delete this customer? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   )
 }

@@ -2,12 +2,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Paperclip, Download, Calendar, User } from 'lucide-react'
 import { attachmentsService } from '../../../services/attachments.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function AttachmentDetail() {
   const { entityType, entityId, attachmentId } = useParams<{ entityType: string; entityId: string; attachmentId: string }>()
   const navigate = useNavigate()
 
-  const { data: attachment, isLoading } = useQuery({
+  const { data: attachment, isLoading, isError } = useQuery({
     queryKey: ['attachment', entityType, entityId, attachmentId],
     queryFn: async () => attachmentsService.getAttachment(entityType!, entityId!, attachmentId!),
   })
@@ -19,8 +21,20 @@ export default function AttachmentDetail() {
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading attachment...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!attachment) {
     return <div className="p-6">Attachment not found</div>

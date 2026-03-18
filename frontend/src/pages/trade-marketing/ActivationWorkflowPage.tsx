@@ -5,6 +5,7 @@ import {
   Navigation, Gift, Users, TrendingUp
 } from 'lucide-react';
 import { apiClient } from '../../services/api.service';
+import { compressPhoto } from '../../utils/photo-compression';
 
 interface Campaign {
   id: string;
@@ -216,14 +217,23 @@ const ActivationWorkflowPage: React.FC = () => {
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = (e: any) => {
+    input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setTaskPhotos({ ...taskPhotos, [taskId]: event.target?.result as string });
-        };
-        reader.readAsDataURL(file);
+        try {
+          const { compressed } = await compressPhoto(file);
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setTaskPhotos(prev => ({ ...prev, [taskId]: event.target?.result as string }));
+          };
+          reader.readAsDataURL(compressed);
+        } catch {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setTaskPhotos(prev => ({ ...prev, [taskId]: event.target?.result as string }));
+          };
+          reader.readAsDataURL(file);
+        }
       }
     };
     input.click();

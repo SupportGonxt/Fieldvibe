@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Image, FileText, File } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface AttachmentGalleryProps {
   entityType: string
@@ -10,7 +11,7 @@ interface AttachmentGalleryProps {
 export default function AttachmentGallery({ entityType, entityId }: AttachmentGalleryProps) {
   const navigate = useNavigate()
 
-  const { data: attachments, isLoading } = useQuery({
+  const { data: attachments, isLoading, isError } = useQuery({
     queryKey: ['attachments-gallery', entityType, entityId],
     queryFn: async () => [
       {
@@ -55,8 +56,20 @@ export default function AttachmentGallery({ entityType, entityId }: AttachmentGa
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading gallery...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="bg-white rounded-lg shadow p-6">

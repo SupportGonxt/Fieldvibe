@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export const ProductAnalyticsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -8,7 +9,7 @@ export const ProductAnalyticsPage: React.FC = () => {
     end: new Date().toISOString().split('T')[0]
   })
 
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['product-stats', dateRange],
     queryFn: () => productsService.getProductStats()
   })
@@ -23,10 +24,22 @@ export const ProductAnalyticsPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   const productStats = stats || {
     total_products: 0,

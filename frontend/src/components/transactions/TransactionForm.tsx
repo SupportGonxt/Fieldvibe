@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Save, X, AlertCircle } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges'
 
 interface Field {
   name: string
@@ -38,6 +39,11 @@ export default function TransactionForm({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const isDirty = useMemo(() => {
+    return Object.keys(formData).some(key => (formData[key] ?? '') !== (initialData[key] ?? ''))
+  }, [formData, initialData])
+  useUnsavedChanges(isDirty)
 
   const handleChange = (name: string, value: any) => {
     setFormData({ ...formData, [name]: value })
@@ -102,9 +108,9 @@ export default function TransactionForm({
       id: field.name,
       name: field.name,
       disabled: field.disabled || loading,
-      className: `w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-        error ? 'border-red-500' : 'border-gray-300'
-      } ${field.disabled ? 'bg-gray-100' : ''}`
+      className: `w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 hover:border-gray-300 transition-colors ${
+        error ? 'border-red-500' : 'border-gray-200'
+      } ${field.disabled ? 'bg-gray-100' : 'bg-white'}`
     }
 
     switch (field.type) {
@@ -160,9 +166,9 @@ export default function TransactionForm({
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{title}</h1>
+    <div className="max-w-5xl mx-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-8">{title}</h1>
 
         {submitError && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
@@ -175,11 +181,11 @@ export default function TransactionForm({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {fields.map(field => (
               <div
                 key={field.name}
-                className={field.type === 'textarea' ? 'md:col-span-2' : ''}
+                className={field.type === 'textarea' ? 'sm:col-span-2 lg:col-span-3' : ''}
               >
                 <label
                   htmlFor={field.name}
@@ -196,7 +202,7 @@ export default function TransactionForm({
             ))}
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-end gap-3 pt-8 border-t border-gray-100">
             <Button
               type="button"
               variant="secondary"

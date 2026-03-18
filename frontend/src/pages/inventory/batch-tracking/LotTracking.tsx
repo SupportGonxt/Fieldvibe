@@ -20,7 +20,7 @@ export default function LotTracking() {
     },
   })
 
-  const { data: tracking, isLoading } = useQuery({
+  const { data: tracking, isLoading, isError } = useQuery({
     queryKey: ['lot-tracking', lotId],
     queryFn: async () => {
       const response = await fetch(`/api/lots/${lotId}/tracking`, {
@@ -94,6 +94,18 @@ export default function LotTracking() {
   if (isLoading) {
     return <div className="p-6">Loading lot tracking...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

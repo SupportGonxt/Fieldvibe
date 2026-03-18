@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { customersService } from '../../services/customers.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface KYCFormData {
   business_name: string
@@ -23,7 +24,7 @@ export default function KYCEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: kyc, isLoading } = useQuery({
+  const { data: kyc, isLoading, isError } = useQuery({
     queryKey: ['kyc', id],
     queryFn: () => customersService.getCustomer(id!),
   })
@@ -34,7 +35,7 @@ export default function KYCEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: KYCFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id }
     },
     onSuccess: () => {
@@ -48,8 +49,20 @@ export default function KYCEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading KYC...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

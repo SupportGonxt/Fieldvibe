@@ -20,5 +20,12 @@ database_id = "1521287d-96be-42b7-b77c-e8c5f67629a6"
 binding = "UPLOADS"
 bucket_name = "fieldvibe-uploads"
 
+[ai]
+binding = "AI"
+
 [placement]
 mode = "smart"
+
+# Section 9: Scheduled jobs
+[triggers]
+crons = ["0 4 * * *", "0 6 * * *", "0 16 * * *", "0 22 1 * *", "0 5 * * 1"]

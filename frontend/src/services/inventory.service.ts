@@ -414,6 +414,125 @@ class InventoryService {
       throw error
     }
   }
+
+  // Compatibility aliases used by InventoryManagement page
+  async getInventoryItems(filter?: any): Promise<{ items: any[]; pagination: any }> {
+    try {
+      const result = await this.getStock(filter)
+      return {
+        items: (result.data || []).map((item: any) => ({
+          id: item.product_id || item.id,
+          product_name: item.product_name,
+          product_code: item.product_code,
+          product_image: item.product_image,
+          location_name: item.warehouse_name,
+          current_stock: item.current_stock || 0,
+          minimum_stock: item.reorder_level || 0,
+          maximum_stock: item.maximum_stock || 0,
+          unit_cost: item.unit_cost || 0,
+          updated_at: item.last_updated,
+          ...item,
+        })),
+        pagination: { total: result.total || 0 },
+      }
+    } catch (error) {
+      console.error('Failed to fetch inventory items:', error)
+      return { items: [], pagination: { total: 0 } }
+    }
+  }
+
+  async getLocations(): Promise<any[]> {
+    try {
+      const result = await this.getWarehouses()
+      return result.data || []
+    } catch (error) {
+      console.error('Failed to fetch locations:', error)
+      return []
+    }
+  }
+
+  async getInventoryItem(id: string): Promise<any> {
+    try {
+      return await this.getProductInventory(id)
+    } catch (error) {
+      console.error('Failed to fetch inventory item:', error)
+      return null
+    }
+  }
+
+  async adjustStock(id: string, adjustment: any): Promise<any> {
+    try {
+      return await this.createStockMovement({
+        product_id: id,
+        movement_type: adjustment.type === 'add' ? 'in' : 'out',
+        quantity: adjustment.quantity,
+        notes: adjustment.reason,
+        warehouse_id: adjustment.warehouse_id,
+      })
+    } catch (error) {
+      console.error('Failed to adjust stock:', error)
+      throw error
+    }
+  }
+
+  async deleteInventoryItem(id: string): Promise<void> {
+    try {
+      await apiClient.delete(`${this.baseUrl}/${id}`)
+    } catch (error) {
+      console.error('Failed to delete inventory item:', error)
+      throw error
+    }
+  }
+
+  async bulkUpdateItems(ids: string[], updates: any): Promise<void> {
+    try {
+      await apiClient.put(`${this.baseUrl}/bulk-update`, { ids, updates })
+    } catch (error) {
+      console.error('Failed to bulk update items:', error)
+      throw error
+    }
+  }
+
+  async exportInventoryReport(format: string, filter?: any): Promise<void> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/export`, { params: { format, ...filter } })
+      console.log('Export initiated:', response.data)
+    } catch (error) {
+      console.error('Failed to export inventory report:', error)
+    }
+  }
+
+  async importInventoryItems(file: File): Promise<void> {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      await apiClient.post(`${this.baseUrl}/import`, formData)
+    } catch (error) {
+      console.error('Failed to import inventory items:', error)
+      throw error
+    }
+  }
+}
+
+// Type aliases for backward compatibility
+export type InventoryItem = StockItem & {
+  id?: string
+  product_image?: string
+  location_name?: string
+  minimum_stock?: number
+  maximum_stock?: number
+  unit_cost?: number
+  updated_at?: string
+}
+
+export type InventoryFilter = {
+  page?: number
+  limit?: number
+  search?: string
+  location_id?: string
+  stock_status?: string
+  sort_by?: string
+  sort_order?: string
 }
 
 export const inventoryService = new InventoryService()

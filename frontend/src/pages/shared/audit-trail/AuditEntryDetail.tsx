@@ -2,12 +2,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, User, Clock, Monitor, MapPin } from 'lucide-react'
 import { auditService } from '../../../services/audit.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function AuditEntryDetail() {
   const { entityType, entityId, entryId } = useParams<{ entityType: string; entityId: string; entryId: string }>()
   const navigate = useNavigate()
 
-  const { data: entry, isLoading } = useQuery({
+  const { data: entry, isLoading, isError } = useQuery({
     queryKey: ['audit-entry', entityType, entityId, entryId],
     queryFn: async () => auditService.getAuditEntry(entityType!, entityId!, entryId!),
   })
@@ -15,6 +17,18 @@ export default function AuditEntryDetail() {
   if (isLoading) {
     return <div className="p-6">Loading audit entry...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!entry) {
     return <div className="p-6">Audit entry not found</div>

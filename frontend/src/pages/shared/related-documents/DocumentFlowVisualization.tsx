@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, FileText } from 'lucide-react'
 import { documentsService } from '../../../services/documents.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface DocumentFlowVisualizationProps {
   entityType: string
@@ -11,7 +13,7 @@ interface DocumentFlowVisualizationProps {
 export default function DocumentFlowVisualization({ entityType, entityId }: DocumentFlowVisualizationProps) {
   const navigate = useNavigate()
 
-  const { data: relationships = [], isLoading } = useQuery({
+  const { data: relationships = [], isLoading, isError } = useQuery({
     queryKey: ['document-flow', entityType, entityId],
     queryFn: async () => documentsService.getRelatedDocuments(entityType, entityId),
   })
@@ -36,6 +38,18 @@ export default function DocumentFlowVisualization({ entityType, entityId }: Docu
   if (isLoading) {
     return <div className="p-6">Loading flow visualization...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!flow) {
     return <div className="p-6">Flow not found</div>

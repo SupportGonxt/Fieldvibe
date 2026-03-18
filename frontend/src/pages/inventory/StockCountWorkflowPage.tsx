@@ -5,6 +5,7 @@ import {
   Navigation, Warehouse, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { apiClient } from '../../services/api.service';
+import { compressPhoto } from '../../utils/photo-compression';
 
 interface Warehouse {
   id: string;
@@ -195,14 +196,23 @@ const StockCountWorkflowPage: React.FC = () => {
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = (e: any) => {
+    input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setPhoto(event.target?.result as string);
-        };
-        reader.readAsDataURL(file);
+        try {
+          const { compressed } = await compressPhoto(file);
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setPhoto(event.target?.result as string);
+          };
+          reader.readAsDataURL(compressed);
+        } catch {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setPhoto(event.target?.result as string);
+          };
+          reader.readAsDataURL(file);
+        }
       }
     };
     input.click();

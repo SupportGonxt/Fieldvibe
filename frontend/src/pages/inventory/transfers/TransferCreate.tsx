@@ -4,6 +4,8 @@ import { ArrowLeft, Save, Send, ArrowRightLeft, Warehouse } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { inventoryService } from '../../../services/inventory.service'
 import { productsService } from '../../../services/products.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface WarehouseType {
   id: string
@@ -20,6 +22,7 @@ interface Product {
 }
 
 export default function TransferCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -55,19 +58,19 @@ export default function TransferCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!fromWarehouse) {
-      alert('Please select a source warehouse')
+      toast.info('Please select a source warehouse')
       return
     }
     if (!toWarehouse) {
-      alert('Please select a destination warehouse')
+      toast.info('Please select a destination warehouse')
       return
     }
     if (fromWarehouse === toWarehouse) {
-      alert('Source and destination warehouses must be different')
+      toast.info('Source and destination warehouses must be different')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product to transfer')
+      toast.info('Please add at least one product to transfer')
       return
     }
 
@@ -92,7 +95,7 @@ export default function TransferCreate() {
       navigate('/inventory/transfers')
     } catch (error: any) {
       console.error('Failed to create transfer:', error)
-      alert(error.message || 'Failed to create transfer')
+      toast.error(error.message || 'Failed to create transfer')
     } finally {
       setSaving(false)
     }
@@ -101,7 +104,7 @@ export default function TransferCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

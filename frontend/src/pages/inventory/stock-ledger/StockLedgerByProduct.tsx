@@ -20,7 +20,7 @@ export default function StockLedgerByProduct() {
     },
   })
 
-  const { data: entries, isLoading } = useQuery({
+  const { data: entries, isLoading, isError } = useQuery({
     queryKey: ['stock-ledger-product', productId],
     queryFn: async () => {
       const response = await fetch(`/api/products/${productId}/stock-ledger`, {
@@ -70,6 +70,18 @@ export default function StockLedgerByProduct() {
   if (isLoading) {
     return <div className="p-6">Loading stock ledger...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

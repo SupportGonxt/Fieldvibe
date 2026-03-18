@@ -10,6 +10,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { fieldMarketingService, Board } from '../../services/field-marketing.service'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 interface BoardFormData {
   brand_id: string
@@ -32,6 +33,7 @@ export default function BoardManagement() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [deleteBoardId, setDeleteBoardId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingBoard, setEditingBoard] = useState<Board | null>(null)
   const [formData, setFormData] = useState<BoardFormData>({
@@ -93,15 +95,19 @@ export default function BoardManagement() {
     }
   }
 
-  const handleDeleteBoard = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this board?')) return
-    
+  const handleDeleteBoard = (id: string) => {
+    setDeleteBoardId(id)
+  }
+
+  const confirmDeleteBoard = async () => {
+    if (!deleteBoardId) return
     try {
-      await fieldMarketingService.deleteBoard(id)
+      await fieldMarketingService.deleteBoard(deleteBoardId)
       loadBoards()
     } catch (error) {
       console.error('Error deleting board:', error)
     }
+    setDeleteBoardId(null)
   }
 
   const resetForm = () => {
@@ -495,6 +501,15 @@ export default function BoardManagement() {
           </tbody>
         </table>
       </div>
+      <ConfirmDialog
+        isOpen={deleteBoardId !== null}
+        onClose={() => setDeleteBoardId(null)}
+        onConfirm={confirmDeleteBoard}
+        title="Delete Board"
+        message="Are you sure you want to delete this board? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   )
 }

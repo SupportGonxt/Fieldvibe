@@ -2,12 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, RotateCcw, AlertCircle } from 'lucide-react'
 import { ordersService as orderService } from '../../../services/orders.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function OrderReturns() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: returns = [], isLoading } = useQuery({
+  const { data: returns = [], isLoading, isError } = useQuery({
     queryKey: ['order-returns', id],
     queryFn: () => orderService.getOrderReturns(id!),
   })
@@ -36,7 +37,7 @@ export default function OrderReturns() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading returns...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : returns.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <RotateCcw className="h-12 w-12 mx-auto mb-4 text-gray-400" />

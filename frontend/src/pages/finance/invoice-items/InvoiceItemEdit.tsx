@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { financeService } from '../../../services/finance.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface InvoiceItemFormData {
   quantity: number
@@ -17,7 +19,7 @@ export default function InvoiceItemEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['invoice-item', invoiceId, itemId],
     queryFn: async () => financeService.getInvoiceItem(invoiceId!, itemId!),
   })
@@ -42,8 +44,20 @@ export default function InvoiceItemEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!item) {
     return <div className="p-6">Invoice item not found</div>

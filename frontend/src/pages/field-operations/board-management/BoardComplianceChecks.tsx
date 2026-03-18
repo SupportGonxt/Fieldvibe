@@ -20,7 +20,7 @@ export default function BoardComplianceChecks() {
     },
   })
 
-  const { data: checks, isLoading } = useQuery({
+  const { data: checks, isLoading, isError } = useQuery({
     queryKey: ['board-compliance-checks', boardId],
     queryFn: async () => {
       const response = await fetch(`/api/boards/${boardId}/compliance`, {
@@ -76,6 +76,18 @@ export default function BoardComplianceChecks() {
   if (isLoading) {
     return <div className="p-6">Loading compliance checks...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   const passedChecks = checks?.filter(c => c.status === 'passed').length || 0
   const totalChecks = checks?.length || 0

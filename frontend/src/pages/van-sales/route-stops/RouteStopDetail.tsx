@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, Clock, CheckCircle, Package } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function RouteStopDetail() {
   const { routeId, stopId } = useParams<{ routeId: string; stopId: string }>()
@@ -21,7 +23,7 @@ export default function RouteStopDetail() {
     },
   })
 
-  const { data: stop, isLoading } = useQuery({
+  const { data: stop, isLoading, isError } = useQuery({
     queryKey: ['route-stop', routeId, stopId],
     queryFn: async () => {
       const response = await fetch(`/api/route-stops/${stopId}`, {
@@ -38,6 +40,18 @@ export default function RouteStopDetail() {
   if (isLoading) {
     return <div className="p-6">Loading stop details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!stop) {
     return <div className="p-6">Stop not found</div>

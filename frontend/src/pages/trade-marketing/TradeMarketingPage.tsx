@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button'
 import { TrendingUp, Target, DollarSign, Users, BarChart3, Calendar, Plus, Filter, Award, Zap, ShoppingCart, TrendingDown } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface TradeMarketingMetrics {
   totalSpend: number

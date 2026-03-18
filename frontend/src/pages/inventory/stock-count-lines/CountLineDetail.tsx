@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, TrendingUp, AlertTriangle } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CountLineDetail() {
   const { countId, lineId } = useParams<{ countId: string; lineId: string }>()
@@ -20,7 +22,7 @@ export default function CountLineDetail() {
     },
   })
 
-  const { data: line, isLoading } = useQuery({
+  const { data: line, isLoading, isError } = useQuery({
     queryKey: ['count-line', countId, lineId],
     queryFn: async () => {
       const response = await fetch(`/api/stock-counts/${countId}/lines/${lineId}`, {
@@ -56,6 +58,18 @@ export default function CountLineDetail() {
   if (isLoading) {
     return <div className="p-6">Loading count line...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!line) {
     return <div className="p-6">Count line not found</div>

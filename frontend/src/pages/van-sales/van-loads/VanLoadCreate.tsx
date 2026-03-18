@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Send, Truck, Package } from 'lucide-react'
 import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../../../components/transactions/LineItemsEditor'
 import { vanSalesService } from '../../../services/van-sales.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Van {
   id: string
@@ -24,6 +26,7 @@ interface Product {
 }
 
 export default function VanLoadCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [vans, setVans] = useState<Van[]>([])
   const [routes, setRoutes] = useState<Route[]>([])
@@ -62,15 +65,15 @@ export default function VanLoadCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedVan) {
-      alert('Please select a van')
+      toast.info('Please select a van')
       return
     }
     if (!selectedRoute) {
-      alert('Please select a route')
+      toast.info('Please select a route')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one product to load')
+      toast.info('Please add at least one product to load')
       return
     }
 
@@ -95,7 +98,7 @@ export default function VanLoadCreate() {
       navigate('/van-sales/van-loads')
     } catch (error: any) {
       console.error('Failed to create van load:', error)
-      alert(error.message || 'Failed to create van load')
+      toast.error(error.message || 'Failed to create van load')
     } finally {
       setSaving(false)
     }
@@ -104,7 +107,7 @@ export default function VanLoadCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

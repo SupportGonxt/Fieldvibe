@@ -4,13 +4,15 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { ordersService } from '../../../services/orders.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function OrderItemEdit() {
   const { orderId, itemId } = useParams<{ orderId: string; itemId: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['order-item', orderId, itemId],
     queryFn: async () => ordersService.getOrderItem(orderId!, itemId!),
   })
@@ -35,8 +37,20 @@ export default function OrderItemEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

@@ -71,7 +71,6 @@ const CustomersAdvanced: React.FC = () => {
   };
 
   const handleExport = (format: 'csv' | 'excel') => {
-    console.log(`Exporting as ${format}`);
     // Custom export logic can be added here
   };
 

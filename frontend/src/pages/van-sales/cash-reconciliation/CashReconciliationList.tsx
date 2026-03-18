@@ -117,7 +117,6 @@ export default function CashReconciliationList() {
       data={reconciliations}
       loading={loading}
       onRefresh={loadReconciliations}
-      onExport={() => console.log('Export reconciliations')}
       createPath="/van-sales/cash-reconciliation/create"
       createLabel="Create Reconciliation"
     />

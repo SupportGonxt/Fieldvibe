@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Truck, MapPin, Clock, CheckCircle } from 'lucide-react'
 import { ordersService } from '../../../services/orders.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function DeliveryDetail() {
   const { orderId, deliveryId } = useParams<{ orderId: string; deliveryId: string }>()
@@ -12,14 +14,26 @@ export default function DeliveryDetail() {
     queryFn: async () => ordersService.getOrder(orderId!),
   })
 
-  const { data: delivery, isLoading } = useQuery({
+  const { data: delivery, isLoading, isError } = useQuery({
     queryKey: ['delivery', orderId, deliveryId],
     queryFn: async () => ordersService.getOrderDelivery(orderId!, deliveryId!),
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading delivery...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!delivery) {
     return <div className="p-6">Delivery not found</div>

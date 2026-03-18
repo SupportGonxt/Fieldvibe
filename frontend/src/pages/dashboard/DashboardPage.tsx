@@ -33,6 +33,9 @@ import { useAuthStore } from '../../store/auth.store'
 import { analyticsService } from '../../services/analytics.service'
 import { formatCurrency, formatNumber, formatDate } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
+import ExportMenu from '../../components/export/ExportMenu'
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
@@ -177,6 +180,23 @@ export default function DashboardPage() {
             <RefreshCw className="w-4 h-4" />
             <span>Refresh</span>
           </button>
+          <ExportMenu
+            data={[
+              { metric: 'Total Revenue', value: stats.total_revenue || 0, change: stats.revenue_growth },
+              { metric: 'Active Customers', value: stats.active_customers || 0, change: stats.customer_growth },
+              { metric: 'Field Agents', value: stats.total_agents || 0, change: stats.agent_growth },
+              { metric: 'Products Sold', value: stats.products_sold || 0, change: stats.products_growth },
+              { metric: 'Total Orders', value: stats.total_orders || 0 },
+              { metric: 'New Customers', value: stats.new_customers || 0 },
+            ]}
+            columns={[
+              { key: 'metric', label: 'Metric' },
+              { key: 'value', label: 'Value' },
+              { key: 'change', label: 'Change %' },
+            ]}
+            filename="dashboard-overview"
+            title="Dashboard Overview"
+          />
         </div>
       </div>
 
@@ -232,7 +252,7 @@ export default function DashboardPage() {
                   dataKey="date" 
                   tickFormatter={(value) => formatDate(value, { format: 'short' })}
                 />
-                <YAxis tickFormatter={(value) => formatCurrency(value, { compact: true })} />
+                <YAxis width={80} tickFormatter={(value) => formatCurrency(value, { compact: true })} />
                 <Tooltip 
                   labelFormatter={(value) => formatDate(value)}
                   formatter={(value: any) => [formatCurrency(value), 'Revenue']}
@@ -403,7 +423,7 @@ export default function DashboardPage() {
             <AlertTriangle className="w-5 h-5 text-red-500" />
           </div>
           <div className="space-y-3">
-            {dashboardData.alerts.map((alert: any, index: number) => (
+            {(dashboardData?.alerts || []).map((alert: any, index: number) => (
               <div key={index} className={`flex items-start p-4 rounded-lg border ${
                 alert.priority === 'high' ? 'bg-red-50 border-red-200' :
                 alert.priority === 'medium' ? 'bg-yellow-50 border-yellow-200' :

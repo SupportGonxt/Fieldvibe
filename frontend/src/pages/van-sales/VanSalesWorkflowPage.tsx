@@ -5,6 +5,7 @@ import {
   Navigation, ShoppingCart, DollarSign, FileText
 } from 'lucide-react';
 import { apiClient } from '../../services/api.service';
+import { compressPhoto } from '../../utils/photo-compression';
 
 interface Customer {
   id: string;
@@ -203,14 +204,23 @@ const VanSalesWorkflowPage: React.FC = () => {
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = (e: any) => {
+    input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setDeliveryPhoto(event.target?.result as string);
-        };
-        reader.readAsDataURL(file);
+        try {
+          const { compressed } = await compressPhoto(file);
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setDeliveryPhoto(event.target?.result as string);
+          };
+          reader.readAsDataURL(compressed);
+        } catch {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setDeliveryPhoto(event.target?.result as string);
+          };
+          reader.readAsDataURL(file);
+        }
       }
     };
     input.click();

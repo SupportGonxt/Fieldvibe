@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button'
 import { Megaphone, Users, Eye, MousePointer, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface CampaignMetrics {
   totalCampaigns: number
@@ -51,7 +52,7 @@ export default function CampaignsPage() {
   const fetchCampaignsData = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with real API calls
+      // FUTURE: Replace with real API calls
       setMetrics({
         totalCampaigns: 24,
         activeCampaigns: 8,

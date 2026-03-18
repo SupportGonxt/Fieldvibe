@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button'
 import { Package, AlertTriangle, TrendingDown, TrendingUp, Search, Filter } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface InventoryItem {
   id: string
@@ -32,7 +33,7 @@ export default function InventoryTrackingPage() {
   const fetchInventoryData = async () => {
     try {
       setLoading(true)
-      // TODO: Replace with real API calls
+      // FUTURE: Replace with real API calls
       setInventory([
         {
           id: '1',

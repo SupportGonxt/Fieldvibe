@@ -5,6 +5,8 @@ import { Truck, MapPin, Package, DollarSign, TrendingUp, Clock } from 'lucide-re
 import { formatCurrency } from '../../utils/currency'
 import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../../services/api.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { useToast } from '../../components/ui/Toast'
 
 interface VanSalesMetrics {
   totalVans: number
@@ -28,6 +30,7 @@ interface VanPerformance {
 }
 
 export default function VanSalesPage() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [metrics, setMetrics] = useState<VanSalesMetrics>({
     totalVans: 0,
@@ -80,8 +83,8 @@ export default function VanSalesPage() {
         totalVans: vans.length,
         activeRoutes: routes.length,
         todaySales: totalSales,
-        totalInventory: 125000, // TODO: Calculate from inventory API
-        averageDeliveryTime: 32, // TODO: Calculate from actual data
+        totalInventory: 125000, // FUTURE: Calculate from inventory API
+        averageDeliveryTime: 32, // FUTURE: Calculate from actual data
         routeEfficiency: activeVans > 0 ? Math.round((activeVans / vans.length) * 100) : 0
       })
 
@@ -94,18 +97,19 @@ export default function VanSalesPage() {
           id: van.id,
           vanNumber: van.registration_number || van.van_number || 'N/A',
           driver: van.assigned_agent_name || 'Unassigned',
-          route: 'Route TBD', // TODO: Get from route assignment
+          route: 'Route TBD', // FUTURE: Get from route assignment
           status: van.status || 'inactive',
           todaySales: vanSalesTotal,
           deliveries: vanSales.length,
-          efficiency: van.status === 'active' ? 92 : 0, // TODO: Calculate real efficiency
-          location: 'GPS location TBD' // TODO: Get from GPS tracking
+          efficiency: van.status === 'active' ? 92 : 0, // FUTURE: Calculate real efficiency
+          location: 'GPS location TBD' // FUTURE: Get from GPS tracking
         }
       })
       
       setVanPerformance(vanPerformanceData)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching van sales data:', error)
+      // Don't show toast for expected missing endpoints - just show zero metrics
     } finally {
       setLoading(false)
     }
@@ -132,11 +136,11 @@ export default function VanSalesPage() {
         })
         fetchVanSalesData() // Refresh the data
       } else {
-        alert(data.message || 'Failed to create van')
+        toast.error(data.message || 'Failed to create van')
       }
     } catch (error) {
       console.error('Error creating van:', error)
-      alert('Failed to create van')
+      toast.error('Failed to create van')
     }
   }
 

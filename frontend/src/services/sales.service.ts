@@ -7,7 +7,11 @@ export const salesService = {
   
   // Orders - use authoritative endpoints with server-side pricing
   getOrders: () => api.get('/orders'),
-  getOrder: (id: string) => api.get(`/orders/${id}`),
+  getOrder: async (id: string) => {
+    const res = await api.get(`/orders/${id}`)
+    // Unwrap {success, data} wrapper if present
+    return { ...res, data: res.data?.data || res.data }
+  },
   createOrder: (data: any) => api.post('/orders/create', data),
   updateOrder: (id: string, data: any) => api.put(`/orders/${id}`, data),
   transitionOrder: (id: string, new_status: string, notes?: string) => 

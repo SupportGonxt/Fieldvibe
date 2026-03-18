@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersService } from '../../services/users.service'
 import teamHierarchyService from '../../services/teamHierarchy.service'
 import TeamLeaderSelector from '../../components/team/TeamLeaderSelector'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface User {
   id: string
@@ -26,7 +27,7 @@ export const UserManagementPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['users', searchTerm, roleFilter, statusFilter, page],
     queryFn: () => usersService.getUsers({
       search: searchTerm || undefined,
@@ -90,10 +91,22 @@ export const UserManagementPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">

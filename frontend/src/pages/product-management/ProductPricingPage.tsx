@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface ProductPricing {
   product_id: string
@@ -22,7 +23,39 @@ export const ProductPricingPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const mockPricing: ProductPricing[] = []
+  const { data: productsData, isLoading, isError } = useQuery({
+    queryKey: ['products-pricing'],
+    queryFn: () => productsService.getProducts({ limit: 100 }),
+  })
+
+  const mockPricing: ProductPricing[] = (productsData?.products || productsData || []).map((p: any) => ({
+    product_id: String(p.id),
+    product_name: p.name || 'Unknown Product',
+    sku: p.sku || '',
+    category: p.category_name || p.category || '',
+    cost_price: Number(p.cost_price || p.unit_cost || 0),
+    selling_price: Number(p.selling_price || p.unit_price || 0),
+    margin_percentage: Number(p.selling_price || p.unit_price || 0) > 0 ? ((Number(p.selling_price || p.unit_price || 0) - Number(p.cost_price || p.unit_cost || 0)) / Number(p.selling_price || p.unit_price || 1)) * 100 : 0,
+    margin_amount: Number(p.selling_price || p.unit_price || 0) - Number(p.cost_price || p.unit_cost || 0),
+    tax_rate: Number(p.tax_rate || 15),
+    discount_percentage: Number(p.discount_percentage || 0),
+    final_price: Number(p.selling_price || p.unit_price || 0),
+    last_price_change: p.updated_at,
+  }))
+
+  if (isLoading) return <LoadingSpinner />
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

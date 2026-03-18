@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionForm from '../../../components/transactions/TransactionForm'
 import { salesService } from '../../../services/sales.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function SalesOrderEdit() {
   const { id } = useParams()
@@ -19,7 +21,7 @@ export default function SalesOrderEdit() {
     setLoading(true)
     try {
       const [orderRes, customersRes, salesRepsRes] = await Promise.all([
-        salesService.getOrder(Number(id)),
+        salesService.getOrder(id!),
         salesService.getCustomers(),
         salesService.getSalesReps()
       ])
@@ -88,7 +90,7 @@ export default function SalesOrderEdit() {
 
   const handleSubmit = async (data: any) => {
     try {
-      await salesService.updateOrder(Number(id), data)
+      await salesService.updateOrder(id!, data)
       navigate(`/sales/orders/${id}`)
     } catch (error: any) {
       throw new Error(error.message || 'Failed to update order')
@@ -96,11 +98,15 @@ export default function SalesOrderEdit() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!order) {
-    return <div className="flex items-center justify-center h-64">Order not found</div>
+    return <ErrorState title="Order not found" message="The order you are looking for does not exist or has been deleted." />
   }
 
   return (

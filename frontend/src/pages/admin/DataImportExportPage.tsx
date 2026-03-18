@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Upload, Download, FileText, AlertCircle, Check, X, RefreshCw, Database, FileSpreadsheet, ChevronRight, Loader } from 'lucide-react'
+import { useToast } from '../../components/ui/Toast'
 
 interface ImportHistory {
   id: string
@@ -75,6 +76,7 @@ const DATA_TYPES = [
 ]
 
 export default function DataImportExportPage() {
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<'import' | 'export'>('import')
   const [selectedType, setSelectedType] = useState<string>('customers')
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -165,7 +167,7 @@ export default function DataImportExportPage() {
       const fileExt = '.' + file.name.split('.').pop()?.toLowerCase()
       
       if (!validTypes.includes(fileExt)) {
-        alert('Please upload a valid CSV or Excel file')
+        toast.info('Please upload a valid CSV or Excel file')
         return
       }
       
@@ -175,7 +177,7 @@ export default function DataImportExportPage() {
 
   const handleImport = async () => {
     if (!uploadedFile) {
-      alert('Please select a file to import')
+      toast.info('Please select a file to import')
       return
     }
 
@@ -190,7 +192,7 @@ export default function DataImportExportPage() {
           setTimeout(() => {
             setImporting(false)
             setUploadedFile(null)
-            alert(`Successfully imported data from ${uploadedFile.name}`)
+            toast.success(`Successfully imported data from ${uploadedFile.name}`)
           }, 500)
           return 100
         }
@@ -205,7 +207,7 @@ export default function DataImportExportPage() {
     // Simulate export
     setTimeout(() => {
       setExporting(false)
-      alert(`Export started! You'll be notified when the ${format.toUpperCase()} file is ready.`)
+      toast.success(`Export started! You'll be notified when the ${format.toUpperCase()} file is ready.`)
     }, 1500)
   }
 

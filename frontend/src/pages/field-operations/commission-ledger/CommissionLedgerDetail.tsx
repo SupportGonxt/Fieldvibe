@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CommissionLedgerDetail() {
   const { id } = useParams()
@@ -26,11 +28,15 @@ export default function CommissionLedgerDetail() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!commission) {
-    return <div className="flex items-center justify-center h-64">Commission not found</div>
+    return <ErrorState title="Commission not found" message="The commission you are looking for does not exist or has been deleted." />
   }
 
   const typeLabels: Record<string, string> = {

@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, User, Clock } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function AdjustmentJustification() {
   const { adjustmentId, itemId } = useParams<{ adjustmentId: string; itemId: string }>()
   const navigate = useNavigate()
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['adjustment-item', adjustmentId, itemId],
     queryFn: async () => {
       const response = await fetch(`/api/adjustments/${adjustmentId}/items/${itemId}/justification`, {
@@ -52,8 +54,20 @@ export default function AdjustmentJustification() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading justification...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!item) {
     return <div className="p-6">Adjustment item not found</div>

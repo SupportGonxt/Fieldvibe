@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, Edit, Plus } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function PaymentAllocationList() {
   const { paymentId } = useParams<{ paymentId: string }>()
@@ -13,14 +14,26 @@ export default function PaymentAllocationList() {
     queryFn: async () => financeService.getPayment(paymentId!),
   })
 
-  const { data: allocations, isLoading } = useQuery({
+  const { data: allocations, isLoading, isError } = useQuery({
     queryKey: ['payment-allocations', paymentId],
     queryFn: async () => financeService.getPaymentAllocationsList(paymentId!),
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading allocations...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

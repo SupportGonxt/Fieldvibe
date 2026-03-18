@@ -3,8 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 export default function IssueDetail() {
+  const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const [issue, setIssue] = useState<any>(null)
@@ -36,16 +40,20 @@ export default function IssueDetail() {
       navigate('/inventory/issues')
     } catch (error) {
       console.error('Failed to reverse issue:', error)
-      alert('Failed to reverse issue')
+      toast.error('Failed to reverse issue')
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!issue) {
-    return <div className="flex items-center justify-center h-64">Issue not found</div>
+    return <ErrorState title="Issue not found" message="The issue you are looking for does not exist or has been deleted." />
   }
 
   const fields = [

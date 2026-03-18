@@ -1,18 +1,19 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
 import { MapPin, Clock, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
 
 export default function VanRouteDetailsPage() {
   const { id } = useParams<{ id: string }>()
-  const { data: route, isLoading, error } = useQuery({
+  const { data: route, isLoading, isError, error } = useQuery({
     queryKey: ['van-route', id],
     queryFn: () => vanSalesService.getRouteById(id!)
   })
 
   if (isLoading) return <div className="p-6"><div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="h-64 bg-gray-200 rounded"></div></div></div>
   if (error || !route) return <div className="p-6"><div className="bg-red-50 border border-red-200 rounded-lg p-4"><p className="text-red-800">Failed to load route details.</p></div></div>
+
 
   const getStatusBadge = (status: string) => {
     const colors = {

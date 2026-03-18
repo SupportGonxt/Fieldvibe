@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { vanSalesService } from '../../services/vanSales.service'
+import { vanSalesService } from '../../services/van-sales.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface RouteFormData {
   route_name: string
@@ -20,7 +21,7 @@ export default function RouteEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: route, isLoading } = useQuery({
+  const { data: route, isLoading, isError } = useQuery({
     queryKey: ['route', id],
     queryFn: () => vanSalesService.getRoute(id!),
   })
@@ -31,7 +32,7 @@ export default function RouteEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: RouteFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id }
     },
     onSuccess: () => {
@@ -45,8 +46,20 @@ export default function RouteEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading route...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

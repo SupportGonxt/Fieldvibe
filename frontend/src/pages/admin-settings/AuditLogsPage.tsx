@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditService } from '../../services/audit.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface AuditLog {
   id: string
@@ -26,7 +27,7 @@ export const AuditLogsPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 50
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['audit-logs', dateRange, actionFilter, entityFilter, searchTerm, page],
     queryFn: () => auditService.getLogs({
       start_date: dateRange.start,
@@ -58,10 +59,22 @@ export const AuditLogsPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">

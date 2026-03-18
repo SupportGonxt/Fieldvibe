@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface TaskFormData {
   task_title: string
@@ -16,7 +18,7 @@ export default function VisitTaskEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: task, isLoading } = useQuery({
+  const { data: task, isLoading, isError } = useQuery({
     queryKey: ['visit-task', visitId, taskId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/tasks/${taskId}`, {
@@ -59,8 +61,20 @@ export default function VisitTaskEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!task) {
     return <div className="p-6">Task not found</div>

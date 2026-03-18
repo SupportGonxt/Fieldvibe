@@ -59,7 +59,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:12001',
+        target: 'https://fieldvibe-api.reshigan-085.workers.dev',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {

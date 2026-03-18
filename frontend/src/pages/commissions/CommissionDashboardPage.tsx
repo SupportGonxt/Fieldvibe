@@ -1,6 +1,10 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import EmptyState from '../../components/ui/EmptyState'
+import ExportMenu from '../../components/export/ExportMenu'
 
 export const CommissionDashboardPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -8,7 +12,7 @@ export const CommissionDashboardPage: React.FC = () => {
     end: new Date().toISOString().split('T')[0]
   })
 
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['commission-stats', dateRange],
     queryFn: () => commissionsService.getCommissionStats(dateRange)
   })
@@ -23,10 +27,22 @@ export const CommissionDashboardPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   const commissionStats = stats || {
     total_commissions: 0,
@@ -50,12 +66,21 @@ export const CommissionDashboardPage: React.FC = () => {
             Overview of commission earnings and payments
           </p>
         </div>
-        <button
-          onClick={() => window.print()}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          Export Report
-        </button>
+        <ExportMenu
+          data={[
+            { metric: 'Total Commissions', amount: commissionStats.total_amount, count: commissionStats.total_commissions },
+            { metric: 'Pending', amount: commissionStats.pending_amount, count: commissionStats.pending_commissions },
+            { metric: 'Approved', amount: commissionStats.approved_amount, count: commissionStats.approved_commissions },
+            { metric: 'Paid', amount: commissionStats.paid_amount, count: commissionStats.paid_commissions },
+          ]}
+          columns={[
+            { key: 'metric', label: 'Metric' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'count', label: 'Count' },
+          ]}
+          filename="commission-report"
+          title="Commission Report"
+        />
       </div>
 
       {/* Date Range Filter */}
@@ -155,13 +180,13 @@ export const CommissionDashboardPage: React.FC = () => {
         {/* By Type */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Commissions by Type</h2>
-          {commissionStats.commissions_by_type.length === 0 ? (
+          {(commissionStats?.commissions_by_type?.length ?? 0) === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-gray-500">No commission data available</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {commissionStats.commissions_by_type.map((type: any, index: number) => (
+              {(commissionStats?.commissions_by_type || []).map((type: any, index: number) => (
                 <div key={index}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">{type.type}</span>
@@ -187,13 +212,13 @@ export const CommissionDashboardPage: React.FC = () => {
         {/* Top Earners */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Top Earners</h2>
-          {commissionStats.top_earners.length === 0 ? (
+          {(commissionStats?.top_earners?.length ?? 0) === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-gray-500">No earner data available</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {commissionStats.top_earners.slice(0, 5).map((earner: any, index: number) => (
+              {((commissionStats?.top_earners) || []).slice(0, 5).map((earner: any, index: number) => (
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">

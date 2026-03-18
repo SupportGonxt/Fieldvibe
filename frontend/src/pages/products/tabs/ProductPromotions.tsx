@@ -2,12 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Tag, Calendar } from 'lucide-react'
 import { promotionsService as promotionService } from '../../../services/promotions.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function ProductPromotions() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: promotions = [], isLoading } = useQuery({
+  const { data: promotions = [], isLoading, isError } = useQuery({
     queryKey: ['product-promotions', id],
     queryFn: () => promotionService.getProductPromotions(id!),
   })
@@ -32,7 +33,7 @@ export default function ProductPromotions() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading promotions...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : promotions.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <Tag className="h-12 w-12 mx-auto mb-4 text-gray-400" />

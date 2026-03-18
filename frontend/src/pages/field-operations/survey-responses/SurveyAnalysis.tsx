@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, Users, BarChart } from 'lucide-react'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function SurveyAnalysis() {
   const { surveyId } = useParams<{ surveyId: string }>()
   const navigate = useNavigate()
 
-  const { data: analysis, isLoading } = useQuery({
+  const { data: analysis, isLoading, isError } = useQuery({
     queryKey: ['survey-analysis', surveyId],
     queryFn: async () => {
       const response = await fetch(`/api/surveys/${surveyId}/analysis`, {
@@ -53,8 +55,20 @@ export default function SurveyAnalysis() {
     }
 
   if (isLoading) {
-    return <div className="p-6">Loading analysis...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!analysis) {
     return <div className="p-6">Analysis not found</div>

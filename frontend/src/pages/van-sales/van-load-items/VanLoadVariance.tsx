@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, AlertTriangle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 interface VarianceFormData {
   resolution_action: string
@@ -15,7 +17,7 @@ export default function VanLoadVariance() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['van-load-item', loadId, itemId],
     queryFn: async () => {
       const response = await fetch(`/api/van-loads/${loadId}/items/${itemId}`, {
@@ -47,8 +49,20 @@ export default function VanLoadVariance() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6"><LoadingSpinner size="sm" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!item) {
     return <div className="p-6">Item not found</div>

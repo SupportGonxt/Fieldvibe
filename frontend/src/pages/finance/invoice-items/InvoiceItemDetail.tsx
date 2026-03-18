@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, DollarSign, TrendingUp } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { financeService } from '../../../services/finance.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function InvoiceItemDetail() {
   const { invoiceId, itemId } = useParams<{ invoiceId: string; itemId: string }>()
@@ -13,7 +15,7 @@ export default function InvoiceItemDetail() {
     queryFn: async () => financeService.getInvoice(invoiceId!),
   })
 
-  const { data: item, isLoading } = useQuery({
+  const { data: item, isLoading, isError } = useQuery({
     queryKey: ['invoice-item', invoiceId, itemId],
     queryFn: async () => financeService.getInvoiceItem(invoiceId!, itemId!),
   })
@@ -21,6 +23,18 @@ export default function InvoiceItemDetail() {
   if (isLoading) {
     return <div className="p-6">Loading invoice item...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!item) {
     return <div className="p-6">Invoice item not found</div>

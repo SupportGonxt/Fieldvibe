@@ -8,7 +8,7 @@ class AIService {
   private buildUrl(endpoint: string): string {
     return `${API_CONFIG.BASE_URL}${endpoint}`
   }
-  private ollamaUrl = 'http://localhost:11434'
+  private ollamaUrl = import.meta.env.VITE_AI_URL || '/api/ai'
   private isOllamaAvailable = false
 
   constructor() {
@@ -17,7 +17,7 @@ class AIService {
 
   private async checkOllamaAvailability() {
     try {
-      const response = await fetch(`${this.ollamaUrl}/api/tags`)
+      const response = await fetch(`${this.ollamaUrl}/tags`)
       this.isOllamaAvailable = response.ok
     } catch (error) {
       this.isOllamaAvailable = false
@@ -37,7 +37,7 @@ class AIService {
 
     try {
       const prompt = this.buildAnalysisPrompt(data, analysisType)
-      const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+      const response = await fetch(`${this.ollamaUrl}/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -369,12 +369,10 @@ Respond with JSON containing:
   // Real-time Monitoring
   async startRealTimeMonitoring(modules: string[]): Promise<void> {
     // Implementation for real-time AI monitoring
-    console.log('Starting real-time AI monitoring for modules:', modules)
   }
 
   async stopRealTimeMonitoring(): Promise<void> {
     // Implementation to stop real-time monitoring
-    console.log('Stopping real-time AI monitoring')
   }
 
   // Configuration

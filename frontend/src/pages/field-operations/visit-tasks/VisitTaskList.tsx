@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, CheckCircle, Clock } from 'lucide-react'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function VisitTaskList() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -20,7 +21,7 @@ export default function VisitTaskList() {
     },
   })
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasks, isLoading, isError } = useQuery({
     queryKey: ['visit-tasks', visitId],
     queryFn: async () => {
       const response = await fetch(`/api/visits/${visitId}/tasks`, {
@@ -65,8 +66,20 @@ export default function VisitTaskList() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading tasks...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

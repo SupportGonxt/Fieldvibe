@@ -22,6 +22,7 @@ import {
   Truck,
   DollarSign
 } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { inventoryService, InventoryItem, InventoryFilter } from '../../services/inventory.service'
 import { formatDate, formatNumber, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -29,6 +30,9 @@ import { DataTable } from '../../components/ui/tables/DataTable'
 import toast from 'react-hot-toast'
 
 export default function InventoryManagement() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [showStockAdjustDialog, setShowStockAdjustDialog] = useState(false)
+  const [showLocationDialog, setShowLocationDialog] = useState(false)
   const [filter, setFilter] = useState<InventoryFilter>({
     page: 1,
     limit: 20,
@@ -44,22 +48,33 @@ export default function InventoryManagement() {
   const [stockAdjustment, setStockAdjustment] = useState({ type: 'add', quantity: 0, reason: '' })
   const queryClient = useQueryClient()
 
-  const { data: inventoryData, isLoading, error, refetch } = useQuery({
+  const { data: inventoryData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['inventory-items', filter],
     queryFn: () => inventoryService.getInventoryItems(filter),
     staleTime: 1000 * 60 * 5,
+    retry: 1,
   })
 
-  const { data: stats } = useQuery({
+  const { data: rawStats } = useQuery({
     queryKey: ['inventory-stats'],
     queryFn: () => inventoryService.getInventoryStats(),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   })
+
+  const stats = rawStats ? {
+    total_items: rawStats.total_items ?? 0,
+    total_value: rawStats.total_value ?? 0,
+    low_stock_items: rawStats.low_stock_items ?? 0,
+    out_of_stock_items: rawStats.out_of_stock_items ?? 0,
+    total_locations: rawStats.total_locations ?? 0,
+  } : null
 
   const { data: locations } = useQuery({
     queryKey: ['inventory-locations'],
     queryFn: () => inventoryService.getLocations(),
     staleTime: 1000 * 60 * 30,
+    retry: 1,
   })
 
   const items = inventoryData?.items || []
@@ -165,8 +180,13 @@ export default function InventoryManagement() {
   }
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this inventory item?')) {
-      deleteItemMutation.mutate(id)
+    setDeleteConfirmId(id)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      deleteItemMutation.mutate(deleteConfirmId)
+      setDeleteConfirmId(null)
     }
   }
 
@@ -196,13 +216,16 @@ export default function InventoryManagement() {
 
   const handleBulkStockAdjustment = () => {
     if (selectedItems.length === 0) return
-    
-    const adjustment = prompt('Enter stock adjustment (+/- quantity):')
-    if (!adjustment) return
-    
-    const quantity = parseInt(adjustment)
-    const reason = prompt('Reason for adjustment:') || 'Bulk adjustment'
-    
+    setShowStockAdjustDialog(true)
+  }
+
+  const confirmBulkStockAdjustment = (input?: string) => {
+    setShowStockAdjustDialog(false)
+    if (!input) return
+    const parts = input.split(',')
+    const quantity = parseInt(parts[0]?.trim() || '0')
+    if (isNaN(quantity)) return
+    const reason = parts[1]?.trim() || 'Bulk adjustment'
     bulkUpdateMutation.mutate({
       ids: selectedItems,
       updates: { stock_adjustment: { quantity, reason } }
@@ -211,10 +234,12 @@ export default function InventoryManagement() {
 
   const handleBulkLocationUpdate = () => {
     if (selectedItems.length === 0) return
-    
-    const locationId = prompt('Enter new location ID:')
+    setShowLocationDialog(true)
+  }
+
+  const confirmBulkLocationUpdate = (locationId?: string) => {
+    setShowLocationDialog(false)
     if (!locationId) return
-    
     bulkUpdateMutation.mutate({
       ids: selectedItems,
       updates: { location_id: locationId }
@@ -353,6 +378,18 @@ export default function InventoryManagement() {
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">
@@ -759,6 +796,41 @@ export default function InventoryManagement() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={confirmDelete}
+        title="Delete Inventory Item"
+        message="Are you sure you want to delete this inventory item? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={showStockAdjustDialog}
+        onClose={() => setShowStockAdjustDialog(false)}
+        onConfirm={confirmBulkStockAdjustment}
+        title="Bulk Stock Adjustment"
+        message={`Adjust stock for ${selectedItems.length} selected item(s). Enter quantity and reason separated by comma (e.g. "+10, Restock").`}
+        confirmLabel="Apply Adjustment"
+        variant="warning"
+        showReasonInput
+        reasonPlaceholder="e.g. +10, Restock delivery"
+        reasonRequired
+      />
+
+      <ConfirmDialog
+        isOpen={showLocationDialog}
+        onClose={() => setShowLocationDialog(false)}
+        onConfirm={confirmBulkLocationUpdate}
+        title="Update Location"
+        message={`Update location for ${selectedItems.length} selected item(s).`}
+        confirmLabel="Update Location"
+        variant="info"
+        showReasonInput
+        reasonPlaceholder="Enter new location ID..."
+        reasonRequired
+      />
     </div>
   )
 }

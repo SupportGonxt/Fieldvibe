@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useToast } from '../../components/ui/Toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface SystemSettings {
@@ -69,10 +70,10 @@ export const SystemSettingsPage: React.FC = () => {
     }
   }
 
+  const { toast } = useToast()
   const [settings, setSettings] = useState(mockSettings)
 
   const handleSave = () => {
-    console.log('Saving settings:', settings)
   }
 
   const tabs = [

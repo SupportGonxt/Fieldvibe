@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Calculator, Calendar, Eye } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CalculationLog() {
   const { agentId } = useParams<{ agentId: string }>()
@@ -21,7 +22,7 @@ export default function CalculationLog() {
     },
   })
 
-  const { data: calculations, isLoading } = useQuery({
+  const { data: calculations, isLoading, isError } = useQuery({
     queryKey: ['commission-calculations', agentId],
     queryFn: async () => {
       const response = await fetch(`/api/commissions/calculations?agent_id=${agentId}`, {
@@ -69,8 +70,20 @@ export default function CalculationLog() {
     ]
 
   if (isLoading) {
-    return <div className="p-6">Loading calculations...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

@@ -6,6 +6,8 @@ import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
 import { customersService } from '../../../services/customers.service'
 import { discountsService } from '../../../services/discounts.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { useToast } from '../../../components/ui/Toast'
 
 interface Customer {
   id: string
@@ -22,6 +24,7 @@ interface Product {
 }
 
 export default function CreditNoteCreate() {
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -60,15 +63,15 @@ export default function CreditNoteCreate() {
 
   const handleSubmit = async (submit: boolean = false) => {
     if (!selectedCustomer) {
-      alert('Please select a customer')
+      toast.info('Please select a customer')
       return
     }
     if (!reason) {
-      alert('Please select a reason')
+      toast.info('Please select a reason')
       return
     }
     if (lineItems.length === 0 || !lineItems.some(item => item.product_id)) {
-      alert('Please add at least one item')
+      toast.info('Please add at least one item')
       return
     }
 
@@ -96,7 +99,7 @@ export default function CreditNoteCreate() {
       navigate('/sales/credit-notes')
     } catch (error: any) {
       console.error('Failed to create credit note:', error)
-      alert(error.message || 'Failed to create credit note')
+      toast.error(error.message || 'Failed to create credit note')
     } finally {
       setSaving(false)
     }
@@ -105,7 +108,7 @@ export default function CreditNoteCreate() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
@@ -132,16 +135,16 @@ export default function CreditNoteCreate() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <CreditCard className="w-5 h-5" /> Credit Note Information
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <div className="xl:col-span-3 space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-blue-600" /> Credit Note Information
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
                   <option value="">Select a customer</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>{customer.name}</option>
@@ -150,11 +153,11 @@ export default function CreditNoteCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Credit Note Date</label>
-                <input type="date" value={creditNoteDate} onChange={(e) => setCreditNoteDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input type="date" value={creditNoteDate} onChange={(e) => setCreditNoteDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 hover:border-gray-300 transition-colors" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
-                <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
                   <option value="">Select a reason</option>
                   <option value="return">Product Return</option>
                   <option value="discount">Discount Adjustment</option>
@@ -165,7 +168,7 @@ export default function CreditNoteCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Credit note notes..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Credit note notes..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 hover:border-gray-300 transition-colors" />
               </div>
             </div>
           </div>
@@ -180,14 +183,14 @@ export default function CreditNoteCreate() {
           />
         </div>
 
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1">
           <div className="sticky top-6 space-y-6">
             <TotalsSummary totals={totals} />
-            <div className="bg-white rounded-lg shadow p-6 space-y-3">
-              <button onClick={() => handleSubmit(false)} disabled={saving} className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary flex items-center justify-center gap-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-3">
+              <button onClick={() => handleSubmit(false)} disabled={saving} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 text-gray-700 font-medium transition-colors">
                 <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save as Draft'}
               </button>
-              <button onClick={() => handleSubmit(true)} disabled={saving} className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+              <button onClick={() => handleSubmit(true)} disabled={saving} className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-medium transition-colors shadow-sm">
                 <Send className="w-4 h-4" /> {saving ? 'Issuing...' : 'Issue Credit Note'}
               </button>
             </div>

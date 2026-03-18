@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import TransactionForm from '../../components/transactions/TransactionForm'
 import { ordersService } from '../../services/orders.service'
 import { customersService } from '../../services/customers.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function OrderEditPage() {
   const { id } = useParams()
@@ -18,12 +20,21 @@ export default function OrderEditPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [orderRes, customersRes] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      const [orderRes, customersRes] = await Promise.allSettled([
         ordersService.getOrder(id!),
         customersService.getCustomers()
       ])
-      setOrder(orderRes)
-      setCustomers(customersRes.customers || [])
+      if (orderRes.status === 'fulfilled' && orderRes.value) {
+        const orderData = orderRes.value
+        if (orderData.created_at) {
+          orderData.created_at = orderData.created_at.split(' ')[0].split('T')[0]
+        }
+        setOrder(orderData)
+      }
+      if (customersRes.status === 'fulfilled') {
+        setCustomers(customersRes.value.customers || [])
+      }
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -40,10 +51,10 @@ export default function OrderEditPage() {
       disabled: true
     },
     {
-      name: 'order_date',
+      name: 'created_at',
       label: 'Order Date',
       type: 'date' as const,
-      required: true
+      disabled: true
     },
     {
       name: 'customer_id',
@@ -114,11 +125,15 @@ export default function OrderEditPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
   }
 
   if (!order) {
-    return <div className="flex items-center justify-center h-64">Order not found</div>
+    return <ErrorState title="Order not found" message="The order you are looking for does not exist or has been deleted." />
   }
 
   return (

@@ -8,7 +8,7 @@ interface ImpactAnalysisProps {
 }
 
 export default function ImpactAnalysis({ entityType, entityId, action }: ImpactAnalysisProps) {
-  const { data: impact, isLoading } = useQuery({
+  const { data: impact, isLoading, isError } = useQuery({
     queryKey: ['impact-analysis', entityType, entityId, action],
     queryFn: async () => {
       const response = await fetch(`/api/${entityType}/${entityId}/impact-analysis?action=${action}`, {
@@ -25,6 +25,18 @@ export default function ImpactAnalysis({ entityType, entityId, action }: ImpactA
   if (isLoading) {
     return <div className="p-6">Analyzing impact...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!impact) {
     return <div className="p-6">Impact analysis not available</div>

@@ -108,7 +108,6 @@ export default function PaymentsList() {
       data={payments}
       loading={loading}
       onRefresh={loadPayments}
-      onExport={() => console.log('Export payments')}
       createPath="/sales/payments/create"
       createLabel="Record Payment"
     />

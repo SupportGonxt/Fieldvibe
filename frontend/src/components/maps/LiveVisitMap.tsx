@@ -85,7 +85,7 @@ export default function LiveVisitMap({ visits, center, zoom = 13 }: LiveVisitMap
   }
 
   return (
-    <div className="w-full h-full rounded-lg overflow-hidden border border-gray-100">
+    <div className="w-full h-full rounded-lg overflow-hidden border border-gray-100 dark:border-night-100">
       <MapContainer
         center={mapCenter}
         zoom={mapZoom}
@@ -94,10 +94,10 @@ export default function LiveVisitMap({ visits, center, zoom = 13 }: LiveVisitMap
       >
         <MapUpdater center={mapCenter} zoom={mapZoom} />
         
-        {/* Free OpenStreetMap tiles */}
+        {/* Dark CartoDB tile layer */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
         
         {visits.filter(v => v.lat && v.lng).map(visit => (

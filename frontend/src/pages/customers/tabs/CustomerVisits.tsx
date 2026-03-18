@@ -2,12 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, MapPin } from 'lucide-react'
 import { visitsService as visitService } from '../../../services/visits.service'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function CustomerVisits() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: visits = [], isLoading } = useQuery({
+  const { data: visits = [], isLoading, isError } = useQuery({
     queryKey: ['customer-visits', id],
     queryFn: () => visitService.getVisits({ customer_id: id }),
   })
@@ -27,7 +28,7 @@ export default function CustomerVisits() {
 
       <div className="bg-white rounded-lg shadow">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500">Loading visits...</div>
+          <div className="p-8 text-center text-gray-500"><LoadingSpinner size="md" /></div>
         ) : visits.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-400" />

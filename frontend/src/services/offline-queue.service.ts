@@ -31,7 +31,6 @@ class OfflineQueueService {
       const stored = localStorage.getItem(QUEUE_KEY);
       if (stored) {
         this.queue = JSON.parse(stored);
-        console.log(`📦 Loaded ${this.queue.length} queued requests from storage`);
       }
     } catch (error) {
       console.error('Failed to load offline queue:', error);
@@ -67,7 +66,6 @@ class OfflineQueueService {
     this.queue.push(request);
     this.saveQueue();
     
-    console.log(`📥 Added request to offline queue: ${method} ${url}`);
     return id;
   }
 
@@ -99,7 +97,6 @@ class OfflineQueueService {
   clearQueue(): void {
     this.queue = [];
     this.saveQueue();
-    console.log('🗑️ Cleared offline queue');
   }
 
   /**
@@ -111,18 +108,15 @@ class OfflineQueueService {
     }
 
     this.isProcessing = true;
-    console.log(`🔄 Processing ${this.queue.length} queued requests...`);
 
     const requests = [...this.queue];
     
     for (const request of requests) {
       try {
-        console.log(`⏳ Retrying: ${request.method} ${request.url}`);
         
         await apiClient[request.method.toLowerCase()](request.url, request.data);
         
         this.removeFromQueue(request.id);
-        console.log(`✅ Successfully processed: ${request.method} ${request.url}`);
         
       } catch (error) {
         console.error(`❌ Failed to process: ${request.method} ${request.url}`, error);
@@ -142,7 +136,6 @@ class OfflineQueueService {
     }
 
     this.isProcessing = false;
-    console.log(`✅ Queue processing complete. ${this.queue.length} requests remaining.`);
   }
 }
 

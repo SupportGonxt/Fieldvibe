@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 interface RuleFormData {
   name: string
@@ -19,7 +20,7 @@ export default function RuleEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: rule, isLoading } = useQuery({
+  const { data: rule, isLoading, isError } = useQuery({
     queryKey: ['commission-rule', id],
     queryFn: async () => {
       return {
@@ -41,7 +42,7 @@ export default function RuleEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: RuleFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
       return { ...data, id }
     },
     onSuccess: () => {
@@ -55,8 +56,20 @@ export default function RuleEdit() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading rule...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

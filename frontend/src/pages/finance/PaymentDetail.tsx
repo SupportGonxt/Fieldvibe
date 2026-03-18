@@ -3,19 +3,33 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, DollarSign, CreditCard, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { financeService } from '../../services/finance.service'
+import ErrorState from '../../components/ui/ErrorState'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function PaymentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: payment, isLoading } = useQuery({
+  const { data: payment, isLoading, isError } = useQuery({
     queryKey: ['payment', id],
     queryFn: () => financeService.getPayment(id!),
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading payment...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!payment) {
     return <div className="p-6">Payment not found</div>

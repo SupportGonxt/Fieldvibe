@@ -19,6 +19,7 @@ import {
   Clock,
   AlertCircle
 } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { surveysService, Survey, SurveyFilter } from '../../services/surveys.service'
 import { formatDate, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -26,6 +27,7 @@ import { DataTable } from '../../components/ui/tables/DataTable'
 import toast from 'react-hot-toast'
 
 export default function SurveysManagement() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [filter, setFilter] = useState<SurveyFilter>({
     page: 1,
     limit: 20,
@@ -39,7 +41,7 @@ export default function SurveysManagement() {
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const queryClient = useQueryClient()
 
-  const { data: surveysData, isLoading, error, refetch } = useQuery({
+  const { data: surveysData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['surveys', filter],
     queryFn: () => surveysService.getSurveys(filter),
     staleTime: 1000 * 60 * 5,
@@ -156,8 +158,13 @@ export default function SurveysManagement() {
   }
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this survey?')) {
-      deleteSurveyMutation.mutate(id)
+    setDeleteConfirmId(id)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      deleteSurveyMutation.mutate(deleteConfirmId)
+      setDeleteConfirmId(null)
     }
   }
 
@@ -330,6 +337,18 @@ export default function SurveysManagement() {
       </div>
     )
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">
@@ -671,6 +690,15 @@ export default function SurveysManagement() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={confirmDelete}
+        title="Delete Survey"
+        message="Are you sure you want to delete this survey? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   )
 }

@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fieldOperationsService } from '../../services/fieldOperations.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
 import { MapPin, Navigation, Clock, Activity } from 'lucide-react'
 
 export default function LiveGPSTrackingPage() {
-  const { data: locations, isLoading, refetch } = useQuery({
+  const { data: locations, isLoading, isError, refetch } = useQuery({
     queryKey: ['live-locations'],
     queryFn: () => fieldOperationsService.getLiveLocations(),
     refetchInterval: 30000
@@ -20,6 +20,18 @@ export default function LiveGPSTrackingPage() {
   const idleAgents = agents.filter(a => a.status === 'idle')
 
   if (isLoading) return <div className="p-6"><div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="h-96 bg-gray-200 rounded"></div></div></div>
+
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -80,8 +92,8 @@ export default function LiveGPSTrackingPage() {
         <div className="flex items-start space-x-3">
           <Navigation className="h-5 w-5 text-blue-600 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-blue-900">Map View Coming Soon</p>
-            <p className="text-sm text-blue-700 mt-1">Interactive map with agent locations will be available in the next update.</p>
+            <p className="text-sm font-medium text-blue-900">Interactive Map Integration</p>
+            <p className="text-sm text-blue-700 mt-1">Agent locations are displayed in the list above. For map visualization, integrate with Google Maps or Leaflet using the coordinate data.</p>
           </div>
         </div>
       </div>

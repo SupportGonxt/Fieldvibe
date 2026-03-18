@@ -19,6 +19,7 @@ import {
   Trash2,
   MoreHorizontal
 } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { kycService, KYCSubmission, KYCFilter, KYCStats } from '../../services/kyc.service'
 import { formatDate, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -26,6 +27,11 @@ import { DataTable } from '../../components/ui/tables/DataTable'
 import toast from 'react-hot-toast'
 
 export default function KYCManagement() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [approveId, setApproveId] = useState<string | null>(null)
+  const [rejectId, setRejectId] = useState<string | null>(null)
+  const [showBulkApprove, setShowBulkApprove] = useState(false)
+  const [showBulkReject, setShowBulkReject] = useState(false)
   const [filter, setFilter] = useState<KYCFilter>({
     page: 1,
     limit: 20,
@@ -43,12 +49,14 @@ export default function KYCManagement() {
     queryKey: ['kyc-submissions', filter],
     queryFn: () => kycService.getKYCSubmissions(filter),
     staleTime: 1000 * 60 * 5,
+    retry: 1,
   })
 
   const { data: stats } = useQuery({
     queryKey: ['kyc-stats'],
     queryFn: () => kycService.getKYCStats(),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   })
 
   const submissions = kycData?.submissions || []
@@ -137,21 +145,33 @@ export default function KYCManagement() {
   }
 
   const handleApprove = (id: string) => {
-    const notes = prompt('Add approval notes (optional):')
-    approveSubmissionMutation.mutate({ id, notes: notes || undefined })
+    setApproveId(id)
+  }
+
+  const confirmApprove = (notes?: string) => {
+    if (!approveId) return
+    approveSubmissionMutation.mutate({ id: approveId, notes: notes || undefined })
+    setApproveId(null)
   }
 
   const handleReject = (id: string) => {
-    const reason = prompt('Rejection reason (required):')
-    if (!reason) return
-    
-    const notes = prompt('Additional notes (optional):')
-    rejectSubmissionMutation.mutate({ id, reason, notes: notes || undefined })
+    setRejectId(id)
+  }
+
+  const confirmReject = (reason?: string) => {
+    if (!rejectId || !reason) return
+    rejectSubmissionMutation.mutate({ id: rejectId, reason, notes: undefined })
+    setRejectId(null)
   }
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this KYC submission?')) {
-      deleteSubmissionMutation.mutate(id)
+    setDeleteConfirmId(id)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      deleteSubmissionMutation.mutate(deleteConfirmId)
+      setDeleteConfirmId(null)
     }
   }
 
@@ -162,8 +182,11 @@ export default function KYCManagement() {
 
   const handleBulkApprove = () => {
     if (selectedSubmissions.length === 0) return
-    
-    const notes = prompt('Add bulk approval notes (optional):')
+    setShowBulkApprove(true)
+  }
+
+  const confirmBulkApprove = (notes?: string) => {
+    setShowBulkApprove(false)
     Promise.all(
       selectedSubmissions.map(id => 
         kycService.approveKYCSubmission(id, notes || undefined)
@@ -180,14 +203,15 @@ export default function KYCManagement() {
 
   const handleBulkReject = () => {
     if (selectedSubmissions.length === 0) return
-    
-    const reason = prompt('Bulk rejection reason (required):')
+    setShowBulkReject(true)
+  }
+
+  const confirmBulkReject = (reason?: string) => {
     if (!reason) return
-    
-    const notes = prompt('Additional notes (optional):')
+    setShowBulkReject(false)
     Promise.all(
       selectedSubmissions.map(id => 
-        kycService.rejectKYCSubmission(id, reason, notes || undefined)
+        kycService.rejectKYCSubmission(id, reason, undefined)
       )
     ).then(() => {
       queryClient.invalidateQueries({ queryKey: ['kyc-submissions'] })
@@ -294,6 +318,27 @@ export default function KYCManagement() {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">KYC Management</h1>
+          <p className="text-gray-600">Manage customer Know Your Customer submissions</p>
+        </div>
+        <div className="card">
+          <div className="text-center py-12">
+            <AlertTriangle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load KYC Data</h3>
+            <p className="text-gray-600 mb-4">KYC submissions could not be loaded. The service may not be available yet.</p>
+            <button onClick={() => refetch()} className="btn-primary">
+              Try Again
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -641,6 +686,65 @@ export default function KYCManagement() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={confirmDelete}
+        title="Delete KYC Submission"
+        message="Are you sure you want to delete this KYC submission? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={approveId !== null}
+        onClose={() => setApproveId(null)}
+        onConfirm={confirmApprove}
+        title="Approve Submission"
+        message="Add approval notes (optional)."
+        confirmLabel="Approve"
+        variant="info"
+        showReasonInput
+        reasonPlaceholder="Approval notes (optional)..."
+      />
+
+      <ConfirmDialog
+        isOpen={rejectId !== null}
+        onClose={() => setRejectId(null)}
+        onConfirm={confirmReject}
+        title="Reject Submission"
+        message="Please provide a reason for rejection."
+        confirmLabel="Reject"
+        variant="danger"
+        showReasonInput
+        reasonPlaceholder="Rejection reason (required)..."
+        reasonRequired
+      />
+
+      <ConfirmDialog
+        isOpen={showBulkApprove}
+        onClose={() => setShowBulkApprove(false)}
+        onConfirm={confirmBulkApprove}
+        title="Bulk Approve"
+        message={`Approve ${selectedSubmissions.length} selected submission(s). Add notes (optional).`}
+        confirmLabel="Approve All"
+        variant="info"
+        showReasonInput
+        reasonPlaceholder="Bulk approval notes (optional)..."
+      />
+
+      <ConfirmDialog
+        isOpen={showBulkReject}
+        onClose={() => setShowBulkReject(false)}
+        onConfirm={confirmBulkReject}
+        title="Bulk Reject"
+        message={`Reject ${selectedSubmissions.length} selected submission(s). Provide a reason.`}
+        confirmLabel="Reject All"
+        variant="danger"
+        showReasonInput
+        reasonPlaceholder="Bulk rejection reason (required)..."
+        reasonRequired
+      />
     </div>
   )
 }

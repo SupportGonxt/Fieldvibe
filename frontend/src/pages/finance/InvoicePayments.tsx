@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, DollarSign, Eye } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import { financeService } from '../../services/finance.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function InvoicePayments() {
   const { id } = useParams<{ id: string }>()
@@ -13,7 +14,7 @@ export default function InvoicePayments() {
     queryFn: () => financeService.getInvoice(id!),
   })
 
-  const { data: payments, isLoading } = useQuery({
+  const { data: payments, isLoading, isError } = useQuery({
     queryKey: ['invoice-payments', id],
     queryFn: async () => {
       const result = await financeService.getPayments({ invoice_id: id })
@@ -24,8 +25,20 @@ export default function InvoicePayments() {
   const total = payments?.reduce((sum, p) => sum + p.amount, 0) || 0
 
   if (isLoading) {
-    return <div className="p-6">Loading payments...</div>
+    return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   return (
     <div className="p-6">

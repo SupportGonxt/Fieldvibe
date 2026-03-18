@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import fieldMarketingService from '../services/fieldMarketing.service';
+import { fieldMarketingService } from '../services/field-marketing.service';
+import ErrorState from '../components/ui/ErrorState'
+import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 const FieldMarketingAgentPage: React.FC = () => {
   const navigate = useNavigate();
@@ -110,7 +112,7 @@ const FieldMarketingAgentPage: React.FC = () => {
           </div>
           <div className="p-4">
             {loading ? (
-              <div className="text-center py-8 text-gray-500">Loading...</div>
+              <div className="text-center py-8 text-gray-500"><LoadingSpinner size="sm" /></div>
             ) : visits.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 No visits yet. Start your first visit!

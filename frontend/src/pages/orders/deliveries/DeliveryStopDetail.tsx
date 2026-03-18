@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MapPin, Clock, Package, User } from 'lucide-react'
 import { ordersService } from '../../../services/orders.service'
+import ErrorState from '../../../components/ui/ErrorState'
+import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 
 export default function DeliveryStopDetail() {
   const { orderId, deliveryId, stopId } = useParams<{ orderId: string; deliveryId: string; stopId: string }>()
@@ -12,7 +14,7 @@ export default function DeliveryStopDetail() {
     queryFn: async () => ordersService.getOrderDelivery(orderId!, deliveryId!),
   })
 
-  const { data: stop, isLoading } = useQuery({
+  const { data: stop, isLoading, isError } = useQuery({
     queryKey: ['delivery-stop', orderId, deliveryId, stopId],
     queryFn: async () => {
       const response = await fetch(`/api/orders/${orderId}/deliveries/${deliveryId}/stops/${stopId}`, {
@@ -29,6 +31,18 @@ export default function DeliveryStopDetail() {
   if (isLoading) {
     return <div className="p-6">Loading stop details...</div>
   }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
+          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
+        </div>
+      </div>
+    )
+  }
+
 
   if (!stop) {
     return <div className="p-6">Stop not found</div>
