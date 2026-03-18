@@ -20,7 +20,6 @@ export default function BoardLocationChanges() {
     queryKey: ['board-location-changes', boardId],
     queryFn: async () => {
       const response = await apiClient.get(`/boards/${boardId}/location-history`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

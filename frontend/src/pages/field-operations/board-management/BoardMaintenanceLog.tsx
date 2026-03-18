@@ -20,7 +20,6 @@ export default function BoardMaintenanceLog() {
     queryKey: ['board-maintenance-log', boardId],
     queryFn: async () => {
       const response = await apiClient.get(`/boards/${boardId}/maintenance`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

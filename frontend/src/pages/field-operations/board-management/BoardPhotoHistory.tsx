@@ -20,7 +20,6 @@ export default function BoardPhotoHistory() {
     queryKey: ['board-photo-history', boardId],
     queryFn: async () => {
       const response = await apiClient.get(`/boards/${boardId}/photos`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

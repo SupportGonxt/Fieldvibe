@@ -21,7 +21,6 @@ export default function PhotoGallery() {
     queryKey: ['visit-photos', visitId],
     queryFn: async () => {
       const response = await apiClient.get(`/visits/${visitId}/photos`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

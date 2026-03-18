@@ -20,7 +20,6 @@ export default function SerialTracking() {
     queryKey: ['serial-tracking', serialId],
     queryFn: async () => {
       const response = await apiClient.get(`/serials/${serialId}/tracking`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

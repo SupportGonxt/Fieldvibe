@@ -62,7 +62,6 @@ export default function LotDetail() {
     queryKey: ['lot-batches', lotId],
     queryFn: async () => {
       const response = await apiClient.get(`/lots/${lotId}/batches`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

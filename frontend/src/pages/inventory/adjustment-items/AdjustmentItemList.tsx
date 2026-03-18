@@ -21,7 +21,6 @@ export default function AdjustmentItemList() {
     queryKey: ['adjustment-items', adjustmentId],
     queryFn: async () => {
       const response = await apiClient.get(`/adjustments/${adjustmentId}/items`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

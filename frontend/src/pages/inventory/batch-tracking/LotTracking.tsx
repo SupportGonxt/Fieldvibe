@@ -20,7 +20,6 @@ export default function LotTracking() {
     queryKey: ['lot-tracking', lotId],
     queryFn: async () => {
       const response = await apiClient.get(`/lots/${lotId}/tracking`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

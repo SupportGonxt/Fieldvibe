@@ -20,7 +20,6 @@ export default function BoardPlacementHistory() {
     queryKey: ['board-placement-history', boardId],
     queryFn: async () => {
       const response = await apiClient.get(`/boards/${boardId}/placements`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

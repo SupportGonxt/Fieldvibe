@@ -21,7 +21,6 @@ export default function PhotoTimeline() {
     queryKey: ['visit-photos-timeline', visitId],
     queryFn: async () => {
       const response = await apiClient.get(`/visits/${visitId}/photos/timeline`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

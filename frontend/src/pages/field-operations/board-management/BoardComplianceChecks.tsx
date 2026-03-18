@@ -20,7 +20,6 @@ export default function BoardComplianceChecks() {
     queryKey: ['board-compliance-checks', boardId],
     queryFn: async () => {
       const response = await apiClient.get(`/boards/${boardId}/compliance`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

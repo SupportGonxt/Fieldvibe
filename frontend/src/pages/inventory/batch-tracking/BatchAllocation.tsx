@@ -21,7 +21,6 @@ export default function BatchAllocation() {
     queryKey: ['batch-allocations', batchId],
     queryFn: async () => {
       const response = await apiClient.get(`/batches/${batchId}/allocations`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

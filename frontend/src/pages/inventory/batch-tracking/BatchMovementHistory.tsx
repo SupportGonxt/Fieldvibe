@@ -20,7 +20,6 @@ export default function BatchMovementHistory() {
     queryKey: ['batch-movements', batchId],
     queryFn: async () => {
       const response = await apiClient.get(`/batches/${batchId}/movements`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

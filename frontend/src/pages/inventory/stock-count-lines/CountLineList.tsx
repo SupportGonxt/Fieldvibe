@@ -20,7 +20,6 @@ export default function CountLineList() {
     queryKey: ['count-lines', countId],
     queryFn: async () => {
       const response = await apiClient.get(`/stock-counts/${countId}/lines`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

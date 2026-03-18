@@ -20,7 +20,6 @@ export default function StockLedgerByProduct() {
     queryKey: ['stock-ledger-product', productId],
     queryFn: async () => {
       const response = await apiClient.get(`/products/${productId}/stock-ledger`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

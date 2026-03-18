@@ -20,7 +20,6 @@ export default function TransferItemList() {
     queryKey: ['transfer-items', transferId],
     queryFn: async () => {
       const response = await apiClient.get(`/transfers/${transferId}/items`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

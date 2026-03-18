@@ -21,7 +21,6 @@ export default function VisitTaskList() {
     queryKey: ['visit-tasks', visitId],
     queryFn: async () => {
       const response = await apiClient.get(`/visits/${visitId}/tasks`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

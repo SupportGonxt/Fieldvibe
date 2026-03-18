@@ -21,7 +21,6 @@ export default function SourceTransactions() {
     queryKey: ['payout-line-transactions', payoutId, lineId],
     queryFn: async () => {
       const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}/transactions`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

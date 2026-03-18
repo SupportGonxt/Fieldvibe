@@ -22,7 +22,6 @@ export default function CalculationLog() {
     queryKey: ['commission-calculations', agentId],
     queryFn: async () => {
       const response = await apiClient.get(`/commissions/calculations?agent_id=${agentId}`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

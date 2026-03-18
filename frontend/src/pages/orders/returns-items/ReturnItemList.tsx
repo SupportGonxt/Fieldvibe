@@ -21,7 +21,6 @@ export default function ReturnItemList() {
     queryKey: ['return-items', returnId],
     queryFn: async () => {
       const response = await apiClient.get(`/returns/${returnId}/items`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })

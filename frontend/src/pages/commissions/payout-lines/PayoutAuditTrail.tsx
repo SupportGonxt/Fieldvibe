@@ -20,7 +20,6 @@ export default function PayoutAuditTrail() {
     queryKey: ['payout-line-audit', payoutId, lineId],
     queryFn: async () => {
       const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}/audit`)
-      if (!response.ok) return []
       return response.data.data || []
     },
   })
