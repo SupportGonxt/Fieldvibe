@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { auditService } from '../../services/audit.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
 
 interface AuditLog {
   id: string

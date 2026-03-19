@@ -4,7 +4,7 @@ import {
   TrendingUp, Package, Users, Truck, DollarSign, 
   FileSpreadsheet, Building2, ClipboardList, RefreshCw
 } from 'lucide-react';
-import { apiService } from '../../services/api.service';
+import { apiService, apiClient } from '../../services/api.service';
 import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Report {
