@@ -3468,7 +3468,10 @@ api.get('/surveys', authMiddleware, async (c) => {
   const { status, type, search } = c.req.query();
   let where = 'WHERE tenant_id = ?';
   const params = [tenantId];
-  if (status && status !== 'all') { where += ' AND status = ?'; params.push(status); }
+  if (status && status !== 'all') {
+    if (status === 'active') { where += ' AND is_active = 1'; }
+    else if (status === 'archived' || status === 'inactive') { where += ' AND is_active = 0'; }
+  }
   if (type) { where += ' AND visit_type = ?'; params.push(type); }
   if (search) { where += ' AND name LIKE ?'; params.push('%' + search + '%'); }
   const surveys = await db.prepare('SELECT * FROM questionnaires ' + where + ' ORDER BY created_at DESC LIMIT 500').bind(...params).all();
