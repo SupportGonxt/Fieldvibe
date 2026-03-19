@@ -230,7 +230,7 @@ export default function PriceListEditPage() {
                   { value: 'distributor', label: 'Distributor' },
                 ]}
                 value={formData.customer_type || null}
-              onChange={(val) => setFormData(prev => ({...prev, customer_type: val}))}
+                onChange={(val) => setFormData({ ...formData, customer_type: val || '' })}
                 placeholder="All Types"
               />
             </div>
@@ -247,7 +247,7 @@ export default function PriceListEditPage() {
                   { value: 'online', label: 'Online' },
                 ]}
                 value={formData.channel || null}
-              onChange={(val) => setFormData(prev => ({...prev, channel: val}))}
+                onChange={(val) => setFormData({ ...formData, channel: val || '' })}
                 placeholder="All Channels"
               />
             </div>
@@ -264,7 +264,7 @@ export default function PriceListEditPage() {
                   { value: 'LKR', label: 'LKR' },
                 ]}
                 value={formData.currency}
-              onChange={(val) => setFormData(prev => ({...prev, currency: val}))}
+                onChange={(val) => setFormData({ ...formData, currency: val || 'USD' })}
                 placeholder="USD"
               />
             </div>

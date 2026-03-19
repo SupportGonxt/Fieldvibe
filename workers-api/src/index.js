@@ -4519,14 +4519,23 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {
-    const [managers, teamLeads, agents, managerCompanyLinks, companies] = await Promise.all([
+    // Core user queries - these must succeed
+    const [managers, teamLeads, agents] = await Promise.all([
       db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
       db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
       db.prepare("SELECT id, first_name, last_name, email, role, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
-      db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
     ]);
-    const mcLinks = managerCompanyLinks.results || [];
+    // Optional queries - company links may not exist yet, don't let them break hierarchy
+    let mcLinks = [];
+    let companiesList = [];
+    try {
+      const [managerCompanyLinks, companies] = await Promise.all([
+        db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
+        db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
+      ]);
+      mcLinks = managerCompanyLinks.results || [];
+      companiesList = companies.results || [];
+    } catch { /* manager_company_links or field_companies table may not exist yet */ }
     const hierarchy = (managers.results || []).map(m => ({
       ...m,
       companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
@@ -4537,7 +4546,7 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
     }));
     const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id);
     const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id);
-    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companies.results || [], total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
+    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companiesList, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
   } catch {
     return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], all_companies: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
   }
@@ -5026,6 +5035,145 @@ api.delete('/visit-survey-config/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   await db.prepare('DELETE FROM visit_survey_config WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
   return c.json({ success: true, message: 'Survey config deleted' });
+});
+
+// ==================== BRANDS ====================
+api.get('/brands', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const brands = await db.prepare("SELECT id, name, code, description, logo_url, status FROM brands WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
+    return c.json({ success: true, data: brands.results || [] });
+  } catch { return c.json({ success: true, data: [] }); }
+});
+
+api.post('/brands', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name || !body.code) return c.json({ success: false, message: 'name and code are required' }, 400);
+  const id = uuidv4();
+  await db.prepare('INSERT INTO brands (id, tenant_id, name, code, description, logo_url) VALUES (?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.code, body.description || null, body.logo_url || null).run();
+  return c.json({ success: true, data: { id, ...body } }, 201);
+});
+
+// ==================== SURVEYS (questionnaires) ====================
+api.get('/surveys', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const surveys = await db.prepare("SELECT id, name, module, visit_type, target_type, brand_id, company_id, is_default, is_active FROM questionnaires WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all();
+    return c.json({ success: true, data: surveys.results || [] });
+  } catch { return c.json({ success: true, data: [] }); }
+});
+
+// ==================== BOARDS ====================
+api.get('/boards', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const boards = await db.prepare("SELECT id, name, description, board_type, dimensions, status FROM boards WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
+    return c.json({ success: true, data: boards.results || [] });
+  } catch { return c.json({ success: true, data: [] }); }
+});
+
+api.post('/boards', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name) return c.json({ success: false, message: 'name is required' }, 400);
+  const id = uuidv4();
+  await db.prepare('INSERT INTO boards (id, tenant_id, name, description, board_type, dimensions) VALUES (?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.description || null, body.board_type || 'standard', body.dimensions || null).run();
+  return c.json({ success: true, data: { id, ...body } }, 201);
+});
+
+// ==================== VISIT CONFIGURATIONS ====================
+api.get('/visit-configurations', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const configs = await db.prepare(`
+      SELECT vc.*, b.name as brand_name, q.name as survey_title, bd.name as board_name
+      FROM visit_configurations vc
+      LEFT JOIN brands b ON vc.brand_id = b.id
+      LEFT JOIN questionnaires q ON vc.survey_id = q.id
+      LEFT JOIN boards bd ON vc.board_id = bd.id
+      WHERE vc.tenant_id = ?
+      ORDER BY vc.created_at DESC
+    `).bind(tenantId).all();
+    return c.json({ success: true, data: configs.results || [] });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.get('/visit-configurations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const config = await db.prepare(`
+    SELECT vc.*, b.name as brand_name, q.name as survey_title, bd.name as board_name
+    FROM visit_configurations vc
+    LEFT JOIN brands b ON vc.brand_id = b.id
+    LEFT JOIN questionnaires q ON vc.survey_id = q.id
+    LEFT JOIN boards bd ON vc.board_id = bd.id
+    WHERE vc.id = ? AND vc.tenant_id = ?
+  `).bind(id, tenantId).first();
+  if (!config) return c.json({ success: false, message: 'Configuration not found' }, 404);
+  return c.json({ success: true, data: config });
+});
+
+api.post('/visit-configurations', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name) return c.json({ success: false, message: 'name is required' }, 400);
+  const id = uuidv4();
+  await db.prepare(`
+    INSERT INTO visit_configurations (id, tenant_id, name, description, target_type, brand_id, customer_type, valid_from, valid_to, survey_id, survey_required, requires_board_placement, board_id, board_photo_required, track_coverage_analytics, visit_type, visit_category, default_duration_minutes, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, tenantId, body.name, body.description || null, body.target_type || 'all',
+    body.brand_id || null, body.customer_type || null, body.valid_from || null, body.valid_to || null,
+    body.survey_id || null, body.survey_required ? 1 : 0,
+    body.requires_board_placement ? 1 : 0, body.board_id || null, body.board_photo_required ? 1 : 0,
+    body.track_coverage_analytics ? 1 : 0, body.visit_type || 'field_visit',
+    body.visit_category || 'field_operations', body.default_duration_minutes || 30,
+    body.is_active !== undefined ? (body.is_active ? 1 : 0) : 1
+  ).run();
+  return c.json({ success: true, data: { id, ...body } }, 201);
+});
+
+api.put('/visit-configurations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM visit_configurations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Configuration not found' }, 404);
+  const fields = ['name', 'description', 'target_type', 'brand_id', 'customer_type', 'valid_from', 'valid_to', 'survey_id', 'visit_type', 'visit_category', 'default_duration_minutes'];
+  const boolFields = ['survey_required', 'requires_board_placement', 'board_photo_required', 'track_coverage_analytics', 'is_active'];
+  const sets = [];
+  const vals = [];
+  for (const f of fields) {
+    if (body[f] !== undefined) { sets.push(f + ' = ?'); vals.push(body[f] || null); }
+  }
+  for (const f of boolFields) {
+    if (body[f] !== undefined) { sets.push(f + ' = ?'); vals.push(body[f] ? 1 : 0); }
+  }
+  if (body.board_id !== undefined) { sets.push('board_id = ?'); vals.push(body.board_id || null); }
+  if (sets.length === 0) return c.json({ success: false, message: 'No fields to update' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE visit_configurations SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Configuration updated' });
+});
+
+api.delete('/visit-configurations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM visit_configurations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Configuration deleted' });
 });
 
 // --- Field Ops Survey Insights (wires survey data into reporting) ---
