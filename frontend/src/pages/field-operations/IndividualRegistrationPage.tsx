@@ -176,7 +176,7 @@ export default function IndividualRegistrationPage() {
             { value: '0', label: 'Not Converted' },
           ]}
           value={filterConverted || null}
-              onChange={(val) => {}}
+          onChange={(val) => setFilterConverted(val || '')}
           placeholder="All Status"
         />
         <SearchableSelect
@@ -185,7 +185,7 @@ export default function IndividualRegistrationPage() {
             { value: 'c.id', label: '{c.name}' },
           ]}
           value={filterCompany || null}
-              onChange={(val) => {}}
+          onChange={(val) => setFilterCompany(val || '')}
           placeholder="All Companies"
         />
       </div>

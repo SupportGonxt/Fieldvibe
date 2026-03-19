@@ -143,7 +143,7 @@ export default function StockCountCreate() {
                     { value: 'warehouse.id', label: '{warehouse.name}' },
                   ]}
                   value={selectedWarehouse || null}
-              onChange={(val) => {}}
+              onChange={(val) => setSelectedWarehouse(val || '')}
                   placeholder="Select a warehouse"
                 />
               </div>
@@ -161,7 +161,7 @@ export default function StockCountCreate() {
                     { value: 'spot', label: 'Spot Check' },
                   ]}
                   value={countType || null}
-              onChange={(val) => {}}
+              onChange={(val) => setCountType(val || '')}
                   placeholder="Select type"
                 />
               </div>

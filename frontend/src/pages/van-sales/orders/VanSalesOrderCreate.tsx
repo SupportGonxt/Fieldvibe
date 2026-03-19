@@ -164,7 +164,7 @@ export default function VanSalesOrderCreate() {
                     { value: 'customer.id', label: '{customer.name}' },
                   ]}
                   value={selectedCustomer || null}
-              onChange={(val) => {}}
+                  onChange={(val) => setSelectedCustomer(val || '')}
                   placeholder="Select a customer"
                 />
               </div>
@@ -176,7 +176,7 @@ export default function VanSalesOrderCreate() {
                     { value: 'route.id', label: '{route.name}' },
                   ]}
                   value={selectedRoute || null}
-              onChange={(val) => {}}
+                  onChange={(val) => setSelectedRoute(val || '')}
                   placeholder="Select a route"
                 />
               </div>

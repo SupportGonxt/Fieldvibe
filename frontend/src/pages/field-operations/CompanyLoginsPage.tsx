@@ -141,7 +141,7 @@ export default function CompanyLoginsPage() {
             { value: 'c.id', label: '{c.name}' },
           ]}
           value={filterCompany || null}
-              onChange={(val) => {}}
+          onChange={(val) => setFilterCompany(val || '')}
           placeholder="All Companies"
         />
       </div>

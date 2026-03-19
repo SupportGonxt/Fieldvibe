@@ -147,7 +147,7 @@ export default function TransferCreate() {
                     { value: 'warehouse.id', label: '{warehouse.name}' },
                   ]}
                   value={fromWarehouse || null}
-              onChange={(val) => {}}
+              onChange={(val) => setFromWarehouse(val || '')}
                   placeholder="Select source warehouse"
                 />
               </div>
@@ -159,7 +159,7 @@ export default function TransferCreate() {
                     { value: 'warehouse.id', label: '{warehouse.name}' },
                   ]}
                   value={toWarehouse || null}
-              onChange={(val) => {}}
+              onChange={(val) => setToWarehouse(val || '')}
                   placeholder="Select destination warehouse"
                 />
               </div>

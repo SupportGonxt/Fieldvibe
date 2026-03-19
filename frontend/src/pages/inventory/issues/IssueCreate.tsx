@@ -149,7 +149,7 @@ export default function IssueCreate() {
                     { value: 'warehouse.id', label: '{warehouse.name}' },
                   ]}
                   value={selectedWarehouse || null}
-              onChange={(val) => {}}
+              onChange={(val) => setSelectedWarehouse(val || '')}
                   placeholder="Select a warehouse"
                 />
               </div>
@@ -172,7 +172,7 @@ export default function IssueCreate() {
                     { value: 'other', label: 'Other' },
                   ]}
                   value={issueType || null}
-              onChange={(val) => {}}
+              onChange={(val) => setIssueType(val || '')}
                   placeholder="Select type"
                 />
               </div>

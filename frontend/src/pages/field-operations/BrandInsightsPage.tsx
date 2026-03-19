@@ -87,7 +87,7 @@ export default function BrandInsightsPage() {
               { value: 'c.id', label: '{c.name}' },
             ]}
             value={selectedCompany || null}
-              onChange={(val) => {}}
+            onChange={(val) => setSelectedCompany(val || '')}
             placeholder="All Companies"
           />
           <Calendar className="w-4 h-4 text-gray-500" />

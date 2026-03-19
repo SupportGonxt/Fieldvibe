@@ -159,7 +159,7 @@ export default function SalesReturnCreate() {
                     { value: 'order.id', label: '{order.order_number} - {order.customer_name}' },
                   ]}
                   value={selectedOrder || null}
-              onChange={(val) => {}}
+                  onChange={(val) => setSelectedOrder(val || '')}
                   placeholder="Select an order"
                 />
               </div>
@@ -180,7 +180,7 @@ export default function SalesReturnCreate() {
                     { value: 'other', label: 'Other' },
                   ]}
                   value={reason || null}
-              onChange={(val) => {}}
+                  onChange={(val) => setReason(val || '')}
                   placeholder="Select a reason"
                 />
               </div>
