@@ -51,21 +51,22 @@ export default function SurveyEdit() {
         apiClient.get('/brands')
       ]);
 
-      const survey = surveyRes.data?.data;
-      if (survey) {
+      const survey = surveyRes.data?.data || surveyRes.data;
+      if (survey && survey.id) {
         setFormData({
-          title: survey.title || '',
+          title: survey.title || survey.name || '',
           description: survey.description || '',
           type: survey.type || 'customer_feedback',
           category: survey.category || 'general',
           target_type: survey.target_type || 'both',
           brand_id: survey.brand_id || '',
-          survey_type: survey.survey_type || 'adhoc',
-          status: survey.status || 'draft'
+          survey_type: survey.survey_type || survey.visit_type || 'adhoc',
+          status: survey.is_active === 0 ? 'archived' : (survey.status || 'draft')
         });
       }
 
-      setBrands(brandsRes.data?.data?.brands || []);
+      const brandsData = brandsRes.data?.data?.brands || brandsRes.data?.data || [];
+      setBrands(Array.isArray(brandsData) ? brandsData : []);
     } catch (err) {
       console.error('Failed to load survey:', err);
       setError('Failed to load survey');

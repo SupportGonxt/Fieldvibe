@@ -37,7 +37,7 @@ export default function BrandManagementPage() {
     try {
       setLoading(true)
       const response = await brandService.getBrands()
-      setBrands(response.data || [])
+      setBrands(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load brands:', error)
       toast.error('Failed to load brands')

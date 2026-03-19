@@ -15,7 +15,7 @@ export default function FieldOperationsProductivityReport() {
     setLoading(true)
     try {
       const response = await reportsService.getFieldOperationsReport('productivity', filters)
-      setData(response.data || [])
+      setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load field operations productivity report:', error)
     } finally {

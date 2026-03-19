@@ -50,7 +50,8 @@ export default function TransactionList({
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
-  const filteredData = data.filter(row => {
+  const safeData = Array.isArray(data) ? data : []
+  const filteredData = safeData.filter(row => {
     if (!searchTerm) return true
     return Object.values(row).some(value =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
@@ -137,7 +138,7 @@ export default function TransactionList({
           )}
 
           {/* Empty State */}
-          {!loading && data.length === 0 && (
+          {!loading && safeData.length === 0 && (
             emptyState || (
               <EmptyState
                 icon={Inbox}
@@ -150,7 +151,7 @@ export default function TransactionList({
           )}
 
           {/* No search results */}
-          {!loading && data.length > 0 && filteredData.length === 0 && searchTerm && (
+          {!loading && safeData.length > 0 && filteredData.length === 0 && searchTerm && (
             <EmptyState
               icon={Search}
               title="No matching results"
@@ -176,9 +177,9 @@ export default function TransactionList({
           )}
 
           {/* Summary */}
-          {data.length > 0 && (
+          {safeData.length > 0 && (
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Showing {filteredData.length} of {data.length} records
+              Showing {filteredData.length} of {safeData.length} records
             </div>
           )}
         </>

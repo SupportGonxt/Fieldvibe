@@ -14,7 +14,7 @@ export default function CashReconciliationCreate() {
   const loadVans = async () => {
     try {
       const response = await vanSalesService.getVans()
-      setVans(response.data || [])
+      setVans(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load vans:', error)
     }

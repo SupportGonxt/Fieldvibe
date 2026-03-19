@@ -18,7 +18,7 @@ export default function CommissionPayoutsList() {
     setLoading(true)
     try {
       const response = await financeService.getCommissionPayouts()
-      setPayouts(response.data || [])
+      setPayouts(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load commission payouts:', error)
     } finally {

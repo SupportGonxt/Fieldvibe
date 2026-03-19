@@ -15,7 +15,7 @@ export default function VarianceAnalysisReport() {
     setLoading(true)
     try {
       const response = await reportsService.getInventoryReport('variance-analysis', filters)
-      setData(response.data || [])
+      setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load variance analysis report:', error)
     } finally {

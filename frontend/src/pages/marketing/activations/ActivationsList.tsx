@@ -18,7 +18,7 @@ export default function ActivationsList() {
     setLoading(true)
     try {
       const response = await marketingService.getActivations()
-      setActivations(response.data || [])
+      setActivations(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load activations:', error)
     } finally {

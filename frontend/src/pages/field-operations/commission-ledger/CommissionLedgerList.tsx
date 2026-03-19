@@ -18,7 +18,7 @@ export default function CommissionLedgerList() {
     setLoading(true)
     try {
       const response = await fieldOperationsService.getCommissions()
-      setCommissions(response.data || [])
+      setCommissions(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load commissions:', error)
     } finally {

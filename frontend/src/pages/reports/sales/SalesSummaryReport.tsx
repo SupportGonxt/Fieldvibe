@@ -15,7 +15,7 @@ export default function SalesSummaryReport() {
     setLoading(true)
     try {
       const response = await reportsService.getSalesReport('summary', filters)
-      setData(response.data || [])
+      setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load sales summary report:', error)
     } finally {

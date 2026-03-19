@@ -15,7 +15,7 @@ export default function CommissionSummaryReport() {
     setLoading(true)
     try {
       const response = await reportsService.getFinanceReport('commission-summary', filters)
-      setData(response.data || [])
+      setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load commission summary report:', error)
     } finally {

@@ -20,7 +20,7 @@ export default function ProductDistributionsList() {
     setLoading(true)
     try {
       const response = await fieldOperationsService.getProductDistributions()
-      setDistributions(response.data || [])
+      setDistributions(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load product distributions:', error)
     } finally {

@@ -20,7 +20,7 @@ export default function BoardPlacementsList() {
     setLoading(true)
     try {
       const response = await fieldOperationsService.getBoardPlacements()
-      setPlacements(response.data || [])
+      setPlacements(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load board placements:', error)
     } finally {

@@ -18,7 +18,7 @@ export default function CashReconciliationList() {
     setLoading(true)
     try {
       const response = await vanSalesService.getCashReconciliations()
-      setReconciliations(response.data || [])
+      setReconciliations(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load reconciliations:', error)
     } finally {

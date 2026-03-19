@@ -15,7 +15,7 @@ export default function InventorySnapshotReport() {
     setLoading(true)
     try {
       const response = await reportsService.getInventoryReport('snapshot', filters)
-      setData(response.data || [])
+      setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load inventory snapshot report:', error)
     } finally {

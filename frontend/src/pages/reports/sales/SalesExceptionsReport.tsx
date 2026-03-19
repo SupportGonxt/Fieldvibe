@@ -15,7 +15,7 @@ export default function SalesExceptionsReport() {
     setLoading(true)
     try {
       const response = await reportsService.getSalesReport('exceptions', filters)
-      setData(response.data || [])
+      setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load sales exceptions report:', error)
     } finally {

@@ -14,7 +14,7 @@ export default function CashReconciliationCreate() {
   const loadAgents = async () => {
     try {
       const response = await financeService.getAgents()
-      setAgents(response.data || [])
+      setAgents(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load agents:', error)
     }
