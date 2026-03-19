@@ -1064,6 +1064,128 @@ class FieldOperationsService extends ApiService {
     const response = await this.post(`/product-distributions/${id}/reverse`)
     return response.data
   }
+
+  // ==================== VISIT WORKFLOW ====================
+
+  // Check if a store was visited within the last 30 days
+  async checkStoreRevisit(customerId: string) {
+    const response = await this.post('/visits/check-store-revisit', { customer_id: customerId })
+    return response.data || response
+  }
+
+  // Check for duplicate individual (ID number or phone)
+  async checkIndividualDuplicate(data: { id_number?: string; phone?: string }) {
+    const response = await this.post('/visits/check-individual-duplicate', data)
+    return response.data || response
+  }
+
+  // Check for duplicate photo by hash
+  async checkPhotoDuplicate(photoHash: string) {
+    const response = await this.post('/visits/check-photo-duplicate', { photo_hash: photoHash })
+    return response.data || response
+  }
+
+  // Get brand/company custom fields
+  async getBrandCustomFields(companyId?: string, appliesTo?: string) {
+    const params = new URLSearchParams()
+    if (companyId) params.append('company_id', companyId)
+    if (appliesTo) params.append('applies_to', appliesTo)
+    const response = await this.get(`/brand-custom-fields?${params.toString()}`)
+    return response.data || response
+  }
+
+  // Create brand custom field
+  async createBrandCustomField(data: { company_id: string; field_name: string; field_label: string; field_type?: string; is_required?: boolean; field_options?: string; display_order?: number; applies_to?: string }) {
+    const response = await this.post('/brand-custom-fields', data)
+    return response.data || response
+  }
+
+  // Update brand custom field
+  async updateBrandCustomField(id: string, data: Record<string, unknown>) {
+    const response = await this.put(`/brand-custom-fields/${id}`, data)
+    return response.data || response
+  }
+
+  // Delete (deactivate) brand custom field
+  async deleteBrandCustomField(id: string) {
+    const response = await this.delete(`/brand-custom-fields/${id}`)
+    return response.data || response
+  }
+
+  // Get visit survey config per company
+  async getVisitSurveyConfig(companyId?: string) {
+    const params = new URLSearchParams()
+    if (companyId) params.append('company_id', companyId)
+    const response = await this.get(`/visit-survey-config?${params.toString()}`)
+    return response.data || response
+  }
+
+  // Create visit survey config
+  async createVisitSurveyConfig(data: { company_id: string; visit_target_type: string; survey_required: boolean; questionnaire_id?: string }) {
+    const response = await this.post('/visit-survey-config', data)
+    return response.data || response
+  }
+
+  // Create visit via full workflow (individual or store)
+  async createVisitWorkflow(data: {
+    visit_target_type: 'individual' | 'store';
+    agent_id?: string;
+    customer_id?: string;
+    company_id?: string;
+    brand_id?: string;
+    checkin_latitude?: number;
+    checkin_longitude?: number;
+    individual_first_name?: string;
+    individual_last_name?: string;
+    individual_id_number?: string;
+    individual_phone?: string;
+    individual_email?: string;
+    custom_field_values?: Record<string, string>;
+    survey_responses?: Record<string, string>;
+    questionnaire_id?: string;
+    photos?: Array<{ photo_url?: string; photo_hash?: string; gps_latitude?: number; gps_longitude?: number; photo_type?: string; captured_at?: string }>;
+    notes?: string;
+    purpose?: string;
+  }) {
+    const response = await this.post('/visits/workflow', data)
+    return response.data || response
+  }
+
+  // Complete a visit workflow
+  async completeVisitWorkflow(visitId: string, data: {
+    outcome?: string;
+    completion_notes?: string;
+    photos?: Array<{ photo_url?: string; photo_hash?: string; gps_latitude?: number; gps_longitude?: number; photo_type?: string }>;
+  }) {
+    const response = await this.post(`/visits/${visitId}/complete-workflow`, data)
+    return response.data || response
+  }
+
+  // Get individuals for visit workflow
+  async getVisitIndividuals(filter: { search?: string; company_id?: string; page?: number; limit?: number } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') params.append(key, String(value))
+    })
+    const response = await this.get(`/individuals?${params.toString()}`)
+    return response.data || response
+  }
+
+  // Create individual for visit workflow
+  async createVisitIndividual(data: { first_name: string; last_name: string; id_number?: string; phone?: string; email?: string; company_id?: string; gps_latitude?: number; gps_longitude?: number }) {
+    const response = await this.post('/individuals', data)
+    return response.data || response
+  }
+
+  // Get questionnaires for a visit type/brand
+  async getQuestionnaires(filter: { visit_type?: string; brand_id?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/questionnaires?${params.toString()}`)
+    return response.data || response
+  }
 }
 
 export const fieldOperationsService = new FieldOperationsService()

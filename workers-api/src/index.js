@@ -4346,6 +4346,329 @@ api.delete('/field-ops/commission-tiers/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Commission tier deleted' });
 });
 
+// ==================== FIELD OPERATIONS: VISIT WORKFLOW ====================
+
+// --- Individuals CRUD ---
+api.get('/individuals', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { search, company_id, limit: lim, page } = c.req.query();
+  const pageNum = parseInt(page) || 1;
+  const pageSize = parseInt(lim) || 50;
+  const offset = (pageNum - 1) * pageSize;
+  let where = 'WHERE i.tenant_id = ?';
+  const params = [tenantId];
+  if (search) { where += " AND (i.first_name LIKE ? OR i.last_name LIKE ? OR i.id_number LIKE ? OR i.phone LIKE ?)"; const s = `%${search}%`; params.push(s, s, s, s); }
+  if (company_id) { where += ' AND i.company_id = ?'; params.push(company_id); }
+  const total = await db.prepare(`SELECT COUNT(*) as count FROM individuals i ${where}`).bind(...params).first();
+  const rows = await db.prepare(`SELECT i.*, fc.name as company_name FROM individuals i LEFT JOIN field_companies fc ON i.company_id = fc.id ${where} ORDER BY i.created_at DESC LIMIT ? OFFSET ?`).bind(...params, pageSize, offset).all();
+  return c.json({ data: rows?.results || [], total: total?.count || 0, page: pageNum, limit: pageSize });
+});
+
+api.get('/individuals/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const row = await db.prepare('SELECT i.*, fc.name as company_name FROM individuals i LEFT JOIN field_companies fc ON i.company_id = fc.id WHERE i.id = ? AND i.tenant_id = ?').bind(id, tenantId).first();
+  if (!row) return c.json({ error: 'Individual not found' }, 404);
+  return c.json({ data: row });
+});
+
+api.post('/individuals', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  // Check for duplicate ID number
+  if (body.id_number) {
+    const existing = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, body.id_number).first();
+    if (existing) return c.json({ error: 'An individual with this ID number already exists', duplicate_field: 'id_number' }, 409);
+  }
+  // Check for duplicate phone
+  if (body.phone) {
+    const existing = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, body.phone).first();
+    if (existing) return c.json({ error: 'An individual with this phone number already exists', duplicate_field: 'phone' }, 409);
+  }
+  await db.prepare('INSERT INTO individuals (id, tenant_id, first_name, last_name, id_number, phone, email, address, gps_latitude, gps_longitude, company_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+    id, tenantId, body.first_name || '', body.last_name || '', body.id_number || null, body.phone || null,
+    body.email || null, body.address || null, body.gps_latitude || null, body.gps_longitude || null,
+    body.company_id || null, body.notes || null
+  ).run();
+  return c.json({ data: { id, ...body }, message: 'Individual created successfully' }, 201);
+});
+
+api.put('/individuals/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  // Check for duplicate ID number (exclude self)
+  if (body.id_number) {
+    const existing = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND id_number = ? AND id != ? AND id_number != ""').bind(tenantId, body.id_number, id).first();
+    if (existing) return c.json({ error: 'An individual with this ID number already exists', duplicate_field: 'id_number' }, 409);
+  }
+  // Check for duplicate phone (exclude self)
+  if (body.phone) {
+    const existing = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND phone = ? AND id != ? AND phone != ""').bind(tenantId, body.phone, id).first();
+    if (existing) return c.json({ error: 'An individual with this phone number already exists', duplicate_field: 'phone' }, 409);
+  }
+  const sets = []; const vals = [];
+  for (const [k, v] of Object.entries(body)) {
+    if (['first_name', 'last_name', 'id_number', 'phone', 'email', 'address', 'gps_latitude', 'gps_longitude', 'company_id', 'notes', 'status'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
+  }
+  if (sets.length === 0) return c.json({ error: 'No valid fields to update' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE individuals SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ message: 'Individual updated successfully' });
+});
+
+// --- Brand Custom Fields ---
+api.get('/brand-custom-fields', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, applies_to } = c.req.query();
+  let where = 'WHERE tenant_id = ? AND is_active = 1';
+  const params = [tenantId];
+  if (company_id) { where += ' AND company_id = ?'; params.push(company_id); }
+  if (applies_to) { where += ' AND applies_to = ?'; params.push(applies_to); }
+  const rows = await db.prepare(`SELECT * FROM brand_custom_fields ${where} ORDER BY display_order ASC`).bind(...params).all();
+  return c.json({ data: rows?.results || [] });
+});
+
+api.post('/brand-custom-fields', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  await db.prepare('INSERT INTO brand_custom_fields (id, tenant_id, company_id, field_name, field_label, field_type, is_required, field_options, display_order, applies_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+    id, tenantId, body.company_id, body.field_name, body.field_label, body.field_type || 'text',
+    body.is_required ? 1 : 0, body.field_options || null, body.display_order || 0, body.applies_to || 'individual'
+  ).run();
+  return c.json({ data: { id, ...body }, message: 'Custom field created' }, 201);
+});
+
+api.put('/brand-custom-fields/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const sets = []; const vals = [];
+  for (const [k, v] of Object.entries(body)) {
+    if (['field_name', 'field_label', 'field_type', 'is_required', 'field_options', 'display_order', 'applies_to', 'is_active'].includes(k)) { sets.push(k + ' = ?'); vals.push(k === 'is_required' || k === 'is_active' ? (v ? 1 : 0) : v); }
+  }
+  if (sets.length === 0) return c.json({ error: 'No valid fields' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE brand_custom_fields SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ message: 'Custom field updated' });
+});
+
+api.delete('/brand-custom-fields/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('UPDATE brand_custom_fields SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ message: 'Custom field deactivated' });
+});
+
+// --- Visit Survey Config ---
+api.get('/visit-survey-config', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id } = c.req.query();
+  let where = 'WHERE tenant_id = ?';
+  const params = [tenantId];
+  if (company_id) { where += ' AND company_id = ?'; params.push(company_id); }
+  const rows = await db.prepare(`SELECT * FROM visit_survey_config ${where}`).bind(...params).all();
+  return c.json({ data: rows?.results || [] });
+});
+
+api.post('/visit-survey-config', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const id = crypto.randomUUID();
+  await db.prepare('INSERT INTO visit_survey_config (id, tenant_id, company_id, visit_target_type, survey_required, questionnaire_id) VALUES (?, ?, ?, ?, ?, ?)').bind(
+    id, tenantId, body.company_id, body.visit_target_type || 'store', body.survey_required ? 1 : 0, body.questionnaire_id || null
+  ).run();
+  return c.json({ data: { id, ...body }, message: 'Survey config created' }, 201);
+});
+
+// --- Visit Workflow Business Rules ---
+
+// Check if store was visited within last 30 days
+api.post('/visits/check-store-revisit', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { customer_id } = body;
+  if (!customer_id) return c.json({ error: 'customer_id is required' }, 400);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const recentVisit = await db.prepare(
+    "SELECT id, visit_date, agent_id FROM visits WHERE tenant_id = ? AND customer_id = ? AND visit_date >= ? AND status != 'cancelled' ORDER BY visit_date DESC LIMIT 1"
+  ).bind(tenantId, customer_id, thirtyDaysAgo).first();
+  if (recentVisit) {
+    const daysSince = Math.floor((Date.now() - new Date(recentVisit.visit_date).getTime()) / (1000 * 60 * 60 * 24));
+    return c.json({ can_visit: false, last_visit: recentVisit, days_since: daysSince, message: `This store was visited ${daysSince} day(s) ago. Must wait 30 days between visits.` });
+  }
+  return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
+});
+
+// Check for duplicate individual (ID number or phone)
+api.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { id_number, phone } = body;
+  const duplicates = [];
+  if (id_number) {
+    const existing = await db.prepare('SELECT id, first_name, last_name, id_number FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, id_number).first();
+    if (existing) duplicates.push({ field: 'id_number', value: id_number, existing_individual: existing });
+  }
+  if (phone) {
+    const existing = await db.prepare('SELECT id, first_name, last_name, phone FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, phone).first();
+    if (existing) duplicates.push({ field: 'phone', value: phone, existing_individual: existing });
+  }
+  return c.json({ has_duplicates: duplicates.length > 0, duplicates });
+});
+
+// Check for duplicate photo (by hash)
+api.post('/visits/check-photo-duplicate', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { photo_hash } = body;
+  if (!photo_hash) return c.json({ error: 'photo_hash is required' }, 400);
+  const existing = await db.prepare(
+    "SELECT vp.id, vp.visit_id, vp.created_at, v.agent_id FROM visit_photos vp JOIN visits v ON vp.visit_id = v.id WHERE vp.tenant_id = ? AND vp.photo_hash = ?"
+  ).bind(tenantId, photo_hash).first();
+  if (existing) {
+    return c.json({ is_duplicate: true, existing_photo: existing, message: 'This photo has already been submitted. Please take a new photo.' });
+  }
+  return c.json({ is_duplicate: false, message: 'Photo is unique' });
+});
+
+// Create visit with full workflow data (individual or store)
+api.post('/visits/workflow', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  const visitId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const visitDate = body.visit_date || now.split('T')[0];
+
+  try {
+    // 1. Create the visit record
+    await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
+      visitId, tenantId, body.agent_id || userId, body.customer_id || null, visitDate,
+      body.visit_target_type || 'customer', now,
+      body.checkin_latitude || null, body.checkin_longitude || null,
+      body.brand_id || body.company_id || null,
+      body.individual_first_name || null, body.individual_last_name || null,
+      body.individual_id_number || null, body.individual_phone || null,
+      body.purpose || body.visit_target_type || 'field_visit',
+      body.notes || null, body.questionnaire_id || null,
+      now, now
+    ).run();
+
+    // 2. If individual visit, create or link the individual
+    let individualId = null;
+    if (body.visit_target_type === 'individual' && (body.individual_first_name || body.individual_id_number)) {
+      // Check if individual already exists
+      let existingIndividual = null;
+      if (body.individual_id_number) {
+        existingIndividual = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, body.individual_id_number).first();
+      }
+      if (!existingIndividual && body.individual_phone) {
+        existingIndividual = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, body.individual_phone).first();
+      }
+
+      if (existingIndividual) {
+        individualId = existingIndividual.id;
+        // Update individual details
+        await db.prepare('UPDATE individuals SET first_name = ?, last_name = ?, gps_latitude = ?, gps_longitude = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(
+          body.individual_first_name || '', body.individual_last_name || '',
+          body.checkin_latitude || null, body.checkin_longitude || null, individualId
+        ).run();
+      } else {
+        individualId = crypto.randomUUID();
+        await db.prepare('INSERT INTO individuals (id, tenant_id, first_name, last_name, id_number, phone, email, gps_latitude, gps_longitude, company_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+          individualId, tenantId, body.individual_first_name || '', body.individual_last_name || '',
+          body.individual_id_number || null, body.individual_phone || null, body.individual_email || null,
+          body.checkin_latitude || null, body.checkin_longitude || null, body.company_id || null
+        ).run();
+      }
+
+      // Link visit to individual with custom field values
+      const viId = crypto.randomUUID();
+      await db.prepare('INSERT INTO visit_individuals (id, tenant_id, visit_id, individual_id, custom_field_values) VALUES (?, ?, ?, ?, ?)').bind(
+        viId, tenantId, visitId, individualId, JSON.stringify(body.custom_field_values || {})
+      ).run();
+    }
+
+    // 3. Save survey responses if provided
+    if (body.survey_responses && Object.keys(body.survey_responses).length > 0) {
+      const vrId = crypto.randomUUID();
+      await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, ?, ?)').bind(
+        vrId, tenantId, visitId, body.visit_target_type || 'customer', JSON.stringify(body.survey_responses)
+      ).run();
+    }
+
+    // 4. Save photos with GPS and hash
+    if (Array.isArray(body.photos) && body.photos.length > 0) {
+      for (const photo of body.photos) {
+        const photoId = crypto.randomUUID();
+        await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+          photoId, tenantId, visitId, photo.photo_type || 'board',
+          photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+          photo.gps_latitude || null, photo.gps_longitude || null,
+          photo.captured_at || now, photo.photo_hash || null, userId
+        ).run();
+      }
+    }
+
+    return c.json({
+      data: { id: visitId, individual_id: individualId, status: 'in_progress', visit_date: visitDate },
+      message: 'Visit created successfully'
+    }, 201);
+  } catch (err) {
+    return c.json({ error: 'Failed to create visit: ' + (err.message || err) }, 500);
+  }
+});
+
+// Complete visit (add photo GPS and finalize)
+api.post('/visits/:id/complete-workflow', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const visitId = c.req.param('id');
+  const body = await c.req.json();
+  const now = new Date().toISOString();
+
+  try {
+    // Update visit with completion data
+    await db.prepare("UPDATE visits SET status = 'completed', check_out_time = ?, outcome = ?, notes = COALESCE(notes || ' | ' || ?, notes), updated_at = ? WHERE id = ? AND tenant_id = ?").bind(
+      now, body.outcome || 'completed', body.completion_notes || '', now, visitId, tenantId
+    ).run();
+
+    // Save any final photos
+    if (Array.isArray(body.photos) && body.photos.length > 0) {
+      for (const photo of body.photos) {
+        const photoId = crypto.randomUUID();
+        await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+          photoId, tenantId, visitId, photo.photo_type || 'board',
+          photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+          photo.gps_latitude || null, photo.gps_longitude || null,
+          photo.captured_at || now, photo.photo_hash || null, c.get('userId')
+        ).run();
+      }
+    }
+
+    return c.json({ data: { id: visitId, status: 'completed' }, message: 'Visit completed successfully' });
+  } catch (err) {
+    return c.json({ error: 'Failed to complete visit: ' + (err.message || err) }, 500);
+  }
+});
+
 // ==================== FIELD OPERATIONS: PERFORMANCE (ROLE-BASED) ====================
 api.get('/field-ops/performance', authMiddleware, async (c) => {
   const db = c.env.DB;

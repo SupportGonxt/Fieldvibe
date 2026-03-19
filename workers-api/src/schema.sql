@@ -1233,6 +1233,7 @@ CREATE TABLE IF NOT EXISTS visit_photos (
   ai_labels TEXT,
   ai_raw_response TEXT,
   ai_processed_at TEXT,
+  photo_hash TEXT,
   uploaded_by TEXT NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
@@ -1242,6 +1243,7 @@ CREATE TABLE IF NOT EXISTS visit_photos (
 CREATE INDEX IF NOT EXISTS idx_photos_visit ON visit_photos(visit_id);
 CREATE INDEX IF NOT EXISTS idx_photos_tenant_type ON visit_photos(tenant_id, photo_type);
 CREATE INDEX IF NOT EXISTS idx_photos_ai_status ON visit_photos(ai_analysis_status);
+CREATE INDEX IF NOT EXISTS idx_photos_hash ON visit_photos(tenant_id, photo_hash) WHERE photo_hash IS NOT NULL;
 
 -- Share of Voice Snapshots
 CREATE TABLE IF NOT EXISTS share_of_voice_snapshots (
@@ -1755,6 +1757,85 @@ CREATE TABLE IF NOT EXISTS target_commission_tiers (
   FOREIGN KEY (company_id) REFERENCES field_companies(id)
 );
 CREATE INDEX IF NOT EXISTS idx_target_commission_tiers_tenant ON target_commission_tiers(tenant_id, is_active);
+
+-- ==================== FIELD OPERATIONS: VISIT WORKFLOW ====================
+
+-- Individuals (persons visited during field operations)
+CREATE TABLE IF NOT EXISTS individuals (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  id_number TEXT,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  gps_latitude REAL,
+  gps_longitude REAL,
+  company_id TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_individuals_id_number ON individuals(tenant_id, id_number) WHERE id_number IS NOT NULL AND id_number != '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_individuals_phone ON individuals(tenant_id, phone) WHERE phone IS NOT NULL AND phone != '';
+CREATE INDEX IF NOT EXISTS idx_individuals_tenant ON individuals(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_individuals_company ON individuals(company_id);
+
+-- Brand/Company Custom Fields (configurable per brand, e.g. Goldrush has player_id)
+CREATE TABLE IF NOT EXISTS brand_custom_fields (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  field_name TEXT NOT NULL,
+  field_label TEXT NOT NULL,
+  field_type TEXT DEFAULT 'text',
+  is_required INTEGER DEFAULT 0,
+  field_options TEXT,
+  display_order INTEGER DEFAULT 0,
+  applies_to TEXT DEFAULT 'individual',
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+CREATE INDEX IF NOT EXISTS idx_brand_custom_fields_company ON brand_custom_fields(company_id, applies_to, is_active);
+
+-- Visit Individuals (links visits to individuals with custom field values)
+CREATE TABLE IF NOT EXISTS visit_individuals (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  visit_id TEXT NOT NULL,
+  individual_id TEXT NOT NULL,
+  custom_field_values TEXT DEFAULT '{}',
+  survey_completed INTEGER DEFAULT 0,
+  survey_responses TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (visit_id) REFERENCES visits(id),
+  FOREIGN KEY (individual_id) REFERENCES individuals(id)
+);
+CREATE INDEX IF NOT EXISTS idx_visit_individuals_visit ON visit_individuals(visit_id);
+CREATE INDEX IF NOT EXISTS idx_visit_individuals_individual ON visit_individuals(individual_id);
+
+-- Visit Survey Config (controls whether surveys are optional/mandatory per company)
+CREATE TABLE IF NOT EXISTS visit_survey_config (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  visit_target_type TEXT DEFAULT 'store',
+  survey_required INTEGER DEFAULT 0,
+  questionnaire_id TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+CREATE INDEX IF NOT EXISTS idx_visit_survey_config_company ON visit_survey_config(company_id, visit_target_type);
 
 -- ==================== SEED DATA: FIELD OPS SETTINGS & COMMISSION TIERS ====================
 
