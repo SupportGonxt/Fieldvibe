@@ -4396,14 +4396,23 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {
-    const [managers, teamLeads, agents, managerCompanyLinks, companies] = await Promise.all([
+    // Core user queries - these must succeed
+    const [managers, teamLeads, agents] = await Promise.all([
       db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
       db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
       db.prepare("SELECT id, first_name, last_name, email, role, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
-      db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
     ]);
-    const mcLinks = managerCompanyLinks.results || [];
+    // Optional queries - company links may not exist yet, don't let them break hierarchy
+    let mcLinks = [];
+    let companiesList = [];
+    try {
+      const [managerCompanyLinks, companies] = await Promise.all([
+        db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
+        db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
+      ]);
+      mcLinks = managerCompanyLinks.results || [];
+      companiesList = companies.results || [];
+    } catch { /* manager_company_links or field_companies table may not exist yet */ }
     const hierarchy = (managers.results || []).map(m => ({
       ...m,
       companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
@@ -4414,7 +4423,7 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
     }));
     const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id);
     const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id);
-    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companies.results || [], total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
+    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companiesList, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
   } catch {
     return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], all_companies: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
   }
