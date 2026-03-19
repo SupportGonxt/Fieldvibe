@@ -78,7 +78,7 @@ export default function LoginPage() {
                 },
               })}
               type="email"
-              className="w-full pl-10 pr-4 py-3.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#00E87B] focus:border-[#00E87B] transition-all"
               placeholder="you@company.com"
               autoComplete="email"
             />
@@ -106,7 +106,7 @@ export default function LoginPage() {
                 },
               })}
               type={showPassword ? 'text' : 'password'}
-              className="w-full pl-10 pr-12 py-3.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#00E87B] focus:border-[#00E87B] transition-all"
               placeholder="••••••••"
               autoComplete="current-password"
             />
@@ -134,7 +134,7 @@ export default function LoginPage() {
               {...register('remember_me')}
               id="remember-me"
               type="checkbox"
-              className="h-4 w-4 bg-slate-900 border-slate-600 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-800 transition-colors"
+              className="h-4 w-4 bg-white/5 border-white/10 rounded text-[#00E87B] focus:ring-[#00E87B] focus:ring-offset-[#06090F] transition-colors"
             />
             <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-400 hover:text-slate-300 transition-colors">
               Remember me
@@ -144,7 +144,7 @@ export default function LoginPage() {
           <div className="text-sm">
             <Link
               to="/auth/forgot-password"
-              className="font-medium text-blue-400 hover:text-blue-300 transition-colors"
+              className="font-medium text-[#00E87B] hover:text-[#4BFFB5] transition-colors"
             >
               Forgot password?
             </Link>
@@ -163,7 +163,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+            className="w-full bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#00E87B]/25 hover:shadow-[#00E87B]/40"
           >
             {isLoading ? (
               <>
@@ -184,7 +184,7 @@ export default function LoginPage() {
       <div className="mt-6 text-center">
         <Link
           to="/auth/mobile-login"
-          className="text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          className="text-sm text-[#00E87B] hover:text-[#4BFFB5] font-medium transition-colors"
         >
           Agent? Login with mobile number →
         </Link>

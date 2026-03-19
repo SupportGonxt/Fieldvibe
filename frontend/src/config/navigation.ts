@@ -51,15 +51,18 @@ export const navigation: NavigationItem[] = [
     section: 'Core',
     category: 'Core',
     children: [
-      { name: 'Executive', href: '/insights', permission: null, description: 'Executive overview' },
-      { name: 'Sales', href: '/insights/sales', permission: null, description: 'Sales metrics & trends' },
-      { name: 'Van Sales', href: '/insights/van-sales', permission: null, description: 'Van sales performance' },
-      { name: 'Field Ops', href: '/insights/field-ops', permission: null, description: 'Field operations analytics' },
-      { name: 'Stock', href: '/insights/stock', permission: null, description: 'Inventory insights' },
-      { name: 'Trade Promos', href: '/insights/trade-promos', permission: null, description: 'Trade promotion ROI' },
-      { name: 'Commissions', href: '/insights/commissions', permission: null, description: 'Commission analytics' },
-      { name: 'Goals', href: '/insights/goals', permission: null, description: 'Goal tracking' },
-      { name: 'Anomalies', href: '/insights/anomalies', permission: null, description: 'Anomaly detection' },
+      // ── Overview ──
+      { name: 'Executive', href: '/insights', permission: null, description: 'Executive overview', group: 'Overview' },
+      { name: 'Goals', href: '/insights/goals', permission: null, description: 'Goal tracking', group: 'Overview' },
+      { name: 'Anomalies', href: '/insights/anomalies', permission: null, description: 'Anomaly detection', group: 'Overview' },
+
+      // ── Department Analytics ──
+      { name: 'Sales', href: '/insights/sales', permission: null, description: 'Sales metrics & trends', group: 'Department Analytics' },
+      { name: 'Van Sales', href: '/insights/van-sales', permission: null, description: 'Van sales performance', group: 'Department Analytics' },
+      { name: 'Field Ops', href: '/insights/field-ops', permission: null, description: 'Field operations analytics', group: 'Department Analytics' },
+      { name: 'Stock', href: '/insights/stock', permission: null, description: 'Inventory insights', group: 'Department Analytics' },
+      { name: 'Trade Promos', href: '/insights/trade-promos', permission: null, description: 'Trade promotion ROI', group: 'Department Analytics' },
+      { name: 'Commissions', href: '/insights/commissions', permission: null, description: 'Commission analytics', group: 'Department Analytics' },
     ],
   },
 
@@ -107,14 +110,19 @@ export const navigation: NavigationItem[] = [
     section: 'Operations',
     category: 'Operations',
     children: [
-      { name: 'Dashboard', href: '/van-sales/dashboard', permission: null, description: 'Van sales overview' },
-      { name: 'Workflow', href: '/van-sales/workflow', permission: null, description: 'Complete van sales workflow' },
-      { name: 'Routes', href: '/van-sales/routes', permission: null, description: 'Route management' },
-      { name: 'Van Loads', href: '/van-sales/van-loads', permission: null, description: 'Load and dispatch vans' },
-      { name: 'Orders', href: '/van-sales/orders', permission: null, description: 'Van sales orders' },
-      { name: 'Returns', href: '/van-sales/returns', permission: null, description: 'Van sales returns' },
-      { name: 'Cash Recon', href: '/van-sales/cash-reconciliation', permission: null, description: 'Cash reconciliation' },
-      { name: 'Inventory', href: '/van-sales/van-inventory', permission: null, description: 'Van inventory tracking' },
+      // ── Overview ──
+      { name: 'Dashboard', href: '/van-sales/dashboard', permission: null, description: 'Van sales overview', group: 'Overview' },
+      { name: 'Workflow', href: '/van-sales/workflow', permission: null, description: 'Complete van sales workflow', group: 'Overview' },
+
+      // ── Operations ──
+      { name: 'Routes', href: '/van-sales/routes', permission: null, description: 'Route management', group: 'Operations' },
+      { name: 'Van Loads', href: '/van-sales/van-loads', permission: null, description: 'Load and dispatch vans', group: 'Operations' },
+      { name: 'Inventory', href: '/van-sales/van-inventory', permission: null, description: 'Van inventory tracking', group: 'Operations' },
+
+      // ── Transactions ──
+      { name: 'Orders', href: '/van-sales/orders', permission: null, description: 'Van sales orders', group: 'Transactions' },
+      { name: 'Returns', href: '/van-sales/returns', permission: null, description: 'Van sales returns', group: 'Transactions' },
+      { name: 'Cash Recon', href: '/van-sales/cash-reconciliation', permission: null, description: 'Cash reconciliation', group: 'Transactions' },
     ],
   },
   {
@@ -125,14 +133,19 @@ export const navigation: NavigationItem[] = [
     section: 'Operations',
     category: 'Operations',
     children: [
-      { name: 'Dashboard', href: '/inventory/dashboard', permission: null, description: 'Inventory overview' },
-      { name: 'Stock Levels', href: '/inventory/stock-levels', permission: null, description: 'Current stock levels' },
-      { name: 'Movements', href: '/inventory/movements', permission: null, description: 'Stock movement history' },
-      { name: 'Transfers', href: '/inventory/transfers', permission: null, description: 'Inter-warehouse transfers' },
-      { name: 'Adjustments', href: '/inventory/adjustments', permission: null, description: 'Stock adjustments' },
-      { name: 'Stock Counts', href: '/inventory/stock-count', permission: null, description: 'Physical stock counts' },
-      { name: 'Receipts', href: '/inventory/receipts', permission: null, description: 'Goods received notes' },
-      { name: 'Warehouses', href: '/inventory/warehouses', permission: null, description: 'Warehouse management' },
+      // ── Overview ──
+      { name: 'Dashboard', href: '/inventory/dashboard', permission: null, description: 'Inventory overview', group: 'Overview' },
+      { name: 'Stock Levels', href: '/inventory/stock-levels', permission: null, description: 'Current stock levels', group: 'Overview' },
+
+      // ── Stock Operations ──
+      { name: 'Movements', href: '/inventory/movements', permission: null, description: 'Stock movement history', group: 'Stock Operations' },
+      { name: 'Transfers', href: '/inventory/transfers', permission: null, description: 'Inter-warehouse transfers', group: 'Stock Operations' },
+      { name: 'Adjustments', href: '/inventory/adjustments', permission: null, description: 'Stock adjustments', group: 'Stock Operations' },
+      { name: 'Stock Counts', href: '/inventory/stock-count', permission: null, description: 'Physical stock counts', group: 'Stock Operations' },
+      { name: 'Receipts', href: '/inventory/receipts', permission: null, description: 'Goods received notes', group: 'Stock Operations' },
+
+      // ── Setup ──
+      { name: 'Warehouses', href: '/inventory/warehouses', permission: null, description: 'Warehouse management', group: 'Setup' },
     ],
   },
 
@@ -145,12 +158,17 @@ export const navigation: NavigationItem[] = [
     section: 'Commercial',
     category: 'Sales',
     children: [
-      { name: 'Dashboard', href: '/sales/dashboard', permission: null, description: 'Sales overview' },
-      { name: 'Orders', href: '/sales/orders', permission: null, description: 'Manage orders' },
-      { name: 'Invoices', href: '/sales/invoices', permission: null, description: 'Invoice management' },
-      { name: 'Payments', href: '/sales/payments', permission: null, description: 'Payment tracking' },
-      { name: 'Returns', href: '/sales/returns', permission: null, description: 'Handle returns' },
-      { name: 'Credit Notes', href: '/sales/credit-notes', permission: null, description: 'Manage credit notes' },
+      // ── Overview ──
+      { name: 'Dashboard', href: '/sales/dashboard', permission: null, description: 'Sales overview', group: 'Overview' },
+
+      // ── Transactions ──
+      { name: 'Orders', href: '/sales/orders', permission: null, description: 'Manage orders', group: 'Transactions' },
+      { name: 'Invoices', href: '/sales/invoices', permission: null, description: 'Invoice management', group: 'Transactions' },
+      { name: 'Payments', href: '/sales/payments', permission: null, description: 'Payment tracking', group: 'Transactions' },
+
+      // ── Returns & Credits ──
+      { name: 'Returns', href: '/sales/returns', permission: null, description: 'Handle returns', group: 'Returns & Credits' },
+      { name: 'Credit Notes', href: '/sales/credit-notes', permission: null, description: 'Manage credit notes', group: 'Returns & Credits' },
     ],
   },
   {
@@ -161,10 +179,13 @@ export const navigation: NavigationItem[] = [
     section: 'Commercial',
     category: 'CRM',
     children: [
-      { name: 'Directory', href: '/customers', permission: null, description: 'Customer directory' },
-      { name: 'KYC', href: '/kyc', permission: null, description: 'Know your customer' },
-      { name: 'Surveys', href: '/surveys', permission: null, description: 'Customer surveys' },
-      { name: 'Credit Management', href: '/customers/credit', permission: null, description: 'Credit limits & balances' },
+      // ── Management ──
+      { name: 'Directory', href: '/customers', permission: null, description: 'Customer directory', group: 'Management' },
+      { name: 'Credit Management', href: '/customers/credit', permission: null, description: 'Credit limits & balances', group: 'Management' },
+
+      // ── Compliance & Feedback ──
+      { name: 'KYC', href: '/kyc', permission: null, description: 'Know your customer', group: 'Compliance & Feedback' },
+      { name: 'Surveys', href: '/surveys', permission: null, description: 'Customer surveys', group: 'Compliance & Feedback' },
     ],
   },
   {
@@ -175,11 +196,14 @@ export const navigation: NavigationItem[] = [
     section: 'Commercial',
     category: 'Marketing',
     children: [
-      { name: 'Campaigns', href: '/campaigns', permission: null, description: 'Campaign management' },
-      { name: 'Trade Marketing', href: '/trade-marketing', permission: null, description: 'Trade marketing activities' },
-      { name: 'Promotions', href: '/promotions', permission: null, description: 'Active promotions' },
-      { name: 'Events', href: '/events', permission: null, description: 'Marketing events' },
-      { name: 'Activations', href: '/marketing/activations', permission: null, description: 'Brand activations' },
+      // ── Campaigns & Promos ──
+      { name: 'Campaigns', href: '/campaigns', permission: null, description: 'Campaign management', group: 'Campaigns & Promos' },
+      { name: 'Promotions', href: '/promotions', permission: null, description: 'Active promotions', group: 'Campaigns & Promos' },
+
+      // ── Activations ──
+      { name: 'Trade Marketing', href: '/trade-marketing', permission: null, description: 'Trade marketing activities', group: 'Activations' },
+      { name: 'Events', href: '/events', permission: null, description: 'Marketing events', group: 'Activations' },
+      { name: 'Activations', href: '/marketing/activations', permission: null, description: 'Brand activations', group: 'Activations' },
     ],
   },
 
@@ -192,11 +216,16 @@ export const navigation: NavigationItem[] = [
     section: 'Platform',
     category: 'Finance',
     children: [
-      { name: 'Dashboard', href: '/finance/dashboard', permission: null, description: 'Financial overview' },
-      { name: 'Invoices', href: '/finance/invoices', permission: null, description: 'All invoices' },
-      { name: 'Payments', href: '/finance/payments', permission: null, description: 'Payment tracking' },
-      { name: 'Cash Reconciliation', href: '/finance/cash-reconciliation', permission: null, description: 'Cash recon' },
-      { name: 'Commissions', href: '/commissions', permission: null, description: 'Commission management' },
+      // ── Overview ──
+      { name: 'Dashboard', href: '/finance/dashboard', permission: null, description: 'Financial overview', group: 'Overview' },
+
+      // ── Billing ──
+      { name: 'Invoices', href: '/finance/invoices', permission: null, description: 'All invoices', group: 'Billing' },
+      { name: 'Payments', href: '/finance/payments', permission: null, description: 'Payment tracking', group: 'Billing' },
+
+      // ── Reconciliation ──
+      { name: 'Cash Reconciliation', href: '/finance/cash-reconciliation', permission: null, description: 'Cash recon', group: 'Reconciliation' },
+      { name: 'Commissions', href: '/commissions', permission: null, description: 'Commission management', group: 'Reconciliation' },
     ],
   },
   {
@@ -208,16 +237,23 @@ export const navigation: NavigationItem[] = [
     section: 'Platform',
     category: 'System',
     children: [
-      { name: 'Users', href: '/admin/users', permission: null, description: 'User management' },
-      { name: 'Roles', href: '/admin/roles', permission: null, description: 'Roles & permissions' },
-      { name: 'Brands', href: '/admin/brands', permission: null, description: 'Brand management' },
-      { name: 'Products', href: '/products', permission: null, description: 'Product catalog' },
-      { name: 'Price Lists', href: '/admin/price-lists', permission: null, description: 'Pricing management' },
-      { name: 'Territories', href: '/admin/territories', permission: null, description: 'Territory management' },
-      { name: 'Surveys', href: '/admin/surveys', permission: null, description: 'Survey builder' },
-      { name: 'Settings', href: '/admin/settings', permission: null, description: 'System settings' },
-      { name: 'Audit Log', href: '/admin/audit', permission: null, description: 'Activity audit trail' },
-      { name: 'Import/Export', href: '/admin/data-import-export', permission: null, description: 'Data import & export' },
+      // ── Access Control ──
+      { name: 'Users', href: '/admin/users', permission: null, description: 'User management', group: 'Access Control' },
+      { name: 'Roles', href: '/admin/roles', permission: null, description: 'Roles & permissions', group: 'Access Control' },
+
+      // ── Catalog ──
+      { name: 'Brands', href: '/admin/brands', permission: null, description: 'Brand management', group: 'Catalog' },
+      { name: 'Products', href: '/products', permission: null, description: 'Product catalog', group: 'Catalog' },
+      { name: 'Price Lists', href: '/admin/price-lists', permission: null, description: 'Pricing management', group: 'Catalog' },
+      { name: 'Territories', href: '/admin/territories', permission: null, description: 'Territory management', group: 'Catalog' },
+
+      // ── Configuration ──
+      { name: 'Surveys', href: '/admin/surveys', permission: null, description: 'Survey builder', group: 'Configuration' },
+      { name: 'Settings', href: '/admin/settings', permission: null, description: 'System settings', group: 'Configuration' },
+
+      // ── Data & Audit ──
+      { name: 'Audit Log', href: '/admin/audit', permission: null, description: 'Activity audit trail', group: 'Data & Audit' },
+      { name: 'Import/Export', href: '/admin/data-import-export', permission: null, description: 'Data import & export', group: 'Data & Audit' },
     ],
   },
   {
