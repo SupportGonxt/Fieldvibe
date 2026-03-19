@@ -204,6 +204,9 @@ export default function VisitCreate() {
           if (config.questionnaire_id) {
             setSelectedQuestionnaire(config.questionnaire_id)
           }
+        } else {
+          setSurveyRequired(false)
+          setSelectedQuestionnaire('')
         }
       }
     } catch (err) {
@@ -730,7 +733,7 @@ export default function VisitCreate() {
       ? (() => {
           const q = questionnaires.find(qn => qn.id === selectedQuestionnaire)
           if (!q) return []
-          try { return JSON.parse(q.questions) } catch { return [] }
+          try { return typeof q.questions === 'string' ? JSON.parse(q.questions) : q.questions } catch { return [] }
         })()
       : []
 
