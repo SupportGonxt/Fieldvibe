@@ -50,7 +50,7 @@ export default function VisitCreate() {
       required: true,
       options: (agents || []).map((a: any) => ({
         value: String(a.id || ''),
-        label: a.name || a.first_name ? `${a.first_name || ''} ${a.last_name || ''}`.trim() : 'Unknown'
+        label: a.name || (a.first_name ? `${a.first_name || ''} ${a.last_name || ''}`.trim() : 'Unknown')
       }))
     },
     {
