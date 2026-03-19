@@ -996,11 +996,9 @@ function App() {
             <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
             <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
             <Route path="agent/dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
-            <Route path="analytics-dashboard/*" element={<PageLoader><AnalyticsDashboardPage /></PageLoader>} />
             <Route path="van-sales/route-management" element={<PageLoader><RouteManagementPage /></PageLoader>} />
             <Route path="van-sales/orders-list" element={<PageLoader><VanOrdersListPage /></PageLoader>} />
             <Route path="van-sales/route-details/:id" element={<PageLoader><VanRouteDetailsPage /></PageLoader>} />
-            <Route path="van-sales/workflow" element={<PageLoader><VanSalesWorkflowPage /></PageLoader>} />
             <Route path="field-operations/visits/list" element={<PageLoader><VisitsList /></PageLoader>} />
 
             {/* Mobile More Menu */}

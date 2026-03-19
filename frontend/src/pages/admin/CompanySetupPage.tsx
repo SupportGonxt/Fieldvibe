@@ -338,6 +338,7 @@ function RolesTab() {
 function UsersTab() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['company-users'],
@@ -356,6 +357,7 @@ function UsersTab() {
       await apiClient.delete(`/users/${id}`)
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-users'] })
       useToastStore.getState().addToast('User removed', 'success')
       setDeleteUserId(null)
     },
