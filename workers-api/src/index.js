@@ -42,7 +42,7 @@ app.onError((err, c) => {
   // Return descriptive error messages so the frontend can display what went wrong
   const errMsg = err.message || 'Unknown error';
   // Detect common D1/SQLite constraint errors and translate to user-friendly messages
-  let userMessage = errMsg;
+  let userMessage = 'An internal error occurred. Please try again.';
   if (errMsg.includes('UNIQUE constraint failed')) {
     const field = errMsg.match(/UNIQUE constraint failed: (\w+)\.(\w+)/)?.[2] || 'field';
     userMessage = `A record with this ${field} already exists. Please use a different value.`;
@@ -58,7 +58,7 @@ app.onError((err, c) => {
     const col = errMsg.match(/no such column: (\w+)/)?.[1] || 'column';
     userMessage = `Database column "${col}" not found. The schema may need updating.`;
   }
-  return c.json({ success: false, message: userMessage, error_detail: errMsg }, 500);
+  return c.json({ success: false, message: userMessage }, 500);
 });
 
 // ==================== SECTION 7: SECURITY HEADERS ====================
