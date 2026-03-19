@@ -477,7 +477,9 @@ export default function VisitCreate() {
 
       await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
       toast.success('Visit created successfully!')
-      navigate('/field-operations/visits')
+      // Navigate back to the correct context (agent or admin)
+      const isAgentContext = window.location.pathname.startsWith('/agent/')
+      navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create visit'
       setError(message)

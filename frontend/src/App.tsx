@@ -1022,13 +1022,6 @@ function App() {
             <Route path="field-operations/product-distributions/:id" element={<PageLoader><ProductDistributionDetail /></PageLoader>} />
             <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
             <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
-            <Route path="agent" element={<PageLoader><AgentLayout /></PageLoader>}>
-              <Route path="dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
-              <Route path="visits" element={<PageLoader><AgentVisits /></PageLoader>} />
-              <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
-              <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
-              <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
-            </Route>
             <Route path="agent/pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="analytics-dashboard/*" element={<PageLoader><AnalyticsDashboardPage /></PageLoader>} />
             <Route path="van-sales/route-management" element={<PageLoader><RouteManagementPage /></PageLoader>} />
@@ -1043,6 +1036,22 @@ function App() {
 
             {/* Default redirect */}
             <Route index element={<Navigate to="dashboard" replace />} />
+          </Route>
+
+          {/* Agent Routes - separate layout without admin chrome */}
+          <Route path="/agent" element={
+            <ProtectedRoute>
+              <PageLoader><AgentLayout /></PageLoader>
+            </ProtectedRoute>
+          }>
+            <Route path="dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
+            <Route path="visits" element={<PageLoader><AgentVisits /></PageLoader>} />
+            <Route path="visits/create" element={<PageLoader><VisitCreate /></PageLoader>} />
+            <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
+            <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
+            <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
+            <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
+            <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
 
           {/* T-17: 404 Not Found page */}

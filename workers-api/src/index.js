@@ -39,7 +39,26 @@ app.onError((err, c) => {
         c.req.path, c.req.method, 'ERROR').run().catch(() => {});
     }
   } catch(e) {}
-  return c.json({ success: false, message: 'An internal error occurred. Please try again.' }, 500);
+  // Return descriptive error messages so the frontend can display what went wrong
+  const errMsg = err.message || 'Unknown error';
+  // Detect common D1/SQLite constraint errors and translate to user-friendly messages
+  let userMessage = 'An internal error occurred. Please try again.';
+  if (errMsg.includes('UNIQUE constraint failed')) {
+    const field = errMsg.match(/UNIQUE constraint failed: (\w+)\.(\w+)/)?.[2] || 'field';
+    userMessage = `A record with this ${field} already exists. Please use a different value.`;
+  } else if (errMsg.includes('NOT NULL constraint failed')) {
+    const field = errMsg.match(/NOT NULL constraint failed: (\w+)\.(\w+)/)?.[2] || 'field';
+    userMessage = `The ${field} field is required and cannot be empty.`;
+  } else if (errMsg.includes('FOREIGN KEY constraint failed')) {
+    userMessage = 'A referenced record does not exist. Please check your selections.';
+  } else if (errMsg.includes('no such table')) {
+    const table = errMsg.match(/no such table: (\w+)/)?.[1] || 'table';
+    userMessage = `Database table "${table}" not found. Please contact support.`;
+  } else if (errMsg.includes('no such column')) {
+    const col = errMsg.match(/no such column: (\w+)/)?.[1] || 'column';
+    userMessage = `Database column "${col}" not found. The schema may need updating.`;
+  }
+  return c.json({ success: false, message: userMessage }, 500);
 });
 
 // ==================== SECTION 7: SECURITY HEADERS ====================
@@ -687,8 +706,21 @@ api.post('/users', requireRole('admin'), async (c) => {
   // Email is optional for agents but required for non-agent roles
   const email = body.email || null;
   if (!email && !isAgent) return c.json({ success: false, message: 'Email is required for non-agent roles' }, 400);
-  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, email, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
-  return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
+  // For agents without email, generate a placeholder to satisfy NOT NULL constraint
+  const emailForDb = email || (isAgent ? `agent_${id.substring(0, 8)}@placeholder.local` : null);
+  try {
+    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+    return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
+  } catch (err) {
+    const msg = err.message || 'Failed to create user';
+    if (msg.includes('UNIQUE constraint failed: users.email')) {
+      return c.json({ success: false, message: 'A user with this email already exists.' }, 409);
+    }
+    if (msg.includes('UNIQUE constraint failed: users.phone')) {
+      return c.json({ success: false, message: 'A user with this phone number already exists.' }, 409);
+    }
+    return c.json({ success: false, message: `Failed to create user: ${msg}` }, 500);
+  }
 });
 
 api.put('/users/:id', requireRole('admin'), async (c) => {

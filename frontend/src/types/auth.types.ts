@@ -3,7 +3,7 @@ export interface User {
   email: string
   first_name: string
   last_name: string
-  role: 'admin' | 'manager' | 'field_agent' | 'sales_rep'
+  role: 'admin' | 'manager' | 'field_agent' | 'sales_rep' | 'agent' | 'super_admin'
   department?: string
   phone?: string
   avatar?: string
@@ -65,6 +65,8 @@ export const ROLES = {
   MANAGER: 'manager',
   FIELD_AGENT: 'field_agent',
   SALES_REP: 'sales_rep',
+  AGENT: 'agent',
+  SUPER_ADMIN: 'super_admin',
 } as const
 
 export const PERMISSIONS = {
