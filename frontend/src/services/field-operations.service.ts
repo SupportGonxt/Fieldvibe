@@ -1205,11 +1205,6 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  async createVisitSurveyConfig(data: { company_id: string; visit_target_type?: string; survey_required?: boolean; questionnaire_id?: string }) {
-    const response = await this.post('/visit-survey-config', data)
-    return response.data || response
-  }
-
   async updateVisitSurveyConfig(id: string, data: { visit_target_type?: string; survey_required?: boolean; questionnaire_id?: string }) {
     const response = await this.put(`/visit-survey-config/${id}`, data)
     return response.data || response
