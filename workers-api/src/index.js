@@ -2092,7 +2092,8 @@ api.get('/settings', async (c) => {
       description: s.key ? `Configure ${s.key.replace(/_/g, ' ')}` : '',
     };
   }
-  return c.json({ success: true, data: { settings: settingsMap, raw: settingsArray } });
+  // Return both formats: 'data' as array for backward compatibility, plus 'settings' keyed map
+  return c.json({ success: true, data: settingsArray, settings: settingsMap });
 });
 
 api.get('/settings-categories', async (c) => {
@@ -3580,8 +3581,9 @@ api.post('/commissions/calculate', authMiddleware, async (c) => {
   let totalCommission = 0;
   for (const rule of (rules.results || [])) {
     let amount = 0;
-    if (rule.calculation_type === 'percentage') amount = (order.total_amount * rule.rate) / 100;
-    else if (rule.calculation_type === 'flat') amount = rule.rate;
+    const ruleType = rule.source_type || rule.calculation_type || 'percentage';
+    if (ruleType === 'percentage') amount = (order.total_amount * rule.rate) / 100;
+    else if (ruleType === 'flat') amount = rule.rate;
     else amount = (order.total_amount * rule.rate) / 100;
     if (amount > 0) {
       const id = uuidv4();

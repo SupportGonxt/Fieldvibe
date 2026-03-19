@@ -462,7 +462,7 @@ export default function AnalyticsPage() {
                 { value: 'customers', label: 'Customers' },
               ]}
               value={selectedMetric}
-              onChange={(val) => setSelectedMetric(val)}
+              onChange={(val) => setSelectedMetric(val || 'revenue')}
               placeholder="Revenue"
             />
           </div>

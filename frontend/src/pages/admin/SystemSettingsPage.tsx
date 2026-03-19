@@ -60,7 +60,7 @@ export default function SystemSettingsPage() {
     try {
       const response = await api.get('/settings')
       if (response.data?.success) {
-        setSettings(response.data.data.settings || {})
+        setSettings(response.data.settings || response.data.data?.settings || {})
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
