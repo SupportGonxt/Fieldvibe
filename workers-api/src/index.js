@@ -4391,7 +4391,7 @@ api.post('/individuals', authMiddleware, async (c) => {
   }
   await db.prepare('INSERT INTO individuals (id, tenant_id, first_name, last_name, id_number, phone, email, address, gps_latitude, gps_longitude, company_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
     id, tenantId, body.first_name || '', body.last_name || '', body.id_number || null, body.phone || null,
-    body.email || null, body.address || null, body.gps_latitude || null, body.gps_longitude || null,
+    body.email || null, body.address || null, body.gps_latitude ?? null, body.gps_longitude ?? null,
     body.company_id || null, body.notes || null
   ).run();
   return c.json({ data: { id, ...body }, message: 'Individual created successfully' }, 201);

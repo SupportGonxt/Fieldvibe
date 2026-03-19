@@ -198,6 +198,9 @@ export default function VisitCreate() {
         const config = configs.find((c: { visit_target_type: string }) => c.visit_target_type === visitTargetType)
         if (config) {
           setSurveyRequired(!!config.survey_required)
+          if (config.survey_required) {
+            setSkipSurvey(false)
+          }
           if (config.questionnaire_id) {
             setSelectedQuestionnaire(config.questionnaire_id)
           }
@@ -598,7 +601,7 @@ export default function VisitCreate() {
                   fullWidth
                   label="ID Number"
                   value={individualIdNumber}
-                  onChange={(e) => setIndividualIdNumber(e.target.value)}
+                  onChange={(e) => { setIndividualIdNumber(e.target.value); setDuplicateCheck(null); }}
                   helperText="Must be unique - cannot be duplicated"
                   error={duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
                 />
@@ -608,7 +611,7 @@ export default function VisitCreate() {
                   fullWidth
                   label="Phone Number"
                   value={individualPhone}
-                  onChange={(e) => setIndividualPhone(e.target.value)}
+                  onChange={(e) => { setIndividualPhone(e.target.value); setDuplicateCheck(null); }}
                   helperText="Must be unique - cannot be duplicated"
                   error={duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
                 />
