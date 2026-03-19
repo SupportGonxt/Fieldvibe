@@ -88,6 +88,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Monthly Targets', href: '/field-operations/monthly-targets', permission: null, description: 'Monthly target management' },
       { name: 'Commission Tiers', href: '/field-operations/commission-tiers', permission: null, description: 'Commission tier configuration' },
       { name: 'Settings', href: '/field-operations/settings', permission: null, description: 'Field ops global settings' },
+      { name: 'Agent PINs', href: '/agent/pin-management', permission: null, description: 'Set/reset agent login PINs' },
     ],
   },
   {

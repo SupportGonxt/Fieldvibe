@@ -229,6 +229,252 @@ app.post('/api/auth/login', rateLimiter(5, 900000), async (c) => {
   }
 });
 
+// ==================== MOBILE AGENT LOGIN (phone + PIN) ====================
+app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
+  try {
+    const body = await c.req.json();
+    const { phone, pin, tenant_code } = body;
+    if (!phone || !pin) return c.json({ success: false, message: 'Phone number and PIN are required' }, 400);
+    if (pin.length < 4 || pin.length > 6) return c.json({ success: false, message: 'PIN must be 4-6 digits' }, 400);
+    const db = c.env.DB;
+    // Resolve tenant_id from tenant_code (or X-Tenant-Code header) for multi-tenant scoping
+    let tenantFilter = '';
+    let tenantBinds = [phone];
+    const tCode = tenant_code || c.req.header('X-Tenant-Code');
+    if (tCode) {
+      const tenant = await db.prepare('SELECT id FROM tenants WHERE code = ?').bind(tCode).first();
+      if (tenant) {
+        tenantFilter = ' AND tenant_id = ?';
+        tenantBinds.push(tenant.id);
+      }
+    }
+    // Find agent by phone number (scoped to tenant if provided)
+    const user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep')${tenantFilter}`).bind(...tenantBinds).first();
+    if (!user) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
+    // Verify PIN (stored as pin_hash, fallback to password_hash for backward compat)
+    const pinHash = user.pin_hash || user.password_hash;
+    if (!pinHash) return c.json({ success: false, message: 'PIN not set. Contact your manager to set a PIN.' }, 401);
+    const validPin = await bcrypt.compare(pin, pinHash);
+    if (!validPin) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) return c.json({ success: false, message: 'Server configuration error' }, 500);
+    const accessToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role }, jwtSecret);
+    const refreshToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role, type: 'refresh' }, jwtSecret, 604800);
+    try { await db.prepare('UPDATE users SET last_login = datetime("now") WHERE id = ?').bind(user.id).run(); } catch(e) {}
+    const tenant = await db.prepare('SELECT id, name, code FROM tenants WHERE id = ?').bind(user.tenant_id).first();
+    // Get agent's assigned companies
+    const companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(user.id, user.tenant_id).all();
+    return c.json({
+      success: true,
+      data: {
+        user: { id: user.id, email: user.email, phone: user.phone, firstName: user.first_name, lastName: user.last_name, name: user.first_name + ' ' + user.last_name, role: user.role, status: user.status, tenantId: user.tenant_id, companyName: tenant ? tenant.name : '', managerId: user.manager_id, teamLeadId: user.team_lead_id },
+        tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: 86400, token_type: 'Bearer' },
+        token: accessToken,
+        access_token: accessToken,
+        tenant: tenant || {},
+        companies: companies.results || []
+      }
+    });
+  } catch (error) {
+    console.error('Mobile login error:', error);
+    return c.json({ success: false, message: 'Login failed' }, 500);
+  }
+});
+
+// ==================== AGENT MOBILE DASHBOARD ====================
+app.get('/api/agent/dashboard', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const today = new Date().toISOString().split('T')[0];
+    const monthStart = today.substring(0, 7) + '-01';
+
+    const [todayVisits, monthVisits, todayRegs, monthRegs, recentVisits, companies, targets] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, userId, today).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, monthStart).first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, userId, today).first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, monthStart).first(),
+      db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all(),
+      db.prepare("SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all(),
+      db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(),
+    ]);
+
+    return c.json({
+      success: true,
+      data: {
+        today_visits: todayVisits?.count || 0,
+        month_visits: monthVisits?.count || 0,
+        today_registrations: todayRegs?.count || 0,
+        month_registrations: monthRegs?.count || 0,
+        recent_visits: recentVisits.results || [],
+        companies: companies.results || [],
+        daily_targets: targets.results || [],
+      }
+    });
+  } catch (error) {
+    console.error('Agent dashboard error:', error);
+    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0, recent_visits: [], companies: [], daily_targets: [] } });
+  }
+});
+
+// ==================== AGENT PIN MANAGEMENT ====================
+
+// Manager/Admin: Set or reset PIN for an agent
+app.post('/api/agent/set-pin', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const requesterId = c.get('userId');
+    const body = await c.req.json();
+    const { agent_id, pin } = body;
+    if (!agent_id || !pin) return c.json({ success: false, message: 'agent_id and pin are required' }, 400);
+    if (!/^\d{4,6}$/.test(pin)) return c.json({ success: false, message: 'PIN must be 4-6 digits' }, 400);
+
+    // Check requester has permission (admin, manager, or team_lead managing this agent)
+    const requester = await db.prepare('SELECT role FROM users WHERE id = ? AND tenant_id = ?').bind(requesterId, tenantId).first();
+    if (!requester) return c.json({ success: false, message: 'Unauthorized' }, 403);
+
+    const isAdmin = ['admin', 'super_admin'].includes(requester.role);
+    const isManager = requester.role === 'manager';
+    const isTeamLead = requester.role === 'team_lead';
+
+    if (!isAdmin && !isManager && !isTeamLead) {
+      return c.json({ success: false, message: 'Only admins, managers, and team leads can set agent PINs' }, 403);
+    }
+
+    // Verify target user exists and has an agent-like role
+    const targetQuery = isTeamLead
+      ? "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep') AND team_lead_id = ?"
+      : "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep')";
+    const targetBinds = isTeamLead ? [agent_id, tenantId, requesterId] : [agent_id, tenantId];
+    const targetAgent = await db.prepare(targetQuery).bind(...targetBinds).first();
+    if (!targetAgent) {
+      return c.json({ success: false, message: isTeamLead ? 'Agent not found or not in your team' : 'Agent not found' }, 404);
+    }
+
+    const pinHash = await bcrypt.hash(pin, 10);
+    await db.prepare('UPDATE users SET pin_hash = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(pinHash, agent_id, tenantId).run();
+
+    return c.json({ success: true, message: 'PIN set successfully' });
+  } catch (error) {
+    console.error('Set PIN error:', error);
+    return c.json({ success: false, message: 'Failed to set PIN' }, 500);
+  }
+});
+
+// Agent: Change own PIN (requires current PIN)
+app.post('/api/agent/change-pin', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    const { current_pin, new_pin } = body;
+    if (!current_pin || !new_pin) return c.json({ success: false, message: 'current_pin and new_pin are required' }, 400);
+    if (!/^\d{4,6}$/.test(new_pin)) return c.json({ success: false, message: 'New PIN must be 4-6 digits' }, 400);
+
+    const user = await db.prepare('SELECT pin_hash, password_hash FROM users WHERE id = ? AND tenant_id = ?').bind(userId, tenantId).first();
+    if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+
+    const currentHash = user.pin_hash || user.password_hash;
+    if (!currentHash) return c.json({ success: false, message: 'No PIN set. Contact your manager.' }, 400);
+
+    const valid = await bcrypt.compare(current_pin, currentHash);
+    if (!valid) return c.json({ success: false, message: 'Current PIN is incorrect' }, 401);
+
+    const newHash = await bcrypt.hash(new_pin, 10);
+    await db.prepare('UPDATE users SET pin_hash = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(newHash, userId, tenantId).run();
+
+    return c.json({ success: true, message: 'PIN changed successfully' });
+  } catch (error) {
+    console.error('Change PIN error:', error);
+    return c.json({ success: false, message: 'Failed to change PIN' }, 500);
+  }
+});
+
+// Manager/Admin: Get list of agents with PIN status
+app.get('/api/agent/pin-status', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const requesterId = c.get('userId');
+
+    const requester = await db.prepare('SELECT role FROM users WHERE id = ? AND tenant_id = ?').bind(requesterId, tenantId).first();
+    if (!requester) return c.json({ success: false, message: 'Unauthorized' }, 403);
+
+    let agents;
+    if (['admin', 'super_admin', 'manager'].includes(requester.role)) {
+      agents = await db.prepare("SELECT id, first_name, last_name, phone, role, pin_hash IS NOT NULL as has_pin, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
+    } else if (requester.role === 'team_lead') {
+      agents = await db.prepare("SELECT id, first_name, last_name, phone, role, pin_hash IS NOT NULL as has_pin, team_lead_id FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1 ORDER BY first_name").bind(tenantId, requesterId).all();
+    } else {
+      return c.json({ success: false, message: 'Unauthorized' }, 403);
+    }
+
+    return c.json({ success: true, data: agents.results || [] });
+  } catch (error) {
+    console.error('PIN status error:', error);
+    return c.json({ success: true, data: [] });
+  }
+});
+
+// ==================== AGENT SEED ENDPOINT (creates test agents with PIN) ====================
+app.post('/api/admin/seed-test-agents', authMiddleware, requireSuperAdmin, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    // Default PIN: 1234
+    const hashedPin = await bcrypt.hash('1234', 10);
+    const hashedPassword = await bcrypt.hash('Agent@123', 10);
+
+    const agents = [
+      { id: 'agent-test-001', phone: '+27820000001', first_name: 'Sipho', last_name: 'Ndlovu', role: 'agent' },
+      { id: 'agent-test-002', phone: '+27820000002', first_name: 'Thandiwe', last_name: 'Mokoena', role: 'agent' },
+      { id: 'agent-test-003', phone: '+27820000003', first_name: 'Bongani', last_name: 'Dlamini', role: 'team_lead' },
+      { id: 'agent-test-004', phone: '+27820000004', first_name: 'Naledi', last_name: 'Mthembu', role: 'agent' },
+      { id: 'agent-test-005', phone: '+27820000005', first_name: 'Thabo', last_name: 'Khumalo', role: 'agent' },
+    ];
+
+    const results = [];
+    for (const agent of agents) {
+      try {
+        const existing = await db.prepare('SELECT id FROM users WHERE phone = ? AND tenant_id = ?').bind(agent.phone, tenantId).first();
+        if (existing) {
+          await db.prepare('UPDATE users SET password_hash = ?, pin_hash = ?, is_active = 1, role = ? WHERE id = ?').bind(hashedPassword, hashedPin, agent.role, existing.id).run();
+          results.push({ ...agent, status: 'updated' });
+        } else {
+          await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, status, is_active, team_lead_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)').bind(
+            agent.id, tenantId, agent.first_name.toLowerCase() + '.' + agent.last_name.toLowerCase() + '@fieldvibe.test',
+            agent.phone, hashedPassword, hashedPin, agent.first_name, agent.last_name, agent.role, 'active',
+            agent.role === 'agent' ? 'agent-test-003' : null
+          ).run();
+          results.push({ ...agent, status: 'created' });
+        }
+      } catch (e) {
+        results.push({ ...agent, status: 'error', error: e.message });
+      }
+    }
+
+    // Link agents to all active companies
+    const companies = await db.prepare("SELECT id FROM field_companies WHERE tenant_id = ? AND status = 'active'").bind(tenantId).all();
+    for (const agent of agents) {
+      for (const company of (companies.results || [])) {
+        try {
+          await db.prepare('INSERT OR IGNORE INTO agent_company_links (id, agent_id, company_id, tenant_id, is_active) VALUES (?, ?, ?, ?, 1)').bind(
+            'acl-' + agent.id + '-' + company.id, agent.id, company.id, tenantId
+          ).run();
+        } catch {}
+      }
+    }
+
+    return c.json({ success: true, data: { agents: results, default_pin: '1234', message: 'Test agents created/updated. Login with phone + PIN 1234' } });
+  } catch (error) {
+    console.error('Seed agents error:', error);
+    return c.json({ success: false, message: error.message }, 500);
+  }
+});
+
 app.post('/api/auth/register', rateLimiter(3, 3600000), async (c) => {
   try {
     const db = c.env.DB;
@@ -3854,7 +4100,7 @@ api.put('/field-ops/companies/:id', authMiddleware, async (c) => {
   const sets = [];
   const vals = [];
   for (const [k, v] of Object.entries(body)) {
-    if (['name', 'code', 'logo_url', 'description', 'contact_email', 'contact_phone', 'status'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
+    if (['name', 'code', 'logo_url', 'description', 'contact_email', 'contact_phone', 'status', 'revisit_radius_meters'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
   }
   if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
   sets.push('updated_at = CURRENT_TIMESTAMP');

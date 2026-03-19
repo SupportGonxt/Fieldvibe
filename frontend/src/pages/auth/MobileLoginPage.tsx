@@ -1,207 +1,234 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Box, 
-  Container, 
-  TextField, 
-  Button, 
-  Typography, 
-  Paper,
-  Alert,
-  CircularProgress,
-  InputAdornment
-} from '@mui/material';
-import { Phone, LockOpen } from '@mui/icons-material';
+import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Phone, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+import { useAuthStore } from '../../store/auth.store'
 
 const MobileLoginPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [mobile, setMobile] = useState('');
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate()
+  const [phone, setPhone] = useState('')
+  const [pin, setPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [shake, setShake] = useState(false)
+  const pinRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/mobile-login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Code': 'DEMO'
-        },
-        body: JSON.stringify({ mobile, pin })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Store auth token
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.agent));
-        localStorage.setItem('tenant', JSON.stringify(data.tenant));
-        
-        // Navigate to agent dashboard
-        navigate('/agent/dashboard');
-      } else {
-        setError(data.error?.message || 'Login failed');
+  useEffect(() => {
+    const { isAuthenticated, user } = useAuthStore.getState()
+    if (isAuthenticated && user) {
+      const role = user.role
+      if (role && ['agent', 'team_lead', 'field_agent', 'sales_rep'].includes(role)) {
+        navigate('/agent/dashboard')
+        return
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
-      console.error('Login error:', err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [navigate])
 
-  const formatMobile = (value: string) => {
-    // Auto-format mobile number
-    const cleaned = value.replace(/[^\d+]/g, '');
+  const formatPhone = (value: string): string => {
+    const cleaned = value.replace(/[^\d+]/g, '')
     if (!cleaned.startsWith('+27') && cleaned.length > 0) {
-      if (cleaned.startsWith('0')) {
-        return '+27' + cleaned.substring(1);
-      }
-      return '+27' + cleaned;
+      if (cleaned.startsWith('0')) return '+27' + cleaned.substring(1)
+      if (cleaned.startsWith('27')) return '+' + cleaned
+      return '+27' + cleaned
     }
-    return cleaned;
-  };
+    return cleaned
+  }
 
-  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatMobile(e.target.value);
-    setMobile(formatted);
-  };
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhone(formatPhone(e.target.value))
+    setError('')
+  }
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '').substring(0, 6);
-    setPin(value);
-  };
+    const value = e.target.value.replace(/\D/g, '').substring(0, 6)
+    setPin(value)
+    setError('')
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    if (!phone || phone.length < 10) {
+      setError('Please enter a valid phone number')
+      setLoading(false)
+      triggerShake()
+      return
+    }
+    if (pin.length < 4) {
+      setError('PIN must be at least 4 digits')
+      setLoading(false)
+      triggerShake()
+      return
+    }
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const response = await fetch(`${apiUrl}/api/auth/mobile-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, pin })
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.data) {
+        const { user, token, access_token, tenant, companies } = data.data
+        const accessToken = token || access_token
+        localStorage.setItem('token', accessToken)
+        // Update zustand auth store so ProtectedRoute recognizes the session
+        useAuthStore.setState({
+          user: {
+            id: user.id,
+            email: user.email || '',
+            first_name: user.firstName || '',
+            last_name: user.lastName || '',
+            role: user.role,
+            phone: user.phone,
+            status: user.status || 'active',
+            permissions: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as any,
+          tokens: data.data.tokens || { access_token: accessToken, refresh_token: '', expires_in: 86400, token_type: 'Bearer' },
+          isAuthenticated: true,
+        })
+        navigate('/agent/dashboard')
+      } else {
+        setError(data.message || 'Login failed')
+        triggerShake()
+      }
+    } catch (err) {
+      setError('Unable to connect. Check your internet connection.')
+      triggerShake()
+      console.error('Login error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const triggerShake = () => {
+    setShake(true)
+    setTimeout(() => setShake(false), 600)
+  }
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 2
-      }}
-    >
-      <Container maxWidth="sm">
-        <Paper
-          elevation={10}
-          sx={{
-            p: 4,
-            borderRadius: 3,
-            background: 'rgba(255, 255, 255, 0.95)'
-          }}
-        >
-          <Box textAlign="center" mb={3}>
-            <Typography variant="h4" fontWeight="bold" color="primary" gutterBottom>
-              FieldVibe
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              Agent Mobile Login
-            </Typography>
-          </Box>
+    <div className="min-h-screen bg-gradient-to-br from-[#0A1628] via-[#0F2140] to-[#162D50] flex flex-col">
+      {/* Decorative blurs */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-[#00E87B]/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full translate-y-1/3 -translate-x-1/4 blur-2xl" />
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative z-10">
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-[#00E87B] to-[#00B86B] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#00E87B]/20">
+            <span className="text-2xl font-black text-[#0A1628]">FV</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">FieldVibe</h1>
+          <p className="text-sm text-gray-400 mt-1">Agent Login</p>
+        </div>
 
-          <form onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Mobile Number"
-              value={mobile}
-              onChange={handleMobileChange}
-              placeholder="+27820000001"
-              margin="normal"
-              required
-              autoFocus
-              type="tel"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Phone color="primary" />
-                  </InputAdornment>
-                ),
-              }}
-              helperText="Enter mobile number (format: +27820000001)"
-            />
+        {/* Login Card */}
+        <div className={`w-full max-w-sm ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-2xl">
+            {error && (
+              <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            )}
 
-            <TextField
-              fullWidth
-              label="PIN"
-              value={pin}
-              onChange={handlePinChange}
-              placeholder="123456"
-              margin="normal"
-              required
-              type="password"
-              inputProps={{
-                inputMode: 'numeric',
-                pattern: '[0-9]*',
-                maxLength: 6
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LockOpen color="primary" />
-                  </InputAdornment>
-                ),
-              }}
-              helperText="Enter your 6-digit PIN"
-            />
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Phone */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Phone Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    placeholder="+27 82 000 0001"
+                    autoFocus
+                    autoComplete="tel"
+                    className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base"
+                  />
+                </div>
+              </div>
 
-            <Button
-              fullWidth
-              type="submit"
-              variant="contained"
-              size="large"
-              disabled={loading || !mobile || pin.length !== 6}
-              sx={{ 
-                mt: 3, 
-                py: 1.5,
-                background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
-                '&:hover': {
-                  background: 'linear-gradient(45deg, #5568d3 30%, #65418b 90%)',
-                }
-              }}
-            >
-              {loading ? <CircularProgress size={24} color="inherit" /> : 'Login'}
-            </Button>
+              {/* PIN */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">PIN Code</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <input
+                    ref={pinRef}
+                    type={showPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={pin}
+                    onChange={handlePinChange}
+                    placeholder="Enter PIN"
+                    autoComplete="one-time-code"
+                    className="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base tracking-[0.3em]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1.5">4-6 digit PIN from your manager</p>
+              </div>
 
-            <Box mt={3} textAlign="center">
-              <Typography variant="body2" color="text.secondary">
-                Demo Credentials:
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Mobile: +27820000001 to +27820000007
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
-                PIN: 123456
-              </Typography>
-            </Box>
-
-            <Box mt={2} textAlign="center">
-              <Button
-                variant="text"
-                onClick={() => navigate('/login')}
-                sx={{ textTransform: 'none' }}
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading || !phone || pin.length < 4}
+                className="w-full py-3.5 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-semibold rounded-xl shadow-lg shadow-[#00E87B]/20 hover:shadow-[#00E87B]/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-[0.98] text-base"
               >
-                Admin/Manager Login
-              </Button>
-            </Box>
-          </form>
-        </Paper>
-      </Container>
-    </Box>
-  );
-};
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Signing in...
+                  </span>
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </form>
+          </div>
 
-export default MobileLoginPage;
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => navigate('/login')}
+              className="text-sm text-gray-500 hover:text-[#00E87B] transition-colors"
+            >
+              Admin / Manager Login
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom branding */}
+      <div className="pb-6 text-center relative z-10">
+        <p className="text-xs text-gray-600">A Product of <span className="text-gray-500">GONXT</span></p>
+      </div>
+
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+          20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default MobileLoginPage

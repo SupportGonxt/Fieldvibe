@@ -1,196 +1,241 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Box,
-  Container,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  Button,
-  Avatar,
-  Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Paper
-} from '@mui/material';
-import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import ErrorState from '../../components/ui/ErrorState'
-import EmptyState from '../../components/ui/EmptyState'
-import {
-  ExitToApp,
-  Assignment,
-  LocalShipping,
-  Inventory,
-  Payment,
-  TrendingUp,
-  Phone,
-  Business
-} from '@mui/icons-material';
+  MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
+  Calendar, ChevronRight, RefreshCw, Target, Building2,
+  Wifi, WifiOff, LogOut
+} from 'lucide-react'
+import { useAuthStore } from '../../store/auth.store'
 
-interface Agent {
-  id: string;
-  name: string;
-  email: string;
-  mobile: string;
-  role: string;
-  status: string;
+interface DashboardData {
+  today_visits: number
+  month_visits: number
+  today_registrations: number
+  month_registrations: number
+  recent_visits: Array<{
+    id: string
+    visit_date: string
+    visit_type: string
+    status: string
+    check_in_time: string
+    customer_name: string
+    individual_name: string
+  }>
+  companies: Array<{ id: string; name: string; code: string }>
+  daily_targets: Array<{
+    company_name: string
+    target_visits: number
+    actual_visits: number
+    target_registrations: number
+    actual_registrations: number
+  }>
 }
 
-interface Tenant {
-  id: string;
-  code: string;
-  name: string;
-}
-
-const AgentDashboard: React.FC = () => {
-  const navigate = useNavigate();
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+export default function AgentDashboard() {
+  const navigate = useNavigate()
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [online, setOnline] = useState(navigator.onLine)
+  const authUser = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/auth/mobile-login');
-      return;
+    const handleOnline = () => setOnline(true)
+    const handleOffline = () => setOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
+  }, [])
 
-    const agentData = localStorage.getItem('user');
-    const tenantData = localStorage.getItem('tenant');
+  const fetchDashboard = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
 
-    if (agentData) setAgent(JSON.parse(agentData));
-    if (tenantData) setTenant(JSON.parse(tenantData));
-  }, [navigate]);
+    try {
+      const token = useAuthStore.getState().tokens?.access_token || localStorage.getItem('token')
+      if (!token) { navigate('/auth/mobile-login'); return }
+
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const res = await fetch(`${apiUrl}/api/agent/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const json = await res.json()
+      if (json.success && json.data) {
+        setData(json.data)
+      }
+    } catch (err) {
+      console.error('Dashboard fetch error:', err)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [navigate])
+
+  useEffect(() => { fetchDashboard() }, [fetchDashboard])
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('tenant');
-    navigate('/auth/mobile-login');
-  };
-
-  if (!agent || !tenant) {
-    return <Box><LoadingSpinner size="sm" /></Box>;
+    useAuthStore.getState().logout()
+    localStorage.removeItem('token')
+    navigate('/auth/mobile-login')
   }
 
-  const menuItems = [
-    { icon: <Assignment />, text: 'My Orders', path: '/agent/orders' },
-    { icon: <LocalShipping />, text: 'Van Sales', path: '/van-sales' },
-    { icon: <Inventory />, text: 'Inventory', path: '/van-sales/inventory' },
-    { icon: <Payment />, text: 'Payments', path: '/agent/payments' },
-    { icon: <TrendingUp />, text: 'Performance', path: '/agent/performance' },
-  ];
+  const greeting = () => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good Morning'
+    if (h < 17) return 'Good Afternoon'
+    return 'Good Evening'
+  }
+
+  const firstName = authUser?.first_name || (authUser as any)?.firstName || 'Agent'
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#00E87B] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400 text-sm">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', py: 3 }}>
-      <Container maxWidth="md">
-        {/* Header Card */}
-        <Paper elevation={3} sx={{ mb: 3, borderRadius: 2 }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box display="flex" alignItems="center" gap={2}>
-                <Avatar sx={{ width: 64, height: 64, bgcolor: 'primary.main' }}>
-                  {agent.name.charAt(0)}
-                </Avatar>
-                <Box>
-                  <Typography variant="h5" fontWeight="bold">
-                    {agent.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    <Phone sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                    {agent.mobile}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    <Business sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                    {tenant.name}
-                  </Typography>
-                </Box>
-              </Box>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<ExitToApp />}
-                onClick={handleLogout}
-              >
-                Logout
-              </Button>
-            </Box>
-          </CardContent>
-        </Paper>
+    <div className="min-h-screen bg-[#06090F] pb-24">
+      <div className="bg-[#0A1628] px-4 py-2 flex items-center justify-between border-b border-white/5">
+        <div className="flex items-center gap-2">
+          {online ? <Wifi className="w-3.5 h-3.5 text-[#00E87B]" /> : <WifiOff className="w-3.5 h-3.5 text-red-400" />}
+          <span className="text-[10px] text-gray-500">{online ? 'Online' : 'Offline'}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => fetchDashboard(true)} className="p-1" disabled={refreshing}>
+            <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button onClick={handleLogout} className="p-1">
+            <LogOut className="w-3.5 h-3.5 text-gray-500" />
+          </button>
+        </div>
+      </div>
 
-        {/* Quick Stats */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h4" color="primary" fontWeight="bold">
-                  12
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Today's Orders
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h4" color="success.main" fontWeight="bold">
-                  R 45,890
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Today's Sales
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+      <div className="px-5 pt-5 pb-3">
+        <p className="text-sm text-gray-500">{greeting()}</p>
+        <h1 className="text-2xl font-bold text-white">{firstName}</h1>
+        <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+          <Calendar className="w-3 h-3" />
+          {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+      </div>
 
-        {/* Menu Items */}
-        <Paper elevation={3} sx={{ borderRadius: 2 }}>
-          <CardContent>
-            <Typography variant="h6" fontWeight="bold" mb={2}>
-              Quick Actions
-            </Typography>
-            <List>
-              {menuItems.map((item, index) => (
-                <React.Fragment key={index}>
-                  <ListItem
-                    button
-                    onClick={() => navigate(item.path)}
-                    sx={{
-                      borderRadius: 1,
-                      mb: 1,
-                      '&:hover': {
-                        bgcolor: 'primary.light',
-                        color: 'white',
-                        '& .MuiListItemIcon-root': { color: 'white' }
-                      }
-                    }}
-                  >
-                    <ListItemIcon sx={{ color: 'primary.main' }}>
-                      {item.icon}
-                    </ListItemIcon>
-                    <ListItemText primary={item.text} />
-                  </ListItem>
-                  {index < menuItems.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </List>
-          </CardContent>
-        </Paper>
+      <div className="px-5 mb-4">
+        <button
+          onClick={() => navigate('/field-operations/visits/create')}
+          className="w-full py-4 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-[#00E87B]/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-base"
+        >
+          <Plus className="w-5 h-5" />
+          Start New Visit
+        </button>
+      </div>
 
-        {/* Footer Info */}
-        <Box mt={3} textAlign="center">
-          <Typography variant="caption" color="white">
-            FieldVibe Mobile v1.0 • {tenant.code}
-          </Typography>
-        </Box>
-      </Container>
-    </Box>
-  );
-};
+      <div className="px-5 mb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Visits" value={data?.today_visits || 0} color="bg-blue-500" />
+          <StatCard icon={<Users className="w-5 h-5" />} label="Registrations" value={data?.today_registrations || 0} color="bg-purple-500" />
+          <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Visits" value={data?.month_visits || 0} color="bg-emerald-500" />
+          <StatCard icon={<Target className="w-5 h-5" />} label="Month Regs" value={data?.month_registrations || 0} color="bg-amber-500" />
+        </div>
+      </div>
 
-export default AgentDashboard;
+      {data?.companies && data.companies.length > 0 && (
+        <div className="px-5 mb-4">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assigned Companies</h2>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {data.companies.map((c) => (
+              <div key={c.id} className="flex-shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#00E87B]" />
+                <span className="text-sm text-white whitespace-nowrap">{c.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data?.daily_targets && data.daily_targets.length > 0 && (
+        <div className="px-5 mb-4">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Daily Targets</h2>
+          <div className="space-y-2">
+            {data.daily_targets.map((t, i) => {
+              const visitPct = t.target_visits > 0 ? Math.min(100, Math.round((t.actual_visits / t.target_visits) * 100)) : 0
+              return (
+                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-white">{t.company_name}</span>
+                    <span className="text-xs text-[#00E87B] font-semibold">{visitPct}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: `${visitPct}%` }} />
+                  </div>
+                  <div className="flex justify-between mt-1.5">
+                    <span className="text-[10px] text-gray-500">Visits: {t.actual_visits}/{t.target_visits}</span>
+                    <span className="text-[10px] text-gray-500">Regs: {t.actual_registrations}/{t.target_registrations}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="px-5 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Visits</h2>
+          <button onClick={() => navigate('/agent/visits')} className="text-xs text-[#00E87B] flex items-center">
+            View All <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+        {data?.recent_visits && data.recent_visits.length > 0 ? (
+          <div className="space-y-2">
+            {data.recent_visits.slice(0, 5).map((visit) => (
+              <div key={visit.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  visit.status === 'completed' ? 'bg-green-500/10' : visit.status === 'in_progress' ? 'bg-blue-500/10' : 'bg-gray-500/10'
+                }`}>
+                  {visit.status === 'completed' ? (
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                  ) : (
+                    <Clock className="w-5 h-5 text-blue-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">
+                    {visit.customer_name || visit.individual_name || 'Visit'}
+                  </p>
+                  <p className="text-xs text-gray-500">{visit.visit_type} &middot; {visit.visit_date}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+            <MapPin className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">No visits yet today</p>
+            <p className="text-xs text-gray-600 mt-1">Start your first visit above</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-2 rounded-lg ${color} text-white`}>{icon}</div>
+      </div>
+      <p className="text-xl font-bold text-white">{value}</p>
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+    </div>
+  )
+}

@@ -20,6 +20,17 @@ import {
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 
+// Haversine distance between two GPS coordinates in meters
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000 // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 interface GpsLocation {
   latitude: number
   longitude: number
@@ -41,6 +52,7 @@ interface Company {
   id: string
   name: string
   code: string
+  revisit_radius_meters?: number
 }
 
 interface Customer {
@@ -378,11 +390,26 @@ export default function VisitCreate() {
           return
         }
       }
+      // GPS radius check: only enforced for store revisits, not for new individual visits
       if (visitTargetType === 'store' && selectedCustomer) {
         const result = await checkStoreRevisit(selectedCustomer)
         if (result && !result.can_visit) {
           setError(result.message)
           return
+        }
+        // Enforce GPS radius for store revisits
+        const customer = customers.find(c => c.id === selectedCustomer)
+        if (customer?.latitude && customer?.longitude && gpsLocation) {
+          const company = companies.find(c => c.id === selectedCompany)
+          const radiusMeters = company?.revisit_radius_meters || 200
+          const distance = haversineDistance(
+            gpsLocation.latitude, gpsLocation.longitude,
+            customer.latitude, customer.longitude
+          )
+          if (distance > radiusMeters) {
+            setError(`You are ${Math.round(distance)}m from the store. Must be within ${radiusMeters}m to check in for a revisit.`)
+            return
+          }
         }
       }
     }

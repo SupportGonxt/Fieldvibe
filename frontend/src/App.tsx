@@ -29,6 +29,11 @@ const AdminCampaignManagementPage = lazy(() => import('./pages/admin/CampaignMan
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'))
 const AgentDashboard = lazy(() => import('./pages/agent/AgentDashboard'))
+const AgentLayout = lazy(() => import('./pages/agent/AgentLayout'))
+const AgentVisits = lazy(() => import('./pages/agent/AgentVisits'))
+const AgentStats = lazy(() => import('./pages/agent/AgentStats'))
+const AgentProfile = lazy(() => import('./pages/agent/AgentProfile'))
+const AgentPinManagement = lazy(() => import('./pages/agent/AgentPinManagement'))
 const AgentHierarchyPage = lazy(() => import('./pages/field-operations/AgentHierarchyPage'))
 const AnalyticsDashboardPage = lazy(() => import('./pages/reports/AnalyticsDashboardPage'))
 const AnalyticsPage = lazy(() => import('./pages/dashboard/AnalyticsPage'))
@@ -1015,7 +1020,14 @@ function App() {
             <Route path="field-operations/product-distributions/:id" element={<PageLoader><ProductDistributionDetail /></PageLoader>} />
             <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
             <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
-            <Route path="agent/dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
+            <Route path="agent" element={<PageLoader><AgentLayout /></PageLoader>}>
+              <Route path="dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
+              <Route path="visits" element={<PageLoader><AgentVisits /></PageLoader>} />
+              <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
+              <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
+              <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
+            </Route>
+            <Route path="agent/pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="analytics-dashboard/*" element={<PageLoader><AnalyticsDashboardPage /></PageLoader>} />
             <Route path="van-sales/route-management" element={<PageLoader><RouteManagementPage /></PageLoader>} />
             <Route path="van-sales/orders-list" element={<PageLoader><VanOrdersListPage /></PageLoader>} />

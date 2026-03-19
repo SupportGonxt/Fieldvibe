@@ -22,6 +22,7 @@ const SETTINGS_SCHEMA: SettingRow[] = [
   { key: 'auto_recalculate_targets', label: 'Auto-Recalculate Targets', description: 'Automatically recalculate actuals at end of day (true/false)', type: 'boolean', default: 'false' },
   { key: 'require_gps_for_visits', label: 'Require GPS for Visits', description: 'Require GPS location when checking in/out of visits', type: 'boolean', default: 'true' },
   { key: 'max_visit_duration_hours', label: 'Max Visit Duration (hours)', description: 'Maximum allowed visit duration before auto-checkout', type: 'number', default: '4' },
+  { key: 'default_revisit_radius_meters', label: 'Default Revisit Radius (meters)', description: 'GPS radius for store revisit check-ins. Agents must be within this distance of a store to check in for revisits. Set per-company in company settings.', type: 'number', default: '200' },
 ]
 
 export default function FieldOpsSettingsPage() {
