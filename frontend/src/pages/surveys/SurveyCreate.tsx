@@ -20,36 +20,56 @@ interface Brand {
   name: string;
 }
 
+interface Company {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export default function SurveyCreate() {
   const navigate = useNavigate();
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    module: 'field_ops',
     type: 'customer_feedback',
     category: 'general',
     target_type: 'both',
     brand_id: '',
+    company_id: '',
     survey_type: 'adhoc',
     status: 'draft'
   });
 
   useEffect(() => {
     loadBrands();
+    loadCompanies();
   }, []);
 
   const loadBrands = async () => {
     try {
       const response = await apiClient.get('/brands');
-      setBrands(response.data?.data?.brands || []);
+      setBrands(response.data?.data?.brands || response.data?.data || []);
     } catch (err) {
       console.error('Failed to load brands:', err);
     }
   };
 
-  const handleChange = (field: string, value: any) => {
+  const loadCompanies = async () => {
+    try {
+      const response = await apiClient.get('/field-ops/companies');
+      const data = response.data?.data || response.data || [];
+      setCompanies(Array.isArray(data) ? data : data.companies || []);
+    } catch (err) {
+      console.error('Failed to load companies:', err);
+    }
+  };
+
+  const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -61,14 +81,16 @@ export default function SurveyCreate() {
     try {
       const payload = {
         ...formData,
-        brand_id: formData.brand_id || null
+        brand_id: formData.brand_id || null,
+        company_id: formData.company_id || null
       };
 
       await apiClient.post('/surveys', payload);
       navigate('/surveys');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to create survey:', err);
-      setError(err.response?.data?.error?.message || 'Failed to create survey');
+      const errObj = err as { response?: { data?: { error?: { message?: string } } } };
+      setError(errObj.response?.data?.error?.message || 'Failed to create survey');
     } finally {
       setLoading(false);
     }
@@ -108,6 +130,68 @@ export default function SurveyCreate() {
 
             <Grid item xs={12} md={6}>
               <FormControl fullWidth required>
+                <InputLabel>Module</InputLabel>
+                <Select
+                  value={formData.module}
+                  label="Module"
+                  onChange={(e) => handleChange('module', e.target.value)}
+                >
+                  <MenuItem value="field_ops">Field Operations</MenuItem>
+                  <MenuItem value="marketing">Marketing</MenuItem>
+                  <MenuItem value="campaigns">Campaigns</MenuItem>
+                  <MenuItem value="sales">Sales</MenuItem>
+                  <MenuItem value="van_sales">Van Sales</MenuItem>
+                  <MenuItem value="trade_marketing">Trade Marketing</MenuItem>
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                Which module this survey belongs to. Surveys appear in the relevant module's visit flow.
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Target Type</InputLabel>
+                <Select
+                  value={formData.target_type}
+                  label="Target Type"
+                  onChange={(e) => handleChange('target_type', e.target.value)}
+                >
+                  <MenuItem value="both">Both (Store & Individual)</MenuItem>
+                  <MenuItem value="store">Store Visits Only</MenuItem>
+                  <MenuItem value="individual">Individual Visits Only</MenuItem>
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                This survey will appear when creating a visit of the selected type.
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Company / Brand</InputLabel>
+                <Select
+                  value={formData.company_id}
+                  label="Company / Brand"
+                  onChange={(e) => handleChange('company_id', e.target.value)}
+                >
+                  <MenuItem value="">
+                    <em>All Companies (General Survey)</em>
+                  </MenuItem>
+                  {companies.map((company) => (
+                    <MenuItem key={company.id} value={company.id}>
+                      {company.name} {company.code ? `(${company.code})` : ''}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                Link to a specific company/brand. Company-specific surveys appear when visiting for that company.
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required>
                 <InputLabel>Survey Type</InputLabel>
                 <Select
                   value={formData.survey_type}
@@ -119,21 +203,6 @@ export default function SurveyCreate() {
                   <MenuItem value="feedback">Feedback</MenuItem>
                   <MenuItem value="audit">Audit</MenuItem>
                   <MenuItem value="brand_specific">Brand Specific</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Target Type</InputLabel>
-                <Select
-                  value={formData.target_type}
-                  label="Target Type"
-                  onChange={(e) => handleChange('target_type', e.target.value)}
-                >
-                  <MenuItem value="both">Both (Business & Individual)</MenuItem>
-                  <MenuItem value="business">Business Only (Spaza Shop)</MenuItem>
-                  <MenuItem value="individual">Individual Only (People)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -156,9 +225,6 @@ export default function SurveyCreate() {
                   ))}
                 </Select>
               </FormControl>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                Link this survey to a specific brand. Brand-specific surveys will be auto-suggested when visiting customers of that brand.
-              </Typography>
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -240,14 +306,20 @@ export default function SurveyCreate() {
 
       <Paper sx={{ p: 2, mt: 3, bgcolor: '#f5f5f5' }}>
         <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-          Survey Type Guide:
+          How Surveys Work:
         </Typography>
         <Typography variant="body2" component="div">
-          • <strong>Adhoc:</strong> Assigned on-the-fly during visits by agents<br />
-          • <strong>Mandatory:</strong> Required for all visits (auto-assigned)<br />
-          • <strong>Feedback:</strong> Customer/product feedback surveys<br />
-          • <strong>Audit:</strong> Compliance and audit surveys<br />
-          • <strong>Brand Specific:</strong> Linked to a specific brand
+          1. Choose the <strong>Module</strong> (Field Ops, Marketing, Sales, etc.)<br />
+          2. Select the <strong>Company/Brand</strong> this survey is for<br />
+          3. Set <strong>Target Type</strong> to Store, Individual, or Both<br />
+          4. The survey will automatically appear during visits matching the module, company, and target type<br />
+          <br />
+          <strong>Survey Types:</strong><br />
+          &bull; <strong>Adhoc:</strong> Assigned on-the-fly during visits by agents<br />
+          &bull; <strong>Mandatory:</strong> Required for all matching visits (auto-assigned)<br />
+          &bull; <strong>Feedback:</strong> Customer/product feedback surveys<br />
+          &bull; <strong>Audit:</strong> Compliance and audit surveys<br />
+          &bull; <strong>Brand Specific:</strong> Linked to a specific brand
         </Typography>
       </Paper>
     </Box>

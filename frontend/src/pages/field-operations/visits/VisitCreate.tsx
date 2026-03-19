@@ -112,6 +112,7 @@ export default function VisitCreate() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [newStoreName, setNewStoreName] = useState<string>('')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
   const [storeRevisitCheck, setStoreRevisitCheck] = useState<{ can_visit: boolean; message: string; days_since?: number } | null>(null)
@@ -244,7 +245,7 @@ export default function VisitCreate() {
 
   const loadQuestionnaires = async () => {
     try {
-      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, brand_id: selectedCompany || undefined })
+      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, brand_id: selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
       const data = res?.data || res || []
       setQuestionnaires(Array.isArray(data) ? data : [])
     } catch (err) {
@@ -370,8 +371,8 @@ export default function VisitCreate() {
           return true
         }
         if (visitTargetType === 'store') {
-          if (!selectedCustomer) return false
-          if (storeRevisitCheck && !storeRevisitCheck.can_visit) return false
+          if (!selectedCustomer && !newStoreName) return false
+          if (selectedCustomer && storeRevisitCheck && !storeRevisitCheck.can_visit) return false
           return true
         }
         return false
@@ -451,7 +452,11 @@ export default function VisitCreate() {
         payload.individual_email = individualEmail || undefined
         payload.custom_field_values = customFieldValues
       } else if (visitTargetType === 'store') {
-        payload.customer_id = selectedCustomer
+        if (selectedCustomer) {
+          payload.customer_id = selectedCustomer
+        } else if (newStoreName) {
+          payload.store_name = newStoreName
+        }
       }
 
       if (selectedQuestionnaire && Object.keys(surveyResponses).length > 0) {
@@ -686,19 +691,36 @@ export default function VisitCreate() {
               The same store cannot be visited within 30 days.
             </Typography>
             <Autocomplete
+              freeSolo
               options={customers}
-              getOptionLabel={(c) => c.name || c.business_name || c.code || 'Unknown'}
-              value={customers.find(c => c.id === selectedCustomer) || null}
+              getOptionLabel={(c) => typeof c === 'string' ? c : (c.name || c.business_name || c.code || 'Unknown')}
+              value={selectedCustomer ? (customers.find(c => c.id === selectedCustomer) || null) : (newStoreName || null)}
               onChange={async (_e, newValue) => {
-                const customerId = newValue?.id || ''
-                setSelectedCustomer(customerId)
-                setStoreRevisitCheck(null)
-                if (customerId) {
-                  await checkStoreRevisit(customerId)
+                if (typeof newValue === 'string') {
+                  // User typed a new store name
+                  setSelectedCustomer('')
+                  setNewStoreName(newValue)
+                  setStoreRevisitCheck(null)
+                } else if (newValue) {
+                  // User selected an existing customer
+                  setSelectedCustomer(newValue.id)
+                  setNewStoreName('')
+                  setStoreRevisitCheck(null)
+                  await checkStoreRevisit(newValue.id)
+                } else {
+                  setSelectedCustomer('')
+                  setNewStoreName('')
+                  setStoreRevisitCheck(null)
+                }
+              }}
+              onInputChange={(_e, value, reason) => {
+                if (reason === 'input' && !customers.find(c => (c.name || c.business_name || '') === value)) {
+                  setNewStoreName(value)
+                  setSelectedCustomer('')
                 }
               }}
               renderInput={(params) => (
-                <TextField {...params} label="Select Store / Customer" fullWidth required />
+                <TextField {...params} label="Search existing store or type new name" fullWidth required={!newStoreName} helperText={newStoreName && !selectedCustomer ? `New store "${newStoreName}" will be created` : 'Search by store name or type a new one'} />
               )}
               sx={{ mb: 2 }}
             />
@@ -978,7 +1000,10 @@ export default function VisitCreate() {
           <Box sx={{ mb: 3 }}>
             <Typography variant="subtitle2" color="text.secondary">Store</Typography>
             <Typography variant="body2">
-              {customers.find(c => c.id === selectedCustomer)?.name || customers.find(c => c.id === selectedCustomer)?.business_name || selectedCustomer}
+              {selectedCustomer
+                ? (customers.find(c => c.id === selectedCustomer)?.name || customers.find(c => c.id === selectedCustomer)?.business_name || selectedCustomer)
+                : newStoreName ? `${newStoreName} (new store)` : 'Not selected'
+              }
             </Typography>
           </Box>
         )}

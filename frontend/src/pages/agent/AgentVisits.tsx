@@ -33,7 +33,7 @@ export default function AgentVisits() {
       const token = localStorage.getItem('token')
       if (!token) { navigate('/auth/mobile-login'); return }
       const apiUrl = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiUrl}/api/field-operations/visits?limit=100`, {
+      const res = await fetch(`${apiUrl}/api/field-operations/visits?limit=100&agent_id=me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const json = await res.json()

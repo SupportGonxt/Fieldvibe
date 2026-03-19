@@ -216,15 +216,19 @@ CREATE TABLE IF NOT EXISTS questionnaires (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
+  module TEXT DEFAULT 'field_ops',
   visit_type TEXT DEFAULT 'customer',
+  target_type TEXT DEFAULT 'both',
   brand_id TEXT,
+  company_id TEXT,
   questions TEXT NOT NULL,
   is_default INTEGER DEFAULT 0,
   is_active INTEGER DEFAULT 1,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  FOREIGN KEY (brand_id) REFERENCES brands(id)
+  FOREIGN KEY (brand_id) REFERENCES brands(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
 );
 
 -- ==================== GOALS ====================

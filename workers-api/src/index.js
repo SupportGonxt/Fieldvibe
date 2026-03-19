@@ -674,16 +674,21 @@ api.post('/users', requireRole('admin'), async (c) => {
   const v = validate(createUserSchema, body);
   if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
-  const password = body.password || Math.random().toString(36).slice(-8);
-  const hashedPassword = await bcrypt.hash(password, 10);
   const role = body.role || 'agent';
+  // Agents default to password 12345; other roles get random password
+  const isAgent = role === 'agent' || role === 'field_agent' || role === 'sales_rep';
+  const password = body.password || (isAgent ? '12345' : Math.random().toString(36).slice(-8));
+  const hashedPassword = await bcrypt.hash(password, 10);
   // Set default PIN 12345 for agents and field_agents
   let pinHash = null;
-  if (role === 'agent' || role === 'field_agent') {
+  if (isAgent) {
     pinHash = await bcrypt.hash('12345', 10);
   }
-  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.email, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
-  return c.json({ success: true, data: { id, password, default_pin: (role === 'agent' || role === 'field_agent') ? '12345' : undefined }, message: 'User created' }, 201);
+  // Email is optional for agents but required for non-agent roles
+  const email = body.email || null;
+  if (!email && !isAgent) return c.json({ success: false, message: 'Email is required for non-agent roles' }, 400);
+  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, email, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+  return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
 });
 
 api.put('/users/:id', requireRole('admin'), async (c) => {
@@ -2914,9 +2919,9 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   const params = [tenantId];
   if (role === 'agent') { where += ' AND v.agent_id = ?'; params.push(userId); }
   if (status) { where += ' AND v.status = ?'; params.push(status); }
-  if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id); }
+  if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id === 'me' ? userId : agent_id); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
-  if (visit_type) { where += ' AND (v.visit_target_type = ? OR v.visit_type = ?)'; params.push(visit_type, visit_type); }
+  if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
   const total = await db.prepare('SELECT COUNT(*) as count FROM visits v ' + where).bind(...params).first();
   const visits = await db.prepare("SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
   return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
@@ -3466,7 +3471,7 @@ api.get('/beat-routes/:id', authMiddleware, async (c) => {
 api.get('/surveys', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const { status, type, search } = c.req.query();
+  const { status, type, search, module: mod, target_type, company_id } = c.req.query();
   let where = 'WHERE tenant_id = ?';
   const params = [tenantId];
   if (status && status !== 'all') {
@@ -3474,6 +3479,9 @@ api.get('/surveys', authMiddleware, async (c) => {
     else if (status === 'archived' || status === 'inactive') { where += ' AND is_active = 0'; }
   }
   if (type) { where += ' AND visit_type = ?'; params.push(type); }
+  if (mod) { where += ' AND module = ?'; params.push(mod); }
+  if (target_type) { where += ' AND (target_type = ? OR target_type = "both")'; params.push(target_type); }
+  if (company_id) { where += ' AND (company_id = ? OR company_id IS NULL)'; params.push(company_id); }
   if (search) { where += ' AND name LIKE ?'; params.push('%' + search + '%'); }
   const surveys = await db.prepare('SELECT * FROM questionnaires ' + where + ' ORDER BY created_at DESC LIMIT 500').bind(...params).all();
   const results = (surveys.results || []).map(q => {
@@ -3501,11 +3509,14 @@ api.post('/surveys', authMiddleware, async (c) => {
   const id = uuidv4();
   const name = body.title || body.name;
   if (!name) return c.json({ success: false, message: 'Survey title/name is required' }, 400);
-  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, visit_type, brand_id, questions, is_default, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime("now"), datetime("now"))').bind(
-    id, tenantId, name, body.survey_type || body.visit_type || 'adhoc', body.brand_id || null,
+  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, brand_id, company_id, questions, is_default, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime("now"), datetime("now"))').bind(
+    id, tenantId, name, body.module || 'field_ops',
+    body.survey_type || body.visit_type || 'adhoc',
+    body.target_type || 'both',
+    body.brand_id || null, body.company_id || null,
     JSON.stringify(body.questions || []), body.is_default ? 1 : 0
   ).run();
-  return c.json({ success: true, data: { id, name, title: name, status: body.status || 'draft' } }, 201);
+  return c.json({ success: true, data: { id, name, title: name, module: body.module || 'field_ops', target_type: body.target_type || 'both', status: body.status || 'draft' } }, 201);
 });
 
 api.put('/surveys/:id', authMiddleware, async (c) => {
@@ -3516,8 +3527,10 @@ api.put('/surveys/:id', authMiddleware, async (c) => {
   const existing = await db.prepare('SELECT id FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!existing) return c.json({ success: false, message: 'Survey not found' }, 404);
   const name = body.title || body.name || null;
-  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), visit_type = COALESCE(?, visit_type), brand_id = COALESCE(?, brand_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
-    name, body.survey_type || body.visit_type || null, body.brand_id || null,
+  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = COALESCE(?, brand_id), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
+    name, body.module || null, body.survey_type || body.visit_type || null,
+    body.target_type || null,
+    body.brand_id || null, body.company_id || null,
     body.questions ? JSON.stringify(body.questions) : null,
     body.status === 'archived' ? 0 : (body.is_active !== undefined ? (body.is_active ? 1 : 0) : null),
     id, tenantId
@@ -4965,9 +4978,20 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
   const visitDate = body.visit_date || now.split('T')[0];
 
   try {
+    // 0. If store visit with store_name but no customer_id, auto-create customer
+    let customerId = body.customer_id || null;
+    if (body.visit_target_type === 'store' && !customerId && body.store_name) {
+      customerId = crypto.randomUUID();
+      await db.prepare('INSERT INTO customers (id, tenant_id, name, type, customer_type, latitude, longitude, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+        customerId, tenantId, body.store_name, 'retail', 'SHOP',
+        body.checkin_latitude ?? null, body.checkin_longitude ?? null,
+        'active', now, now
+      ).run();
+    }
+
     // 1. Create the visit record
     await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
-      visitId, tenantId, body.agent_id || userId, body.customer_id || null, visitDate,
+      visitId, tenantId, body.agent_id || userId, customerId, visitDate,
       body.visit_target_type || 'customer', now,
       body.checkin_latitude ?? null, body.checkin_longitude ?? null,
       body.brand_id || body.company_id || null,
