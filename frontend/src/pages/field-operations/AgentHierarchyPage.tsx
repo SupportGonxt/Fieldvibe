@@ -443,21 +443,21 @@ export default function AgentHierarchyPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role <span className="text-red-500">*</span></label>
                   <div className="grid grid-cols-3 gap-2">
                     {([
-                      { value: 'manager', label: 'Manager', icon: Crown, color: 'purple' },
-                      { value: 'team_lead', label: 'Team Lead', icon: Shield, color: 'blue' },
-                      { value: 'agent', label: 'Agent', icon: User, color: 'green' },
-                    ] as const).map(({ value, label, icon: Icon, color }) => (
+                      { value: 'manager' as const, label: 'Manager', icon: Crown, activeBorder: 'border-purple-500', activeBg: 'bg-purple-50 dark:bg-purple-900/20', iconColor: 'text-purple-600' },
+                      { value: 'team_lead' as const, label: 'Team Lead', icon: Shield, activeBorder: 'border-blue-500', activeBg: 'bg-blue-50 dark:bg-blue-900/20', iconColor: 'text-blue-600' },
+                      { value: 'agent' as const, label: 'Agent', icon: User, activeBorder: 'border-green-500', activeBg: 'bg-green-50 dark:bg-green-900/20', iconColor: 'text-green-600' },
+                    ]).map(({ value, label, icon: Icon, activeBorder, activeBg, iconColor }) => (
                       <button
                         key={value}
                         type="button"
                         onClick={() => setCreateForm(f => ({ ...f, role: value, managerId: '', teamLeadId: '' }))}
                         className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-colors ${
                           createForm.role === value
-                            ? `border-${color}-500 bg-${color}-50 dark:bg-${color}-900/20`
+                            ? `${activeBorder} ${activeBg}`
                             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                       >
-                        <Icon className={`w-5 h-5 text-${color}-600`} />
+                        <Icon className={`w-5 h-5 ${iconColor}`} />
                         <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{label}</span>
                       </button>
                     ))}

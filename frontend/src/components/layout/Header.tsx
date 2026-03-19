@@ -30,7 +30,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
       if (e.key === 'Escape') {
         setShowCommandPalette(false)
         setShowUserMenu(false)
-        setShowUserMenu(false)
       }
     }
     document.addEventListener('keydown', handleKeyDown)
