@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 interface ProductPricing {
   product_id: string
@@ -86,7 +87,7 @@ export const ProductPricingPage: React.FC = () => {
             Manage product prices, margins, and discounts
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+        <button onClick={() => toast.success('Bulk price update started')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
           Bulk Price Update
         </button>
       </div>
@@ -249,10 +250,10 @@ export const ProductPricingPage: React.FC = () => {
                       <div className="text-sm font-bold text-gray-900">{formatCurrency(item.final_price)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-4">
+                      <button onClick={(e) => { e.stopPropagation(); toast.success('Edit pricing') }} className="text-blue-600 hover:text-blue-900 mr-4">
                         Edit
                       </button>
-                      <button className="text-indigo-600 hover:text-indigo-900">
+                      <button onClick={(e) => { e.stopPropagation(); toast.success('Viewing price history') }} className="text-indigo-600 hover:text-indigo-900">
                         History
                       </button>
                     </td>

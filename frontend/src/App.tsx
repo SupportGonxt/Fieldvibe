@@ -336,6 +336,9 @@ const TenantManagement = lazy(() => import('./pages/superadmin/TenantManagement'
 const TenantModules = lazy(() => import('./pages/superadmin/TenantModules'))
 const CompanySetupPage = lazy(() => import('./pages/admin/CompanySetupPage'))
 const TerritoryManagementPage = lazy(() => import('./pages/admin/TerritoryManagementPage'))
+const TMCampaignCreate = lazy(() => import('./pages/trade-marketing/campaigns/TMCampaignCreate'))
+const TMCampaignDetail = lazy(() => import('./pages/trade-marketing/campaigns/TMCampaignDetail'))
+const TMCampaignEdit = lazy(() => import('./pages/trade-marketing/campaigns/TMCampaignEdit'))
 const TradeMarketingAgentPage = lazy(() => import('./pages/TradeMarketingAgentPage'))
 const TradeMarketingAnalyticsPage = lazy(() => import('./pages/trade-marketing/TradeMarketingAnalyticsPage'))
 const TradeMarketingPage = lazy(() => import('./pages/trade-marketing/TradeMarketingPage'))
@@ -599,6 +602,9 @@ function App() {
             <Route path="trade-marketing" element={<PageLoader><TradeMarketingPage /></PageLoader>} />
             <Route path="trade-marketing/activation" element={<PageLoader><ActivationWorkflowPage /></PageLoader>} />
             <Route path="trade-marketing/campaigns" element={<PageLoader><CampaignManagementPage /></PageLoader>} />
+            <Route path="trade-marketing/campaigns/create" element={<PageLoader><TMCampaignCreate /></PageLoader>} />
+            <Route path="trade-marketing/campaigns/:id" element={<PageLoader><TMCampaignDetail /></PageLoader>} />
+            <Route path="trade-marketing/campaigns/:id/edit" element={<PageLoader><TMCampaignEdit /></PageLoader>} />
             <Route path="trade-marketing/merchandising" element={<PageLoader><MerchandisingCompliancePage /></PageLoader>} />
             <Route path="trade-marketing/promoters" element={<PageLoader><PromoterManagementPage /></PageLoader>} />
             <Route path="trade-marketing/promoters/create" element={<PageLoader><PromoterCreate /></PageLoader>} />

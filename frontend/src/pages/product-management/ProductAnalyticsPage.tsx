@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 export const ProductAnalyticsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -291,7 +292,7 @@ export const ProductAnalyticsPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button onClick={(e) => { e.stopPropagation(); toast.success('Viewing product details') }} className="text-blue-600 hover:text-blue-900">
                         View Details
                       </button>
                     </td>

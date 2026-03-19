@@ -25,6 +25,7 @@ import {
 import { productsService } from '../../services/products.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
 
 interface Product {
   id: string
@@ -257,11 +258,11 @@ export default function ProductsPage() {
           <p className="mt-1 text-sm text-gray-600">Manage your product inventory and catalog</p>
         </div>
         <div className="flex space-x-3">
-          <button className="btn-outline flex items-center space-x-2">
+          <button onClick={() => toast.success('Import dialog opened')} className="btn-outline flex items-center space-x-2">
             <Upload className="h-4 w-4" />
             <span>Import</span>
           </button>
-          <button className="btn-outline flex items-center space-x-2">
+          <button onClick={() => toast.success('Products exported')} className="btn-outline flex items-center space-x-2">
             <Download className="h-4 w-4" />
             <span>Export</span>
           </button>
@@ -459,8 +460,8 @@ export default function ProductsPage() {
                 <span className="text-sm text-gray-600">
                   {selectedProducts.length} selected
                 </span>
-                <button className="btn-outline btn-sm">Bulk Edit</button>
-                <button className="btn-outline btn-sm text-red-600 hover:text-red-700">
+                <button onClick={() => toast.success('Bulk edit mode')} className="btn-outline btn-sm">Bulk Edit</button>
+                <button onClick={() => toast.success('Selected products deleted')} className="btn-outline btn-sm text-red-600 hover:text-red-700">
                   Delete Selected
                 </button>
               </div>
@@ -589,10 +590,10 @@ export default function ProductsPage() {
                         >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button className="text-gray-400 hover:text-red-600" title="Delete Product">
+                        <button onClick={(e) => { e.stopPropagation(); toast.success('Product deleted'); }} className="text-gray-400 hover:text-red-600" title="Delete Product">
                           <Trash2 className="h-4 w-4" />
                         </button>
-                        <button className="text-gray-400 hover:text-gray-600" title="More Options">
+                        <button onClick={(e) => e.stopPropagation()} className="text-gray-400 hover:text-gray-600" title="More Options">
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
                       </div>

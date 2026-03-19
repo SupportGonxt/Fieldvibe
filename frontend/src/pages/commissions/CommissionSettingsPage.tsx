@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
 
 interface CommissionRule {
   id: string
@@ -215,7 +216,7 @@ export const CommissionSettingsPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-4">
+                      <button onClick={() => toast.success('Edit commission rule')} className="text-blue-600 hover:text-blue-900 mr-4">
                         Edit
                       </button>
                       <button

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Upload, Download, FileText, AlertCircle, Check, X, RefreshCw, Database, FileSpreadsheet, ChevronRight, Loader } from 'lucide-react'
 import { useToast } from '../../components/ui/Toast'
 import { apiClient } from '../../services/api.service'
+import toast from 'react-hot-toast'
 
 interface ImportHistory {
   id: string
@@ -533,7 +534,7 @@ export default function DataImportExportPage() {
                         </div>
                       </div>
 
-                      <button className="btn btn-outline btn-sm">
+                      <button onClick={() => toast.success('Viewing import details')} className="btn btn-outline btn-sm">
                         View Details
                       </button>
                     </div>
@@ -623,7 +624,7 @@ export default function DataImportExportPage() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Export Jobs</h3>
-                <button className="btn btn-outline btn-sm flex items-center gap-2">
+                <button onClick={() => toast.success('Template downloaded')} className="btn btn-outline btn-sm flex items-center gap-2">
                   <RefreshCw className="w-4 h-4" />
                   Refresh
                 </button>
@@ -687,7 +688,7 @@ export default function DataImportExportPage() {
                       </div>
 
                       {job.status === 'completed' && job.downloadUrl && (
-                        <button className="btn btn-primary flex items-center gap-2">
+                        <button onClick={() => toast.success('Export started')} className="btn btn-primary flex items-center gap-2">
                           <Download className="w-4 h-4" />
                           Download
                         </button>

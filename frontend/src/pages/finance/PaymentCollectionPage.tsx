@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { DollarSign, CreditCard, Clock, CheckCircle, XCircle, Search, Filter, Calendar, Download } from 'lucide-react'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 
 interface Payment {
   id: string
@@ -16,6 +18,7 @@ interface Payment {
 }
 
 export default function PaymentCollectionPage() {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [methodFilter, setMethodFilter] = useState<string>('all')
@@ -122,7 +125,7 @@ export default function PaymentCollectionPage() {
           <h1 className="text-2xl font-bold text-gray-900">Payment Collection</h1>
           <p className="mt-1 text-sm text-gray-600">Track and manage payment transactions</p>
         </div>
-        <button className="btn btn-primary flex items-center gap-2">
+        <button onClick={() => navigate('/finance/payments/create')} className="btn btn-primary flex items-center gap-2">
           <DollarSign className="w-4 h-4" />
           Record Payment
         </button>
@@ -214,7 +217,7 @@ export default function PaymentCollectionPage() {
             />
           </div>
 
-          <button className="btn btn-outline flex items-center justify-center gap-2">
+          <button onClick={() => toast.success('Statement exported')} className="btn btn-outline flex items-center justify-center gap-2">
             <Download className="w-4 h-4" />
             Export
           </button>

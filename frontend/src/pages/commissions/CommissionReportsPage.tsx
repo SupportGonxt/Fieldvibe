@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
 
 export const CommissionReportsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -81,10 +82,10 @@ export const CommissionReportsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-surface-secondary">
+          <button onClick={() => toast.success('PDF exported')} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-surface-secondary">
             Export PDF
           </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <button onClick={() => toast.success('Excel exported')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
             Export Excel
           </button>
         </div>

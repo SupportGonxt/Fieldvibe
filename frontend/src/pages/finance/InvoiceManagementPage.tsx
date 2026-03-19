@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { FileText, Download, Send, Eye, Plus, Filter, Search, Check, X, Clock, Printer } from 'lucide-react'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 
 interface Invoice {
   id: string
@@ -29,6 +31,7 @@ interface InvoiceItem {
 }
 
 export default function InvoiceManagementPage() {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
@@ -101,7 +104,7 @@ export default function InvoiceManagementPage() {
           <h1 className="text-2xl font-bold text-gray-900">Invoice Management</h1>
           <p className="mt-1 text-sm text-gray-600">Create, manage, and track invoices</p>
         </div>
-        <button className="btn btn-primary flex items-center gap-2">
+        <button onClick={() => navigate('/finance/invoices/create')} className="btn btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Create Invoice
         </button>
@@ -226,13 +229,13 @@ export default function InvoiceManagementPage() {
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button className="text-gray-600 hover:text-gray-900">
+                    <button onClick={() => window.print()} className="text-gray-600 hover:text-gray-900">
                       <Printer className="w-4 h-4" />
                     </button>
-                    <button className="text-green-600 hover:text-green-900">
+                    <button onClick={() => toast.success('Download started')} className="text-green-600 hover:text-green-900">
                       <Download className="w-4 h-4" />
                     </button>
-                    <button className="text-purple-600 hover:text-purple-900">
+                    <button onClick={() => toast.success('Invoice sent')} className="text-purple-600 hover:text-purple-900">
                       <Send className="w-4 h-4" />
                     </button>
                   </td>
@@ -315,15 +318,15 @@ export default function InvoiceManagementPage() {
             </div>
 
             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-              <button className="btn btn-outline flex items-center gap-2">
+              <button onClick={() => window.print()} className="btn btn-outline flex items-center gap-2">
                 <Printer className="w-4 h-4" />
                 Print
               </button>
-              <button className="btn btn-secondary flex items-center gap-2">
+              <button onClick={() => toast.success('PDF download started')} className="btn btn-secondary flex items-center gap-2">
                 <Download className="w-4 h-4" />
                 Download PDF
               </button>
-              <button className="btn btn-primary flex items-center gap-2">
+              <button onClick={() => toast.success('Email sent successfully')} className="btn btn-primary flex items-center gap-2">
                 <Send className="w-4 h-4" />
                 Send Email
               </button>

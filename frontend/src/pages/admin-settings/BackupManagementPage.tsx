@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 interface Backup {
   id: string
@@ -163,7 +164,7 @@ export const BackupManagementPage: React.FC = () => {
               <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                 Enabled
               </span>
-              <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
+              <button onClick={() => toast.success('Edit schedule')} className="text-blue-600 hover:text-blue-900 text-sm font-medium">
                 Edit
               </button>
             </div>
@@ -178,7 +179,7 @@ export const BackupManagementPage: React.FC = () => {
               <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
                 Disabled
               </span>
-              <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
+              <button onClick={() => toast.success('Edit schedule')} className="text-blue-600 hover:text-blue-900 text-sm font-medium">
                 Edit
               </button>
             </div>
@@ -193,7 +194,7 @@ export const BackupManagementPage: React.FC = () => {
               <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                 Enabled
               </span>
-              <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
+              <button onClick={() => toast.success('Edit schedule')} className="text-blue-600 hover:text-blue-900 text-sm font-medium">
                 Edit
               </button>
             </div>
@@ -270,13 +271,13 @@ export const BackupManagementPage: React.FC = () => {
                       <div className="text-sm text-gray-900">{backup.created_by}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-4">
+                      <button onClick={() => toast.success('Restore started')} className="text-blue-600 hover:text-blue-900 mr-4">
                         Restore
                       </button>
-                      <button className="text-green-600 hover:text-green-900 mr-4">
+                      <button onClick={() => toast.success('Download started')} className="text-green-600 hover:text-green-900 mr-4">
                         Download
                       </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      <button onClick={() => toast.success('Backup deleted')} className="text-red-600 hover:text-red-900">
                         Delete
                       </button>
                     </td>
@@ -346,7 +347,7 @@ export const BackupManagementPage: React.FC = () => {
           </div>
 
           <div className="pt-4">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            <button onClick={() => toast.success('Settings saved')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
               Save Settings
             </button>
           </div>

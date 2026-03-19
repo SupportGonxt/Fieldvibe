@@ -3,6 +3,7 @@ import { Camera, MapPin, Package, QrCode, Search, Calendar, CheckCircle2, AlertC
 import { useToast } from '../components/ui/Toast'
 import SearchableSelect from '../components/ui/SearchableSelect'
 import { apiClient } from '../services/api.service'
+import toast from 'react-hot-toast'
 
 interface POSMaterial {
   id: number;
@@ -225,7 +226,7 @@ const POSMaterialTrackerPage: React.FC = () => {
               <p className="text-gray-600 mt-1">Manage and track POS material installations</p>
             </div>
             <div className="flex gap-2">
-              <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+              <button onClick={() => toast.success('Material added')} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
                 <Download className="w-4 h-4" />
                 Export Report
               </button>

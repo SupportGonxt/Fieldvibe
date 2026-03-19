@@ -5,6 +5,7 @@ import { ordersService } from '../../services/orders.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { useToast } from '../../components/ui/Toast'
+import toast from 'react-hot-toast'
 
 interface OrderItem {
   id: string
@@ -576,7 +577,7 @@ export default function OrderDetailsPage() {
                   <p className="text-sm text-gray-600">Generated on {new Date(order.orderDate).toLocaleDateString()}</p>
                 </div>
               </div>
-              <button className="btn btn-secondary flex items-center gap-2">
+              <button onClick={() => toast.success('Invoice download started')} className="btn btn-secondary flex items-center gap-2">
                 <Download className="w-4 h-4" /> Download
               </button>
             </div>
@@ -588,7 +589,7 @@ export default function OrderDetailsPage() {
                   <p className="text-sm text-gray-600">Ready for download</p>
                 </div>
               </div>
-              <button className="btn btn-secondary flex items-center gap-2">
+              <button onClick={() => toast.success('Delivery note download started')} className="btn btn-secondary flex items-center gap-2">
                 <Download className="w-4 h-4" /> Download
               </button>
             </div>

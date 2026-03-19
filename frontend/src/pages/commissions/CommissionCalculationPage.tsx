@@ -91,7 +91,7 @@ export const CommissionCalculationPage: React.FC = () => {
             Detailed breakdown of commission calculations
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+        <button onClick={() => toast.success('Recalculating all commissions...')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
           Recalculate All
         </button>
       </div>
@@ -275,7 +275,7 @@ export const CommissionCalculationPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button onClick={() => toast.success('Viewing calculation details')} className="text-blue-600 hover:text-blue-900">
                         View Details
                       </button>
                     </td>

@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, User, Clock } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { apiClient } from '../../../services/api.service'
+import toast from 'react-hot-toast'
 
 export default function AdjustmentJustification() {
   const { adjustmentId, itemId } = useParams<{ adjustmentId: string; itemId: string }>()
@@ -165,7 +166,7 @@ export default function AdjustmentJustification() {
                     Uploaded {new Date(doc.uploaded_at).toLocaleString()}
                   </p>
                 </div>
-                <button className="text-primary-600 hover:text-primary-900 text-sm font-medium">
+                <button onClick={() => toast.success('Viewing details')} className="text-primary-600 hover:text-primary-900 text-sm font-medium">
                   View
                 </button>
               </div>

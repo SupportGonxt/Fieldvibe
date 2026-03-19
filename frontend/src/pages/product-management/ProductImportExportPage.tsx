@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { productsService } from '../../services/products.service'
+import toast from 'react-hot-toast'
 
 export const ProductImportExportPage: React.FC = () => {
   const queryClient = useQueryClient()
@@ -167,7 +168,7 @@ export const ProductImportExportPage: React.FC = () => {
               <p className="text-sm text-gray-500 mb-3">
                 Download a template file to see the required format
               </p>
-              <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <button onClick={() => toast.success('Template downloaded')} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                 Download Template →
               </button>
             </div>

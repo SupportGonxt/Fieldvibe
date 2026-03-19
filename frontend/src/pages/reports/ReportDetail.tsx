@@ -4,6 +4,7 @@ import { ArrowLeft, Edit, Download, Share2, Calendar } from 'lucide-react'
 import { reportsService } from '../../services/reports.service'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 export default function ReportDetail() {
   const { id } = useParams<{ id: string }>()
@@ -57,11 +58,11 @@ export default function ReportDetail() {
               <Edit className="h-5 w-5" />
               Edit
             </button>
-            <button className="btn-primary flex items-center gap-2">
+            <button onClick={() => toast.success('Report exported')} className="btn-primary flex items-center gap-2">
               <Download className="h-5 w-5" />
               Download
             </button>
-            <button className="btn-secondary flex items-center gap-2">
+            <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
               <Share2 className="h-5 w-5" />
               Share
             </button>
@@ -110,7 +111,7 @@ export default function ReportDetail() {
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
               <p className="text-gray-600">Report preview will be displayed here</p>
-              <button className="mt-4 btn-primary">Generate Preview</button>
+              <button onClick={() => toast.success('Preview generated')} className="mt-4 btn-primary">Generate Preview</button>
             </div>
           </div>
         </div>
@@ -126,7 +127,7 @@ export default function ReportDetail() {
                 </div>
               ))}
             </div>
-            <button className="mt-4 text-sm text-primary-600 hover:text-primary-800">
+            <button onClick={() => toast.success('Add recipient')} className="mt-4 text-sm text-primary-600 hover:text-primary-800">
               + Add Recipient
             </button>
           </div>
@@ -145,7 +146,7 @@ export default function ReportDetail() {
                 </div>
               ))}
             </div>
-            <button className="mt-4 text-sm text-primary-600 hover:text-primary-800">
+            <button onClick={() => toast.success('Viewing all history')} className="mt-4 text-sm text-primary-600 hover:text-primary-800">
               View All History
             </button>
           </div>

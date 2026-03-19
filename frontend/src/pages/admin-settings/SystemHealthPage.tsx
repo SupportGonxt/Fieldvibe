@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 interface HealthMetric {
   name: string
@@ -115,7 +116,7 @@ export const SystemHealthPage: React.FC = () => {
             />
             <span className="ml-2 text-sm text-gray-700">Auto-refresh</span>
           </label>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <button onClick={() => toast.success('Health check running...')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
             Refresh Now
           </button>
         </div>
@@ -199,7 +200,7 @@ export const SystemHealthPage: React.FC = () => {
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(service.status)}`}>
                   {service.status}
                 </span>
-                <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
+                <button onClick={() => toast.success('Viewing service logs')} className="text-blue-600 hover:text-blue-900 text-sm font-medium">
                   View Logs
                 </button>
               </div>

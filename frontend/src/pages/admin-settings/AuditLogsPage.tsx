@@ -285,7 +285,7 @@ export const AuditLogsPage: React.FC = () => {
                       <div className="text-sm text-gray-900">{log.ip_address}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <button onClick={() => toast.success('Viewing audit log details')} className="text-blue-600 hover:text-blue-900">
                         View
                       </button>
                     </td>

@@ -340,16 +340,16 @@ export default function AuditLogsPage() {
             Showing {filteredLogs.length} of {logs.length} logs
           </p>
           <div className="flex gap-2">
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary">
+            <button onClick={() => toast.success('Previous page')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary">
               Previous
             </button>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button onClick={() => toast.success('Page 1')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               1
             </button>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary">
+            <button onClick={() => toast.success('Page 2')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary">
               2
             </button>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary">
+            <button onClick={() => toast.success('Next page')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-surface-secondary">
               Next
             </button>
           </div>

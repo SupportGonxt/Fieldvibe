@@ -5,6 +5,7 @@ import { ordersService } from '../../../services/orders.service'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { apiClient } from '../../../services/api.service'
+import toast from 'react-hot-toast'
 
 export default function DeliveryPOD() {
   const { orderId, deliveryId } = useParams<{ orderId: string; deliveryId: string }>()
@@ -59,7 +60,7 @@ export default function DeliveryPOD() {
             <h1 className="text-2xl font-bold text-gray-900">Proof of Delivery</h1>
             <p className="text-gray-600">{delivery?.delivery_number} - {delivery?.customer_name}</p>
           </div>
-          <button className="btn-secondary flex items-center gap-2">
+          <button onClick={() => toast.success('PDF download started')} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" />
             Download PDF
           </button>

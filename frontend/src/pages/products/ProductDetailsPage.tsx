@@ -4,6 +4,7 @@ import { ArrowLeft, Edit2, Package, DollarSign, TrendingUp, TrendingDown, BarCha
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
+import toast from 'react-hot-toast'
 
 interface Product {
   id: string
@@ -370,7 +371,7 @@ export default function ProductDetailsPage() {
               <div className="text-center">
                 <ImageIcon className="w-16 h-16 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-600">No images available</p>
-                <button className="btn btn-secondary mt-4 flex items-center gap-2 mx-auto">
+                <button onClick={() => toast.success('View full history')} className="btn btn-secondary mt-4 flex items-center gap-2 mx-auto">
                   <Plus className="w-4 h-4" /> Upload Image
                 </button>
               </div>

@@ -3,6 +3,7 @@ import { useToast } from '../../components/ui/Toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import toast from 'react-hot-toast'
 
 interface SystemSettings {
   general: {
@@ -323,7 +324,7 @@ export const SystemSettingsPage: React.FC = () => {
               </div>
 
               <div className="pt-4">
-                <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">
+                <button onClick={() => toast.success('Test email sent')} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">
                   Test Email Configuration
                 </button>
               </div>

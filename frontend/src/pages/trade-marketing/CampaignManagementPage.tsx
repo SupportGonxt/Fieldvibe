@@ -45,7 +45,7 @@ export default function CampaignManagementPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div><h1 className="text-2xl font-bold text-gray-900">Campaign Management</h1><p className="text-sm text-gray-600 mt-1">Manage trade marketing campaigns ({total} total)</p></div>
-        <button onClick={() => navigate('/marketing/campaigns/create')} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"><Plus className="h-4 w-4" /><span>Create Campaign</span></button>
+        <button onClick={() => navigate('/trade-marketing/campaigns/create')} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"><Plus className="h-4 w-4" /><span>Create Campaign</span></button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -108,13 +108,13 @@ export default function CampaignManagementPage() {
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500"><Target className="h-12 w-12 mx-auto text-gray-400 mb-2" /><p>No campaigns found</p></td></tr>
               ) : (
                 campaigns.map(campaign => (
-                  <tr key={campaign.id} className="hover:bg-surface-secondary cursor-pointer" onClick={() => navigate(`/marketing/campaigns/${campaign.id}`)}>
+                  <tr key={campaign.id} className="hover:bg-surface-secondary cursor-pointer" onClick={() => navigate(`/trade-marketing/campaigns/${campaign.id}`)}>
                     <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{campaign.campaign_name}</div><div className="text-sm text-gray-500">{campaign.description}</div></td>
                     <td className="px-6 py-4 text-sm text-gray-900">{campaign.brand_name}</td>
                     <td className="px-6 py-4"><div className="text-sm text-gray-900">{new Date(campaign.start_date).toLocaleDateString()}</div><div className="text-sm text-gray-500">to {new Date(campaign.end_date).toLocaleDateString()}</div></td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(campaign.budget || 0)}</td>
                     <td className="px-6 py-4">{getStatusBadge(campaign.status)}</td>
-                    <td className="px-6 py-4"><div className="flex space-x-2"><button onClick={(e) => { e.stopPropagation(); navigate(`/marketing/campaigns/${campaign.id}/edit`); }} className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(campaign.id); }} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex space-x-2"><button onClick={(e) => { e.stopPropagation(); navigate(`/trade-marketing/campaigns/${campaign.id}/edit`); }} className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(campaign.id); }} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>
                 ))
               )}

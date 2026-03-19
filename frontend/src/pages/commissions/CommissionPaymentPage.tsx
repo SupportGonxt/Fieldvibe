@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 interface CommissionPayment {
   id: string
@@ -86,7 +87,7 @@ export const CommissionPaymentPage: React.FC = () => {
             Track and manage commission payment disbursements
           </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+        <button onClick={() => toast.success('Processing payments')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
           Process Payments
         </button>
       </div>
@@ -259,11 +260,11 @@ export const CommissionPaymentPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-4">
+                      <button onClick={() => toast.success('Viewing payment details')} className="text-blue-600 hover:text-blue-900 mr-4">
                         View
                       </button>
                       {payment.status === 'failed' && (
-                        <button className="text-indigo-600 hover:text-indigo-900">
+                        <button onClick={() => toast.success('Retrying payment')} className="text-indigo-600 hover:text-indigo-900">
                           Retry
                         </button>
                       )}
