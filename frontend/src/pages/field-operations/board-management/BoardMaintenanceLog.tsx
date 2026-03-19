@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Wrench, Calendar, CheckCircle } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BoardMaintenanceLog() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -9,13 +10,8 @@ export default function BoardMaintenanceLog() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/boards/${boardId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -23,14 +19,8 @@ export default function BoardMaintenanceLog() {
   const { data: logs, isLoading, isError } = useQuery({
     queryKey: ['board-maintenance-log', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}/maintenance`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/boards/${boardId}/maintenance`)
+      return response.data.data || []
     },
   })
 

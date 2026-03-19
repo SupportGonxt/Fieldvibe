@@ -3,6 +3,7 @@ import { Settings, DollarSign, Bell, Lock, Mail, FileText, Globe, Zap, Save, Ale
 import CurrencySettings from '../../components/settings/CurrencySettings'
 import api from '../../services/api'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Setting {
   key: string
@@ -161,15 +162,13 @@ export default function SystemSettingsPage() {
       
       case 'select':
         return (
-          <select
+          <SearchableSelect
+            options={[
+              { value: 'opt', label: '{opt}' },
+            ]}
             value={value}
-            onChange={(e) => handleSettingChange(setting.key, e.target.value)}
-            className="input w-full"
-          >
-            {setting.options?.map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+            placeholder="{opt}"
+          />
         )
       
       case 'textarea':

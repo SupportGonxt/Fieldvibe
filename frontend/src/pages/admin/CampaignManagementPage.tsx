@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Calendar } from 'lucide-react';
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface Campaign { id: number; name: string; startDate: string; endDate: string; budget: number; status: string; target: number; }
 
@@ -12,31 +14,27 @@ const CampaignManagementPage: React.FC = () => {
 
   const loadCampaigns = async () => {
     try {
-      const res = await fetch('/api/admin/campaigns', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setCampaigns((await res.json()).campaigns || []);
+      const res = await apiClient.get('/admin/campaigns');
+      setCampaigns(res.data.campaigns || []);
     } catch (err) { console.error(err); }
   };
 
   const saveCampaign = async () => {
     try {
-      const url = editing ? `/api/admin/campaigns/${editing}` : '/api/admin/campaigns';
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadCampaigns(); setEditing(null); setForm({ status: 'planned' }); }
+      if (editing) {
+        await apiClient.put(`/admin/campaigns/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/campaigns', form);
+      }
+      loadCampaigns(); setEditing(null); setForm({ status: 'planned' });
     } catch (err) { console.error(err); }
   };
 
   const deleteCampaign = async (id: number) => {
-    if (!confirm('Delete campaign?')) return;
+    if (!window.confirm('Delete campaign?')) return;
     try {
-      const res = await fetch(`/api/admin/campaigns/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadCampaigns();
+      const res = await apiClient.delete(`/admin/campaigns/${id}`);
+      loadCampaigns();
     } catch (err) { console.error(err); }
   };
 
@@ -63,12 +61,16 @@ const CampaignManagementPage: React.FC = () => {
             <input type="date" placeholder="End Date" value={form.endDate || ''} onChange={e => setForm({...form, endDate: e.target.value})} className="px-4 py-2 border rounded" />
             <input type="number" placeholder="Budget (₹)" value={form.budget || ''} onChange={e => setForm({...form, budget: +e.target.value})} className="px-4 py-2 border rounded" />
             <input type="number" placeholder="Target (units)" value={form.target || ''} onChange={e => setForm({...form, target: +e.target.value})} className="px-4 py-2 border rounded" />
-            <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="px-4 py-2 border rounded col-span-2">
-              <option value="planned">Planned</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: 'planned', label: 'Planned' },
+                { value: 'active', label: 'Active' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'cancelled', label: 'Cancelled' },
+              ]}
+              value={form.status}
+              placeholder="Planned"
+            />
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={saveCampaign} className="px-4 py-2 bg-green-600 text-white rounded">Save</button>

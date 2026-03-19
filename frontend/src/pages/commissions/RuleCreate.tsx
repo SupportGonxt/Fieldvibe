@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface RuleFormData {
   name: string
   description: string
@@ -29,8 +30,8 @@ export default function RuleCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: RuleFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: 'new-rule-id' }
+      const response = await apiClient.post('/commissions/rules', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['commission-rules'] })

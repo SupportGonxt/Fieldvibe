@@ -26,7 +26,7 @@ export default defineConfig({
                 theme_color: '#0A0F1C',
         background_color: '#ffffff',
         display: 'standalone',
-        version: '1.0.' + Date.now(),
+        version: '1.0.0',
         icons: [
           {
             src: 'favicon.svg',
@@ -86,6 +86,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // T-20: Strip console.log/warn from production builds
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -99,6 +101,10 @@ export default defineConfig({
       }
     },
     chunkSizeWarningLimit: 1000
+  },
+  esbuild: {
+    // T-20: Drop console.log and console.warn in production
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom']

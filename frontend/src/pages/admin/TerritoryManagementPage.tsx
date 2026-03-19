@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, MapPin } from 'lucide-react';
+import { apiClient } from '../../services/api.service'
 
 interface Territory { id: number; name: string; region: string; agents: number; area: string; coordinates: string; }
 
@@ -12,31 +13,27 @@ const TerritoryManagementPage: React.FC = () => {
 
   const loadTerritories = async () => {
     try {
-      const res = await fetch('/api/admin/territories', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setTerritories((await res.json()).territories || []);
+      const res = await apiClient.get('/admin/territories');
+      setTerritories(res.data.territories || []);
     } catch (err) { console.error(err); }
   };
 
   const saveTerritory = async () => {
     try {
-      const url = editing ? `/api/admin/territories/${editing}` : '/api/admin/territories';
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadTerritories(); setEditing(null); setForm({}); }
+      if (editing) {
+        await apiClient.put(`/admin/territories/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/territories', form);
+      }
+      loadTerritories(); setEditing(null); setForm({});
     } catch (err) { console.error(err); }
   };
 
   const deleteTerritory = async (id: number) => {
-    if (!confirm('Delete territory?')) return;
+    if (!window.confirm('Delete territory?')) return;
     try {
-      const res = await fetch(`/api/admin/territories/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadTerritories();
+      const res = await apiClient.delete(`/admin/territories/${id}`);
+      loadTerritories();
     } catch (err) { console.error(err); }
   };
 

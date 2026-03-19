@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { Package, AlertTriangle, TrendingDown, TrendingUp, Search, Filter } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface InventoryItem {
   id: string
@@ -211,16 +212,16 @@ export default function InventoryTrackingPage() {
             </div>
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-400" />
-              <select
-                className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              <SearchableSelect
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'in_stock', label: 'In Stock' },
+                  { value: 'low_stock', label: 'Low Stock' },
+                  { value: 'out_of_stock', label: 'Out of Stock' },
+                ]}
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="in_stock">In Stock</option>
-                <option value="low_stock">Low Stock</option>
-                <option value="out_of_stock">Out of Stock</option>
-              </select>
+                placeholder="All Status"
+              />
             </div>
           </div>
         </CardContent>

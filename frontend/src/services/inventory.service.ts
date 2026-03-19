@@ -512,6 +512,141 @@ class InventoryService {
       throw error
     }
   }
+
+  // Single record getters (called by detail pages)
+  async getAdjustment(id: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/adjustments/${id}`)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch adjustment:', error)
+      throw error
+    }
+  }
+
+  async getTransfer(id: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/transfers/${id}`)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch transfer:', error)
+      throw error
+    }
+  }
+
+  async getReceipt(id: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/receipts/${id}`)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch receipt:', error)
+      throw error
+    }
+  }
+
+  async getIssue(id: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/issues/${id}`)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch issue:', error)
+      throw error
+    }
+  }
+
+  async getStockCount(id: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/stock-counts/${id}`)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch stock count:', error)
+      throw error
+    }
+  }
+
+  // Confirm stock count (called by StockCountConfirm page)
+  async confirmStockCount(id: string, data?: any): Promise<any> {
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/stock-counts/${id}/transition`, { new_status: 'completed', ...data })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to confirm stock count:', error)
+      throw error
+    }
+  }
+
+  // Reverse operations (called by detail pages)
+  async reverseTransfer(id: string): Promise<any> {
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/transfers/${id}/transition`, { new_status: 'cancelled' })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to reverse transfer:', error)
+      throw error
+    }
+  }
+
+  async reverseReceipt(id: string): Promise<any> {
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/receipts/${id}/transition`, { new_status: 'cancelled' })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to reverse receipt:', error)
+      throw error
+    }
+  }
+
+  async reverseIssue(id: string): Promise<any> {
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/issues/${id}/transition`, { new_status: 'cancelled' })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to reverse issue:', error)
+      throw error
+    }
+  }
+
+  // Suppliers (called by InventorySuppliers page)
+  async getSuppliers(filter?: any): Promise<any[]> {
+    try {
+      const response = await apiClient.get('/suppliers', { params: filter })
+      return response.data.data || []
+    } catch (error) {
+      console.error('Failed to fetch suppliers:', error)
+      return []
+    }
+  }
+
+  // Analytics and reporting (called by InventoryAnalytics, InventoryReports pages)
+  async getInventoryAnalytics(filter?: any): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/stats`, { params: filter })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch inventory analytics:', error)
+      throw error
+    }
+  }
+
+  async getInventoryReports(filter?: any): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/stats`, { params: filter })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch inventory reports:', error)
+      throw error
+    }
+  }
+
+  async getInventoryTrends(filter?: any): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/stats`, { params: { ...filter, type: 'trends' } })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch inventory trends:', error)
+      throw error
+    }
+  }
 }
 
 // Type aliases for backward compatibility

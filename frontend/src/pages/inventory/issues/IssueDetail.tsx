@@ -31,7 +31,7 @@ export default function IssueDetail() {
   }
 
   const handleReverse = async () => {
-    if (!confirm('Are you sure you want to reverse this issue? This will reverse all inventory movements.')) {
+    if (!window.confirm('Are you sure you want to reverse this issue? This will reverse all inventory movements.')) {
       return
     }
 

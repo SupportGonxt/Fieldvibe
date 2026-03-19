@@ -5,6 +5,7 @@ import { pricingService, PriceListWithItems, PriceListItem } from '../../service
 import { productsService, Product } from '../../services/products.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { useToast } from '../../components/ui/Toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function PriceListEditPage() {
   const { toast } = useToast()
@@ -221,49 +222,48 @@ export default function PriceListEditPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Customer Type
               </label>
-              <select
-                value={formData.customer_type}
-                onChange={(e) => setFormData({ ...formData, customer_type: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="">All Types</option>
-                <option value="retail">Retail</option>
-                <option value="wholesale">Wholesale</option>
-                <option value="distributor">Distributor</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Types' },
+                  { value: 'retail', label: 'Retail' },
+                  { value: 'wholesale', label: 'Wholesale' },
+                  { value: 'distributor', label: 'Distributor' },
+                ]}
+                value={formData.customer_type || null}
+                placeholder="All Types"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Channel
               </label>
-              <select
-                value={formData.channel}
-                onChange={(e) => setFormData({ ...formData, channel: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="">All Channels</option>
-                <option value="direct">Direct</option>
-                <option value="distributor">Distributor</option>
-                <option value="online">Online</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Channels' },
+                  { value: 'direct', label: 'Direct' },
+                  { value: 'distributor', label: 'Distributor' },
+                  { value: 'online', label: 'Online' },
+                ]}
+                value={formData.channel || null}
+                placeholder="All Channels"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Currency *
               </label>
-              <select
-                required
+              <SearchableSelect
+                options={[
+                  { value: 'USD', label: 'USD' },
+                  { value: 'EUR', label: 'EUR' },
+                  { value: 'GBP', label: 'GBP' },
+                  { value: 'LKR', label: 'LKR' },
+                ]}
                 value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="LKR">LKR</option>
-              </select>
+                placeholder="USD"
+              />
             </div>
 
             <div>
@@ -338,19 +338,14 @@ export default function PriceListEditPage() {
                 <div className="flex-1 grid grid-cols-6 gap-3">
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Product *</label>
-                    <select
-                      required
-                      value={item.product_id}
-                      onChange={(e) => updateItem(index, 'product_id', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="">Select Product</option>
-                      {products.map(product => (
-                        <option key={product.id} value={product.id}>
-                          {product.code} - {product.name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'Select Product' },
+                        { value: 'product.id', label: '{product.code} - {product.name}' },
+                      ]}
+                      value={item.product_id || null}
+                      placeholder="Select Product"
+                    />
                   </div>
 
                   <div>

@@ -3,7 +3,7 @@ import apiClient from './api'
 export const returnsService = {
   async getReturns(filter?: any) {
     try {
-      const response = await apiClient.get('/orders-enhanced/returns', { params: filter })
+      const response = await apiClient.get('/returns', { params: filter })
       return response.data
     } catch (error) {
       console.error('Error fetching returns:', error)
@@ -13,7 +13,7 @@ export const returnsService = {
 
   async getReturnById(id: string) {
     try {
-      const response = await apiClient.get(`/orders-enhanced/returns/${id}`)
+      const response = await apiClient.get(`/returns/${id}`)
       return response.data
     } catch (error) {
       console.error('Error fetching return:', error)
@@ -23,7 +23,7 @@ export const returnsService = {
 
   async createReturn(data: any) {
     try {
-      const response = await apiClient.post('/orders-enhanced/returns', data)
+      const response = await apiClient.post('/returns', data)
       return response.data
     } catch (error) {
       console.error('Error creating return:', error)
@@ -33,7 +33,7 @@ export const returnsService = {
 
   async approveReturn(id: string) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/returns/${id}/approve`)
+      const response = await apiClient.put(`/returns/${id}/approve`)
       return response.data
     } catch (error) {
       console.error('Error approving return:', error)
@@ -43,7 +43,7 @@ export const returnsService = {
 
   async rejectReturn(id: string, reason: string) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/returns/${id}/reject`, { reason })
+      const response = await apiClient.put(`/returns/${id}/reject`, { reason })
       return response.data
     } catch (error) {
       console.error('Error rejecting return:', error)
@@ -53,7 +53,7 @@ export const returnsService = {
 
   async generateCreditNote(id: string) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/returns/${id}/credit-note`)
+      const response = await apiClient.post(`/returns/${id}/credit-note`)
       return response.data
     } catch (error) {
       console.error('Error generating credit note:', error)

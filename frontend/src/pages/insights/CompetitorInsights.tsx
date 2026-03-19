@@ -4,6 +4,7 @@ import { Shield, TrendingDown, DollarSign, MapPin } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { tradeMarketingService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function CompetitorInsights() {
   const [period, setPeriod] = useState('month')
@@ -32,11 +33,15 @@ export default function CompetitorInsights() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Competitor Intelligence</h1>
-        <select value={period} onChange={(e) => setPeriod(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-          <option value="week">Last 7 Days</option>
-          <option value="month">Last 30 Days</option>
-          <option value="quarter">Last 90 Days</option>
-        </select>
+        <SearchableSelect
+          options={[
+            { value: 'week', label: 'Last 7 Days' },
+            { value: 'month', label: 'Last 30 Days' },
+            { value: 'quarter', label: 'Last 90 Days' },
+          ]}
+          value={period}
+          placeholder="Last 7 Days"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

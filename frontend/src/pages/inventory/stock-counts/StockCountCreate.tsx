@@ -6,6 +6,7 @@ import { inventoryService } from '../../../services/inventory.service'
 import { productsService } from '../../../services/products.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface WarehouseType {
   id: string
@@ -136,12 +137,14 @@ export default function StockCountCreate() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Warehouse *</label>
-                <select value={selectedWarehouse} onChange={(e) => setSelectedWarehouse(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a warehouse</option>
-                  {warehouses.map((warehouse) => (
-                    <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select a warehouse' },
+                    { value: 'warehouse.id', label: '{warehouse.name}' },
+                  ]}
+                  value={selectedWarehouse || null}
+                  placeholder="Select a warehouse"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Count Date</label>
@@ -149,12 +152,16 @@ export default function StockCountCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Count Type *</label>
-                <select value={countType} onChange={(e) => setCountType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select type</option>
-                  <option value="full">Full Count</option>
-                  <option value="cycle">Cycle Count</option>
-                  <option value="spot">Spot Check</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select type' },
+                    { value: 'full', label: 'Full Count' },
+                    { value: 'cycle', label: 'Cycle Count' },
+                    { value: 'spot', label: 'Spot Check' },
+                  ]}
+                  value={countType || null}
+                  placeholder="Select type"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

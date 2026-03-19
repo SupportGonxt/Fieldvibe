@@ -5,6 +5,7 @@ import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
+import { apiClient } from '../../services/api.service'
 interface RuleFormData {
   name: string
   description: string
@@ -42,8 +43,8 @@ export default function RuleEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: RuleFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id }
+      const response = await apiClient.put(`/commissions/rules/${id}`, data)
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission-rule', id] })

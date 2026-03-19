@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { tradeMarketingService } from '../services/tradeMarketing.service';
 import { useToast } from '../components/ui/Toast'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import SearchableSelect from '../components/ui/SearchableSelect'
 
 const SKUAvailabilityCheckerPage: React.FC = () => {
   const { toast } = useToast()
@@ -175,16 +176,16 @@ const SKUAvailabilityCheckerPage: React.FC = () => {
           {/* Shelf Position */}
           <div className="bg-white rounded-lg shadow p-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">Shelf Position</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'top', label: 'Top Shelf' },
+                { value: 'eye_level', label: 'Eye Level (Best)' },
+                { value: 'waist_level', label: 'Waist Level' },
+                { value: 'bottom', label: 'Bottom Shelf' },
+              ]}
               value={formData.shelfPosition}
-              onChange={(e) => setFormData({ ...formData, shelfPosition: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg"
-            >
-              <option value="top">Top Shelf</option>
-              <option value="eye_level">Eye Level (Best)</option>
-              <option value="waist_level">Waist Level</option>
-              <option value="bottom">Bottom Shelf</option>
-            </select>
+              placeholder="Top Shelf"
+            />
           </div>
 
           {/* Pricing */}

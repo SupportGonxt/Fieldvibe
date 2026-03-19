@@ -6,6 +6,7 @@ import { inventoryService } from '../../../services/inventory.service'
 import { productsService } from '../../../services/products.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface WarehouseType {
   id: string
@@ -140,21 +141,25 @@ export default function TransferCreate() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">From Warehouse *</label>
-                <select value={fromWarehouse} onChange={(e) => setFromWarehouse(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select source warehouse</option>
-                  {warehouses.map((warehouse) => (
-                    <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select source warehouse' },
+                    { value: 'warehouse.id', label: '{warehouse.name}' },
+                  ]}
+                  value={fromWarehouse || null}
+                  placeholder="Select source warehouse"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">To Warehouse *</label>
-                <select value={toWarehouse} onChange={(e) => setToWarehouse(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select destination warehouse</option>
-                  {warehouses.map((warehouse) => (
-                    <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select destination warehouse' },
+                    { value: 'warehouse.id', label: '{warehouse.name}' },
+                  ]}
+                  value={toWarehouse || null}
+                  placeholder="Select destination warehouse"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Date</label>

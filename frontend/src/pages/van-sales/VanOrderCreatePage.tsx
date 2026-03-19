@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/van-sales.service'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function VanOrderCreatePage() {
   const queryClient = useQueryClient()
@@ -82,11 +83,15 @@ export default function VanOrderCreatePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-              <select value={formData.payment_method} onChange={e => setFormData({...formData, payment_method: e.target.value as any})} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-                <option value="cash">Cash</option>
-                <option value="credit">Credit</option>
-                <option value="mobile_money">Mobile Money</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: 'cash', label: 'Cash' },
+                  { value: 'credit', label: 'Credit' },
+                  { value: 'mobile_money', label: 'Mobile Money' },
+                ]}
+                value={formData.payment_method}
+                placeholder="Cash"
+              />
             </div>
           </div>
         </div>

@@ -37,6 +37,7 @@ import { inventoryService } from '../../services/inventory.service'
 import { formatDate, formatNumber, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']
 
@@ -205,36 +206,32 @@ export default function InventoryReports() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Location
             </label>
-            <select
-              value={filter.location_id || ''}
-              onChange={(e) => setFilter({ ...filter, location_id: e.target.value || undefined })}
-              className="input"
-            >
-              <option value="">All Locations</option>
-              {(locations || []).map((location: any) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Locations' },
+                { value: 'location.id', label: '{location.name}' },
+              ]}
+              value={filter.location_id || '' || null}
+              placeholder="All Locations"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Category
             </label>
-            <select
-              value={filter.category || ''}
-              onChange={(e) => setFilter({ ...filter, category: e.target.value || undefined })}
-              className="input"
-            >
-              <option value="">All Categories</option>
-              <option value="beverages">Beverages</option>
-              <option value="snacks">Snacks</option>
-              <option value="dairy">Dairy</option>
-              <option value="frozen">Frozen</option>
-              <option value="household">Household</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Categories' },
+                { value: 'beverages', label: 'Beverages' },
+                { value: 'snacks', label: 'Snacks' },
+                { value: 'dairy', label: 'Dairy' },
+                { value: 'frozen', label: 'Frozen' },
+                { value: 'household', label: 'Household' },
+              ]}
+              value={filter.category || '' || null}
+              placeholder="All Categories"
+            />
           </div>
         </div>
       </div>

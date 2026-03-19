@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, Bell, Search, User, LogOut, Settings, Command } from 'lucide-react'
+import { Menu, Search, User, LogOut, Settings, Command } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import ThemeToggle from '../ui/ThemeToggle'
+import { NotificationCenter } from '../ui/NotificationCenter'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -12,12 +13,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const notifRef = useRef<HTMLDivElement>(null)
 
   const handleLogout = () => { logout() }
 
@@ -41,7 +40,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setShowUserMenu(false)
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifications(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -94,39 +92,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
         <div className="flex items-center gap-1 px-4">
           <ThemeToggle />
 
-          <div className="relative" ref={notifRef}>
-            <button
-              type="button"
-              className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-              onClick={() => setShowNotifications(!showNotifications)}
-            >
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-[#00E87B] rounded-full" />
-            </button>
-
-            {showNotifications && (
-              <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-xl bg-[#0A0E18] border border-white/10 shadow-2xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/5">
-                  <span className="text-sm font-semibold text-gray-200">Notifications</span>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  <div className="px-4 py-3 hover:bg-white/5 transition-colors">
-                    <div className="text-sm font-medium text-gray-200">New board placement</div>
-                    <div className="text-xs text-gray-500 mt-0.5">John Doe placed a premium billboard</div>
-                    <div className="text-[10px] text-gray-600 mt-1">2 minutes ago</div>
-                  </div>
-                  <div className="px-4 py-3 hover:bg-white/5 transition-colors">
-                    <div className="text-sm font-medium text-gray-200">Low inventory alert</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Premium Widget A below reorder level</div>
-                    <div className="text-[10px] text-gray-600 mt-1">1 hour ago</div>
-                  </div>
-                </div>
-                <div className="px-4 py-2.5 border-t border-white/5">
-                  <button className="text-xs text-[#00E87B] hover:text-[#00E87B]/80 font-medium">View all</button>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* ENH-10: Real-time NotificationCenter */}
+          <NotificationCenter />
 
           <div className="relative ml-1" ref={userMenuRef}>
             <button

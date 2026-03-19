@@ -31,7 +31,7 @@ export default function TransferDetail() {
   }
 
   const handleReverse = async () => {
-    if (!confirm('Are you sure you want to reverse this transfer? This will reverse all inventory movements.')) {
+    if (!window.confirm('Are you sure you want to reverse this transfer? This will reverse all inventory movements.')) {
       return
     }
 

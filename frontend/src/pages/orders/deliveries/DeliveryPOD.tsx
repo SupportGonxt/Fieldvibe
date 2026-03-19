@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Download, Image as ImageIcon } from 'lucide-react'
 import { ordersService } from '../../../services/orders.service'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function DeliveryPOD() {
   const { orderId, deliveryId } = useParams<{ orderId: string; deliveryId: string }>()
@@ -17,13 +18,8 @@ export default function DeliveryPOD() {
   const { data: pod, isLoading, isError } = useQuery({
     queryKey: ['delivery-pod', orderId, deliveryId],
     queryFn: async () => {
-      const response = await fetch(`/api/orders/${orderId}/deliveries/${deliveryId}/pod`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/orders/${orderId}/deliveries/${deliveryId}/pod`)
+      const result = response.data
       return result.data
     },
   })

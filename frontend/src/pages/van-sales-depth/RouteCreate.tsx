@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface RouteFormData {
   route_name: string
   agent_id: string
@@ -24,8 +25,8 @@ export default function RouteCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: RouteFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: 'new-route-id' }
+      const response = await apiClient.post('/van-routes', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['routes'] })

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Package, ArrowRight, MapPin } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function TransferItemDetail() {
   const { transferId, itemId } = useParams<{ transferId: string; itemId: string }>()
@@ -11,13 +12,8 @@ export default function TransferItemDetail() {
   const { data: transfer } = useQuery({
     queryKey: ['transfer', transferId],
     queryFn: async () => {
-      const response = await fetch(`/api/transfers/${transferId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/transfers/${transferId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -25,13 +21,8 @@ export default function TransferItemDetail() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['transfer-item', transferId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/transfers/${transferId}/items/${itemId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/transfers/${transferId}/items/${itemId}`)
+      const result = response.data
       return result.data
     },
   })

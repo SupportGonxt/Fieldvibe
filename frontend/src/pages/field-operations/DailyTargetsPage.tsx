@@ -4,6 +4,7 @@ import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { Target, Plus, Trash2, Calendar, Users, Building2, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function DailyTargetsPage() {
   const queryClient = useQueryClient()
@@ -107,29 +108,25 @@ export default function DailyTargetsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent *</label>
-              <select
-                value={newTarget.agent_id}
-                onChange={(e) => setNewTarget({ ...newTarget, agent_id: e.target.value })}
-                className="input w-full"
-              >
-                <option value="">Select Agent</option>
-                {agentList.map((a: any) => (
-                  <option key={a.id} value={a.id}>{a.first_name} {a.last_name}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'Select Agent' },
+                  { value: 'a.id', label: '{a.first_name} {a.last_name}' },
+                ]}
+                value={newTarget.agent_id || null}
+                placeholder="Select Agent"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label>
-              <select
-                value={newTarget.company_id}
-                onChange={(e) => setNewTarget({ ...newTarget, company_id: e.target.value })}
-                className="input w-full"
-              >
-                <option value="">All Companies</option>
-                {companies.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  { value: 'c.id', label: '{c.name}' },
+                ]}
+                value={newTarget.company_id || null}
+                placeholder="All Companies"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>

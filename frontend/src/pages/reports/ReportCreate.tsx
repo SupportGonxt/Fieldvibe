@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface ReportFormData {
   name: string
   description: string
@@ -27,8 +28,8 @@ export default function ReportCreate() {
   const createMutation = useMutation({
     mutationFn: async (data: ReportFormData) => {
       // Mock API call - replace with actual implementation
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: Date.now().toString() }
+      const response = await apiClient.post('/reports', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] })

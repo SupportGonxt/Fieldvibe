@@ -31,7 +31,7 @@ export default function VanSalesOrderDetail() {
   }
 
   const handleReverse = async () => {
-    if (!confirm('Are you sure you want to reverse this order? This action cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to reverse this order? This action cannot be undone.')) {
       return
     }
 

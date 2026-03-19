@@ -5,6 +5,7 @@ import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
+import { apiClient } from '../../services/api.service'
 interface CommissionFormData {
   base_amount: number
   bonus_amount: number
@@ -38,8 +39,8 @@ export default function CommissionEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: CommissionFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id }
+      const response = await apiClient.put(`/commissions/${id}`, data)
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['commission', id] })

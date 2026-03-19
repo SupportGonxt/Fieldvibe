@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
 import { useToast } from '../../components/ui/Toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Visit {
   id: string
@@ -157,7 +158,7 @@ const VisitManagement: React.FC = () => {
   }
 
   const handleDeleteVisit = async (visitId: string) => {
-    if (!confirm('Are you sure you want to delete this visit?')) return
+    if (!window.confirm('Are you sure you want to delete this visit?')) return
     
     try {
       await apiClient.delete(`/visits/${visitId}`)
@@ -300,48 +301,44 @@ const VisitManagement: React.FC = () => {
 
           {/* Status Filter */}
           <div>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'planned', label: 'Planned' },
+                { value: 'in_progress', label: 'In Progress' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'cancelled', label: 'Cancelled' },
+              ]}
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="planned">Planned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+              placeholder="All Status"
+            />
           </div>
 
           {/* Agent Filter */}
           <div>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Agents' },
+                { value: 'agent.id', label: '{agent.first_name} {agent.last_name}' },
+              ]}
               value={filterAgent}
-              onChange={(e) => setFilterAgent(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Agents</option>
-              {agents.map(agent => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.first_name} {agent.last_name}
-                </option>
-              ))}
-            </select>
+              placeholder="All Agents"
+            />
           </div>
 
           {/* Type Filter */}
           <div>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Types' },
+                { value: 'routine', label: 'Routine' },
+                { value: 'follow_up', label: 'Follow Up' },
+                { value: 'new_customer', label: 'New Customer' },
+                { value: 'delivery', label: 'Delivery' },
+              ]}
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Types</option>
-              <option value="routine">Routine</option>
-              <option value="follow_up">Follow Up</option>
-              <option value="new_customer">New Customer</option>
-              <option value="delivery">Delivery</option>
-            </select>
+              placeholder="All Types"
+            />
           </div>
 
           {/* Date Range */}
@@ -472,19 +469,14 @@ const VisitManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Agent *
                     </label>
-                    <select
-                      required
-                      value={formData.agent_id}
-                      onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Agent</option>
-                      {agents.map(agent => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.first_name} {agent.last_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'Select Agent' },
+                        { value: 'agent.id', label: '{agent.first_name} {agent.last_name}' },
+                      ]}
+                      value={formData.agent_id || null}
+                      placeholder="Select Agent"
+                    />
                   </div>
 
                   {/* Customer Selection */}
@@ -492,19 +484,14 @@ const VisitManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Customer *
                     </label>
-                    <select
-                      required
-                      value={formData.customer_id}
-                      onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Customer</option>
-                      {customers.map(customer => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name} {customer.business_name ? `(${customer.business_name})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'Select Customer' },
+                        { value: 'customer.id', label: '{customer.name} {customer.business_name ? `(${customer.business_name})` : \'\'}' },
+                      ]}
+                      value={formData.customer_id || null}
+                      placeholder="Select Customer"
+                    />
                   </div>
 
                   {/* Visit Date */}
@@ -526,19 +513,18 @@ const VisitManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Visit Type *
                     </label>
-                    <select
-                      required
+                    <SearchableSelect
+                      options={[
+                        { value: 'routine', label: 'Routine' },
+                        { value: 'follow_up', label: 'Follow Up' },
+                        { value: 'new_customer', label: 'New Customer' },
+                        { value: 'delivery', label: 'Delivery' },
+                        { value: 'collection', label: 'Collection' },
+                        { value: 'survey', label: 'Survey' },
+                      ]}
                       value={formData.visit_type}
-                      onChange={(e) => setFormData({ ...formData, visit_type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="routine">Routine</option>
-                      <option value="follow_up">Follow Up</option>
-                      <option value="new_customer">New Customer</option>
-                      <option value="delivery">Delivery</option>
-                      <option value="collection">Collection</option>
-                      <option value="survey">Survey</option>
-                    </select>
+                      placeholder="Routine"
+                    />
                   </div>
                 </div>
 
@@ -589,36 +575,26 @@ const VisitManagement: React.FC = () => {
                   {/* Same fields as create modal */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Agent *</label>
-                    <select
-                      required
-                      value={formData.agent_id}
-                      onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Agent</option>
-                      {agents.map(agent => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.first_name} {agent.last_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'Select Agent' },
+                        { value: 'agent.id', label: '{agent.first_name} {agent.last_name}' },
+                      ]}
+                      value={formData.agent_id || null}
+                      placeholder="Select Agent"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-                    <select
-                      required
-                      value={formData.customer_id}
-                      onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Customer</option>
-                      {customers.map(customer => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name} {customer.business_name ? `(${customer.business_name})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'Select Customer' },
+                        { value: 'customer.id', label: '{customer.name} {customer.business_name ? `(${customer.business_name})` : \'\'}' },
+                      ]}
+                      value={formData.customer_id || null}
+                      placeholder="Select Customer"
+                    />
                   </div>
 
                   <div>
@@ -634,34 +610,32 @@ const VisitManagement: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type *</label>
-                    <select
-                      required
+                    <SearchableSelect
+                      options={[
+                        { value: 'routine', label: 'Routine' },
+                        { value: 'follow_up', label: 'Follow Up' },
+                        { value: 'new_customer', label: 'New Customer' },
+                        { value: 'delivery', label: 'Delivery' },
+                        { value: 'collection', label: 'Collection' },
+                        { value: 'survey', label: 'Survey' },
+                      ]}
                       value={formData.visit_type}
-                      onChange={(e) => setFormData({ ...formData, visit_type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="routine">Routine</option>
-                      <option value="follow_up">Follow Up</option>
-                      <option value="new_customer">New Customer</option>
-                      <option value="delivery">Delivery</option>
-                      <option value="collection">Collection</option>
-                      <option value="survey">Survey</option>
-                    </select>
+                      placeholder="Routine"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
-                    <select
-                      required
+                    <SearchableSelect
+                      options={[
+                        { value: 'planned', label: 'Planned' },
+                        { value: 'in_progress', label: 'In Progress' },
+                        { value: 'completed', label: 'Completed' },
+                        { value: 'cancelled', label: 'Cancelled' },
+                      ]}
                       value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="planned">Planned</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                      placeholder="Planned"
+                    />
                   </div>
                 </div>
 

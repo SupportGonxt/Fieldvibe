@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fieldMarketingService } from '../services/field-marketing.service';
 import { useToast } from '../components/ui/Toast'
+import SearchableSelect from '../components/ui/SearchableSelect'
 
 const ProductDistributionFormPage: React.FC = () => {
   const { toast } = useToast()
@@ -27,7 +28,7 @@ const ProductDistributionFormPage: React.FC = () => {
 
   useEffect(() => {
     if (!visit || !customer) {
-      navigate('/field-marketing');
+      navigate('/field-operations');
       return;
     }
     getCurrentLocation();
@@ -124,18 +125,18 @@ const ProductDistributionFormPage: React.FC = () => {
           {/* Product Type */}
           <div className="bg-white rounded-lg shadow p-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">Product Type *</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'sim_card', label: 'SIM Card' },
+                { value: 'smartphone', label: 'Smartphone' },
+                { value: 'feature_phone', label: 'Feature Phone' },
+                { value: 'tablet', label: 'Tablet' },
+                { value: 'router', label: 'Router/MiFi' },
+                { value: 'promotional_item', label: 'Promotional Item' },
+              ]}
               value={formData.productType}
-              onChange={(e) => setFormData({ ...formData, productType: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="sim_card">SIM Card</option>
-              <option value="smartphone">Smartphone</option>
-              <option value="feature_phone">Feature Phone</option>
-              <option value="tablet">Tablet</option>
-              <option value="router">Router/MiFi</option>
-              <option value="promotional_item">Promotional Item</option>
-            </select>
+              placeholder="SIM Card"
+            />
           </div>
 
           {/* Serial Number */}

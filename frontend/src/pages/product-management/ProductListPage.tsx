@@ -4,6 +4,7 @@ import { productsService, Product } from '../../services/products.service'
 import { Link } from 'react-router-dom'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ExportMenu from '../../components/export/ExportMenu'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export const ProductListPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -163,26 +164,24 @@ export const ProductListPage: React.FC = () => {
             />
           </div>
           <div className="flex gap-2">
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Categories' },
+                { value: 'cat', label: '{cat}' },
+              ]}
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="all">All Categories</option>
-              {Array.from(new Set(products.map(p => p.category))).map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <select
+              placeholder="All Categories"
+            />
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+                { value: 'discontinued', label: 'Discontinued' },
+              ]}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="discontinued">Discontinued</option>
-            </select>
+              placeholder="All Status"
+            />
           </div>
         </div>
       </div>

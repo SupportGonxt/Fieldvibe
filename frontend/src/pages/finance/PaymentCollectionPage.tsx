@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DollarSign, CreditCard, Clock, CheckCircle, XCircle, Search, Filter, Calendar, Download } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Payment {
   id: string
@@ -184,33 +185,33 @@ export default function PaymentCollectionPage() {
 
           <div className="flex items-center gap-2">
             <Filter className="text-gray-400 w-5 h-5" />
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'failed', label: 'Failed' },
+                { value: 'refunded', label: 'Refunded' },
+              ]}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input flex-1"
-            >
-              <option value="all">All Status</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-              <option value="refunded">Refunded</option>
-            </select>
+              placeholder="All Status"
+            />
           </div>
 
           <div className="flex items-center gap-2">
             <CreditCard className="text-gray-400 w-5 h-5" />
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Methods' },
+                { value: 'cash', label: 'Cash' },
+                { value: 'card', label: 'Card' },
+                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'cheque', label: 'Cheque' },
+                { value: 'mobile', label: 'Mobile Payment' },
+              ]}
               value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="input flex-1"
-            >
-              <option value="all">All Methods</option>
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-              <option value="mobile">Mobile Payment</option>
-            </select>
+              placeholder="All Methods"
+            />
           </div>
 
           <button className="btn btn-outline flex items-center justify-center gap-2">

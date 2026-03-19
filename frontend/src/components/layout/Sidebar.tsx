@@ -32,7 +32,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   const isNavItemVisible = (item: NavigationItem) => {
-    if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'admin') return false
+    if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') return false
     return true
   }
 

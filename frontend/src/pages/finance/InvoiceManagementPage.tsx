@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FileText, Download, Send, Eye, Plus, Filter, Search, Check, X, Clock, Printer } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Invoice {
   id: string
@@ -162,17 +163,17 @@ export default function InvoiceManagementPage() {
           </div>
           <div className="flex items-center gap-2">
             <Filter className="text-gray-400 w-5 h-5" />
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'draft', label: 'Draft' },
+                { value: 'sent', label: 'Sent' },
+                { value: 'paid', label: 'Paid' },
+                { value: 'overdue', label: 'Overdue' },
+              ]}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input flex-1"
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="sent">Sent</option>
-              <option value="paid">Paid</option>
-              <option value="overdue">Overdue</option>
-            </select>
+              placeholder="All Status"
+            />
           </div>
         </div>
       </div>

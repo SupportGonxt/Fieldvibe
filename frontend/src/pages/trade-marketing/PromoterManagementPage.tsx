@@ -2,8 +2,12 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { tradeMarketingService } from '../../services/tradeMarketing.service'
 import { Plus, Edit, Trash2, Users, TrendingUp } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export default function PromoterManagementPage() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
   const [filter, setFilter] = useState({ page: 1, limit: 20, status: '' })
   const queryClient = useQueryClient()
 
@@ -61,12 +65,16 @@ export default function PromoterManagementPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-4">
-        <select value={filter.status} onChange={e => setFilter({...filter, status: e.target.value, page: 1})} className="border border-gray-300 rounded-lg px-3 py-2">
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="on_leave">On Leave</option>
-        </select>
+        <SearchableSelect
+          options={[
+            { value: '', label: 'All Statuses' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
+            { value: 'on_leave', label: 'On Leave' },
+          ]}
+          value={filter.status || null}
+          placeholder="All Statuses"
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -95,7 +103,7 @@ export default function PromoterManagementPage() {
                     <td className="px-6 py-4"><div className="text-sm text-gray-900">{promoter.phone}</div><div className="text-sm text-gray-500">{promoter.email}</div></td>
                     <td className="px-6 py-4 text-sm text-gray-900">{promoter.join_date ? new Date(promoter.join_date).toLocaleDateString() : '-'}</td>
                     <td className="px-6 py-4">{getStatusBadge(promoter.status)}</td>
-                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {if(confirm('Delete?')) deleteMutation.mutate(promoter.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {setDeleteConfirmId(promoter.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>
                 ))
               )}
@@ -113,6 +121,16 @@ export default function PromoterManagementPage() {
           </div>
         </div>
       )}
+    
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={() => { if (deleteConfirmId) { deleteMutation.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}
+        title="Confirm Delete"
+        message="Delete?"
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }

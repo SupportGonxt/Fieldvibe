@@ -2,6 +2,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, User, Clock, Filter } from 'lucide-react'
 import { auditService } from '../../../services/audit.service'
+import { apiClient } from '../../../services/api.service'
 
 interface AuditTrailProps {
   entityType: string
@@ -19,7 +20,7 @@ export default function AuditTrail() {
   const { data: entity } = useQuery({
     queryKey: [entityType, entityId],
     queryFn: async () => {
-      const response = await fetch(`/api/${entityType}/${entityId}`, {
+      const response = await fetch(`${apiClient.defaults.baseURL}/${entityType}/${entityId}`, {
         headers: {
           'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
         },

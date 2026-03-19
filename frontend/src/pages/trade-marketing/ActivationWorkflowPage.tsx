@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../../services/api.service';
 import { compressPhoto } from '../../utils/photo-compression';
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Campaign {
   id: string;
@@ -544,29 +545,29 @@ const ActivationWorkflowPage: React.FC = () => {
                     onChange={(e) => setRecipientInfo({ ...recipientInfo, phone: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
-                  <select
-                    value={recipientInfo.age_group}
-                    onChange={(e) => setRecipientInfo({ ...recipientInfo, age_group: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Select Age Group</option>
-                    <option value="18-25">18-25</option>
-                    <option value="26-35">26-35</option>
-                    <option value="36-45">36-45</option>
-                    <option value="46-55">46-55</option>
-                    <option value="56+">56+</option>
-                  </select>
-                  <select
-                    value={recipientInfo.gender}
-                    onChange={(e) => setRecipientInfo({ ...recipientInfo, gender: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
-                  </select>
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'Select Age Group' },
+                      { value: '18-25', label: '18-25' },
+                      { value: '26-35', label: '26-35' },
+                      { value: '36-45', label: '36-45' },
+                      { value: '46-55', label: '46-55' },
+                      { value: '56+', label: '56+' },
+                    ]}
+                    value={recipientInfo.age_group || null}
+                    placeholder="Select Age Group"
+                  />
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: 'Select Gender' },
+                      { value: 'male', label: 'Male' },
+                      { value: 'female', label: 'Female' },
+                      { value: 'other', label: 'Other' },
+                      { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+                    ]}
+                    value={recipientInfo.gender || null}
+                    placeholder="Select Gender"
+                  />
                   <textarea
                     placeholder="Feedback (optional)"
                     value={recipientInfo.feedback}

@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 interface ResolutionFormData {
   resolution_action: 'accept' | 'recount' | 'adjust'
@@ -20,13 +21,8 @@ export default function VarianceResolution() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['count-line', countId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-counts/${countId}/lines/${lineId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/stock-counts/${countId}/lines/${lineId}`)
+      const result = response.data
       return result.data
     },
   })

@@ -4,6 +4,7 @@ import { ArrowLeft, DollarSign, User, Clock } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function CollectionDetail() {
   const { sessionId, collectionId } = useParams<{ sessionId: string; collectionId: string }>()
@@ -12,13 +13,8 @@ export default function CollectionDetail() {
   const { data: session } = useQuery({
     queryKey: ['cash-session', sessionId],
     queryFn: async () => {
-      const response = await fetch(`/api/cash-sessions/${sessionId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/cash-sessions/${sessionId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -26,13 +22,8 @@ export default function CollectionDetail() {
   const { data: collection, isLoading, isError } = useQuery({
     queryKey: ['collection', sessionId, collectionId],
     queryFn: async () => {
-      const response = await fetch(`/api/cash-sessions/${sessionId}/collections/${collectionId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/cash-sessions/${sessionId}/collections/${collectionId}`)
+      const result = response.data
       return result.data
     },
   })

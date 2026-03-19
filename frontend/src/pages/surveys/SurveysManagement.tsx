@@ -25,6 +25,7 @@ import { formatDate, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { DataTable } from '../../components/ui/tables/DataTable'
 import toast from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function SurveysManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -482,36 +483,36 @@ export default function SurveysManagement() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
-              <select
-                className="input"
-                value={filter.status || ''}
-                onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="completed">Completed</option>
-                <option value="archived">Archived</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'draft', label: 'Draft' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'paused', label: 'Paused' },
+                  { value: 'completed', label: 'Completed' },
+                  { value: 'archived', label: 'Archived' },
+                ]}
+                value={filter.status || '' || null}
+                placeholder="All Statuses"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Type
               </label>
-              <select
-                className="input"
-                value={filter.type || ''}
-                onChange={(e) => setFilter({ ...filter, type: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Types</option>
-                <option value="customer_satisfaction">Customer Satisfaction</option>
-                <option value="product_feedback">Product Feedback</option>
-                <option value="market_research">Market Research</option>
-                <option value="employee_feedback">Employee Feedback</option>
-                <option value="other">Other</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Types' },
+                  { value: 'customer_satisfaction', label: 'Customer Satisfaction' },
+                  { value: 'product_feedback', label: 'Product Feedback' },
+                  { value: 'market_research', label: 'Market Research' },
+                  { value: 'employee_feedback', label: 'Employee Feedback' },
+                  { value: 'other', label: 'Other' },
+                ]}
+                value={filter.type || '' || null}
+                placeholder="All Types"
+              />
             </div>
 
             <div>

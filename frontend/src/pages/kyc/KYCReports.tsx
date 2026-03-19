@@ -37,6 +37,7 @@ import { kycService } from '../../services/kyc.service'
 import { formatDate, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']
 
@@ -212,52 +213,48 @@ export default function KYCReports() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Agent
             </label>
-            <select
-              value={filter.agent_id || ''}
-              onChange={(e) => setFilter({ ...filter, agent_id: e.target.value || undefined })}
-              className="input"
-            >
-              <option value="">All Agents</option>
-              {(agents || []).map((agent: any) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Agents' },
+                { value: 'agent.id', label: '{agent.name}' },
+              ]}
+              value={filter.agent_id || '' || null}
+              placeholder="All Agents"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Status
             </label>
-            <select
-              value={filter.status || ''}
-              onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined })}
-              className="input"
-            >
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="under_review">Under Review</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="requires_update">Requires Update</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'under_review', label: 'Under Review' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' },
+                { value: 'requires_update', label: 'Requires Update' },
+              ]}
+              value={filter.status || '' || null}
+              placeholder="All Statuses"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Risk Level
             </label>
-            <select
-              value={filter.risk_level || ''}
-              onChange={(e) => setFilter({ ...filter, risk_level: e.target.value || undefined })}
-              className="input"
-            >
-              <option value="">All Risk Levels</option>
-              <option value="low">Low Risk</option>
-              <option value="medium">Medium Risk</option>
-              <option value="high">High Risk</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Risk Levels' },
+                { value: 'low', label: 'Low Risk' },
+                { value: 'medium', label: 'Medium Risk' },
+                { value: 'high', label: 'High Risk' },
+              ]}
+              value={filter.risk_level || '' || null}
+              placeholder="All Risk Levels"
+            />
           </div>
         </div>
       </div>

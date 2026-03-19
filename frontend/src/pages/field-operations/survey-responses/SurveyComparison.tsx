@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function SurveyComparison() {
   const { surveyId } = useParams<{ surveyId: string }>()
@@ -11,13 +12,8 @@ export default function SurveyComparison() {
   const { data: comparison, isLoading, isError } = useQuery({
     queryKey: ['survey-comparison', surveyId],
     queryFn: async () => {
-      const response = await fetch(`/api/surveys/${surveyId}/comparison`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/surveys/${surveyId}/comparison`)
+      const result = response.data
       return result.data
     },
   })

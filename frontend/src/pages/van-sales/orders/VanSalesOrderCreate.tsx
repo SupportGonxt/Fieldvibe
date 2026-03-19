@@ -6,6 +6,7 @@ import { vanSalesService } from '../../../services/van-sales.service'
 import { discountsService } from '../../../services/discounts.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface Customer {
   id: string
@@ -154,21 +155,25 @@ export default function VanSalesOrderCreate() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select a customer' },
+                    { value: 'customer.id', label: '{customer.name}' },
+                  ]}
+                  value={selectedCustomer || null}
+                  placeholder="Select a customer"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Route *</label>
-                <select value={selectedRoute} onChange={(e) => setSelectedRoute(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a route</option>
-                  {routes.map((route) => (
-                    <option key={route.id} value={route.id}>{route.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select a route' },
+                    { value: 'route.id', label: '{route.name}' },
+                  ]}
+                  value={selectedRoute || null}
+                  placeholder="Select a route"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Order Date</label>
@@ -180,11 +185,15 @@ export default function VanSalesOrderCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="cash">Cash</option>
-                  <option value="credit">Credit</option>
-                  <option value="mobile_money">Mobile Money</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: 'cash', label: 'Cash' },
+                    { value: 'credit', label: 'Credit' },
+                    { value: 'mobile_money', label: 'Mobile Money' },
+                  ]}
+                  value={paymentMethod}
+                  placeholder="Cash"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

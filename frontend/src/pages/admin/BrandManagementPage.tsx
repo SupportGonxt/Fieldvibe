@@ -79,7 +79,7 @@ export default function BrandManagementPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this brand?')) return
+    if (!window.confirm('Are you sure you want to delete this brand?')) return
     
     try {
       await brandService.deleteBrand(id)

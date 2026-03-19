@@ -2,8 +2,12 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { tradeMarketingService } from '../../services/tradeMarketing.service'
 import { Plus, Edit, Trash2, TrendingUp, Calendar, Target } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export default function CampaignManagementPage() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
   const [filter, setFilter] = useState({ page: 1, limit: 20, status: '' })
   const queryClient = useQueryClient()
 
@@ -70,14 +74,18 @@ export default function CampaignManagementPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-4">
-        <select value={filter.status} onChange={e => setFilter({...filter, status: e.target.value, page: 1})} className="border border-gray-300 rounded-lg px-3 py-2">
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
+        <SearchableSelect
+          options={[
+            { value: '', label: 'All Statuses' },
+            { value: 'draft', label: 'Draft' },
+            { value: 'active', label: 'Active' },
+            { value: 'paused', label: 'Paused' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'cancelled', label: 'Cancelled' },
+          ]}
+          value={filter.status || null}
+          placeholder="All Statuses"
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -104,7 +112,7 @@ export default function CampaignManagementPage() {
                     <td className="px-6 py-4"><div className="text-sm text-gray-900">{new Date(campaign.start_date).toLocaleDateString()}</div><div className="text-sm text-gray-500">to {new Date(campaign.end_date).toLocaleDateString()}</div></td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(campaign.budget || 0)}</td>
                     <td className="px-6 py-4">{getStatusBadge(campaign.status)}</td>
-                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {if(confirm('Delete?')) deleteMutation.mutate(campaign.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {setDeleteConfirmId(campaign.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>
                 ))
               )}
@@ -122,6 +130,16 @@ export default function CampaignManagementPage() {
           </div>
         </div>
       )}
+    
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={() => { if (deleteConfirmId) { deleteMutation.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}
+        title="Confirm Delete"
+        message="Delete?"
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }

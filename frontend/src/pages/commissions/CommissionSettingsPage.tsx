@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface CommissionRule {
   id: string
@@ -252,15 +253,15 @@ export const CommissionSettingsPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Rule Type</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'percentage', label: 'Percentage' },
+                    { value: 'fixed', label: 'Fixed Amount' },
+                    { value: 'tiered', label: 'Tiered' },
+                  ]}
                   value={newRule.rule_type}
-                  onChange={(e) => setNewRule({ ...newRule, rule_type: e.target.value as any })}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                >
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed Amount</option>
-                  <option value="tiered">Tiered</option>
-                </select>
+                  placeholder="Percentage"
+                />
               </div>
 
               <div>
@@ -279,14 +280,14 @@ export const CommissionSettingsPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                  ]}
                   value={newRule.status}
-                  onChange={(e) => setNewRule({ ...newRule, status: e.target.value as any })}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                  placeholder="Active"
+                />
               </div>
             </div>
 

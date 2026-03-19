@@ -6,6 +6,7 @@ import { customersService } from '../../services/customers.service'
 import { productsService } from '../../services/products.service'
 import { discountsService, Discount } from '../../services/discounts.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 import { useToast } from '../../components/ui/Toast'
 
 interface Product {
@@ -285,26 +286,31 @@ export default function OrderCreatePage() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-                <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>{customer.name} ({customer.code})</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  label="Customer *"
+                  options={customers.map(c => ({ value: c.id, label: `${c.name} (${c.code})` }))}
+                  value={selectedCustomer || null}
+                  onChange={(val) => setSelectedCustomer(val || '')}
+                  placeholder="Search customers..."
+                  required
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Order Date</label>
                 <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="cash">Cash</option>
-                  <option value="credit">Credit</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                </select>
+                <SearchableSelect
+                  label="Payment Method"
+                  options={[
+                    { value: 'cash', label: 'Cash' },
+                    { value: 'credit', label: 'Credit' },
+                    { value: 'mobile_money', label: 'Mobile Money' },
+                    { value: 'bank_transfer', label: 'Bank Transfer' },
+                  ]}
+                  value={paymentMethod}
+                  onChange={(val) => setPaymentMethod(val || 'cash')}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
@@ -352,12 +358,12 @@ export default function OrderCreatePage() {
                     {lineItems.map((item, index) => (
                       <tr key={index} className="hover:bg-surface-secondary">
                         <td className="px-4 py-3">
-                          <select value={item.product_id} onChange={(e) => updateLineItem(index, 'product_id', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            <option value="">Select product</option>
-                            {products.map((product) => (
-                              <option key={product.id} value={product.id}>{product.name} - R {(product.selling_price || product.price || 0).toFixed(2)}</option>
-                            ))}
-                          </select>
+                          <SearchableSelect
+                            options={products.map(p => ({ value: p.id, label: `${p.name} - R ${(p.selling_price || p.price || 0).toFixed(2)}` }))}
+                            value={item.product_id || null}
+                            onChange={(val) => updateLineItem(index, 'product_id', val || '')}
+                            placeholder="Search products..."
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <input type="number" min="1" value={item.quantity} onChange={(e) => updateLineItem(index, 'quantity', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
@@ -366,12 +372,12 @@ export default function OrderCreatePage() {
                           <input type="number" min="0" step="0.01" value={item.unit_price} onChange={(e) => updateLineItem(index, 'unit_price', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm" />
                         </td>
                         <td className="px-4 py-3">
-                          <select value={item.discount_id} onChange={(e) => updateLineItem(index, 'discount_id', e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            <option value="">No discount</option>
-                            {discounts.map((discount) => (
-                              <option key={discount.id} value={discount.id}>{discount.name} ({discount.value}%)</option>
-                            ))}
-                          </select>
+                          <SearchableSelect
+                            options={[{ value: '', label: 'No discount' }, ...discounts.map(d => ({ value: d.id, label: `${d.name} (${d.value}%)` }))]}
+                            value={item.discount_id || null}
+                            onChange={(val) => updateLineItem(index, 'discount_id', val || '')}
+                            placeholder="Select discount"
+                          />
                         </td>
                         <td className="px-4 py-3 text-right text-sm text-gray-600">R {item.tax_amount.toFixed(2)}</td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">R {item.line_total.toFixed(2)}</td>

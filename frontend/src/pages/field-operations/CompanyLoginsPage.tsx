@@ -4,6 +4,7 @@ import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { Users, Plus, Trash2, Building2, Mail, Shield, Save, X, Key } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function CompanyLoginsPage() {
   const queryClient = useQueryClient()
@@ -81,10 +82,14 @@ export default function CompanyLoginsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company *</label>
-              <select value={form.company_id} onChange={(e) => setForm({ ...form, company_id: e.target.value })} className="input w-full">
-                <option value="">Select Company</option>
-                {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'Select Company' },
+                  { value: 'c.id', label: '{c.name}' },
+                ]}
+                value={form.company_id || null}
+                placeholder="Select Company"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
@@ -100,10 +105,14 @@ export default function CompanyLoginsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="input w-full">
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: 'viewer', label: 'Viewer' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+                value={form.role}
+                placeholder="Viewer"
+              />
             </div>
           </div>
           <div className="flex gap-3 mt-4">
@@ -124,10 +133,14 @@ export default function CompanyLoginsPage() {
 
       {/* Filter */}
       <div className="flex gap-3">
-        <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)} className="input">
-          <option value="">All Companies</option>
-          {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <SearchableSelect
+          options={[
+            { value: '', label: 'All Companies' },
+            { value: 'c.id', label: '{c.name}' },
+          ]}
+          value={filterCompany || null}
+          placeholder="All Companies"
+        />
       </div>
 
       {/* Logins Table */}

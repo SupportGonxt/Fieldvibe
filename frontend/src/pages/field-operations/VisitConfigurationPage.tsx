@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, Trash2, Calendar, MapPin, CheckSquare, Camera, BarChart3 } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface VisitConfiguration {
   id: string
@@ -21,6 +23,7 @@ interface VisitConfiguration {
   board_photo_required: boolean
   track_coverage_analytics: boolean
   visit_type?: string
+  visit_category: 'field_operations' | 'marketing' | 'both'
   default_duration_minutes: number
   is_active: boolean
   created_at: string
@@ -34,70 +37,39 @@ export default function VisitConfigurationPage() {
   const { data: configurations, isLoading, isError } = useQuery({
     queryKey: ['visit-configurations'],
     queryFn: async () => {
-      const response = await fetch('/api/visit-configurations', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/visit-configurations')
+      return response.data.data || []
     }
   })
 
   const { data: brands } = useQuery({
     queryKey: ['brands'],
     queryFn: async () => {
-      const response = await fetch('/api/brands', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/brands')
+      return response.data.data || []
     }
   })
 
   const { data: surveys } = useQuery({
     queryKey: ['surveys'],
     queryFn: async () => {
-      const response = await fetch('/api/surveys', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/surveys')
+      return response.data.data || []
     }
   })
 
   const { data: boards } = useQuery({
     queryKey: ['boards'],
     queryFn: async () => {
-      const response = await fetch('/api/boards', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get('/boards')
+      return response.data.data || []
     }
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/visit-configurations/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        }
-      })
-      if (!response.ok) throw new Error('Failed to delete configuration')
-      return response.json()
+      const response = await apiClient.delete(`/visit-configurations/${id}`)
+      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['visit-configurations'] })
@@ -204,10 +176,23 @@ export default function VisitConfigurationPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
+                        {config.visit_category && (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            config.visit_category === 'marketing' ? 'bg-orange-100 text-orange-800' :
+                            config.visit_category === 'both' ? 'bg-indigo-100 text-indigo-800' :
+                            'bg-cyan-100 text-cyan-800'
+                          }`}>
+                            {config.visit_category === 'marketing' ? 'Marketing' :
+                             config.visit_category === 'both' ? 'Field Ops & Marketing' :
+                             'Field Ops'}
+                          </span>
+                        )}
                         {config.survey_id && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            config.survey_required ? 'bg-red-100 text-red-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
                             <CheckSquare className="h-3 w-3 mr-1" />
-                            Survey{config.survey_required && ' (Required)'}
+                            Survey ({config.survey_required ? 'Mandatory' : 'Optional'})
                           </span>
                         )}
                         {config.requires_board_placement && (
@@ -238,7 +223,8 @@ export default function VisitConfigurationPage() {
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm('Delete this configuration?')) {
+                            // TODO: Replace with ConfirmDialog
+            if (window.confirm('Delete this configuration?')) {
                               deleteMutation.mutate(config.id)
                             }
                           }}
@@ -302,26 +288,20 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
     board_photo_required: config?.board_photo_required || false,
     track_coverage_analytics: config?.track_coverage_analytics || false,
     visit_type: config?.visit_type || 'field_visit',
+    visit_category: config?.visit_category || 'field_operations',
     default_duration_minutes: config?.default_duration_minutes || 30,
     is_active: config?.is_active !== undefined ? config.is_active : true
   })
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
-      const url = config
-        ? `/api/visit-configurations/${config.id}`
-        : '/api/visit-configurations'
-      const response = await fetch(url, {
-        method: config ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO'
-        },
-        body: JSON.stringify(data)
-      })
-      if (!response.ok) throw new Error('Failed to save configuration')
-      return response.json()
+      if (config) {
+        const response = await apiClient.put(`/visit-configurations/${config.id}`, data)
+        return response.data
+      } else {
+        const response = await apiClient.post('/visit-configurations', data)
+        return response.data
+      }
     },
     onSuccess
   })
@@ -365,50 +345,45 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Type *</label>
-              <select
-                required
+              <SearchableSelect
+                options={[
+                  { value: 'all', label: 'All Customers' },
+                  { value: 'brand', label: 'Specific Brand' },
+                  { value: 'customer_type', label: 'Customer Type' },
+                ]}
                 value={formData.target_type}
-                onChange={e => setFormData({ ...formData, target_type: e.target.value as any })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              >
-                <option value="all">All Customers</option>
-                <option value="brand">Specific Brand</option>
-                <option value="customer_type">Customer Type</option>
-              </select>
+                placeholder="All Customers"
+              />
             </div>
 
             {formData.target_type === 'brand' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Brand *</label>
-                <select
-                  required
-                  value={formData.brand_id}
-                  onChange={e => setFormData({ ...formData, brand_id: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Brand</option>
-                  {brands.map(brand => (
-                    <option key={brand.id} value={brand.id}>{brand.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select Brand' },
+                    { value: 'brand.id', label: '{brand.name}' },
+                  ]}
+                  value={formData.brand_id || null}
+                  placeholder="Select Brand"
+                />
               </div>
             )}
 
             {formData.target_type === 'customer_type' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer Type *</label>
-                <select
-                  required
-                  value={formData.customer_type}
-                  onChange={e => setFormData({ ...formData, customer_type: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Type</option>
-                  <option value="spaza">Spaza Shop</option>
-                  <option value="retail">Retail</option>
-                  <option value="wholesale">Wholesale</option>
-                  <option value="distributor">Distributor</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select Type' },
+                    { value: 'spaza', label: 'Spaza Shop' },
+                    { value: 'retail', label: 'Retail' },
+                    { value: 'wholesale', label: 'Wholesale' },
+                    { value: 'distributor', label: 'Distributor' },
+                  ]}
+                  value={formData.customer_type || null}
+                  placeholder="Select Type"
+                />
               </div>
             )}
           </div>
@@ -437,31 +412,96 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
           </div>
 
           <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Visit Category</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Applies To *</label>
+                <SearchableSelect
+                  options={[
+                    { value: 'field_operations', label: 'Field Operations' },
+                    { value: 'marketing', label: 'Marketing' },
+                    { value: 'both', label: 'Both (Field Ops & Marketing)' },
+                  ]}
+                  value={formData.visit_category}
+                  onChange={(val: string) => setFormData({ ...formData, visit_category: val as 'field_operations' | 'marketing' | 'both' })}
+                  placeholder="Select Category"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type</label>
+                <SearchableSelect
+                  options={[
+                    { value: 'field_visit', label: 'Field Visit' },
+                    { value: 'store_check', label: 'Store Check' },
+                    { value: 'merchandising', label: 'Merchandising' },
+                    { value: 'delivery', label: 'Delivery' },
+                    { value: 'activation', label: 'Brand Activation' },
+                    { value: 'audit', label: 'Audit' },
+                  ]}
+                  value={formData.visit_type}
+                  onChange={(val: string) => setFormData({ ...formData, visit_type: val })}
+                  placeholder="Select Visit Type"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Default Duration (minutes)</label>
+              <input
+                type="number"
+                min={5}
+                max={480}
+                value={formData.default_duration_minutes}
+                onChange={e => setFormData({ ...formData, default_duration_minutes: parseInt(e.target.value) || 30 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
             <h3 className="text-sm font-medium text-gray-900 mb-3">Survey Configuration</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Survey</label>
-                <select
-                  value={formData.survey_id}
-                  onChange={e => setFormData({ ...formData, survey_id: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">No Survey</option>
-                  {surveys.map(survey => (
-                    <option key={survey.id} value={survey.id}>{survey.title}</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Survey Template</label>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'No Survey' },
+                    ...((surveys || []) as Array<{id: string; title: string}>).map((s: {id: string; title: string}) => ({ value: s.id, label: s.title }))
+                  ]}
+                  value={formData.survey_id || null}
+                  onChange={(val: string) => setFormData({ ...formData, survey_id: val })}
+                  placeholder="No Survey"
+                />
               </div>
               {formData.survey_id && (
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.survey_required}
-                    onChange={e => setFormData({ ...formData, survey_required: e.target.checked })}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-sm text-gray-700">Survey is mandatory</span>
-                </label>
+                <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="survey_mode"
+                        checked={formData.survey_required}
+                        onChange={() => setFormData({ ...formData, survey_required: true })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-900">Mandatory</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="survey_mode"
+                        checked={!formData.survey_required}
+                        onChange={() => setFormData({ ...formData, survey_required: false })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-900">Optional</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {formData.survey_required
+                      ? 'Agent must complete this survey before checking out of the visit.'
+                      : 'Agent can skip this survey during the visit.'}
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -482,16 +522,14 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Board</label>
-                    <select
-                      value={formData.board_id}
-                      onChange={e => setFormData({ ...formData, board_id: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    >
-                      <option value="">Any Board</option>
-                      {boards.map(board => (
-                        <option key={board.id} value={board.id}>{board.name}</option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'Any Board' },
+                        { value: 'board.id', label: '{board.name}' },
+                      ]}
+                      value={formData.board_id || null}
+                      placeholder="Any Board"
+                    />
                   </div>
                   <label className="flex items-center space-x-2">
                     <input

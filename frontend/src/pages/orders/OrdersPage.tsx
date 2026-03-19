@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ordersService, Order, OrderFilter } from '../../services/orders.service'
 import { formatCurrency, formatDate } from '../../utils/format'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function OrdersPage() {
   const navigate = useNavigate()
@@ -149,37 +150,39 @@ export default function OrdersPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Order Status
             </label>
-            <select
-              value={filter.status || ''}
-              onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined, page: 1 })}
-              className="input"
-            >
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="pending_approval">Pending Approval</option>
-              <option value="approved">Approved</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="delivered">Delivered</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'pending_approval', label: 'Pending Approval' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'processing', label: 'Processing' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'cancelled', label: 'Cancelled' },
+                { value: 'delivered', label: 'Delivered' },
+              ]}
+              value={filter.status || null}
+              onChange={(val) => setFilter({ ...filter, status: val || undefined, page: 1 })}
+              placeholder="Filter by status..."
+            />
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Payment Status
             </label>
-            <select
-              value={filter.payment_status || ''}
-              onChange={(e) => setFilter({ ...filter, payment_status: e.target.value || undefined, page: 1 })}
-              className="input"
-            >
-              <option value="">All Payment Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="paid">Paid</option>
-              <option value="failed">Failed</option>
-              <option value="refunded">Refunded</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Payment Statuses' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'paid', label: 'Paid' },
+                { value: 'failed', label: 'Failed' },
+                { value: 'refunded', label: 'Refunded' },
+              ]}
+              value={filter.payment_status || null}
+              onChange={(val) => setFilter({ ...filter, payment_status: val || undefined, page: 1 })}
+              placeholder="Filter by payment status..."
+            />
           </div>
           
           <div>

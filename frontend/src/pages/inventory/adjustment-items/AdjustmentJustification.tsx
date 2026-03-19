@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, FileText, User, Clock } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function AdjustmentJustification() {
   const { adjustmentId, itemId } = useParams<{ adjustmentId: string; itemId: string }>()
@@ -11,13 +12,8 @@ export default function AdjustmentJustification() {
   const { data: item, isLoading, isError } = useQuery({
     queryKey: ['adjustment-item', adjustmentId, itemId],
     queryFn: async () => {
-      const response = await fetch(`/api/adjustments/${adjustmentId}/items/${itemId}/justification`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/adjustments/${adjustmentId}/items/${itemId}/justification`)
+      const result = response.data
       return result.data
     },
   })

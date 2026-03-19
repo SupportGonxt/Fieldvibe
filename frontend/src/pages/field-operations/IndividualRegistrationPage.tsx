@@ -4,6 +4,7 @@ import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { UserPlus, Search, CheckCircle, XCircle, Phone, Mail, Hash, Building2, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function IndividualRegistrationPage() {
   const queryClient = useQueryClient()
@@ -122,10 +123,14 @@ export default function IndividualRegistrationPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label>
-              <select value={form.company_id} onChange={(e) => setForm({ ...form, company_id: e.target.value })} className="input w-full">
-                <option value="">Select Company</option>
-                {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'Select Company' },
+                  { value: 'c.id', label: '{c.name}' },
+                ]}
+                value={form.company_id || null}
+                placeholder="Select Company"
+              />
             </div>
             <div className="lg:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
@@ -163,15 +168,23 @@ export default function IndividualRegistrationPage() {
             className="input w-full pl-10"
           />
         </div>
-        <select value={filterConverted} onChange={(e) => setFilterConverted(e.target.value)} className="input">
-          <option value="">All Status</option>
-          <option value="1">Converted</option>
-          <option value="0">Not Converted</option>
-        </select>
-        <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)} className="input">
-          <option value="">All Companies</option>
-          {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <SearchableSelect
+          options={[
+            { value: '', label: 'All Status' },
+            { value: '1', label: 'Converted' },
+            { value: '0', label: 'Not Converted' },
+          ]}
+          value={filterConverted || null}
+          placeholder="All Status"
+        />
+        <SearchableSelect
+          options={[
+            { value: '', label: 'All Companies' },
+            { value: 'c.id', label: '{c.name}' },
+          ]}
+          value={filterCompany || null}
+          placeholder="All Companies"
+        />
       </div>
 
       {/* List */}

@@ -24,7 +24,7 @@ const VisitWorkflowPage: React.FC = () => {
 
   useEffect(() => {
     if (!customer || !gpsLocation) {
-      navigate('/field-marketing/customer-selection');
+      navigate('/customer-selection');
       return;
     }
     createVisit();
@@ -61,13 +61,13 @@ const VisitWorkflowPage: React.FC = () => {
   };
 
   const addBoardPlacement = () => {
-    navigate('/field-marketing/board-placement', {
+    navigate(`/field-operations/visits/${visit.id}/board-placement`, {
       state: { visit, customer, boards }
     });
   };
 
   const addProductDistribution = () => {
-    navigate('/field-marketing/product-distribution', {
+    navigate(`/field-operations/visits/${visit.id}/product-distribution`, {
       state: { visit, customer }
     });
   };
@@ -87,7 +87,7 @@ const VisitWorkflowPage: React.FC = () => {
       });
       
       toast.success('Visit completed successfully!');
-      navigate('/field-marketing');
+      navigate('/field-operations');
     } catch (error) {
       console.error('Failed to complete visit:', error);
       toast.error('Failed to complete visit. Please try again.');

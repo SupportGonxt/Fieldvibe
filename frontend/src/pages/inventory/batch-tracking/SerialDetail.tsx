@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Hash, Package, MapPin, User, Clock } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function SerialDetail() {
   const { serialId } = useParams<{ serialId: string }>()
@@ -11,13 +12,8 @@ export default function SerialDetail() {
   const { data: serial, isLoading, isError } = useQuery({
     queryKey: ['serial', serialId],
     queryFn: async () => {
-      const response = await fetch(`/api/serials/${serialId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/serials/${serialId}`)
+      const result = response.data
       return result.data
     },
   })

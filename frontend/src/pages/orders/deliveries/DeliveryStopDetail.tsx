@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin, Clock, Package, User } from 'lucide-react'
 import { ordersService } from '../../../services/orders.service'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function DeliveryStopDetail() {
   const { orderId, deliveryId, stopId } = useParams<{ orderId: string; deliveryId: string; stopId: string }>()
@@ -17,13 +18,8 @@ export default function DeliveryStopDetail() {
   const { data: stop, isLoading, isError } = useQuery({
     queryKey: ['delivery-stop', orderId, deliveryId, stopId],
     queryFn: async () => {
-      const response = await fetch(`/api/orders/${orderId}/deliveries/${deliveryId}/stops/${stopId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/orders/${orderId}/deliveries/${deliveryId}/stops/${stopId}`)
+      const result = response.data
       return result.data
     },
   })

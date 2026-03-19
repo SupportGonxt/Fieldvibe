@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { productsService } from '../../services/products.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Product {
   id: string
@@ -366,17 +367,18 @@ export default function ProductsPage() {
               <span>Filters</span>
             </button>
             
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'name', label: 'Sort by Name' },
+                { value: 'code', label: 'Sort by Code' },
+                { value: 'selling_price', label: 'Sort by Price' },
+                { value: 'total_stock', label: 'Sort by Stock' },
+                { value: 'created_at', label: 'Sort by Date' },
+              ]}
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="code">Sort by Code</option>
-              <option value="selling_price">Sort by Price</option>
-              <option value="total_stock">Sort by Stock</option>
-              <option value="created_at">Sort by Date</option>
-            </select>
+              onChange={(val) => setSortBy(val || 'name')}
+              placeholder="Sort by..."
+            />
             
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
@@ -393,58 +395,52 @@ export default function ProductsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[{ value: '', label: 'All Categories' }, ...categories.map(c => ({ value: c, label: c }))]}
+                  value={selectedCategory || null}
+                  onChange={(val) => setSelectedCategory(val || '')}
+                  placeholder="Filter by category..."
+                />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Brand</label>
-                <select
-                  value={selectedBrand}
-                  onChange={(e) => setSelectedBrand(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="">All Brands</option>
-                  {brands.map(brand => (
-                    <option key={brand} value={brand}>{brand}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[{ value: '', label: 'All Brands' }, ...brands.map(b => ({ value: b, label: b }))]}
+                  value={selectedBrand || null}
+                  onChange={(val) => setSelectedBrand(val || '')}
+                  placeholder="Filter by brand..."
+                />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="discontinued">Discontinued</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'All Status' },
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                    { value: 'discontinued', label: 'Discontinued' },
+                  ]}
+                  value={selectedStatus || null}
+                  onChange={(val) => setSelectedStatus(val || '')}
+                  placeholder="Filter by status..."
+                />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Stock Level</label>
-                <select
-                  value={stockFilter}
-                  onChange={(e) => setStockFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="">All Stock Levels</option>
-                  <option value="in">In Stock</option>
-                  <option value="low">Low Stock</option>
-                  <option value="out">Out of Stock</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'All Stock Levels' },
+                    { value: 'in', label: 'In Stock' },
+                    { value: 'low', label: 'Low Stock' },
+                    { value: 'out', label: 'Out of Stock' },
+                  ]}
+                  value={stockFilter || null}
+                  onChange={(val) => setStockFilter(val || '')}
+                  placeholder="Filter by stock level..."
+                />
               </div>
             </div>
           </div>

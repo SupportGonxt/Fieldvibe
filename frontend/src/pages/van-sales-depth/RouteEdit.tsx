@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import { vanSalesService } from '../../services/van-sales.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
+import { apiClient } from '../../services/api.service'
 interface RouteFormData {
   route_name: string
   agent_id: string
@@ -32,8 +33,8 @@ export default function RouteEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: RouteFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id }
+      const response = await apiClient.put(`/van-routes/${id}`, data)
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['route', id] })

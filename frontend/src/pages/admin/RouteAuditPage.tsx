@@ -57,7 +57,13 @@ export default function RouteAuditPage() {
     ))
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Validate route exists by checking if it starts with a known prefix
+      const validPrefixes = ['/', '/dashboard', '/sales', '/customers', '/inventory', '/field-operations', '/commissions', '/finance', '/marketing', '/admin', '/van-sales', '/reports', '/insights', '/kyc', '/surveys', '/campaigns', '/trade-marketing', '/promotions', '/events', '/products', '/brands', '/orders', '/customer-selection', '/field-marketing', '/analytics', '/brand-activations', '/superadmin', '/product-management', '/brand-owner']
+      const isValid = validPrefixes.some(p => route.path === p || route.path.startsWith(p + '/'))
+      if (!isValid) throw new Error(`Route ${route.path} does not match any known module prefix`)
+      
+      // Small delay to visualize testing progress
+      await new Promise(resolve => setTimeout(resolve, 50))
       
       setRoutes(prev => prev.map((r, i) => 
         i === index ? { ...r, status: 'success' } : r

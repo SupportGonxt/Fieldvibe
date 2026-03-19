@@ -3,7 +3,7 @@ import apiClient from './api'
 export const quotationsService = {
   async getQuotations(filter?: any) {
     try {
-      const response = await apiClient.get('/orders-enhanced/quotations', { params: filter })
+      const response = await apiClient.get('/quotations', { params: filter })
       return response.data
     } catch (error) {
       console.error('Error fetching quotations:', error)
@@ -13,7 +13,7 @@ export const quotationsService = {
 
   async getQuotationById(id: string) {
     try {
-      const response = await apiClient.get(`/orders-enhanced/quotations/${id}`)
+      const response = await apiClient.get(`/quotations/${id}`)
       return response.data
     } catch (error) {
       console.error('Error fetching quotation:', error)
@@ -23,7 +23,7 @@ export const quotationsService = {
 
   async createQuotation(data: any) {
     try {
-      const response = await apiClient.post('/orders-enhanced/quotations', data)
+      const response = await apiClient.post('/quotations', data)
       return response.data
     } catch (error) {
       console.error('Error creating quotation:', error)
@@ -33,7 +33,7 @@ export const quotationsService = {
 
   async updateQuotation(id: string, data: any) {
     try {
-      const response = await apiClient.put(`/orders-enhanced/quotations/${id}`, data)
+      const response = await apiClient.put(`/quotations/${id}`, data)
       return response.data
     } catch (error) {
       console.error('Error updating quotation:', error)
@@ -43,7 +43,7 @@ export const quotationsService = {
 
   async approveQuotation(id: string) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/quotations/${id}/approve`)
+      const response = await apiClient.post(`/quotations/${id}/approve`)
       return response.data
     } catch (error) {
       console.error('Error approving quotation:', error)
@@ -53,7 +53,7 @@ export const quotationsService = {
 
   async rejectQuotation(id: string, reason: string) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/quotations/${id}/reject`, { reason })
+      const response = await apiClient.post(`/quotations/${id}/reject`, { reason })
       return response.data
     } catch (error) {
       console.error('Error rejecting quotation:', error)
@@ -63,7 +63,7 @@ export const quotationsService = {
 
   async convertToOrder(id: string) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/quotations/${id}/convert`)
+      const response = await apiClient.post(`/quotations/${id}/convert`)
       return response.data
     } catch (error) {
       console.error('Error converting quotation to order:', error)

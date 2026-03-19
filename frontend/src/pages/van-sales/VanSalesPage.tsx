@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { useToast } from '../../components/ui/Toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface VanSalesMetrics {
   totalVans: number
@@ -381,15 +382,15 @@ export default function VanSalesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Status
                 </label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                    { value: 'maintenance', label: 'Maintenance' },
+                  ]}
                   value={newVanData.status}
-                  onChange={(e) => setNewVanData({ ...newVanData, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
+                  placeholder="Active"
+                />
               </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">

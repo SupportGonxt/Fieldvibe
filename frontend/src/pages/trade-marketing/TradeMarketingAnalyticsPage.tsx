@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tradeMarketingService } from '../../services/tradeMarketing.service'
 import { TrendingUp, DollarSign, Target, Users, Calendar, MapPin } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function TradeMarketingAnalyticsPage() {
   const [filter, setFilter] = useState({ period: 'month' })
@@ -22,12 +23,16 @@ export default function TradeMarketingAnalyticsPage() {
 
       <div className="bg-white rounded-lg shadow p-4">
         <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
-        <select value={filter.period} onChange={e => setFilter({...filter, period: e.target.value})} className="border border-gray-300 rounded-lg px-3 py-2">
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="quarter">This Quarter</option>
-          <option value="year">This Year</option>
-        </select>
+        <SearchableSelect
+          options={[
+            { value: 'week', label: 'This Week' },
+            { value: 'month', label: 'This Month' },
+            { value: 'quarter', label: 'This Quarter' },
+            { value: 'year', label: 'This Year' },
+          ]}
+          value={filter.period}
+          placeholder="This Week"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

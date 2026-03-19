@@ -31,7 +31,7 @@ export default function BoardPlacementDetail() {
   }
 
   const handleReverse = async () => {
-    if (!confirm('Are you sure you want to reverse this board placement? This will reverse the commission.')) {
+    if (!window.confirm('Are you sure you want to reverse this board placement? This will reverse the commission.')) {
       return
     }
 

@@ -3,7 +3,7 @@ import apiClient from './api'
 export const refundsService = {
   async getRefunds(filter?: any) {
     try {
-      const response = await apiClient.get('/orders-enhanced/refunds', { params: filter })
+      const response = await apiClient.get('/refunds', { params: filter })
       return response.data
     } catch (error) {
       console.error('Error fetching refunds:', error)
@@ -13,7 +13,7 @@ export const refundsService = {
 
   async getRefundById(id: string) {
     try {
-      const response = await apiClient.get(`/orders-enhanced/refunds/${id}`)
+      const response = await apiClient.get(`/refunds/${id}`)
       return response.data
     } catch (error) {
       console.error('Error fetching refund:', error)
@@ -23,7 +23,7 @@ export const refundsService = {
 
   async createRefund(data: any) {
     try {
-      const response = await apiClient.post('/orders-enhanced/refunds', data)
+      const response = await apiClient.post('/refunds', data)
       return response.data
     } catch (error) {
       console.error('Error creating refund:', error)
@@ -33,7 +33,7 @@ export const refundsService = {
 
   async processRefund(id: string, data: any) {
     try {
-      const response = await apiClient.post(`/orders-enhanced/refunds/${id}/process`, data)
+      const response = await apiClient.post(`/refunds/${id}/process`, data)
       return response.data
     } catch (error) {
       console.error('Error processing refund:', error)

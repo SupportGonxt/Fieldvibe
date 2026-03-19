@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Calculator, Calendar, Eye } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function CalculationLog() {
   const { agentId } = useParams<{ agentId: string }>()
@@ -11,13 +12,8 @@ export default function CalculationLog() {
   const { data: agent } = useQuery({
     queryKey: ['agent', agentId],
     queryFn: async () => {
-      const response = await fetch(`/api/agents/${agentId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/agents/${agentId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -25,14 +21,8 @@ export default function CalculationLog() {
   const { data: calculations, isLoading, isError } = useQuery({
     queryKey: ['commission-calculations', agentId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/calculations?agent_id=${agentId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/commissions/calculations?agent_id=${agentId}`)
+      return response.data.data || []
     },
   })
 

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface PaymentFormData {
   invoice_id: string
   amount: number
@@ -26,8 +27,8 @@ export default function PaymentCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: PaymentFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: 'new-payment-id' }
+      const response = await apiClient.post('/payments', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['payments'] })

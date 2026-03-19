@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, TrendingDown, Clock } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BatchMovementHistory() {
   const { batchId } = useParams<{ batchId: string }>()
@@ -9,13 +10,8 @@ export default function BatchMovementHistory() {
   const { data: batch } = useQuery({
     queryKey: ['batch', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/batches/${batchId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -23,14 +19,8 @@ export default function BatchMovementHistory() {
   const { data: movements, isLoading, isError } = useQuery({
     queryKey: ['batch-movements', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/batches/${batchId}/movements`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/batches/${batchId}/movements`)
+      return response.data.data || []
     },
   })
 

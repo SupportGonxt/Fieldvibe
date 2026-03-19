@@ -25,6 +25,7 @@ import { formatDate, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { DataTable } from '../../components/ui/tables/DataTable'
 import toast from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function KYCManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -475,34 +476,34 @@ export default function KYCManagement() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
-              <select
-                className="input"
-                value={filter.status || ''}
-                onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="under_review">Under Review</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="requires_update">Requires Update</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'under_review', label: 'Under Review' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'rejected', label: 'Rejected' },
+                  { value: 'requires_update', label: 'Requires Update' },
+                ]}
+                value={filter.status || '' || null}
+                placeholder="All Statuses"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Risk Level
               </label>
-              <select
-                className="input"
-                value={filter.risk_level || ''}
-                onChange={(e) => setFilter({ ...filter, risk_level: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Risk Levels</option>
-                <option value="low">Low Risk</option>
-                <option value="medium">Medium Risk</option>
-                <option value="high">High Risk</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Risk Levels' },
+                  { value: 'low', label: 'Low Risk' },
+                  { value: 'medium', label: 'Medium Risk' },
+                  { value: 'high', label: 'High Risk' },
+                ]}
+                value={filter.risk_level || '' || null}
+                placeholder="All Risk Levels"
+              />
             </div>
 
             <div>

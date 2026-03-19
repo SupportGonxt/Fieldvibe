@@ -26,7 +26,7 @@ export const RoleManagementPage: React.FC = () => {
     queryKey: ['roles'],
     queryFn: async () => {
       try {
-        const response = await apiClient.get('/api/roles')
+        const response = await apiClient.get('/rbac/roles')
         return response.data?.data || response.data || DEFAULT_ROLES
       } catch {
         return DEFAULT_ROLES

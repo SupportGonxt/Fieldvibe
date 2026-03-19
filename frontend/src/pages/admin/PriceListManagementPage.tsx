@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { pricingService, PriceList } from '../../services/pricing.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { useToast } from '../../components/ui/Toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function PriceListManagementPage() {
   const { toast } = useToast()
@@ -34,7 +35,7 @@ export default function PriceListManagementPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this price list?')) return
+    if (!window.confirm('Are you sure you want to delete this price list?')) return
     
     try {
       await pricingService.deletePriceList(id)
@@ -91,15 +92,15 @@ export default function PriceListManagementPage() {
             className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
-        <select
+        <SearchableSelect
+          options={[
+            { value: 'all', label: 'All Status' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
+          ]}
           value={filterActive === undefined ? 'all' : filterActive ? 'active' : 'inactive'}
-          onChange={(e) => setFilterActive(e.target.value === 'all' ? undefined : e.target.value === 'active')}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+          placeholder="All Status"
+        />
       </div>
 
       <div className="bg-white shadow-md rounded-lg overflow-hidden">

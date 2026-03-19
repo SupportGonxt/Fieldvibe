@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface InvoiceFormData {
   customer_id: string
   issue_date: string
@@ -25,8 +26,8 @@ export default function InvoiceCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: 'new-invoice-id' }
+      const response = await apiClient.post('/finance/invoices', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })

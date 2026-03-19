@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface CommissionFormData {
   agent_id: string
   period: string
@@ -27,8 +28,8 @@ export default function CommissionCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CommissionFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: 'new-commission-id' }
+      const response = await apiClient.post('/commissions', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['commissions'] })

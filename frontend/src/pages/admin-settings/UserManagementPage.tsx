@@ -4,6 +4,7 @@ import { usersService } from '../../services/users.service'
 import teamHierarchyService from '../../services/teamHierarchy.service'
 import TeamLeaderSelector from '../../components/team/TeamLeaderSelector'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface User {
   id: string
@@ -203,27 +204,27 @@ export const UserManagementPage: React.FC = () => {
             />
           </div>
           <div className="flex gap-2">
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Roles' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'manager', label: 'Manager' },
+                { value: 'agent', label: 'Agent' },
+                { value: 'user', label: 'User' },
+              ]}
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="agent">Agent</option>
-              <option value="user">User</option>
-            </select>
-            <select
+              placeholder="All Roles"
+            />
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+                { value: 'suspended', label: 'Suspended' },
+              ]}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
+              placeholder="All Status"
+            />
           </div>
         </div>
       </div>

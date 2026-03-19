@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import { financeService } from '../../services/finance.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
+import { apiClient } from '../../services/api.service'
 interface InvoiceFormData {
   issue_date: string
   due_date: string
@@ -30,8 +31,8 @@ export default function InvoiceEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id }
+      const response = await apiClient.put(`/finance/invoices/${id}`, data)
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] })

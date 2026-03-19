@@ -4,6 +4,7 @@ import { ArrowLeft, Calculator, DollarSign, TrendingUp } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function CalculationDetail() {
   const { calculationId } = useParams<{ calculationId: string }>()
@@ -12,13 +13,8 @@ export default function CalculationDetail() {
   const { data: calculation, isLoading, isError } = useQuery({
     queryKey: ['commission-calculation', calculationId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/calculations/${calculationId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/calculations/${calculationId}`)
+      const result = response.data
       return result.data
     },
     placeholderData: {

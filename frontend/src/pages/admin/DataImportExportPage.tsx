@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Upload, Download, FileText, AlertCircle, Check, X, RefreshCw, Database, FileSpreadsheet, ChevronRight, Loader } from 'lucide-react'
 import { useToast } from '../../components/ui/Toast'
+import { apiClient } from '../../services/api.service'
 
 interface ImportHistory {
   id: string
@@ -84,79 +85,55 @@ export default function DataImportExportPage() {
   const [exporting, setExporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
 
-  const [importHistory] = useState<ImportHistory[]>([
-    {
-      id: '1',
-      type: 'customers',
-      fileName: 'customers_2024_01.csv',
-      records: 250,
-      status: 'success',
-      errors: 0,
-      date: '2024-10-20 14:30',
-      user: 'Admin User'
-    },
-    {
-      id: '2',
-      type: 'products',
-      fileName: 'products_catalog.xlsx',
-      records: 450,
-      status: 'partial',
-      errors: 12,
-      date: '2024-10-19 10:15',
-      user: 'Admin User'
-    },
-    {
-      id: '3',
-      type: 'orders',
-      fileName: 'orders_q3_2024.csv',
-      records: 1250,
-      status: 'success',
-      errors: 0,
-      date: '2024-10-15 09:00',
-      user: 'System Admin'
-    },
-    {
-      id: '4',
-      type: 'agents',
-      fileName: 'field_agents.csv',
-      records: 45,
-      status: 'failed',
-      errors: 45,
-      date: '2024-10-10 16:45',
-      user: 'Admin User'
-    }
-  ])
+  const [importHistory, setImportHistory] = useState<ImportHistory[]>([])
+  const [exportJobs, setExportJobs] = useState<ExportJob[]>([])
 
-  const [exportJobs] = useState<ExportJob[]>([
-    {
-      id: '1',
-      type: 'customers',
-      format: 'xlsx',
-      status: 'completed',
-      progress: 100,
-      fileSize: '2.5 MB',
-      downloadUrl: '/exports/customers_2024.xlsx',
-      createdAt: '2024-10-22 10:30'
-    },
-    {
-      id: '2',
-      type: 'orders',
-      format: 'csv',
-      status: 'processing',
-      progress: 67,
-      createdAt: '2024-10-22 14:15'
-    },
-    {
-      id: '3',
-      type: 'products',
-      format: 'json',
-      status: 'completed',
-      progress: 100,
-      fileSize: '3.8 MB',
-      downloadUrl: '/exports/products_catalog.json',
-      createdAt: '2024-10-21 16:00'
+  useEffect(() => {
+    loadImportHistory()
+    loadExportJobs()
+  }, [])
+
+  const loadImportHistory = async () => {
+    try {
+      const res = await apiClient.get('/data-import/history')
+      const items = res.data?.data || res.data || []
+      if (Array.isArray(items) && items.length > 0) {
+        setImportHistory(items.map((h: any) => ({
+          id: h.id || String(Math.random()),
+          type: h.type || 'customers',
+          fileName: h.file_name || h.fileName || 'unknown',
+          records: h.records || 0,
+          status: h.status || 'success',
+          errors: h.errors || 0,
+          date: h.created_at || h.date || '',
+          user: h.user || 'System'
+        })))
+      }
+    } catch {
+      // API may not have import history endpoint yet - leave empty
     }
-  ])
+  }
+
+  const loadExportJobs = async () => {
+    try {
+      const res = await apiClient.get('/data-export/jobs')
+      const items = res.data?.data || res.data || []
+      if (Array.isArray(items) && items.length > 0) {
+        setExportJobs(items.map((j: any) => ({
+          id: j.id || String(Math.random()),
+          type: j.type || 'customers',
+          format: j.format || 'csv',
+          status: j.status || 'completed',
+          progress: j.progress || 100,
+          fileSize: j.file_size || j.fileSize,
+          downloadUrl: j.download_url || j.downloadUrl,
+          createdAt: j.created_at || j.createdAt || ''
+        })))
+      }
+    } catch {
+      // API may not have export jobs endpoint yet - leave empty
+    }
+  }
 
   const selectedDataType = DATA_TYPES.find(t => t.id === selectedType)
 
@@ -184,31 +161,102 @@ export default function DataImportExportPage() {
     setImporting(true)
     setImportProgress(0)
 
-    // Simulate import progress
-    const interval = setInterval(() => {
-      setImportProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setTimeout(() => {
-            setImporting(false)
-            setUploadedFile(null)
-            toast.success(`Successfully imported data from ${uploadedFile.name}`)
-          }, 500)
-          return 100
-        }
-        return prev + 10
+    let progressInterval: ReturnType<typeof setInterval>
+
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadedFile)
+      formData.append('type', selectedType)
+
+      // Show progress while uploading
+      progressInterval = setInterval(() => {
+        setImportProgress(prev => Math.min(prev + 15, 90))
+      }, 300)
+
+      const res = await apiClient.post(`/data-import/${selectedType}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       })
-    }, 300)
+
+      clearInterval(progressInterval)
+      setImportProgress(100)
+
+      const result = res.data?.data || res.data
+      const recordCount = result?.records || result?.count || 0
+
+      setTimeout(() => {
+        setImporting(false)
+        setUploadedFile(null)
+        setImportProgress(0)
+        toast.success(`Successfully imported ${recordCount} records from ${uploadedFile.name}`)
+        loadImportHistory()
+      }, 500)
+    } catch {
+      clearInterval(progressInterval)
+      setImportProgress(0)
+      setTimeout(() => {
+        setImporting(false)
+        setImportProgress(0)
+        toast.error(`Failed to import ${uploadedFile.name}. Please try again.`)
+      }, 500)
+    }
   }
 
   const handleExport = async (format: 'csv' | 'xlsx' | 'json') => {
     setExporting(true)
     
-    // Simulate export
-    setTimeout(() => {
+    try {
+      const res = await apiClient.get(`/${selectedType}?format=${format}&export=true`)
+      const data = res.data?.data || res.data || []
+      
+      // Convert to CSV/JSON and download
+      let content: string
+      let mimeType: string
+      let ext: string
+      
+      if (format === 'json') {
+        content = JSON.stringify(data, null, 2)
+        mimeType = 'application/json'
+        ext = 'json'
+      } else if (format === 'csv') {
+        if (Array.isArray(data) && data.length > 0) {
+          const headers = Object.keys(data[0])
+          const rows = data.map((row: any) => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+          content = [headers.join(','), ...rows].join('\n')
+        } else {
+          content = 'No data available'
+        }
+        mimeType = 'text/csv'
+        ext = 'csv'
+      } else {
+        // XLSX not supported natively - export as CSV with .xlsx extension note
+        if (Array.isArray(data) && data.length > 0) {
+          const headers = Object.keys(data[0])
+          const rows = data.map((row: any) => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+          content = [headers.join(','), ...rows].join('\n')
+        } else {
+          content = 'No data available'
+        }
+        mimeType = 'text/csv'
+        ext = 'csv'
+      }
+      
+      const blob = new Blob([content], { type: mimeType })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedType}_export_${new Date().toISOString().split('T')[0]}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      
+      toast.success(`${selectedType} data exported as ${format.toUpperCase()}`)
+      loadExportJobs()
+    } catch {
+      toast.error(`Failed to export ${selectedType} data as ${format.toUpperCase()}. Please try again.`)
+    } finally {
       setExporting(false)
-      toast.success(`Export started! You'll be notified when the ${format.toUpperCase()} file is ready.`)
-    }, 1500)
+    }
   }
 
   const downloadTemplate = (type: string) => {

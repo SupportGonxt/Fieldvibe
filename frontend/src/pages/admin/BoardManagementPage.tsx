@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface Board { id: number; name: string; type: string; width: number; height: number; commissionRate: number; installCost: number; }
 
@@ -12,31 +14,27 @@ const BoardManagementPage: React.FC = () => {
 
   const loadBoards = async () => {
     try {
-      const res = await fetch('/api/admin/boards', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setBoards((await res.json()).boards || []);
+      const res = await apiClient.get('/admin/boards');
+      setBoards(res.data.boards || []);
     } catch (err) { console.error(err); }
   };
 
   const saveBoard = async () => {
     try {
-      const url = editing ? `/api/admin/boards/${editing}` : '/api/admin/boards';
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadBoards(); setEditing(null); setForm({}); }
+      if (editing) {
+        await apiClient.put(`/admin/boards/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/boards', form);
+      }
+      loadBoards(); setEditing(null); setForm({});
     } catch (err) { console.error(err); }
   };
 
   const deleteBoard = async (id: number) => {
-    if (!confirm('Delete this board?')) return;
+    if (!window.confirm('Delete this board?')) return;
     try {
-      const res = await fetch(`/api/admin/boards/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadBoards();
+      const res = await apiClient.delete(`/admin/boards/${id}`);
+      loadBoards();
     } catch (err) { console.error(err); }
   };
 
@@ -54,12 +52,16 @@ const BoardManagementPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4">{editing ? 'Edit Board' : 'New Board'}</h2>
           <div className="grid grid-cols-2 gap-4">
             <input placeholder="Board Name" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="px-4 py-2 border rounded" />
-            <select value={form.type || ''} onChange={e => setForm({...form, type: e.target.value})} className="px-4 py-2 border rounded">
-              <option value="">Select Type</option>
-              <option value="billboard">Billboard</option>
-              <option value="standee">Standee</option>
-              <option value="banner">Banner</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'Select Type' },
+                { value: 'billboard', label: 'Billboard' },
+                { value: 'standee', label: 'Standee' },
+                { value: 'banner', label: 'Banner' },
+              ]}
+              value={form.type || '' || null}
+              placeholder="Select Type"
+            />
             <input type="number" placeholder="Width (cm)" value={form.width || ''} onChange={e => setForm({...form, width: +e.target.value})} className="px-4 py-2 border rounded" />
             <input type="number" placeholder="Height (cm)" value={form.height || ''} onChange={e => setForm({...form, height: +e.target.value})} className="px-4 py-2 border rounded" />
             <input type="number" placeholder="Commission (₹)" value={form.commissionRate || ''} onChange={e => setForm({...form, commissionRate: +e.target.value})} className="px-4 py-2 border rounded" />

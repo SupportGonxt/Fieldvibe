@@ -4,6 +4,7 @@ import { ArrowLeft, TrendingUp, Clock, DollarSign, Package } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function RouteStopPerformance() {
   const { routeId } = useParams<{ routeId: string }>()
@@ -12,13 +13,8 @@ export default function RouteStopPerformance() {
   const { data: route } = useQuery({
     queryKey: ['route', routeId],
     queryFn: async () => {
-      const response = await fetch(`/api/routes/${routeId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/routes/${routeId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -26,13 +22,8 @@ export default function RouteStopPerformance() {
   const { data: performance, isLoading, isError } = useQuery({
     queryKey: ['route-performance', routeId],
     queryFn: async () => {
-      const response = await fetch(`/api/routes/${routeId}/performance`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/routes/${routeId}/performance`)
+      const result = response.data
       return result.data
     },
   })

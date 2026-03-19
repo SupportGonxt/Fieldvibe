@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditService } from '../../services/audit.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface AuditLog {
   id: string
@@ -181,35 +182,35 @@ export const AuditLogsPage: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Actions' },
+                { value: 'create', label: 'Create' },
+                { value: 'update', label: 'Update' },
+                { value: 'delete', label: 'Delete' },
+                { value: 'view', label: 'View' },
+                { value: 'login', label: 'Login' },
+                { value: 'logout', label: 'Logout' },
+                { value: 'export', label: 'Export' },
+              ]}
               value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="all">All Actions</option>
-              <option value="create">Create</option>
-              <option value="update">Update</option>
-              <option value="delete">Delete</option>
-              <option value="view">View</option>
-              <option value="login">Login</option>
-              <option value="logout">Logout</option>
-              <option value="export">Export</option>
-            </select>
+              placeholder="All Actions"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'all', label: 'All Types' },
+                { value: 'user', label: 'User' },
+                { value: 'customer', label: 'Customer' },
+                { value: 'order', label: 'Order' },
+                { value: 'product', label: 'Product' },
+                { value: 'setting', label: 'Setting' },
+              ]}
               value={entityFilter}
-              onChange={(e) => setEntityFilter(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="all">All Types</option>
-              <option value="user">User</option>
-              <option value="customer">Customer</option>
-              <option value="order">Order</option>
-              <option value="product">Product</option>
-              <option value="setting">Setting</option>
-            </select>
+              placeholder="All Types"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>

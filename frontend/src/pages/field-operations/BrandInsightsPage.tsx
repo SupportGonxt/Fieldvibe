@@ -18,6 +18,7 @@ import {
   Line,
   Legend
 } from 'recharts'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6']
 
@@ -72,14 +73,14 @@ export default function BrandInsightsPage() {
           <p className="text-gray-600 dark:text-gray-400">Performance analytics per brand/company</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={selectedCompany}
-            onChange={(e) => setSelectedCompany(e.target.value)}
-            className="input text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <SearchableSelect
+            options={[
+              { value: '', label: 'All Companies' },
+              { value: 'c.id', label: '{c.name}' },
+            ]}
+            value={selectedCompany || null}
+            placeholder="All Companies"
+          />
           <Calendar className="w-4 h-4 text-gray-500" />
           <input type="date" value={dateRange.start_date} onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })} className="input text-sm" />
           <span className="text-gray-500">to</span>

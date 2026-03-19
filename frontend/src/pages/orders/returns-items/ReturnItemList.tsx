@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, Edit } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
+import { apiClient } from '../../../services/api.service'
 
 export default function ReturnItemList() {
   const { returnId } = useParams<{ returnId: string }>()
@@ -10,13 +11,8 @@ export default function ReturnItemList() {
   const { data: returnOrder } = useQuery({
     queryKey: ['return', returnId],
     queryFn: async () => {
-      const response = await fetch(`/api/returns/${returnId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/returns/${returnId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +20,8 @@ export default function ReturnItemList() {
   const { data: items = [], isLoading, isError } = useQuery({
     queryKey: ['return-items', returnId],
     queryFn: async () => {
-      const response = await fetch(`/api/returns/${returnId}/items`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/returns/${returnId}/items`)
+      return response.data.data || []
     },
   })
 

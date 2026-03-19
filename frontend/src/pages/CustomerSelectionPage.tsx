@@ -96,7 +96,7 @@ const CustomerSelectionPage: React.FC = () => {
   const startVisit = (customer: any) => {
     if (!currentLocation) return;
     
-    navigate('/field-marketing/visit-workflow', {
+    navigate('/field-operations/visit-workflow', {
       state: {
         customer,
         location: currentLocation

@@ -375,7 +375,39 @@
   }
 }
 
-/* ==================== Dark Mode Overrides (Section 6) ==================== */
+/* ==================== Light Mode Text Contrast Fixes ==================== */
+/* Fix unreadable light grey text on white backgrounds */
+/* Use :not(.dark) to avoid circular @apply and ensure light-mode-only override */
+html:not(.dark) [class~="text-gray-300"] {
+  color: #6B7280 !important;
+}
+
+html:not(.dark) [class~="text-gray-400"] {
+  color: #6B7280 !important;
+}
+
+/* Ensure form inputs have readable text in light mode */
+input, select, textarea {
+  color: #111827;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9CA3AF;
+}
+
+/* Ensure all input fields have solid dark text */
+.border-gray-300 input,
+.border-gray-200 input,
+input.border-gray-300,
+input.border-gray-200,
+textarea.border-gray-300,
+textarea.border-gray-200,
+select.border-gray-300,
+select.border-gray-200 {
+  color: #111827;
+}
+
+/* ==================== Dark Mode Overrides ==================== */
 .dark {
   color-scheme: dark;
 }
@@ -414,25 +446,47 @@
   border-color: #2A3244;
 }
 
-/* Text overrides */
-.dark .text-gray-900 {
+/* Text overrides for dark mode */
+html.dark [class~="text-gray-900"] {
   color: #EEF2FA;
 }
 
-.dark .text-gray-800 {
+html.dark [class~="text-gray-800"] {
   color: #D8DEE9;
 }
 
-.dark .text-gray-700 {
+html.dark [class~="text-gray-700"] {
   color: #C8D4E8;
 }
 
-.dark .text-gray-600 {
-  color: #9CA3AF;
+html.dark [class~="text-gray-600"] {
+  color: #A0AABE;
 }
 
-.dark .text-gray-500 {
-  color: #6B7280;
+html.dark [class~="text-gray-500"] {
+  color: #8B95A8;
+}
+
+html.dark [class~="text-gray-400"] {
+  color: #7B8699;
+}
+
+html.dark [class~="text-gray-300"] {
+  color: #6B7689;
+}
+
+/* Dark mode placeholder text */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #5A6270;
+}
+
+/* Dark mode input text */
+.dark input, .dark select, .dark textarea {
+  color-scheme: dark;
+  color: #EEF2FA;
+  background-color: #0F1420;
+  border-color: #2A3244;
 }
 
 /* Divide overrides */
@@ -457,7 +511,7 @@
   background-color: #1A1F2E;
 }
 
-/* Shadow overrides - darken shadows */
+/* Shadow overrides */
 .dark .shadow-md {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
 }
@@ -480,10 +534,6 @@
 }
 
 /* Form input overrides */
-.dark input, .dark select, .dark textarea {
-  color-scheme: dark;
-}
-
 .dark .form-input {
   background-color: #0F1420;
   border-color: #2A3244;
@@ -496,6 +546,89 @@
 
 .dark .form-input::placeholder {
   color: #5A6270;
+}
+
+/* Dark mode card/panel backgrounds */
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.dark .bg-yellow-50 {
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.dark .bg-purple-50 {
+  background-color: rgba(139, 92, 246, 0.1);
+}
+
+.dark .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+.dark .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.1);
+}
+
+.dark .bg-pink-50 {
+  background-color: rgba(236, 72, 153, 0.1);
+}
+
+/* Dark mode colored badges */
+.dark .bg-green-100 {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.dark .bg-yellow-100 {
+  background-color: rgba(245, 158, 11, 0.15);
+}
+
+.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+.dark .bg-purple-100 {
+  background-color: rgba(139, 92, 246, 0.15);
+}
+
+.dark .bg-indigo-100 {
+  background-color: rgba(99, 102, 241, 0.15);
+}
+
+/* Dark mode colored text */
+.dark .text-green-800 {
+  color: #34D399;
+}
+
+.dark .text-blue-800 {
+  color: #60A5FA;
+}
+
+.dark .text-yellow-800 {
+  color: #FBBF24;
+}
+
+.dark .text-red-800 {
+  color: #F87171;
+}
+
+.dark .text-purple-800 {
+  color: #A78BFA;
+}
+
+.dark .text-indigo-800 {
+  color: #818CF8;
 }
 
 /* MUI component overrides */
@@ -528,7 +661,43 @@
 }
 
 .dark .MuiSelect-icon {
-  color: #6B7280 !important;
+  color: #8B95A8 !important;
+}
+
+.dark .MuiInputLabel-root {
+  color: #8B95A8 !important;
+}
+
+.dark .MuiFormHelperText-root {
+  color: #6B7689 !important;
+}
+
+.dark .MuiDialog-paper {
+  background-color: #1A1F2E !important;
+}
+
+.dark .MuiDialogTitle-root {
+  color: #EEF2FA !important;
+}
+
+.dark .MuiDialogContentText-root {
+  color: #C8D4E8 !important;
+}
+
+.dark .MuiChip-root {
+  border-color: #2A3244 !important;
+}
+
+.dark .MuiSwitch-track {
+  background-color: #2A3244 !important;
+}
+
+.dark .MuiTab-root {
+  color: #8B95A8 !important;
+}
+
+.dark .MuiTab-root.Mui-selected {
+  color: #60A5FA !important;
 }
 
 /* Recharts overrides */

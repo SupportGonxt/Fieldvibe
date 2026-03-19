@@ -3,6 +3,7 @@ import { TrendingUp, TrendingDown, Users, Package, DollarSign, Activity } from '
 import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { apiClient } from '../../services/api.service'
 
 const AnalyticsDashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<any>({});
@@ -12,8 +13,8 @@ const AnalyticsDashboardPage: React.FC = () => {
 
   const loadMetrics = async () => {
     try {
-      const res = await fetch('/api/reports/analytics', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setMetrics(await res.json());
+      const res = await apiClient.get('/reports/analytics');
+      setMetrics(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };

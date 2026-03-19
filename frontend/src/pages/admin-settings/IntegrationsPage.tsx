@@ -30,7 +30,7 @@ export const IntegrationsPage: React.FC = () => {
     queryKey: ['integrations'],
     queryFn: async () => {
       try {
-        const response = await apiClient.get('/api/admin/integrations')
+        const response = await apiClient.get('/admin/integrations')
         return response.data?.data || response.data || DEFAULT_INTEGRATIONS
       } catch {
         return DEFAULT_INTEGRATIONS

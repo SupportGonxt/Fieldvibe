@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Search, Filter, Download, Eye, Calendar, User, Activity, FileText, RefreshCw } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 
 interface AuditLog {
@@ -214,43 +215,43 @@ export default function AuditLogsPage() {
             />
           </div>
 
-          <select
+          <SearchableSelect
+            options={[
+              { value: 'all', label: 'All Actions' },
+              { value: 'CREATE', label: 'Create' },
+              { value: 'UPDATE', label: 'Update' },
+              { value: 'DELETE', label: 'Delete' },
+              { value: 'LOGIN', label: 'Login' },
+              { value: 'LOGOUT', label: 'Logout' },
+            ]}
             value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Actions</option>
-            <option value="CREATE">Create</option>
-            <option value="UPDATE">Update</option>
-            <option value="DELETE">Delete</option>
-            <option value="LOGIN">Login</option>
-            <option value="LOGOUT">Logout</option>
-          </select>
+            placeholder="All Actions"
+          />
 
-          <select
+          <SearchableSelect
+            options={[
+              { value: 'all', label: 'All Entities' },
+              { value: 'User', label: 'Users' },
+              { value: 'Customer', label: 'Customers' },
+              { value: 'Order', label: 'Orders' },
+              { value: 'Product', label: 'Products' },
+              { value: 'Auth', label: 'Authentication' },
+            ]}
             value={filterEntity}
-            onChange={(e) => setFilterEntity(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Entities</option>
-            <option value="User">Users</option>
-            <option value="Customer">Customers</option>
-            <option value="Order">Orders</option>
-            <option value="Product">Products</option>
-            <option value="Auth">Authentication</option>
-          </select>
+            placeholder="All Entities"
+          />
 
-          <select
+          <SearchableSelect
+            options={[
+              { value: 'today', label: 'Today' },
+              { value: '7days', label: 'Last 7 Days' },
+              { value: '30days', label: 'Last 30 Days' },
+              { value: '90days', label: 'Last 90 Days' },
+              { value: 'all', label: 'All Time' },
+            ]}
             value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="today">Today</option>
-            <option value="7days">Last 7 Days</option>
-            <option value="30days">Last 30 Days</option>
-            <option value="90days">Last 90 Days</option>
-            <option value="all">All Time</option>
-          </select>
+            placeholder="Today"
+          />
         </div>
       </div>
 

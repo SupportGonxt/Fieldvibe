@@ -37,7 +37,7 @@ export interface Activation {
 }
 
 class TradeMarketingService {
-  private readonly baseUrl = '/field-marketing'
+  private readonly baseUrl = '/trade-marketing'
 
   async getCampaigns(filter?: any): Promise<{ data: Campaign[], total: number }> {
     try {
@@ -173,6 +173,93 @@ class TradeMarketingService {
       return response.data.data
     } catch (error) {
       console.error('Failed to fetch trade marketing analytics:', error)
+      throw error
+    }
+  }
+
+  // Visit management (called by trade marketing visit pages)
+  async getVisits(filter?: any): Promise<{ data: any[], total: number }> {
+    try {
+      const response = await apiClient.get('/visits', { params: filter })
+      return { data: response.data.data || [], total: response.data.total || 0 }
+    } catch (error) {
+      console.error('Failed to fetch visits:', error)
+      throw error
+    }
+  }
+
+  // SKU Availability (called by SKUAvailability pages)
+  async createSKUAvailability(data: any): Promise<any> {
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/sku-availability`, data)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to create SKU availability:', error)
+      throw error
+    }
+  }
+
+  // Shelf Analytics (called by ShelfAnalytics pages)
+  async createShelfAnalytics(data: any): Promise<any> {
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/shelf-analytics`, data)
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to create shelf analytics:', error)
+      throw error
+    }
+  }
+
+  // Analytics summary (called by TradeMarketingDashboard)
+  async getAnalyticsSummary(filter?: any): Promise<any> {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/stats`, { params: filter })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch analytics summary:', error)
+      throw error
+    }
+  }
+
+  // Brand owner dashboard and reports (called by BrandOwner pages)
+  async getBrandOwnerDashboard(params?: any): Promise<any> {
+    try {
+      const response = await apiClient.get('/brand-owner/dashboard', { params })
+      return response.data.data || response.data
+    } catch (error) {
+      console.error('Failed to fetch brand owner dashboard:', error)
+      throw error
+    }
+  }
+
+  async getBrandOwnerReports(params?: any): Promise<any> {
+    try {
+      const response = await apiClient.get('/brand-owner/reports', { params })
+      return response.data.data || response.data
+    } catch (error) {
+      console.error('Failed to fetch brand owner reports:', error)
+      throw error
+    }
+  }
+
+  // Competitor insights (called by CompetitorInsights pages)
+  async getCompetitorInsights(params?: any): Promise<any> {
+    try {
+      const response = await apiClient.get('/insights/competitors', { params })
+      return response.data.data || response.data
+    } catch (error) {
+      console.error('Failed to fetch competitor insights:', error)
+      throw error
+    }
+  }
+
+  // Share of voice (called by ShareOfVoice pages)
+  async getShareOfVoice(params?: any): Promise<any> {
+    try {
+      const response = await apiClient.get('/insights/share-of-voice', { params })
+      return response.data.data || response.data
+    } catch (error) {
+      console.error('Failed to fetch share of voice:', error)
       throw error
     }
   }

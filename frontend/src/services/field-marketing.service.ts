@@ -551,6 +551,35 @@ class FieldMarketingService {
     const response = await this.api.post<{ url: string }>('/upload-photo', formData)
     return response.data.url
   }
+
+  // Board placement alias (called by BoardPlacementCreate page)
+  async createBoardPlacement(data: Partial<BoardInstallation>) {
+    return this.createBoardInstallation(data)
+  }
+
+  // Visit management (called by field marketing visit pages)
+  async getVisits(params?: any) {
+    return this.api.get('/visits', { params })
+  }
+
+  async createVisit(data: any) {
+    return this.api.post('/visits', data)
+  }
+
+  // Customer search (called by field marketing pages)
+  async searchCustomers(query: string) {
+    return this.api.get('/customers', { params: { search: query } })
+  }
+
+  // GPS validation (called by field marketing GPS pages)
+  async validateGPS(data: { latitude: number; longitude: number; accuracy?: number }) {
+    return this.verifyCustomerLocation({
+      customer_id: '',
+      current_latitude: data.latitude,
+      current_longitude: data.longitude,
+      current_accuracy: data.accuracy,
+    })
+  }
 }
 
 export const fieldMarketingService = new FieldMarketingService()

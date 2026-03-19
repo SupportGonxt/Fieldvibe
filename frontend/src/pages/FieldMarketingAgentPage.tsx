@@ -46,7 +46,7 @@ const FieldMarketingAgentPage: React.FC = () => {
   };
 
   const startNewVisit = () => {
-    navigate('/field-marketing/customer-selection');
+    navigate('/customer-selection');
   };
 
   return (
@@ -89,7 +89,7 @@ const FieldMarketingAgentPage: React.FC = () => {
           </button>
           
           <button
-            onClick={() => navigate('/field-marketing/visits')}
+            onClick={() => navigate('/field-operations/visits/list')}
             className="bg-green-600 text-white p-6 rounded-lg shadow-lg hover:bg-green-700 transition"
           >
             <div className="text-lg font-bold mb-2">📋 My Visits</div>
@@ -97,7 +97,7 @@ const FieldMarketingAgentPage: React.FC = () => {
           </button>
           
           <button
-            onClick={() => navigate('/field-marketing/commissions')}
+            onClick={() => navigate('/commissions')}
             className="bg-purple-600 text-white p-6 rounded-lg shadow-lg hover:bg-purple-700 transition"
           >
             <div className="text-lg font-bold mb-2">💰 Commissions</div>
@@ -123,7 +123,7 @@ const FieldMarketingAgentPage: React.FC = () => {
                   <div 
                     key={visit.id}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-surface-secondary cursor-pointer"
-                    onClick={() => navigate(`/field-marketing/visits/${visit.id}`)}
+                    onClick={() => navigate(`/field-operations/visits/${visit.id}`)}
                   >
                     <div className="flex-1">
                       <div className="font-medium">{visit.customer_name}</div>

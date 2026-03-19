@@ -4,6 +4,7 @@ import { ArrowLeft, DollarSign, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function PayoutLineDetail() {
   const { payoutId, lineId } = useParams<{ payoutId: string; lineId: string }>()
@@ -12,13 +13,8 @@ export default function PayoutLineDetail() {
   const { data: line, isLoading, isError } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}`)
+      const result = response.data
       return result.data
     },
   })

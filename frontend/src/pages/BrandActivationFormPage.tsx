@@ -4,6 +4,8 @@ import {
   Camera, MapPin, Users, DollarSign, Calendar, Clock, Target, 
   TrendingUp, MessageSquare, Star, Gift, Plus, X, Upload
 } from 'lucide-react';
+import SearchableSelect from '../components/ui/SearchableSelect'
+import { apiClient } from '../services/api.service'
 
 interface BrandActivation {
   id?: number;
@@ -153,38 +155,26 @@ const BrandActivationFormPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch('/api/trade-marketing-new/brand-activations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      await apiClient.post('/trade-marketing-new/brand-activations', formData);
 
-      if (response.ok) {
-        toast.success('Brand Activation event created successfully!');
-        // Reset form
-        setFormData({
-          eventType: 'sampling',
-          teamMembers: [],
-          customerFeedback: [],
-          photos: [],
-          activities: [],
-          status: 'planned',
-          targetAttendance: 100,
-          actualAttendance: 0,
-          samplesDistributed: 0,
-          leadsCaptured: 0,
-          engagementScore: 7
-        });
-      } else {
-        const error = await response.json();
-        toast.error('Failed to create event: ' + (error.message || 'Unknown error'));
-      }
+      toast.success('Brand Activation event created successfully!');
+      // Reset form
+      setFormData({
+        eventType: 'sampling',
+        teamMembers: [],
+        customerFeedback: [],
+        photos: [],
+        activities: [],
+        status: 'planned',
+        targetAttendance: 100,
+        actualAttendance: 0,
+        samplesDistributed: 0,
+        leadsCaptured: 0,
+        engagementScore: 7
+      });
     } catch (error) {
       console.error('Error creating brand activation:', error);
-      toast.error('Error creating brand activation event');
+      toast.error('Failed to create event: ' + ((error as any)?.message || 'Unknown error'));
     }
   };
 
@@ -257,17 +247,17 @@ const BrandActivationFormPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Event Type *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: 'sampling', label: 'Product Sampling' },
+                      { value: 'demo', label: 'Product Demo' },
+                      { value: 'promotion', label: 'Promotional Event' },
+                      { value: 'contest', label: 'Contest/Competition' },
+                      { value: 'exhibition', label: 'Exhibition/Display' },
+                    ]}
                     value={formData.eventType}
-                    onChange={(e) => handleInputChange('eventType', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500"
-                  >
-                    <option value="sampling">Product Sampling</option>
-                    <option value="demo">Product Demo</option>
-                    <option value="promotion">Promotional Event</option>
-                    <option value="contest">Contest/Competition</option>
-                    <option value="exhibition">Exhibition/Display</option>
-                  </select>
+                    placeholder="Product Sampling"
+                  />
                 </div>
 
                 <div>
@@ -353,16 +343,16 @@ const BrandActivationFormPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Event Status
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: 'planned', label: 'Planned' },
+                      { value: 'ongoing', label: 'Ongoing' },
+                      { value: 'completed', label: 'Completed' },
+                      { value: 'cancelled', label: 'Cancelled' },
+                    ]}
                     value={formData.status}
-                    onChange={(e) => handleInputChange('status', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500"
-                  >
-                    <option value="planned">Planned</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
+                    placeholder="Planned"
+                  />
                 </div>
               </div>
             </div>

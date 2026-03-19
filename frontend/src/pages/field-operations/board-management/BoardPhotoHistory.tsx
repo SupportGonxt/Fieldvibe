@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, Calendar, MapPin } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function BoardPhotoHistory() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -9,13 +10,8 @@ export default function BoardPhotoHistory() {
   const { data: board } = useQuery({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/boards/${boardId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -23,48 +19,12 @@ export default function BoardPhotoHistory() {
   const { data: photos, isLoading, isError } = useQuery({
     queryKey: ['board-photo-history', boardId],
     queryFn: async () => {
-      const response = await fetch(`/api/boards/${boardId}/photos`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/boards/${boardId}/photos`)
+      return response.data.data || []
     },
   })
 
-  const oldPhotos = [
-      {
-        id: '1',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'installation',
-        location: 'ABC Store - Entrance',
-        taken_at: '2024-01-20T09:35:00Z',
-        taken_by: 'John Field Agent',
-        caption: 'Board installed at new location',
-      },
-      {
-        id: '2',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'inspection',
-        location: 'ABC Store - Entrance',
-        taken_at: '2024-01-25T14:00:00Z',
-        taken_by: 'Jane Agent',
-        caption: 'Weekly inspection - condition excellent',
-      },
-      {
-        id: '3',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'maintenance',
-        location: 'ABC Store - Entrance',
-        taken_at: '2024-02-01T10:00:00Z',
-        taken_by: 'John Field Agent',
-        caption: 'Cleaning and maintenance performed',
-      },
-    ]
-
-  if (isLoading) {
+    if (isLoading) {
     return <div className="p-6">Loading photo history...</div>
   }
 

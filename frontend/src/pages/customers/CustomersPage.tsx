@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { customersService, Customer, CustomerFilter, CustomerStats } from '../../services/customers.service'
 import { formatCurrency, formatDate, formatPhoneNumber } from '../../utils/format'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function CustomersPage() {
   const navigate = useNavigate()
@@ -318,62 +319,66 @@ export default function CustomersPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Type
             </label>
-            <select
-              value={filter.type || ''}
-              onChange={(e) => setFilter({ ...filter, type: e.target.value || undefined, page: 1 })}
-              className="input"
-            >
-              <option value="">All Types</option>
-              <option value="retail">Retail</option>
-              <option value="wholesale">Wholesale</option>
-              <option value="distributor">Distributor</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Types' },
+                { value: 'retail', label: 'Retail' },
+                { value: 'wholesale', label: 'Wholesale' },
+                { value: 'distributor', label: 'Distributor' },
+              ]}
+              value={filter.type || null}
+              onChange={(val) => setFilter({ ...filter, type: val || undefined, page: 1 })}
+              placeholder="Filter by type..."
+            />
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Status
             </label>
-            <select
-              value={filter.status || ''}
-              onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined, page: 1 })}
-              className="input"
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Statuses' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+                { value: 'suspended', label: 'Suspended' },
+              ]}
+              value={filter.status || null}
+              onChange={(val) => setFilter({ ...filter, status: val || undefined, page: 1 })}
+              placeholder="Filter by status..."
+            />
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sort By
             </label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'created_at', label: 'Date Created' },
+                { value: 'name', label: 'Name' },
+                { value: 'total_sales', label: 'Total Sales' },
+                { value: 'total_orders', label: 'Total Orders' },
+              ]}
               value={filter.sort_by || 'created_at'}
-              onChange={(e) => setFilter({ ...filter, sort_by: e.target.value, page: 1 })}
-              className="input"
-            >
-              <option value="created_at">Date Created</option>
-              <option value="name">Name</option>
-              <option value="total_sales">Total Sales</option>
-              <option value="total_orders">Total Orders</option>
-            </select>
+              onChange={(val) => setFilter({ ...filter, sort_by: val || 'created_at', page: 1 })}
+              placeholder="Sort by..."
+            />
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Order
             </label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'desc', label: 'Descending' },
+                { value: 'asc', label: 'Ascending' },
+              ]}
               value={filter.sort_order || 'desc'}
-              onChange={(e) => setFilter({ ...filter, sort_order: e.target.value as 'asc' | 'desc', page: 1 })}
-              className="input"
-            >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
+              onChange={(val) => setFilter({ ...filter, sort_order: (val as 'asc' | 'desc') || 'desc', page: 1 })}
+              placeholder="Order..."
+            />
           </div>
         </div>
       </div>

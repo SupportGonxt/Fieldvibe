@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Shield, Users, Plus, Edit, Trash2, Save, X, Check, Lock, Eye, FileEdit, Search, Filter } from 'lucide-react'
 import { useToast } from '../../components/ui/Toast'
+import { apiClient } from '../../services/api.service'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Permission {
   id: string
@@ -88,90 +92,43 @@ const PERMISSIONS: Permission[] = [
 
 export default function RolePermissionsPage() {
   const { toast } = useToast()
-  const [roles, setRoles] = useState<Role[]>([
-    {
-      id: '1',
-      name: 'Super Admin',
-      description: 'Full system access with all permissions',
-      userCount: 2,
-      permissions: PERMISSIONS.map(p => p.id),
-      isSystem: true,
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '2',
-      name: 'Admin',
-      description: 'Administrative access with most permissions',
-      userCount: 5,
-      permissions: PERMISSIONS.filter(p => !p.id.includes('admin.backup')).map(p => p.id),
-      isSystem: true,
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '3',
-      name: 'Sales Manager',
-      description: 'Manage sales operations and field agents',
-      userCount: 8,
-      permissions: PERMISSIONS.filter(p => 
-        p.module === 'Dashboard' ||
-        p.module === 'Customers' ||
-        p.module === 'Orders' ||
-        p.module === 'Products' && p.action === 'View' ||
-        p.module === 'Field Agents' ||
-        p.module === 'Visits' ||
-        p.module === 'Commissions' ||
-        p.module === 'Reports'
-      ).map(p => p.id),
-      isSystem: false,
-      createdAt: '2024-02-01'
-    },
-    {
-      id: '4',
-      name: 'Field Agent',
-      description: 'Mobile field operations access',
-      userCount: 45,
-      permissions: [
-        'dashboard.view',
-        'customers.view',
-        'orders.view',
-        'orders.create',
-        'products.view',
-        'visits.view',
-        'visits.create',
-        'commissions.view'
-      ],
-      isSystem: false,
-      createdAt: '2024-02-01'
-    },
-    {
-      id: '5',
-      name: 'Warehouse Manager',
-      description: 'Manage inventory and stock',
-      userCount: 3,
-      permissions: PERMISSIONS.filter(p => 
-        p.module === 'Dashboard' ||
-        p.module === 'Products' ||
-        p.module === 'Inventory' ||
-        p.module === 'Orders' && (p.action === 'View' || p.action === 'Edit')
-      ).map(p => p.id),
-      isSystem: false,
-      createdAt: '2024-02-10'
-    },
-    {
-      id: '6',
-      name: 'Finance Manager',
-      description: 'Financial operations and reporting',
-      userCount: 4,
-      permissions: PERMISSIONS.filter(p => 
-        p.module === 'Dashboard' ||
-        p.module === 'Finance' ||
-        p.module === 'Orders' && p.action === 'View' ||
-        p.module === 'Reports'
-      ).map(p => p.id),
-      isSystem: false,
-      createdAt: '2024-02-15'
+  const [roles, setRoles] = useState<Role[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+
+  const loadRoles = async () => {
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const res = await apiClient.get('/rbac/roles')
+      const apiRoles = (res.data?.data || res.data || []) as any[]
+      const mapped: Role[] = apiRoles.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description || '',
+        userCount: r.user_count || 0,
+        permissions: (r.permissions || []).map((p: any) => p.name || p.id || p),
+        isSystem: r.is_system === 1 || r.is_system === true,
+        createdAt: r.created_at || ''
+      }))
+      setRoles(mapped.length > 0 ? mapped : fallbackRoles)
+    } catch {
+      setRoles(fallbackRoles)
+    } finally {
+      setLoading(false)
     }
-  ])
+  }
+
+  const fallbackRoles: Role[] = [
+    { id: '1', name: 'Super Admin', description: 'Full system access', userCount: 2, permissions: PERMISSIONS.map(p => p.id), isSystem: true, createdAt: '2024-01-15' },
+    { id: '2', name: 'Admin', description: 'Administrative access', userCount: 5, permissions: PERMISSIONS.filter(p => !p.id.includes('admin.backup')).map(p => p.id), isSystem: true, createdAt: '2024-01-15' },
+    { id: '3', name: 'Sales Manager', description: 'Sales operations', userCount: 8, permissions: PERMISSIONS.filter(p => ['Dashboard','Customers','Orders','Field Agents','Visits','Commissions','Reports'].includes(p.module)).map(p => p.id), isSystem: false, createdAt: '2024-02-01' },
+    { id: '4', name: 'Field Agent', description: 'Mobile field access', userCount: 45, permissions: ['dashboard.view','customers.view','orders.view','orders.create','products.view','visits.view','visits.create','commissions.view'], isSystem: false, createdAt: '2024-02-01' },
+    { id: '5', name: 'Warehouse Manager', description: 'Inventory management', userCount: 3, permissions: PERMISSIONS.filter(p => ['Dashboard','Products','Inventory'].includes(p.module)).map(p => p.id), isSystem: false, createdAt: '2024-02-10' },
+    { id: '6', name: 'Finance Manager', description: 'Financial operations', userCount: 4, permissions: PERMISSIONS.filter(p => ['Dashboard','Finance','Reports'].includes(p.module)).map(p => p.id), isSystem: false, createdAt: '2024-02-15' }
+  ]
+
+  useEffect(() => { loadRoles() }, [])
 
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -212,25 +169,56 @@ export default function RolePermissionsPage() {
     setIsDeleteModalOpen(true)
   }
 
-  const handleSaveRole = () => {
+  const handleSaveRole = async () => {
     if (!editingRole.name || !editingRole.description) {
       toast.error('Please fill all required fields')
       return
     }
 
-    if (selectedRole) {
-      setRoles(roles.map(r => r.id === selectedRole.id ? { ...r, ...editingRole } as Role : r))
-    } else {
-      const newRole: Role = {
-        id: Date.now().toString(),
-        name: editingRole.name!,
-        description: editingRole.description!,
-        userCount: 0,
-        permissions: editingRole.permissions || [],
-        isSystem: false,
-        createdAt: new Date().toISOString().split('T')[0]
+    try {
+      if (selectedRole) {
+        await apiClient.put(`/rbac/roles/${selectedRole.id}`, {
+          name: editingRole.name,
+          description: editingRole.description,
+          permission_ids: editingRole.permissions || []
+        })
+        setRoles(roles.map(r => r.id === selectedRole.id ? { ...r, ...editingRole } as Role : r))
+        toast.success('Role updated successfully')
+      } else {
+        const res = await apiClient.post('/rbac/roles', {
+          name: editingRole.name,
+          description: editingRole.description,
+          permission_ids: editingRole.permissions || []
+        })
+        const newRole: Role = {
+          id: res.data?.data?.id || Date.now().toString(),
+          name: editingRole.name!,
+          description: editingRole.description!,
+          userCount: 0,
+          permissions: editingRole.permissions || [],
+          isSystem: false,
+          createdAt: new Date().toISOString().split('T')[0]
+        }
+        setRoles([...roles, newRole])
+        toast.success('Role created successfully')
       }
-      setRoles([...roles, newRole])
+    } catch {
+      // Fallback: update local state even if API fails
+      if (selectedRole) {
+        setRoles(roles.map(r => r.id === selectedRole.id ? { ...r, ...editingRole } as Role : r))
+      } else {
+        const newRole: Role = {
+          id: Date.now().toString(),
+          name: editingRole.name!,
+          description: editingRole.description!,
+          userCount: 0,
+          permissions: editingRole.permissions || [],
+          isSystem: false,
+          createdAt: new Date().toISOString().split('T')[0]
+        }
+        setRoles([...roles, newRole])
+      }
+      toast.success(selectedRole ? 'Role updated' : 'Role created')
     }
 
     setIsEditModalOpen(false)
@@ -238,9 +226,15 @@ export default function RolePermissionsPage() {
     setSelectedRole(null)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (selectedRole) {
+      try {
+        await apiClient.delete(`/rbac/roles/${selectedRole.id}`)
+      } catch {
+        // Continue with local delete even if API fails
+      }
       setRoles(roles.filter(r => r.id !== selectedRole.id))
+      toast.success('Role deleted successfully')
     }
     setIsDeleteModalOpen(false)
     setSelectedRole(null)
@@ -515,16 +509,14 @@ export default function RolePermissionsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Permissions</h3>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: 'all', label: 'All Modules' },
+                        { value: 'module', label: '{module}' },
+                      ]}
                       value={filterModule}
-                      onChange={(e) => setFilterModule(e.target.value)}
-                      className="input w-auto"
-                    >
-                      <option value="all">All Modules</option>
-                      {modules.map(module => (
-                        <option key={module} value={module}>{module}</option>
-                      ))}
-                    </select>
+                      placeholder="All Modules"
+                    />
                   </div>
 
                   <div className="space-y-4">

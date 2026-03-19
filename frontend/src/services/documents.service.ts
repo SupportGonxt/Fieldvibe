@@ -22,7 +22,7 @@ export interface DocumentRelationship {
 }
 
 class DocumentsService {
-  private readonly baseUrl = '/api/documents'
+  private readonly baseUrl = '/documents'
 
   async getRelatedDocuments(entityType: string, entityId: string): Promise<DocumentRelationship[]> {
     try {

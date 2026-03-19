@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Clock, User } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function PayoutAuditTrail() {
   const { payoutId, lineId } = useParams<{ payoutId: string; lineId: string }>()
@@ -9,13 +10,8 @@ export default function PayoutAuditTrail() {
   const { data: line } = useQuery({
     queryKey: ['payout-line', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -23,14 +19,8 @@ export default function PayoutAuditTrail() {
   const { data: auditTrail, isLoading, isError } = useQuery({
     queryKey: ['payout-line-audit', payoutId, lineId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}/lines/${lineId}/audit`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}/lines/${lineId}/audit`)
+      return response.data.data || []
     },
   })
 

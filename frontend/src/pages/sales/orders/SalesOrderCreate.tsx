@@ -242,12 +242,13 @@ export default function SalesOrderCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sales Rep</label>
-                <select value={selectedSalesRep} onChange={(e) => setSelectedSalesRep(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
-                  <option value="">Select a sales rep</option>
-                  {salesReps.map((rep) => (
-                    <option key={rep.id} value={rep.id}>{rep.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  label="Sales Rep"
+                  options={salesReps.map(r => ({ value: r.id, label: r.name }))}
+                  value={selectedSalesRep || null}
+                  onChange={(val) => setSelectedSalesRep(val || '')}
+                  placeholder="Select a sales rep..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Order Date</label>
@@ -259,12 +260,17 @@ export default function SalesOrderCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
-                <select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
-                  <option value="cash">Cash</option>
-                  <option value="credit_7">Credit 7 Days</option>
-                  <option value="credit_30">Credit 30 Days</option>
-                  <option value="credit_60">Credit 60 Days</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: 'cash', label: 'Cash' },
+                    { value: 'credit_7', label: 'Credit 7 Days' },
+                    { value: 'credit_30', label: 'Credit 30 Days' },
+                    { value: 'credit_60', label: 'Credit 60 Days' },
+                  ]}
+                  value={paymentTerms}
+                  onChange={(val) => setPaymentTerms(val || 'cash')}
+                  placeholder="Select payment terms..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

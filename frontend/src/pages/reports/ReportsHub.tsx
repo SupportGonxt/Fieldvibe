@@ -5,6 +5,7 @@ import {
   FileSpreadsheet, Building2, ClipboardList, RefreshCw
 } from 'lucide-react';
 import { apiService } from '../../services/api.service';
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface Report {
   id: string;
@@ -89,25 +90,16 @@ const ReportsHub: React.FC = () => {
           setReportData(response.data.data);
         }
       } else {
-        const token = localStorage.getItem('token');
-        const baseUrl = import.meta.env.VITE_API_URL || 'https://fieldvibe-api.reshigan-085.workers.dev/api';
-        const fullUrl = `${baseUrl}${url}`;
-        
-        const response = await fetch(fullUrl, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const blob = await response.blob();
-          const downloadUrl = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = downloadUrl;
-          a.download = `${selectedReport.id}-${Date.now()}.${format === 'html' ? 'html' : format}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(downloadUrl);
-        }
+        const response = await apiClient.get(url, { responseType: 'blob' });
+        const blob = new Blob([response.data]);
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${selectedReport.id}-${Date.now()}.${format === 'html' ? 'html' : format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
       }
     } catch (error) {
       console.error('Failed to generate report:', error);
@@ -301,17 +293,17 @@ const ReportsHub: React.FC = () => {
                       <Filter className="w-4 h-4 inline mr-1" />
                       Status
                     </label>
-                    <select
-                      value={filters.status}
-                      onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">All Statuses</option>
-                      <option value="active">Active</option>
-                      <option value="completed">Completed</option>
-                      <option value="pending">Pending</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                    <SearchableSelect
+                      options={[
+                        { value: '', label: 'All Statuses' },
+                        { value: 'active', label: 'Active' },
+                        { value: 'completed', label: 'Completed' },
+                        { value: 'pending', label: 'Pending' },
+                        { value: 'cancelled', label: 'Cancelled' },
+                      ]}
+                      value={filters.status || null}
+                      placeholder="All Statuses"
+                    />
                   </div>
                   <div className="flex items-end">
                     <button

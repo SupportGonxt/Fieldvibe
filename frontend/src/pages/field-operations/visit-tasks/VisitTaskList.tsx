@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, CheckCircle, Clock } from 'lucide-react'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function VisitTaskList() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -10,13 +11,8 @@ export default function VisitTaskList() {
   const { data: visit } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,14 +20,8 @@ export default function VisitTaskList() {
   const { data: tasks, isLoading, isError } = useQuery({
     queryKey: ['visit-tasks', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/tasks`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/visits/${visitId}/tasks`)
+      return response.data.data || []
     },
   })
 

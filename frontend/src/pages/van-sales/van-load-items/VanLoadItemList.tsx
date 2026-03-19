@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, TrendingUp, TrendingDown } from 'lucide-react'
 import { vanSalesService } from '../../../services/van-sales.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function VanLoadItemList() {
   const { loadId } = useParams<{ loadId: string }>()
@@ -11,13 +12,8 @@ export default function VanLoadItemList() {
   const { data: load } = useQuery({
     queryKey: ['van-load', loadId],
     queryFn: async () => {
-      const response = await fetch(`/api/van-loads/${loadId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/van-loads/${loadId}`)
+      const result = response.data
       return result.data
     },
   })

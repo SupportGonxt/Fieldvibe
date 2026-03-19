@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, Clock } from 'lucide-react'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
+import { apiClient } from '../../../services/api.service'
 
 export default function PhotoTimeline() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -10,13 +11,8 @@ export default function PhotoTimeline() {
   const { data: visit } = useQuery({
     queryKey: ['visit', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/visits/${visitId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -24,61 +20,12 @@ export default function PhotoTimeline() {
   const { data: photos, isLoading, isError } = useQuery({
     queryKey: ['visit-photos-timeline', visitId],
     queryFn: async () => {
-      const response = await fetch(`/api/visits/${visitId}/photos/timeline`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/visits/${visitId}/photos/timeline`)
+      return response.data.data || []
     },
   })
 
-  const oldPhotos = [
-      {
-        id: '1',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'arrival',
-        caption: 'Arrived at store',
-        taken_at: '2024-01-20T09:00:00Z',
-        taken_by: 'John Field Agent',
-      },
-      {
-        id: '2',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'board_placement',
-        caption: 'Board installation in progress',
-        taken_at: '2024-01-20T09:20:00Z',
-        taken_by: 'John Field Agent',
-      },
-      {
-        id: '3',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'board_placement',
-        caption: 'Board installation complete',
-        taken_at: '2024-01-20T09:35:00Z',
-        taken_by: 'John Field Agent',
-      },
-      {
-        id: '4',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'product_display',
-        caption: 'Product display setup',
-        taken_at: '2024-01-20T09:50:00Z',
-        taken_by: 'John Field Agent',
-      },
-      {
-        id: '5',
-        photo_url: '/placeholder-photo.jpg',
-        photo_type: 'signature',
-        caption: 'Customer signature captured',
-        taken_at: '2024-01-20T10:15:00Z',
-        taken_by: 'John Field Agent',
-      },
-    ]
-
-  if (isLoading) {
+    if (isLoading) {
     return <div className="p-6"><LoadingSpinner size="md" /></div>
   }
 

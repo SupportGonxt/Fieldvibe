@@ -31,7 +31,7 @@ export default function ReceiptsList() {
   }
 
   const handleReverse = async (receiptId: number) => {
-    if (!confirm('Are you sure you want to reverse this receipt?')) return
+    if (!window.confirm('Are you sure you want to reverse this receipt?')) return
 
     try {
       await inventoryService.reverseReceipt(receiptId)

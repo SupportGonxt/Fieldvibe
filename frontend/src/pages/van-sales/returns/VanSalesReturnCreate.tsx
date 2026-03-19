@@ -5,6 +5,7 @@ import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../..
 import { vanSalesService } from '../../../services/van-sales.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface Order {
   id: string
@@ -138,12 +139,14 @@ export default function VanSalesReturnCreate() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Original Order *</label>
-                <select value={selectedOrder} onChange={(e) => setSelectedOrder(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select an order</option>
-                  {orders.map((order) => (
-                    <option key={order.id} value={order.id}>{order.order_number} - {order.customer_name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select an order' },
+                    { value: 'order.id', label: '{order.order_number} - {order.customer_name}' },
+                  ]}
+                  value={selectedOrder || null}
+                  placeholder="Select an order"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Return Date</label>
@@ -151,14 +154,18 @@ export default function VanSalesReturnCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Return Reason *</label>
-                <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select reason</option>
-                  <option value="damaged">Damaged Product</option>
-                  <option value="expired">Expired Product</option>
-                  <option value="wrong_item">Wrong Item</option>
-                  <option value="customer_request">Customer Request</option>
-                  <option value="other">Other</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select reason' },
+                    { value: 'damaged', label: 'Damaged Product' },
+                    { value: 'expired', label: 'Expired Product' },
+                    { value: 'wrong_item', label: 'Wrong Item' },
+                    { value: 'customer_request', label: 'Customer Request' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                  value={reason || null}
+                  placeholder="Select reason"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

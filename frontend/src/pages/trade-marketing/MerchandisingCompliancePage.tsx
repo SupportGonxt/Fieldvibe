@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tradeMarketingService } from '../../services/tradeMarketing.service'
 import { CheckCircle, XCircle, AlertCircle, TrendingUp } from 'lucide-react'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function MerchandisingCompliancePage() {
   const [filter, setFilter] = useState({ page: 1, limit: 20, compliance_status: '' })
@@ -57,12 +58,16 @@ export default function MerchandisingCompliancePage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-4">
-        <select value={filter.compliance_status} onChange={e => setFilter({...filter, compliance_status: e.target.value, page: 1})} className="border border-gray-300 rounded-lg px-3 py-2">
-          <option value="">All Statuses</option>
-          <option value="compliant">Compliant</option>
-          <option value="non_compliant">Non-Compliant</option>
-          <option value="partial">Partial</option>
-        </select>
+        <SearchableSelect
+          options={[
+            { value: '', label: 'All Statuses' },
+            { value: 'compliant', label: 'Compliant' },
+            { value: 'non_compliant', label: 'Non-Compliant' },
+            { value: 'partial', label: 'Partial' },
+          ]}
+          value={filter.compliance_status || null}
+          placeholder="All Statuses"
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">

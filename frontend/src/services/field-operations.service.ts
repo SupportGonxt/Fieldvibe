@@ -851,6 +851,101 @@ class FieldOperationsService extends ApiService {
     const response = await this.get(`${this.baseUrl}/visits?${params.toString()}`)
     return response.data || response
   }
+
+  // Alias for getLiveAgentLocations (called by LiveGPSTrackingPage)
+  async getLiveLocations() {
+    return this.getLiveAgentLocations()
+  }
+
+  // Alias for getFieldAgents (called by VisitCreate, ProductDistributionCreate)
+  async getAgents() {
+    const response = await this.get(`${this.baseUrl}/agents`)
+    return response.data
+  }
+
+  // Get customers list (called by VisitCreate, ProductDistributionCreate)
+  async getCustomers() {
+    const response = await this.get('/customers')
+    return response.data
+  }
+
+  // Get products list (called by ProductDistributionCreate)
+  async getProducts() {
+    const response = await this.get('/products')
+    return response.data
+  }
+
+  // Get board types (called by BoardPlacementCreate)
+  async getBoardTypes() {
+    const response = await this.get('/boards')
+    return response.data
+  }
+
+  // Visit CRUD (called by VisitCreate, VisitEdit, VisitManagementPage)
+  async createVisit(data: any) {
+    const response = await this.post(`${this.baseUrl}/visits`, data)
+    return response.data
+  }
+
+  async getVisit(id: number | string) {
+    const response = await this.get(`${this.baseUrl}/visits/${id}`)
+    return response.data
+  }
+
+  async updateVisit(id: number | string, data: any) {
+    const response = await this.put(`${this.baseUrl}/visits/${id}`, data)
+    return response.data
+  }
+
+  async deleteVisit(id: string) {
+    const response = await this.delete(`${this.baseUrl}/visits/${id}`)
+    return response.data
+  }
+
+  // Visit history (called by VisitHistoryPage)
+  async getVisitHistory(filter: Record<string, string> = {}) {
+    const params = new URLSearchParams(filter)
+    const response = await this.get(`${this.baseUrl}/visits?${params.toString()}`)
+    return response.data
+  }
+
+  // Agent stats (called by FieldAgentDashboardPage)
+  async getAgentStats() {
+    const response = await this.get(`${this.baseUrl}/stats`)
+    return response.data
+  }
+
+  // Commission methods (called by CommissionLedgerList, CommissionLedgerDetail)
+  async getCommissions() {
+    const response = await this.get('/field-commissions')
+    return response.data
+  }
+
+  async getCommission(id: number | string) {
+    const response = await this.get(`/field-commissions/${id}`)
+    return response.data
+  }
+
+  // Product distribution methods (called by ProductDistributionsList, ProductDistributionDetail, ProductDistributionCreate)
+  async getProductDistributions() {
+    const response = await this.get('/product-distributions')
+    return response.data
+  }
+
+  async getProductDistribution(id: number | string) {
+    const response = await this.get(`/product-distributions/${id}`)
+    return response.data
+  }
+
+  async createProductDistribution(data: any) {
+    const response = await this.post('/product-distributions', data)
+    return response.data
+  }
+
+  async reverseProductDistribution(id: number | string) {
+    const response = await this.post(`/product-distributions/${id}/reverse`)
+    return response.data
+  }
 }
 
 export const fieldOperationsService = new FieldOperationsService()

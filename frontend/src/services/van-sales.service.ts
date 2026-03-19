@@ -589,6 +589,141 @@ class VanSalesService extends ApiService {
     })
     return response.data
   }
+
+  // Route aliases (called by VanRoutesPage, RouteDetail, etc.)
+  async getRoutes(filter: any = {}) {
+    return this.getVanRoutes(filter)
+  }
+
+  async getRoute(id: string) {
+    return this.getVanRoute(id)
+  }
+
+  async getRouteById(id: string) {
+    return this.getVanRoute(id)
+  }
+
+  async deleteRoute(id: string) {
+    return this.deleteVanRoute(id)
+  }
+
+  async getRouteStops(routeId: string) {
+    const response = await this.get(`${this.baseUrl}/routes/${routeId}/stops`)
+    return response.data
+  }
+
+  async getRouteExceptions(routeId: string) {
+    const response = await this.get(`${this.baseUrl}/routes/${routeId}/exceptions`)
+    return response.data
+  }
+
+  // Order aliases (called by VanOrderCreate, VanOrderDetail, etc.)
+  async getOrders(filter: any = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value as string))
+      }
+    })
+    const response = await this.get(`${this.baseUrl}/orders?${params.toString()}`)
+    return response.data
+  }
+
+  async getOrder(id: string) {
+    const response = await this.get(`${this.baseUrl}/orders/${id}`)
+    return response.data
+  }
+
+  async createOrder(data: any) {
+    const response = await this.post(`${this.baseUrl}/orders/create`, data)
+    return response.data
+  }
+
+  async createVanOrder(data: any) {
+    return this.createOrder(data)
+  }
+
+  async updateOrder(id: string, data: any) {
+    const response = await this.put(`${this.baseUrl}/orders/${id}`, data)
+    return response.data
+  }
+
+  async reverseOrder(id: string) {
+    const response = await this.post(`${this.baseUrl}/orders/${id}/reverse`)
+    return response.data
+  }
+
+  async getVanOrders(filter: any = {}) {
+    return this.getOrders(filter)
+  }
+
+  // Return aliases (called by VanReturnCreate, VanReturnDetail, etc.)
+  async getReturns(filter: any = {}) {
+    return this.getVanSalesReturns(filter)
+  }
+
+  async getReturn(id: string) {
+    const response = await this.get(`${this.baseUrl}/returns/${id}`)
+    return response.data
+  }
+
+  async createReturn(data: any) {
+    return this.createVanSalesReturn(data)
+  }
+
+  // Customer & product lookups (called by VanOrderCreate, etc.)
+  async getCustomers() {
+    const response = await this.get('/customers')
+    return response.data
+  }
+
+  async getProducts() {
+    const response = await this.get('/products')
+    return response.data
+  }
+
+  // Van load detail methods (called by VanLoadDetail, VanLoadConfirm, etc.)
+  async getVanLoad(id: string) {
+    const response = await this.get(`${this.baseUrl}/van-loads/${id}`)
+    return response.data
+  }
+
+  async getVanLoadItems(loadId: string) {
+    const response = await this.get(`${this.baseUrl}/van-loads/${loadId}/items`)
+    return response.data
+  }
+
+  async confirmVanLoad(id: string, data?: any) {
+    const response = await this.post(`${this.baseUrl}/van-loads/${id}/transition`, { new_status: 'confirmed', ...data })
+    return response.data
+  }
+
+  // Cash reconciliation (called by CashReconciliation pages)
+  async getCashReconciliations(filter: any = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value as string))
+      }
+    })
+    const response = await this.get(`${this.baseUrl}/cash-reconciliation?${params.toString()}`)
+    return response.data
+  }
+
+  async getCashReconciliation(id: string) {
+    const response = await this.get(`${this.baseUrl}/cash-reconciliation/${id}`)
+    return response.data
+  }
+
+  async createCashReconciliation(data: any) {
+    const response = await this.post(`${this.baseUrl}/cash-reconciliation`, data)
+    return response.data
+  }
+
+  async getVanCashCollection(vanId: string) {
+    const response = await this.get(`${this.baseUrl}/vans/${vanId}/cash-collection`)
+    return response.data
+  }
 }
 
 export const vanSalesService = new VanSalesService()

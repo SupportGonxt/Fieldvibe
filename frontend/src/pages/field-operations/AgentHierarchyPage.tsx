@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function AgentHierarchyPage() {
   const queryClient = useQueryClient()
@@ -182,14 +183,14 @@ export default function AgentHierarchyPage() {
                   <span className="text-gray-900 dark:text-white">{tl.first_name} {tl.last_name}</span>
                   {assigningUser === tl.id ? (
                     <div className="ml-auto flex items-center gap-2">
-                      <select
-                        value={assignTarget}
-                        onChange={(e) => setAssignTarget(e.target.value)}
-                        className="input text-sm"
-                      >
-                        <option value="">Select Manager</option>
-                        {managers.map((m: any) => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
-                      </select>
+                      <SearchableSelect
+                        options={[
+                          { value: '', label: 'Select Manager' },
+                          { value: 'm.id', label: '{m.first_name} {m.last_name}' },
+                        ]}
+                        value={assignTarget || null}
+                        placeholder="Select Manager"
+                      />
                       <button
                         onClick={() => { if (assignTarget) assignMutation.mutate({ userId: tl.id, data: { manager_id: assignTarget } }) }}
                         disabled={!assignTarget}
@@ -221,16 +222,14 @@ export default function AgentHierarchyPage() {
                   <span className="text-gray-900 dark:text-white">{agent.first_name} {agent.last_name}</span>
                   {assigningUser === agent.id ? (
                     <div className="ml-auto flex items-center gap-2">
-                      <select
-                        value={assignTarget}
-                        onChange={(e) => setAssignTarget(e.target.value)}
-                        className="input text-sm"
-                      >
-                        <option value="">Select Team Lead</option>
-                        {[...managers.flatMap((m: any) => m.team_leads || []), ...unassignedTeamLeads].map((tl: any) => (
-                          <option key={tl.id} value={tl.id}>{tl.first_name} {tl.last_name}</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        options={[
+                          { value: '', label: 'Select Team Lead' },
+                          { value: 'tl.id', label: '{tl.first_name} {tl.last_name}' },
+                        ]}
+                        value={assignTarget || null}
+                        placeholder="Select Team Lead"
+                      />
                       <button
                         onClick={() => { if (assignTarget) assignMutation.mutate({ userId: agent.id, data: { team_lead_id: assignTarget } }) }}
                         disabled={!assignTarget}

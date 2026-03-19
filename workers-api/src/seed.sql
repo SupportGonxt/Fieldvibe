@@ -4,6 +4,10 @@
 INSERT OR IGNORE INTO tenants (id, name, code, domain, status, subscription_plan, max_users, created_at)
 VALUES ('default-tenant-001', 'Demo Company', 'DEMO', 'demo.fieldvibe.com', 'active', 'enterprise', 100, datetime('now'));
 
+-- Super Admin user (password: SuperAdmin@2026!)
+INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, is_active, created_at)
+VALUES ('super-admin-001', 'default-tenant-001', 'superadmin@fieldvibe.com', '$2b$10$IkVFZiNQrkDanLSKHT/rXeCbL7eTXkCnpWcES9VjlVuRA97pwe4eW', 'Super', 'Admin', '+27100000000', 'super_admin', 'active', 1, datetime('now'));
+
 -- Admin user (password: admin123)
 INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, is_active, created_at)
 VALUES ('admin-user-001', 'default-tenant-001', 'admin@demo.com', '$2b$10$KjbItQZTANkje1iozLTl3e9v57UTrSkwo12chehtr8IEr6HMhBGky', 'Admin', 'User', '+27123456789', 'admin', 'active', 1, datetime('now'));

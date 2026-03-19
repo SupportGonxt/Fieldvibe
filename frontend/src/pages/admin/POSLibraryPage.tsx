@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Package } from 'lucide-react';
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface Material { id: number; name: string; type: string; brand: string; stockQty: number; cost: number; supplier: string; }
 
@@ -12,31 +14,27 @@ const POSLibraryPage: React.FC = () => {
 
   const loadMaterials = async () => {
     try {
-      const res = await fetch('/api/admin/pos-library', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-      if (res.ok) setMaterials((await res.json()).materials || []);
+      const res = await apiClient.get('/admin/pos-library');
+      setMaterials(res.data.materials || []);
     } catch (err) { console.error(err); }
   };
 
   const saveMaterial = async () => {
     try {
-      const url = editing ? `/api/admin/pos-library/${editing}` : '/api/admin/pos-library';
-      const res = await fetch(url, {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) { loadMaterials(); setEditing(null); setForm({}); }
+      if (editing) {
+        await apiClient.put(`/admin/pos-library/${editing}`, form);
+      } else {
+        await apiClient.post('/admin/pos-library', form);
+      }
+      loadMaterials(); setEditing(null); setForm({});
     } catch (err) { console.error(err); }
   };
 
   const deleteMaterial = async (id: number) => {
-    if (!confirm('Delete material?')) return;
+    if (!window.confirm('Delete material?')) return;
     try {
-      const res = await fetch(`/api/admin/pos-library/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (res.ok) loadMaterials();
+      const res = await apiClient.delete(`/admin/pos-library/${id}`);
+      loadMaterials();
     } catch (err) { console.error(err); }
   };
 
@@ -54,14 +52,18 @@ const POSLibraryPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4">{editing ? 'Edit Material' : 'New Material'}</h2>
           <div className="grid grid-cols-3 gap-4">
             <input placeholder="Material Name" value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className="px-4 py-2 border rounded" />
-            <select value={form.type || ''} onChange={e => setForm({...form, type: e.target.value})} className="px-4 py-2 border rounded">
-              <option value="">Type</option>
-              <option value="Standee">Standee</option>
-              <option value="Banner">Banner</option>
-              <option value="Decal">Decal</option>
-              <option value="Display">Display</option>
-              <option value="Wobbler">Wobbler</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: '', label: 'Type' },
+                { value: 'Standee', label: 'Standee' },
+                { value: 'Banner', label: 'Banner' },
+                { value: 'Decal', label: 'Decal' },
+                { value: 'Display', label: 'Display' },
+                { value: 'Wobbler', label: 'Wobbler' },
+              ]}
+              value={form.type || '' || null}
+              placeholder="Type"
+            />
             <input placeholder="Brand" value={form.brand || ''} onChange={e => setForm({...form, brand: e.target.value})} className="px-4 py-2 border rounded" />
             <input type="number" placeholder="Stock Qty" value={form.stockQty || ''} onChange={e => setForm({...form, stockQty: +e.target.value})} className="px-4 py-2 border rounded" />
             <input type="number" placeholder="Cost (₹)" value={form.cost || ''} onChange={e => setForm({...form, cost: +e.target.value})} className="px-4 py-2 border rounded" />

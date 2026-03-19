@@ -2,8 +2,11 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/van-sales.service'
 import { Plus, Edit, Trash2, MapPin, TrendingUp, Calendar, Truck } from 'lucide-react'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export default function VanRoutesListPage() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
   const [filter, setFilter] = useState({ page: 1, limit: 20, status: '' })
   const queryClient = useQueryClient()
 
@@ -71,7 +74,7 @@ export default function VanRoutesListPage() {
                     <td className="px-6 py-4 text-sm text-gray-900">{new Date(route.route_date).toLocaleDateString()}</td>
                     <td className="px-6 py-4"><div className="text-sm text-gray-900">{route.completed_stops}/{route.planned_stops}</div><div className="w-full bg-gray-200 rounded-full h-2 mt-1"><div className="bg-blue-600 h-2 rounded-full" style={{width: `${(route.completed_stops/route.planned_stops)*100}%`}}></div></div></td>
                     <td className="px-6 py-4">{getStatusBadge(route.status)}</td>
-                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {if(confirm('Delete?')) deleteMutation.mutate(route.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {setDeleteConfirmId(route.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>
                 ))
               )}
@@ -89,6 +92,16 @@ export default function VanRoutesListPage() {
           </div>
         </div>
       )}
+    
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={() => { if (deleteConfirmId) { deleteMutation.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}
+        title="Confirm Delete"
+        message="Delete?"
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }

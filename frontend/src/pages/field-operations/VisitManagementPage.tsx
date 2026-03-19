@@ -4,8 +4,12 @@ import { fieldOperationsService } from '../../services/field-operations.service'
 import { Plus, Edit, Trash2, MapPin, Calendar, Map, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import LiveVisitMap from '../../components/maps/LiveVisitMap'
+import SearchableSelect from '../../components/ui/SearchableSelect'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export default function VisitManagementPage() {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
   const [filter, setFilter] = useState({ page: 1, limit: 20, status: '' })
   const [showMap, setShowMap] = useState(false)
   const queryClient = useQueryClient()
@@ -78,13 +82,17 @@ export default function VisitManagementPage() {
 
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-wrap gap-4">
-          <select value={filter.status} onChange={e => setFilter({...filter, status: e.target.value, page: 1})} className="border border-gray-300 rounded-lg px-3 py-2">
-            <option value="">All Statuses</option>
-            <option value="planned">Planned</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <SearchableSelect
+            options={[
+              { value: '', label: 'All Statuses' },
+              { value: 'planned', label: 'Planned' },
+              { value: 'in_progress', label: 'In Progress' },
+              { value: 'completed', label: 'Completed' },
+              { value: 'cancelled', label: 'Cancelled' },
+            ]}
+            value={filter.status || null}
+            placeholder="All Statuses"
+          />
         </div>
       </div>
 
@@ -112,7 +120,7 @@ export default function VisitManagementPage() {
                     <td className="px-6 py-4"><div className="text-sm text-gray-900">{new Date(visit.visit_date).toLocaleDateString()}</div><div className="text-sm text-gray-500">{visit.check_in_time ? new Date(visit.check_in_time).toLocaleTimeString() : 'Not started'}</div></td>
                     <td className="px-6 py-4 text-sm text-gray-900">{visit.visit_type}</td>
                     <td className="px-6 py-4">{getStatusBadge(visit.status)}</td>
-                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {if(confirm('Delete?')) deleteMutation.mutate(visit.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex space-x-2"><button className="text-blue-600 hover:text-blue-900"><Edit className="h-4 w-4" /></button><button onClick={() => {setDeleteConfirmId(visit.id)}} className="text-red-600 hover:text-red-900"><Trash2 className="h-4 w-4" /></button></div></td>
                   </tr>
                 ))
               )}
@@ -130,6 +138,16 @@ export default function VisitManagementPage() {
           </div>
         </div>
       )}
+    
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={() => { if (deleteConfirmId) { deleteMutation.mutate(deleteConfirmId); setDeleteConfirmId(null); } }}
+        title="Confirm Delete"
+        message="Delete?"
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }

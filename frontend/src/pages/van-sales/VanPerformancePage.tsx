@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/van-sales.service'
 import { TrendingUp, DollarSign, ShoppingCart, Package, Calendar } from 'lucide-react'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function VanPerformancePage() {
   const [filter, setFilter] = useState({ van_id: '', period: 'today' })
@@ -26,12 +27,16 @@ export default function VanPerformancePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
-            <select value={filter.period} onChange={e => setFilter({...filter, period: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="year">This Year</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: 'today', label: 'Today' },
+                { value: 'week', label: 'This Week' },
+                { value: 'month', label: 'This Month' },
+                { value: 'year', label: 'This Year' },
+              ]}
+              value={filter.period}
+              placeholder="Today"
+            />
           </div>
         </div>
       </div>

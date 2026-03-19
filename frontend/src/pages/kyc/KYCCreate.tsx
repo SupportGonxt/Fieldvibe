@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { apiClient } from '../../services/api.service'
 interface KYCFormData {
   customer_id: string
   business_name: string
@@ -30,8 +31,8 @@ export default function KYCCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: KYCFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id: 'new-kyc-id' }
+      const response = await apiClient.post('/kyc/cases', data)
+      return response.data?.data || response.data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['kyc'] })

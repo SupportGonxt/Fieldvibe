@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import { customersService } from '../../services/customers.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
+import { apiClient } from '../../services/api.service'
 interface KYCFormData {
   business_name: string
   registration_number: string
@@ -35,8 +36,8 @@ export default function KYCEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: KYCFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id }
+      const response = await apiClient.put(`/kyc/cases/${id}`, data)
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kyc', id] })

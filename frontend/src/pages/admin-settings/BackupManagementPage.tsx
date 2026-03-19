@@ -30,7 +30,7 @@ export const BackupManagementPage: React.FC = () => {
     queryKey: ['backups'],
     queryFn: async () => {
       try {
-        const response = await apiClient.get('/api/admin/backups')
+        const response = await apiClient.get('/admin/backups')
         return response.data?.data || response.data || DEFAULT_BACKUPS
       } catch {
         return DEFAULT_BACKUPS

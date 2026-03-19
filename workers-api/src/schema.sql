@@ -1518,3 +1518,152 @@ CREATE INDEX IF NOT EXISTS idx_individual_registrations_agent ON individual_regi
 CREATE INDEX IF NOT EXISTS idx_individual_registrations_company ON individual_registrations(company_id);
 CREATE INDEX IF NOT EXISTS idx_company_logins_company ON company_logins(company_id);
 CREATE INDEX IF NOT EXISTS idx_company_logins_email ON company_logins(email);
+
+-- ==================== T-02: REFRESH TOKENS ====================
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
+-- ==================== T-04: KYC TABLES ====================
+CREATE TABLE IF NOT EXISTS kyc_cases (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  case_number TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  risk_level TEXT DEFAULT 'low',
+  submitted_by TEXT,
+  reviewed_by TEXT,
+  documents TEXT DEFAULT '[]',
+  notes TEXT,
+  rejection_reason TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+CREATE TABLE IF NOT EXISTS kyc_documents (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  kyc_case_id TEXT NOT NULL,
+  document_type TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  r2_key TEXT,
+  r2_url TEXT,
+  file_size INTEGER,
+  status TEXT DEFAULT 'uploaded',
+  verified_by TEXT,
+  verified_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (kyc_case_id) REFERENCES kyc_cases(id)
+);
+CREATE INDEX IF NOT EXISTS idx_kyc_cases_tenant ON kyc_cases(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_kyc_cases_customer ON kyc_cases(customer_id);
+CREATE INDEX IF NOT EXISTS idx_kyc_documents_case ON kyc_documents(kyc_case_id);
+
+-- ==================== T-07: QUOTATIONS ====================
+CREATE TABLE IF NOT EXISTS quotations (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  quotation_number TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  status TEXT DEFAULT 'draft',
+  items TEXT DEFAULT '[]',
+  subtotal REAL DEFAULT 0,
+  tax_amount REAL DEFAULT 0,
+  discount_amount REAL DEFAULT 0,
+  total_amount REAL DEFAULT 0,
+  valid_until TEXT,
+  notes TEXT,
+  converted_order_id TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (customer_id) REFERENCES customers(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_quotations_tenant ON quotations(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id);
+
+-- ==================== T-15: CASH SESSIONS (for cash reconciliation) ====================
+CREATE TABLE IF NOT EXISTS cash_sessions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  session_date TEXT NOT NULL,
+  opening_balance REAL DEFAULT 0,
+  closing_balance REAL DEFAULT 0,
+  total_collections REAL DEFAULT 0,
+  total_expenses REAL DEFAULT 0,
+  variance REAL DEFAULT 0,
+  status TEXT DEFAULT 'open',
+  notes TEXT,
+  approved_by TEXT,
+  approved_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS cash_session_lines (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  line_type TEXT NOT NULL,
+  amount REAL NOT NULL,
+  payment_method TEXT,
+  reference TEXT,
+  description TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES cash_sessions(id),
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_cash_sessions_tenant ON cash_sessions(tenant_id, agent_id);
+CREATE INDEX IF NOT EXISTS idx_cash_session_lines_session ON cash_session_lines(session_id);
+
+-- ==================== T-18: RATE LIMITS (D1-backed) ====================
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT NOT NULL,
+  count INTEGER DEFAULT 1,
+  window_start INTEGER NOT NULL,
+  PRIMARY KEY (key, window_start)
+);
+
+-- ==================== v2 T-10: EVENTS ====================
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  event_type TEXT DEFAULT 'general',
+  description TEXT,
+  location TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  status TEXT DEFAULT 'planned',
+  budget REAL DEFAULT 0,
+  actual_cost REAL DEFAULT 0,
+  organizer_id TEXT,
+  max_attendees INTEGER,
+  attendee_count INTEGER DEFAULT 0,
+  tags TEXT DEFAULT '[]',
+  notes TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_events_dates ON events(start_date, end_date);

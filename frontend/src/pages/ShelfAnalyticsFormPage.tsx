@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { tradeMarketingService } from '../services/tradeMarketing.service';
 import { useToast } from '../components/ui/Toast'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import SearchableSelect from '../components/ui/SearchableSelect'
 
 const ShelfAnalyticsFormPage: React.FC = () => {
   const { toast } = useToast()
@@ -127,19 +128,19 @@ const ShelfAnalyticsFormPage: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Product Category *
             </label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'beverages', label: 'Beverages' },
+                { value: 'snacks', label: 'Snacks' },
+                { value: 'dairy', label: 'Dairy' },
+                { value: 'personal_care', label: 'Personal Care' },
+                { value: 'household', label: 'Household' },
+                { value: 'telecommunications', label: 'Telecommunications' },
+                { value: 'other', label: 'Other' },
+              ]}
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="beverages">Beverages</option>
-              <option value="snacks">Snacks</option>
-              <option value="dairy">Dairy</option>
-              <option value="personal_care">Personal Care</option>
-              <option value="household">Household</option>
-              <option value="telecommunications">Telecommunications</option>
-              <option value="other">Other</option>
-            </select>
+              placeholder="Beverages"
+            />
           </div>
 
           {/* Shelf Space Measurement */}

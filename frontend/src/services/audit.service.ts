@@ -20,7 +20,7 @@ export interface AuditEntry {
 }
 
 class AuditService {
-  private readonly baseUrl = '/api/audit'
+  private readonly baseUrl = '/audit'
 
   async getAuditTrail(entityType: string, entityId: string): Promise<AuditEntry[]> {
     try {
@@ -39,6 +39,17 @@ class AuditService {
     } catch (error) {
       console.error('Failed to fetch audit entry:', error)
       return null
+    }
+  }
+
+  // Generic audit log listing (called by AuditLogPage)
+  async getLogs(params?: any): Promise<AuditEntry[]> {
+    try {
+      const response = await apiClient.get('/audit-log', { params })
+      return response.data.data || response.data || []
+    } catch (error) {
+      console.error('Failed to fetch audit logs:', error)
+      return []
     }
   }
 }

@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast'
 import { reportsService } from '../../services/reports.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
+import { apiClient } from '../../services/api.service'
 interface ReportFormData {
   name: string
   description: string
@@ -32,8 +33,8 @@ export default function ReportEdit() {
   const updateMutation = useMutation({
     mutationFn: async (data: ReportFormData) => {
       // Mock API call - replace with actual implementation
-      await new Promise(resolve => setTimeout(resolve, 0)) // BUG-009: reduced from 1000ms fake delay
-      return { ...data, id }
+      const response = await apiClient.put(`/reports/${id}`, data)
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['report', id] })

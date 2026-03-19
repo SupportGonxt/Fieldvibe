@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export const CommissionReportsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState({
@@ -112,15 +113,15 @@ export const CommissionReportsPage: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Group By</label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'agent', label: 'Agent' },
+                { value: 'type', label: 'Commission Type' },
+                { value: 'period', label: 'Time Period' },
+              ]}
               value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value as any)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="agent">Agent</option>
-              <option value="type">Commission Type</option>
-              <option value="period">Time Period</option>
-            </select>
+              placeholder="Agent"
+            />
           </div>
           <div className="flex items-end">
             <button

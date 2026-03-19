@@ -3,9 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/van-sales.service'
 import { Package, TrendingDown, TrendingUp, AlertCircle } from 'lucide-react'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function VanInventoryPage() {
   const [selectedVanId, setSelectedVanId] = useState<string>('')
+  const { data: vans } = useQuery({
+    queryKey: ['vans-list'],
+    queryFn: async () => {
+      const res = await vanSalesService.getVans()
+      return res.data || res.vans || []
+    }
+  })
   const { data: inventory, isLoading, isError, error } = useQuery({
     queryKey: ['van-inventory', selectedVanId],
     queryFn: () => vanSalesService.getVanInventory(selectedVanId),
@@ -17,7 +25,21 @@ export default function VanInventoryPage() {
   return (
     <div className="p-6 space-y-6">
       <div><h1 className="text-2xl font-bold text-gray-900">Van Inventory</h1><p className="text-sm text-gray-600 mt-1">Monitor van stock levels</p></div>
-      <div className="bg-white rounded-lg shadow p-4"><label className="block text-sm font-medium text-gray-700 mb-2">Select Van</label><input type="text" placeholder="Enter Van ID" value={selectedVanId} onChange={e => setSelectedVanId(e.target.value)} className="border rounded-lg px-3 py-2 w-full max-w-md" /></div>
+      <div className="bg-white rounded-lg shadow p-4 max-w-md">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Select Van</label>
+        <SearchableSelect
+          options={[
+            { value: '', label: 'Select a van...' },
+            ...(Array.isArray(vans) ? vans : []).map((v: any) => ({
+              value: v.id,
+              label: `${v.van_number || v.code || v.id}${v.driver_name ? ` - ${v.driver_name}` : ''}`
+            }))
+          ]}
+          value={selectedVanId || null}
+          onChange={(val) => setSelectedVanId(val as string || '')}
+          placeholder="Search vans..."
+        />
+      </div>
       
       {inventory && inventory.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

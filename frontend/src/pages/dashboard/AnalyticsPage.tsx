@@ -43,6 +43,7 @@ import {
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { analyticsService } from '../../services/analytics.service'
 import { dashboardService } from '../../services/dashboard.service'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 interface AnalyticsData {
   overview: {
@@ -324,16 +325,16 @@ export default function AnalyticsPage() {
         </div>
         
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <select
+          <SearchableSelect
+            options={[
+              { value: '7d', label: 'Last 7 days' },
+              { value: '30d', label: 'Last 30 days' },
+              { value: '90d', label: 'Last 90 days' },
+              { value: '1y', label: 'Last year' },
+            ]}
             value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="90d">Last 90 days</option>
-            <option value="1y">Last year</option>
-          </select>
+            placeholder="Last 7 days"
+          />
           
           <button
             onClick={refreshData}
@@ -453,15 +454,15 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-medium text-gray-900">Revenue Trend</h3>
           <div className="flex items-center space-x-2">
-            <select
+            <SearchableSelect
+              options={[
+                { value: 'revenue', label: 'Revenue' },
+                { value: 'orders', label: 'Orders' },
+                { value: 'customers', label: 'Customers' },
+              ]}
               value={selectedMetric}
-              onChange={(e) => setSelectedMetric(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="revenue">Revenue</option>
-              <option value="orders">Orders</option>
-              <option value="customers">Customers</option>
-            </select>
+              placeholder="Revenue"
+            />
           </div>
         </div>
         

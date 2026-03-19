@@ -28,6 +28,7 @@ import { formatDate, formatNumber, formatCurrency } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { DataTable } from '../../components/ui/tables/DataTable'
 import toast from 'react-hot-toast'
+import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function PromotionsManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -499,36 +500,36 @@ export default function PromotionsManagement() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
-              <select
-                className="input"
-                value={filter.status || ''}
-                onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="expired">Expired</option>
-                <option value="scheduled">Scheduled</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Statuses' },
+                  { value: 'draft', label: 'Draft' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'paused', label: 'Paused' },
+                  { value: 'expired', label: 'Expired' },
+                  { value: 'scheduled', label: 'Scheduled' },
+                ]}
+                value={filter.status || '' || null}
+                placeholder="All Statuses"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Type
               </label>
-              <select
-                className="input"
-                value={filter.type || ''}
-                onChange={(e) => setFilter({ ...filter, type: e.target.value || undefined, page: 1 })}
-              >
-                <option value="">All Types</option>
-                <option value="percentage">Percentage</option>
-                <option value="fixed_amount">Fixed Amount</option>
-                <option value="buy_one_get_one">BOGO</option>
-                <option value="bundle">Bundle</option>
-                <option value="loyalty">Loyalty</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Types' },
+                  { value: 'percentage', label: 'Percentage' },
+                  { value: 'fixed_amount', label: 'Fixed Amount' },
+                  { value: 'buy_one_get_one', label: 'BOGO' },
+                  { value: 'bundle', label: 'Bundle' },
+                  { value: 'loyalty', label: 'Loyalty' },
+                ]}
+                value={filter.type || '' || null}
+                placeholder="All Types"
+              />
             </div>
 
             <div>

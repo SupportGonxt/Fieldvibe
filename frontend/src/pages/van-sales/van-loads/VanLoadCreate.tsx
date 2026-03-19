@@ -5,6 +5,7 @@ import LineItemsEditor, { LineItem, LineItemsTotals, TotalsSummary } from '../..
 import { vanSalesService } from '../../../services/van-sales.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface Van {
   id: string
@@ -143,21 +144,33 @@ export default function VanLoadCreate() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Van *</label>
-                <select value={selectedVan} onChange={(e) => setSelectedVan(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a van</option>
-                  {vans.map((van) => (
-                    <option key={van.id} value={van.id}>{van.van_number} {van.driver_name ? `- ${van.driver_name}` : ''}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select a van' },
+                    ...vans.map((van: Van) => ({
+                      value: van.id,
+                      label: `${van.van_number}${van.driver_name ? ` - ${van.driver_name}` : ''}`
+                    }))
+                  ]}
+                  value={selectedVan || null}
+                  onChange={(val) => setSelectedVan(val as string || '')}
+                  placeholder="Search vans..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Route *</label>
-                <select value={selectedRoute} onChange={(e) => setSelectedRoute(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="">Select a route</option>
-                  {routes.map((route) => (
-                    <option key={route.id} value={route.id}>{route.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select a route' },
+                    ...routes.map((route: Route) => ({
+                      value: route.id,
+                      label: route.name
+                    }))
+                  ]}
+                  value={selectedRoute || null}
+                  onChange={(val) => setSelectedRoute(val as string || '')}
+                  placeholder="Search routes..."
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Load Date</label>

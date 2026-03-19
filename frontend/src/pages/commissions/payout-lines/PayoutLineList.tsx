@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { formatCurrency } from '../../../utils/currency'
 import { commissionsService } from '../../../services/commissions.service'
+import { apiClient } from '../../../services/api.service'
 
 export default function PayoutLineList() {
   const { payoutId } = useParams<{ payoutId: string }>()
@@ -11,13 +12,8 @@ export default function PayoutLineList() {
   const { data: payout } = useQuery({
     queryKey: ['payout', payoutId],
     queryFn: async () => {
-      const response = await fetch(`/api/commissions/payouts/${payoutId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/commissions/payouts/${payoutId}`)
+      const result = response.data
       return result.data
     },
   })

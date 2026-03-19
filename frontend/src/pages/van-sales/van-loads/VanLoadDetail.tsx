@@ -31,7 +31,7 @@ export default function VanLoadDetail() {
   }
 
   const handleConfirm = async () => {
-    if (!confirm('Are you sure you want to confirm this van load?')) {
+    if (!window.confirm('Are you sure you want to confirm this van load?')) {
       return
     }
 

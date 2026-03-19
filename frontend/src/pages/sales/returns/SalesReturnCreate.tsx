@@ -6,6 +6,7 @@ import { salesService } from '../../../services/sales.service'
 import { productsService } from '../../../services/products.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 
 interface Order {
   id: string
@@ -152,12 +153,14 @@ export default function SalesReturnCreate() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Order *</label>
-                <select value={selectedOrder} onChange={(e) => setSelectedOrder(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
-                  <option value="">Select an order</option>
-                  {orders.map((order) => (
-                    <option key={order.id} value={order.id}>{order.order_number} - {order.customer_name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select an order' },
+                    { value: 'order.id', label: '{order.order_number} - {order.customer_name}' },
+                  ]}
+                  value={selectedOrder || null}
+                  placeholder="Select an order"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Return Date</label>
@@ -165,15 +168,19 @@ export default function SalesReturnCreate() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Return Reason *</label>
-                <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white hover:border-gray-300 transition-colors">
-                  <option value="">Select a reason</option>
-                  <option value="defective">Defective Product</option>
-                  <option value="wrong_item">Wrong Item</option>
-                  <option value="damaged">Damaged in Transit</option>
-                  <option value="not_needed">No Longer Needed</option>
-                  <option value="quality">Quality Issues</option>
-                  <option value="other">Other</option>
-                </select>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: 'Select a reason' },
+                    { value: 'defective', label: 'Defective Product' },
+                    { value: 'wrong_item', label: 'Wrong Item' },
+                    { value: 'damaged', label: 'Damaged in Transit' },
+                    { value: 'not_needed', label: 'No Longer Needed' },
+                    { value: 'quality', label: 'Quality Issues' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                  value={reason || null}
+                  placeholder="Select a reason"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

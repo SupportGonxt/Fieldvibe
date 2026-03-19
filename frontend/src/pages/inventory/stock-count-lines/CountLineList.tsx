@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, AlertTriangle } from 'lucide-react'
+import { apiClient } from '../../../services/api.service'
 
 export default function CountLineList() {
   const { countId } = useParams<{ countId: string }>()
@@ -9,13 +10,8 @@ export default function CountLineList() {
   const { data: count } = useQuery({
     queryKey: ['stock-count', countId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-counts/${countId}`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return null
-      const result = await response.json()
+      const response = await apiClient.get(`/stock-counts/${countId}`)
+      const result = response.data
       return result.data
     },
   })
@@ -23,14 +19,8 @@ export default function CountLineList() {
   const { data: lines, isLoading, isError } = useQuery({
     queryKey: ['count-lines', countId],
     queryFn: async () => {
-      const response = await fetch(`/api/stock-counts/${countId}/lines`, {
-        headers: {
-          'X-Tenant-Code': localStorage.getItem('tenantCode') || 'DEMO',
-        },
-      })
-      if (!response.ok) return []
-      const result = await response.json()
-      return result.data || []
+      const response = await apiClient.get(`/stock-counts/${countId}/lines`)
+      return response.data.data || []
     },
   })
 
