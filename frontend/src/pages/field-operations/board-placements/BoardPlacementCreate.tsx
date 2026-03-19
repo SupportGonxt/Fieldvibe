@@ -20,9 +20,16 @@ export default function BoardPlacementCreate() {
         fieldOperationsService.getCustomers(),
         fieldOperationsService.getBoardTypes()
       ])
-      setAgents(agentsRes.data || [])
-      setCustomers(customersRes.data || [])
-      setBoardTypes(boardTypesRes.data || [])
+      // Agents endpoint returns a flat array; others wrap in { data: ... }
+      const agentsList = Array.isArray(agentsRes) ? agentsRes : (agentsRes.data || [])
+      // Customers endpoint returns { data: { customers: [...] } }
+      const rawCustomers = customersRes.data || customersRes
+      const customersList = Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers.customers || [])
+      // Board types endpoint returns { data: [...] }
+      const boardTypesList = Array.isArray(boardTypesRes) ? boardTypesRes : (Array.isArray(boardTypesRes.data) ? boardTypesRes.data : [])
+      setAgents(agentsList)
+      setCustomers(customersList)
+      setBoardTypes(boardTypesList)
     } catch (error) {
       console.error('Failed to load form data:', error)
     }

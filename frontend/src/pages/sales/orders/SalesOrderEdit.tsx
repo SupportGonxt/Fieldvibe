@@ -25,9 +25,12 @@ export default function SalesOrderEdit() {
         salesService.getCustomers(),
         salesService.getSalesReps()
       ])
-      setOrder(orderRes.data)
-      setCustomers(customersRes.data || [])
-      setSalesReps(salesRepsRes.data || [])
+      setOrder(orderRes.data || orderRes)
+      // salesService.getCustomers() returns axios response; .data is API body { success, data: { customers: [...] } }
+      const rawCustomers = customersRes.data?.data || customersRes.data
+      setCustomers(Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers?.customers || []))
+      const rawSalesReps = salesRepsRes.data?.data || salesRepsRes.data
+      setSalesReps(Array.isArray(rawSalesReps) ? rawSalesReps : (rawSalesReps?.sales_reps || []))
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {

@@ -14,7 +14,8 @@ export default function ActivationCreate() {
   const loadAgents = async () => {
     try {
       const response = await marketingService.getAgents()
-      setAgents(response.data || [])
+      const rawAgents = response.data?.data || response.data || []
+      setAgents(Array.isArray(rawAgents) ? rawAgents : [])
     } catch (error) {
       console.error('Failed to load agents:', error)
     }
