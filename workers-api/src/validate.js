@@ -29,14 +29,14 @@ export const registerSchema = z.object({
 
 // Users
 export const createUserSchema = z.object({
-  email: z.string().email('Invalid email format'),
+  email: z.string().email('Invalid email format').optional().nullable(),
   phone: z.string().min(7).optional().nullable(),
-  password: z.string().min(8).optional(),
+  password: z.string().min(1).optional(),
   firstName: z.string().min(1).optional(),
   first_name: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   last_name: z.string().min(1).optional(),
-  role: z.enum(['admin', 'manager', 'team_lead', 'agent', 'viewer']).default('agent'),
+  role: z.enum(['admin', 'manager', 'team_lead', 'agent', 'field_agent', 'sales_rep', 'viewer']).default('agent'),
   managerId: z.string().optional().nullable(),
   manager_id: z.string().optional().nullable(),
   teamLeadId: z.string().optional().nullable(),

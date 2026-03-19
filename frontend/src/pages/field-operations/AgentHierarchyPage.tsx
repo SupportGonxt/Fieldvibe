@@ -84,8 +84,8 @@ export default function AgentHierarchyPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!createForm.firstName || !createForm.lastName || !createForm.email) {
-      toast.error('First name, last name, and email are required')
+    if (!createForm.firstName || !createForm.lastName) {
+      toast.error('First name and last name are required')
       return
     }
     setCreating(true)
@@ -93,9 +93,11 @@ export default function AgentHierarchyPage() {
       const payload: Record<string, string | null> = {
         firstName: createForm.firstName,
         lastName: createForm.lastName,
-        email: createForm.email,
         phone: createForm.phone || null,
         role: createForm.role,
+      }
+      if (createForm.email) {
+        payload.email = createForm.email
       }
       if (createForm.role === 'team_lead' && createForm.managerId) {
         payload.managerId = createForm.managerId
@@ -505,10 +507,12 @@ export default function AgentHierarchyPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <p className="text-gray-900 dark:text-white">{createForm.firstName} {createForm.lastName}</p>
                 </div>
+                {createForm.email && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                   <p className="text-gray-900 dark:text-white">{createForm.email}</p>
                 </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Temporary Password</label>
                   <div className="flex items-center gap-2">
@@ -581,12 +585,13 @@ export default function AgentHierarchyPage() {
 
                 {/* Email */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email {createForm.role !== 'agent' && <span className="text-red-500">*</span>}</label>
                   <input
                     type="email"
-                    required
+                    required={createForm.role !== 'agent'}
                     value={createForm.email}
                     onChange={(e) => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder={createForm.role === 'agent' ? 'Optional for agents' : ''}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -628,7 +633,7 @@ export default function AgentHierarchyPage() {
                 )}
 
                 {createForm.role === 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically. Default PIN: <strong>12345</strong></p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Default password: <strong>12345</strong> &middot; Default PIN: <strong>12345</strong></p>
                 )}
                 {createForm.role !== 'agent' && (
                   <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically.</p>

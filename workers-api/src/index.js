@@ -674,16 +674,20 @@ api.post('/users', requireRole('admin'), async (c) => {
   const v = validate(createUserSchema, body);
   if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
-  const password = body.password || Math.random().toString(36).slice(-8);
-  const hashedPassword = await bcrypt.hash(password, 10);
   const role = body.role || 'agent';
+  // Agents default to password 12345; other roles get random password
+  const isAgent = role === 'agent' || role === 'field_agent' || role === 'sales_rep';
+  const password = body.password || (isAgent ? '12345' : Math.random().toString(36).slice(-8));
+  const hashedPassword = await bcrypt.hash(password, 10);
   // Set default PIN 12345 for agents and field_agents
   let pinHash = null;
-  if (role === 'agent' || role === 'field_agent') {
+  if (isAgent) {
     pinHash = await bcrypt.hash('12345', 10);
   }
-  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.email, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
-  return c.json({ success: true, data: { id, password, default_pin: (role === 'agent' || role === 'field_agent') ? '12345' : undefined }, message: 'User created' }, 201);
+  // Email is optional for agents
+  const email = body.email || (isAgent ? null : body.email);
+  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, email, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+  return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
 });
 
 api.put('/users/:id', requireRole('admin'), async (c) => {
@@ -2916,7 +2920,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   if (status) { where += ' AND v.status = ?'; params.push(status); }
   if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
-  if (visit_type) { where += ' AND (v.visit_target_type = ? OR v.visit_type = ?)'; params.push(visit_type, visit_type); }
+  if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
   const total = await db.prepare('SELECT COUNT(*) as count FROM visits v ' + where).bind(...params).first();
   const visits = await db.prepare("SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
   return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
