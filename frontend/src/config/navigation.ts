@@ -84,6 +84,10 @@ export const navigation: NavigationItem[] = [
       { name: 'GPS Tracking', href: '/field-operations/gps-tracking', permission: null, description: 'GPS compliance monitoring' },
       { name: 'Board Placements', href: '/field-operations/boards', permission: null, description: 'Track board placements' },
       { name: 'Product Distribution', href: '/field-operations/products', permission: null, description: 'Product distribution tracking' },
+      { name: 'Working Days', href: '/field-operations/working-days', permission: null, description: 'Working days configuration' },
+      { name: 'Monthly Targets', href: '/field-operations/monthly-targets', permission: null, description: 'Monthly target management' },
+      { name: 'Commission Tiers', href: '/field-operations/commission-tiers', permission: null, description: 'Commission tier configuration' },
+      { name: 'Settings', href: '/field-operations/settings', permission: null, description: 'Field ops global settings' },
     ],
   },
   {

@@ -29,7 +29,7 @@ export const ProductPricingPage: React.FC = () => {
     queryFn: () => productsService.getProducts({ limit: 100 }),
   })
 
-  const mockPricing: ProductPricing[] = (productsData?.products || productsData || []).map((p: any) => ({
+  const pricingData: ProductPricing[] = (productsData?.products || productsData || []).map((p: any) => ({
     product_id: String(p.id),
     product_name: p.name || 'Unknown Product',
     sku: p.sku || '',
@@ -72,11 +72,11 @@ export const ProductPricingPage: React.FC = () => {
   }
 
   const filteredPricing = searchTerm
-    ? mockPricing.filter(p => 
+    ? pricingData.filter(p => 
         p.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.sku.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    : mockPricing
+    : pricingData
 
   return (
     <div className="space-y-6">
@@ -104,8 +104,8 @@ export const ProductPricingPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Avg Selling Price</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockPricing.length > 0
-                  ? formatCurrency(mockPricing.reduce((sum, p) => sum + p.selling_price, 0) / mockPricing.length)
+                {pricingData.length > 0
+                  ? formatCurrency(pricingData.reduce((sum, p) => sum + p.selling_price, 0) / pricingData.length)
                   : formatCurrency(0)}
               </p>
             </div>
@@ -122,8 +122,8 @@ export const ProductPricingPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Avg Margin</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockPricing.length > 0
-                  ? `${(mockPricing.reduce((sum, p) => sum + p.margin_percentage, 0) / mockPricing.length).toFixed(1)}%`
+                {pricingData.length > 0
+                  ? `${(pricingData.reduce((sum, p) => sum + p.margin_percentage, 0) / pricingData.length).toFixed(1)}%`
                   : '0%'}
               </p>
             </div>
@@ -140,7 +140,7 @@ export const ProductPricingPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Products on Discount</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockPricing.filter(p => p.discount_percentage && p.discount_percentage > 0).length}
+                {pricingData.filter(p => p.discount_percentage && p.discount_percentage > 0).length}
               </p>
             </div>
           </div>
@@ -156,7 +156,7 @@ export const ProductPricingPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Low Margin Products</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockPricing.filter(p => p.margin_percentage < 15).length}
+                {pricingData.filter(p => p.margin_percentage < 15).length}
               </p>
             </div>
           </div>

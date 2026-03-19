@@ -147,6 +147,10 @@ const FieldOperationsDashboard = lazy(() => import('./pages/field-operations/Fie
 const FieldOperationsProductivityReport = lazy(() => import('./pages/reports/operations/FieldOperationsProductivityReport'))
 const FieldOpsInsights = lazy(() => import('./pages/insights/FieldOpsInsights'))
 const FieldOpsPerformancePage = lazy(() => import('./pages/field-operations/FieldOpsPerformancePage'))
+const FieldOpsSettingsPage = lazy(() => import('./pages/field-operations/FieldOpsSettingsPage'))
+const MonthlyTargetsPage = lazy(() => import('./pages/field-operations/MonthlyTargetsPage'))
+const TargetCommissionsPage = lazy(() => import('./pages/field-operations/TargetCommissionsPage'))
+const WorkingDaysConfigPage = lazy(() => import('./pages/field-operations/WorkingDaysConfigPage'))
 const FinanceDashboard = lazy(() => import('./pages/finance/FinanceDashboard'))
 const FinanceInvoiceCreate = lazy(() => import('./pages/finance/InvoiceCreate'))
 const FinanceInvoiceDetail = lazy(() => import('./pages/finance/InvoiceDetail'))
@@ -542,6 +546,10 @@ function App() {
             <Route path="field-operations/drill-down/:userId" element={<PageLoader><PerformanceDrillDownPage /></PageLoader>} />
             <Route path="field-operations/brand-insights" element={<PageLoader><BrandInsightsPage /></PageLoader>} />
             <Route path="field-operations/company-logins" element={<PageLoader><CompanyLoginsPage /></PageLoader>} />
+            <Route path="field-operations/working-days" element={<PageLoader><WorkingDaysConfigPage /></PageLoader>} />
+            <Route path="field-operations/monthly-targets" element={<PageLoader><MonthlyTargetsPage /></PageLoader>} />
+            <Route path="field-operations/settings" element={<PageLoader><FieldOpsSettingsPage /></PageLoader>} />
+            <Route path="field-operations/commission-tiers" element={<PageLoader><TargetCommissionsPage /></PageLoader>} />
 
             <Route path="field-marketing/*" element={<Navigate to="/field-operations" replace />} />
 

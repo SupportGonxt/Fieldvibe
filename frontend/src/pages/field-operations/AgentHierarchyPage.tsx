@@ -184,11 +184,9 @@ export default function AgentHierarchyPage() {
                   {assigningUser === tl.id ? (
                     <div className="ml-auto flex items-center gap-2">
                       <SearchableSelect
-                        options={[
-                          { value: '', label: 'Select Manager' },
-                          { value: 'm.id', label: '{m.first_name} {m.last_name}' },
-                        ]}
+                        options={managers.map((m: any) => ({ value: m.id, label: `${m.first_name} ${m.last_name}` }))}
                         value={assignTarget || null}
+                        onChange={(val) => setAssignTarget(val || '')}
                         placeholder="Select Manager"
                       />
                       <button
@@ -224,10 +222,11 @@ export default function AgentHierarchyPage() {
                     <div className="ml-auto flex items-center gap-2">
                       <SearchableSelect
                         options={[
-                          { value: '', label: 'Select Team Lead' },
-                          { value: 'tl.id', label: '{tl.first_name} {tl.last_name}' },
+                          ...managers.flatMap((m: any) => (m.team_leads || []).map((tl: any) => ({ value: tl.id, label: `${tl.first_name} ${tl.last_name}` }))),
+                          ...unassignedTeamLeads.map((tl: any) => ({ value: tl.id, label: `${tl.first_name} ${tl.last_name}` }))
                         ]}
                         value={assignTarget || null}
+                        onChange={(val) => setAssignTarget(val || '')}
                         placeholder="Select Team Lead"
                       />
                       <button

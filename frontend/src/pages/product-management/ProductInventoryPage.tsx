@@ -31,7 +31,7 @@ export const ProductInventoryPage: React.FC = () => {
     queryFn: () => productsService.getProducts({ limit: 100 }),
   })
 
-  const mockInventory: ProductInventory[] = (productsData?.products || productsData || []).map((p: any) => ({
+  const inventoryData: ProductInventory[] = (productsData?.products || productsData || []).map((p: any) => ({
     product_id: String(p.id),
     product_name: p.name || 'Unknown Product',
     sku: p.sku || '',
@@ -75,8 +75,8 @@ export const ProductInventoryPage: React.FC = () => {
   }
 
   const filteredInventory = statusFilter === 'all'
-    ? mockInventory
-    : mockInventory.filter(i => i.stock_status === statusFilter)
+    ? inventoryData
+    : inventoryData.filter(i => i.stock_status === statusFilter)
 
   return (
     <div className="space-y-6">
@@ -104,7 +104,7 @@ export const ProductInventoryPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">In Stock</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockInventory.filter(i => i.stock_status === 'in_stock').length}
+                {inventoryData.filter(i => i.stock_status === 'in_stock').length}
               </p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export const ProductInventoryPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Low Stock</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockInventory.filter(i => i.stock_status === 'low_stock').length}
+                {inventoryData.filter(i => i.stock_status === 'low_stock').length}
               </p>
             </div>
           </div>
@@ -136,7 +136,7 @@ export const ProductInventoryPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Out of Stock</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockInventory.filter(i => i.stock_status === 'out_of_stock').length}
+                {inventoryData.filter(i => i.stock_status === 'out_of_stock').length}
               </p>
             </div>
           </div>
@@ -152,7 +152,7 @@ export const ProductInventoryPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Items</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockInventory.reduce((sum, i) => sum + i.current_stock, 0)}
+                {inventoryData.reduce((sum, i) => sum + i.current_stock, 0)}
               </p>
             </div>
           </div>

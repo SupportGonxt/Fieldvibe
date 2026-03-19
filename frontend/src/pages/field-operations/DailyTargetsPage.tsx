@@ -109,11 +109,9 @@ export default function DailyTargetsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent *</label>
               <SearchableSelect
-                options={[
-                  { value: '', label: 'Select Agent' },
-                  { value: 'a.id', label: '{a.first_name} {a.last_name}' },
-                ]}
+                options={agentList.map((a: any) => ({ value: a.id, label: `${a.first_name} ${a.last_name}` }))}
                 value={newTarget.agent_id || null}
+                onChange={(val) => setNewTarget({ ...newTarget, agent_id: val || '' })}
                 placeholder="Select Agent"
               />
             </div>
@@ -122,9 +120,10 @@ export default function DailyTargetsPage() {
               <SearchableSelect
                 options={[
                   { value: '', label: 'All Companies' },
-                  { value: 'c.id', label: '{c.name}' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
                 ]}
                 value={newTarget.company_id || null}
+                onChange={(val) => setNewTarget({ ...newTarget, company_id: val || '' })}
                 placeholder="All Companies"
               />
             </div>
@@ -198,7 +197,7 @@ export default function DailyTargetsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {targetList.map((t: any) => (
+              {Array.isArray(targetList) && targetList.map((t: any) => (
                 <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -239,7 +238,7 @@ export default function DailyTargetsPage() {
                   </td>
                 </tr>
               ))}
-              {targetList.length === 0 && (
+              {(!Array.isArray(targetList) || targetList.length === 0) && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center">
                     <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
