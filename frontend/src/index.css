@@ -453,63 +453,58 @@ html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
 
 /* ── Auth layout protection ── */
 /* The auth/login pages are ALWAYS dark regardless of light/dark mode. */
-/* These rules undo the specific light-mode overrides above for .auth-layout. */
-/* Only target the exact hex backgrounds that the light mode rules override. */
-.auth-layout[class*="bg-\[#06090F\]"] {
+/* ID selector (#auth-layout) guarantees higher specificity than class/attribute */
+/* selectors used in the light-mode overrides above, so these always win. */
+#auth-layout {
   background-color: #06090F !important;
 }
 
-.auth-layout [class*="bg-\[#0A0E18\]"] {
-  background-color: #0A0E18 !important;
+#auth-layout [class*="bg-\[#0A0E18\]"],
+#auth-layout [class*="bg-\[#0A1628\]"] {
+  background-color: unset !important;
 }
 
-.auth-layout [class*="bg-\[#0A1628\]"] {
-  background-color: rgba(10, 22, 40, 0.8) !important;
-}
-
-.auth-layout [class~="text-white"],
-.auth-layout [class*="font-bold"][class~="text-white"],
-.auth-layout [class*="font-semibold"][class~="text-white"] {
+#auth-layout [class~="text-white"] {
   color: #FFFFFF !important;
 }
 
-.auth-layout [class~="text-gray-100"] {
+#auth-layout [class~="text-gray-100"] {
   color: #F3F4F6 !important;
 }
 
-.auth-layout [class~="text-gray-200"] {
+#auth-layout [class~="text-gray-200"] {
   color: #E5E7EB !important;
 }
 
-.auth-layout [class~="text-gray-300"],
-.auth-layout [class*="text-slate-300"] {
+#auth-layout [class~="text-gray-300"],
+#auth-layout [class*="text-slate-300"] {
   color: #CBD5E1 !important;
 }
 
-.auth-layout [class~="text-gray-400"],
-.auth-layout [class*="text-slate-400"] {
+#auth-layout [class~="text-gray-400"],
+#auth-layout [class*="text-slate-400"] {
   color: #94A3B8 !important;
 }
 
-.auth-layout [class*="text-slate-500"] {
+#auth-layout [class*="text-slate-500"] {
   color: #64748B !important;
 }
 
-.auth-layout [class*="border-white\\/5"],
-.auth-layout [class*="border-white\\/10"] {
+#auth-layout [class*="border-white\\/5"],
+#auth-layout [class*="border-white\\/10"] {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.auth-layout input,
-.auth-layout select,
-.auth-layout textarea {
+#auth-layout input,
+#auth-layout select,
+#auth-layout textarea {
   color: #FFFFFF !important;
   background-color: transparent !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.auth-layout input::placeholder,
-.auth-layout textarea::placeholder {
+#auth-layout input::placeholder,
+#auth-layout textarea::placeholder {
   color: #64748B !important;
 }
 

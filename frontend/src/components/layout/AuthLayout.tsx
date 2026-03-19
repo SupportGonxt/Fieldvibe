@@ -3,7 +3,7 @@ import { Zap, Shield, Globe, Smartphone, BarChart3, Users } from 'lucide-react'
 
 export default function AuthLayout() {
   return (
-    <div className="auth-layout min-h-screen bg-[#06090F] flex">
+    <div id="auth-layout" className="auth-layout min-h-screen bg-[#06090F] flex">
       {/* Left side - Modern Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* Gradient background */}
