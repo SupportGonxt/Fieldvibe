@@ -375,9 +375,18 @@
   }
 }
 
-/* ==================== Light Mode Text Contrast Fixes ==================== */
+/* ==================== Light Mode Full Theme ==================== */
+/* Ensure light mode covers the entire screen */
+html:not(.dark) {
+  color-scheme: light;
+}
+
+html:not(.dark) body {
+  background-color: #F9FAFB;
+  color: #111827;
+}
+
 /* Fix unreadable light grey text on white backgrounds */
-/* Use :not(.dark) to avoid circular @apply and ensure light-mode-only override */
 html:not(.dark) [class~="text-gray-300"] {
   color: #6B7280 !important;
 }
@@ -386,25 +395,111 @@ html:not(.dark) [class~="text-gray-400"] {
   color: #6B7280 !important;
 }
 
-/* Ensure form inputs have readable text in light mode */
-input, select, textarea {
+/* ── Hardcoded dark hex background overrides for light mode ── */
+/* These are used throughout pages without dark: prefix variants */
+html:not(.dark) [class*="bg-\[#06090F\]"]:not([class*="dark:bg-"]):not([class*="text-\[#06090F\]"]),
+html:not(.dark) [style*="background-color: #06090F"] {
+  background-color: #F9FAFB !important;
+}
+
+html:not(.dark) [class*="bg-\[#0A0E18\]"]:not([class*="dark:bg-"]),
+html:not(.dark) [class*="bg-\[#0A1628\]"]:not([class*="dark:bg-"]) {
+  background-color: #FFFFFF !important;
+}
+
+html:not(.dark) [class*="bg-\[#1A1F2E\]"]:not([class*="dark:bg-"]) {
+  background-color: #FFFFFF !important;
+}
+
+html:not(.dark) [class*="bg-\[#0F1420\]"]:not([class*="dark:bg-"]) {
+  background-color: #F9FAFB !important;
+}
+
+html:not(.dark) [class*="bg-\[#141929\]"]:not([class*="dark:bg-"]) {
+  background-color: #F3F4F6 !important;
+}
+
+/* Light mode: hardcoded dark border overrides */
+html:not(.dark) [class*="border-white\\/5"]:not([class*="dark:border-"]),
+html:not(.dark) [class*="border-white\\/10"]:not([class*="dark:border-"]) {
+  border-color: #E5E7EB !important;
+}
+
+/* Light mode: hardcoded white/light text that is invisible on white bg */
+html:not(.dark) [class*="bg-\[#06090F\]"] [class~="text-white"],
+html:not(.dark) [class*="bg-\[#0A0E18\]"] [class~="text-white"],
+html:not(.dark) [class*="bg-\[#0A1628\]"] [class~="text-white"],
+html:not(.dark) [class*="bg-\[#1A1F2E\]"] [class~="text-white"] {
+  color: #111827 !important;
+}
+
+html:not(.dark) [class*="bg-\[#06090F\]"] [class~="text-gray-100"],
+html:not(.dark) [class*="bg-\[#0A0E18\]"] [class~="text-gray-100"],
+html:not(.dark) [class*="bg-\[#1A1F2E\]"] [class~="text-gray-100"] {
+  color: #1F2937 !important;
+}
+
+html:not(.dark) [class*="bg-\[#06090F\]"] [class~="text-gray-200"],
+html:not(.dark) [class*="bg-\[#0A0E18\]"] [class~="text-gray-200"],
+html:not(.dark) [class*="bg-\[#1A1F2E\]"] [class~="text-gray-200"] {
+  color: #374151 !important;
+}
+
+/* Light mode: hover bg overrides on dark hex panels */
+html:not(.dark) [class*="hover\\:bg-white\\/5"]:hover,
+html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
+  background-color: #F3F4F6 !important;
+}
+
+/* Light mode card/panel styles for custom theme tokens */
+html:not(.dark) .bg-night-50,
+html:not(.dark) .bg-night-100,
+html:not(.dark) .bg-night,
+html:not(.dark) [class*="bg-night"] {
+  background-color: #FFFFFF;
+}
+
+html:not(.dark) .border-night-50,
+html:not(.dark) .border-night-100,
+html:not(.dark) [class*="border-night"] {
+  border-color: #E5E7EB;
+}
+
+html:not(.dark) .text-night,
+html:not(.dark) [class*="text-night"] {
   color: #111827;
 }
 
-input::placeholder, textarea::placeholder {
+/* Ensure form inputs have readable text in light mode */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  color: #111827;
+  background-color: #FFFFFF;
+  border-color: #D1D5DB;
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
   color: #9CA3AF;
 }
 
 /* Ensure all input fields have solid dark text */
-.border-gray-300 input,
-.border-gray-200 input,
-input.border-gray-300,
-input.border-gray-200,
-textarea.border-gray-300,
-textarea.border-gray-200,
-select.border-gray-300,
-select.border-gray-200 {
+html:not(.dark) .border-gray-300 input,
+html:not(.dark) .border-gray-200 input,
+html:not(.dark) input.border-gray-300,
+html:not(.dark) input.border-gray-200,
+html:not(.dark) textarea.border-gray-300,
+html:not(.dark) textarea.border-gray-200,
+html:not(.dark) select.border-gray-300,
+html:not(.dark) select.border-gray-200 {
   color: #111827;
+  background-color: #FFFFFF;
+}
+
+/* Light mode: ensure text-white items outside dark containers remain readable */
+html:not(.dark) [class~="text-gray-100"]:not([class*="bg-gradient"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-purple"]):not([class*="bg-red"]):not([class*="bg-orange"]):not([class*="bg-yellow"]):not([class*="stat-card"]) {
+  color: #374151 !important;
 }
 
 /* ==================== Dark Mode Overrides ==================== */

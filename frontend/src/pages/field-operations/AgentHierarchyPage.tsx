@@ -87,7 +87,7 @@ export default function AgentHierarchyPage() {
         closeCreateModal()
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to create user'
+      const message = (err && typeof err === 'object' && 'message' in err) ? (err as { message: string }).message : 'Failed to create user'
       toast.error(message)
     } finally {
       setCreating(false)
