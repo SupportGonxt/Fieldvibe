@@ -459,9 +459,8 @@ html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
   background-color: #06090F !important;
 }
 
-#auth-layout [class*="bg-\[#0A0E18\]"],
-#auth-layout [class*="bg-\[#0A1628\]"] {
-  background-color: unset !important;
+#auth-layout [class*="bg-\[#0A0E18\]"] {
+  background-color: #0A0E18 !important;
 }
 
 #auth-layout [class~="text-white"] {
