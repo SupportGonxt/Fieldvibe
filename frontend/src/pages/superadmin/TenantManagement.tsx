@@ -33,8 +33,10 @@ import {
   Delete as DeleteIcon,
   PlayArrow as ActivateIcon,
   Pause as SuspendIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -67,6 +69,7 @@ interface TenantFormData {
 }
 
 const TenantManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTenantId, setDeleteTenantId] = useState<number | null>(null);
@@ -280,7 +283,8 @@ const TenantManagement: React.FC = () => {
                   </TableCell>
                   <TableCell>{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
                   <TableCell align="right">
-                    <IconButton size="small" onClick={() => handleOpenDialog(tenant)}><EditIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" onClick={() => handleOpenDialog(tenant)} title="Edit"><EditIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" onClick={() => navigate(`/superadmin/tenants/${tenant.id}/modules`)} title="Manage Modules" color="info"><SettingsIcon fontSize="small" /></IconButton>
                     {tenant.status === 'active' ? (
                       <IconButton size="small" onClick={() => handleStatusChange(tenant.id, 'suspend')} color="warning">
                         <SuspendIcon fontSize="small" />

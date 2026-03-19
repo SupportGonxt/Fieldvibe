@@ -6886,6 +6886,62 @@ api.get('/tenants/:id/users', requireSuperAdmin, async (c) => {
   return c.json({ success: true, data: users.results || [] });
 });
 
+// Q.1g Get tenant modules (super_admin)
+api.get('/tenants/:id/modules', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  const tenant = await db.prepare('SELECT modules_enabled FROM tenants WHERE id = ?').bind(id).first();
+  const modules = tenant?.modules_enabled ? JSON.parse(tenant.modules_enabled) : {};
+  return c.json({ success: true, data: modules });
+});
+
+// Q.1h Update tenant modules (super_admin)
+api.put('/tenants/:id/modules', requireSuperAdmin, async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  await db.prepare('UPDATE tenants SET modules_enabled = ?, updated_at = datetime("now") WHERE id = ?').bind(JSON.stringify(body.modules || {}), id).run();
+  return c.json({ success: true, message: 'Modules updated' });
+});
+
+// Q.1i Company settings (admin within their tenant)
+api.get('/settings/company', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const tenant = await db.prepare('SELECT * FROM tenants WHERE id = ?').bind(tenantId).first();
+  const settings = tenant?.settings ? JSON.parse(tenant.settings) : {};
+  return c.json({ success: true, data: {
+    company_name: tenant?.name || '',
+    company_code: tenant?.code || '',
+    timezone: settings.timezone || 'Africa/Johannesburg',
+    currency: settings.currency || 'ZAR',
+    date_format: settings.date_format || 'DD/MM/YYYY',
+    language: settings.language || 'en',
+    logo_url: settings.logo_url || '',
+    primary_color: settings.primary_color || '#3B82F6',
+  }});
+});
+
+api.put('/settings/company', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT settings FROM tenants WHERE id = ?').bind(tenantId).first();
+  const currentSettings = existing?.settings ? JSON.parse(existing.settings) : {};
+  const newSettings = { ...currentSettings, ...body };
+  await db.prepare('UPDATE tenants SET name = COALESCE(?, name), settings = ?, updated_at = datetime("now") WHERE id = ?').bind(body.company_name || null, JSON.stringify(newSettings), tenantId).run();
+  return c.json({ success: true, message: 'Company settings updated' });
+});
+
+// Q.1j Get tenant modules for company admin (read-only view)
+api.get('/settings/modules', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const tenant = await db.prepare('SELECT modules_enabled FROM tenants WHERE id = ?').bind(tenantId).first();
+  const modules = tenant?.modules_enabled ? JSON.parse(tenant.modules_enabled) : {};
+  return c.json({ success: true, data: modules });
+});
+
 // Q.2 Platform Settings
 api.get('/platform/settings', requireRole('admin'), async (c) => {
   const db = c.env.DB;

@@ -330,6 +330,8 @@ const SurveysManagement = lazy(() => import('./pages/surveys/SurveysManagement')
 const SystemHealthPage = lazy(() => import('./pages/admin-settings/SystemHealthPage').then(m => ({ default: m.SystemHealthPage })))
 const SystemSettingsPage = lazy(() => import('./pages/admin/SystemSettingsPage'))
 const TenantManagement = lazy(() => import('./pages/superadmin/TenantManagement'))
+const TenantModules = lazy(() => import('./pages/superadmin/TenantModules'))
+const CompanySetupPage = lazy(() => import('./pages/admin/CompanySetupPage'))
 const TerritoryManagementPage = lazy(() => import('./pages/admin/TerritoryManagementPage'))
 const TradeMarketingAgentPage = lazy(() => import('./pages/TradeMarketingAgentPage'))
 const TradeMarketingAnalyticsPage = lazy(() => import('./pages/trade-marketing/TradeMarketingAnalyticsPage'))
@@ -606,6 +608,7 @@ function App() {
             
             {/* Superadmin Routes */}
             <Route path="superadmin/tenants" element={<ProtectedRoute requiredRole="super_admin"><PageLoader><TenantManagement /></PageLoader></ProtectedRoute>} />
+            <Route path="superadmin/tenants/:tenantId/modules" element={<ProtectedRoute requiredRole="super_admin"><PageLoader><TenantModules /></PageLoader></ProtectedRoute>} />
 
             <Route path="field-agents/*" element={<Navigate to="/field-operations" replace />} />
 
@@ -848,6 +851,11 @@ function App() {
                 <RoleManagementPage />
               </ProtectedRoute>
             } />
+            <Route path="admin/company-setup" element={
+              <ProtectedRoute requiredRole="admin">
+                <CompanySetupPage />
+              </ProtectedRoute>
+            } />
 
             {/* Insights Dashboard Routes */}
             <Route path="insights" element={<PageLoader><ExecutiveInsightsDashboard /></PageLoader>} />
@@ -971,6 +979,20 @@ function App() {
             <Route path="van-sales/van-loads/:loadId/variance" element={<PageLoader><VanLoadVariance /></PageLoader>} />
             <Route path="inventory/stock-counts/:countId/variance" element={<PageLoader><VarianceResolution /></PageLoader>} />
             <Route path="field-operations/visit-workflow" element={<PageLoader><VisitWorkflowPage /></PageLoader>} />
+            <Route path="field-operations/board-placements" element={<PageLoader><BoardPlacementsList /></PageLoader>} />
+            <Route path="field-operations/board-placements/create" element={<PageLoader><BoardPlacementCreate /></PageLoader>} />
+            <Route path="field-operations/board-placements/:id" element={<PageLoader><BoardPlacementDetail /></PageLoader>} />
+            <Route path="field-operations/product-distributions" element={<PageLoader><ProductDistributionsList /></PageLoader>} />
+            <Route path="field-operations/product-distributions/create" element={<PageLoader><ProductDistributionCreate /></PageLoader>} />
+            <Route path="field-operations/product-distributions/:id" element={<PageLoader><ProductDistributionDetail /></PageLoader>} />
+            <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
+            <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
+            <Route path="agent/dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
+            <Route path="analytics-dashboard/*" element={<PageLoader><AnalyticsDashboardPage /></PageLoader>} />
+            <Route path="van-sales/route-management" element={<PageLoader><RouteManagementPage /></PageLoader>} />
+            <Route path="van-sales/orders-list" element={<PageLoader><VanOrdersListPage /></PageLoader>} />
+            <Route path="van-sales/route-details/:id" element={<PageLoader><VanRouteDetailsPage /></PageLoader>} />
+            <Route path="van-sales/workflow" element={<PageLoader><VanSalesWorkflowPage /></PageLoader>} />
             <Route path="field-operations/visits/list" element={<PageLoader><VisitsList /></PageLoader>} />
 
             {/* Mobile More Menu */}

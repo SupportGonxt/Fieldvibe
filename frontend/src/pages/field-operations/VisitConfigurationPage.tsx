@@ -23,6 +23,7 @@ interface VisitConfiguration {
   board_photo_required: boolean
   track_coverage_analytics: boolean
   visit_type?: string
+  visit_category: 'field_operations' | 'marketing' | 'both'
   default_duration_minutes: number
   is_active: boolean
   created_at: string
@@ -175,10 +176,23 @@ export default function VisitConfigurationPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
+                        {config.visit_category && (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            config.visit_category === 'marketing' ? 'bg-orange-100 text-orange-800' :
+                            config.visit_category === 'both' ? 'bg-indigo-100 text-indigo-800' :
+                            'bg-cyan-100 text-cyan-800'
+                          }`}>
+                            {config.visit_category === 'marketing' ? 'Marketing' :
+                             config.visit_category === 'both' ? 'Field Ops & Marketing' :
+                             'Field Ops'}
+                          </span>
+                        )}
                         {config.survey_id && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            config.survey_required ? 'bg-red-100 text-red-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
                             <CheckSquare className="h-3 w-3 mr-1" />
-                            Survey{config.survey_required && ' (Required)'}
+                            Survey ({config.survey_required ? 'Mandatory' : 'Optional'})
                           </span>
                         )}
                         {config.requires_board_placement && (
@@ -274,6 +288,7 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
     board_photo_required: config?.board_photo_required || false,
     track_coverage_analytics: config?.track_coverage_analytics || false,
     visit_type: config?.visit_type || 'field_visit',
+    visit_category: config?.visit_category || 'field_operations',
     default_duration_minutes: config?.default_duration_minutes || 30,
     is_active: config?.is_active !== undefined ? config.is_active : true
   })
@@ -397,29 +412,96 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
           </div>
 
           <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Visit Category</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Applies To *</label>
+                <SearchableSelect
+                  options={[
+                    { value: 'field_operations', label: 'Field Operations' },
+                    { value: 'marketing', label: 'Marketing' },
+                    { value: 'both', label: 'Both (Field Ops & Marketing)' },
+                  ]}
+                  value={formData.visit_category}
+                  onChange={(val: string) => setFormData({ ...formData, visit_category: val as 'field_operations' | 'marketing' | 'both' })}
+                  placeholder="Select Category"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type</label>
+                <SearchableSelect
+                  options={[
+                    { value: 'field_visit', label: 'Field Visit' },
+                    { value: 'store_check', label: 'Store Check' },
+                    { value: 'merchandising', label: 'Merchandising' },
+                    { value: 'delivery', label: 'Delivery' },
+                    { value: 'activation', label: 'Brand Activation' },
+                    { value: 'audit', label: 'Audit' },
+                  ]}
+                  value={formData.visit_type}
+                  onChange={(val: string) => setFormData({ ...formData, visit_type: val })}
+                  placeholder="Select Visit Type"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Default Duration (minutes)</label>
+              <input
+                type="number"
+                min={5}
+                max={480}
+                value={formData.default_duration_minutes}
+                onChange={e => setFormData({ ...formData, default_duration_minutes: parseInt(e.target.value) || 30 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
             <h3 className="text-sm font-medium text-gray-900 mb-3">Survey Configuration</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Survey</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Survey Template</label>
                 <SearchableSelect
                   options={[
                     { value: '', label: 'No Survey' },
-                    { value: 'survey.id', label: '{survey.title}' },
+                    ...((surveys || []) as Array<{id: string; title: string}>).map((s: {id: string; title: string}) => ({ value: s.id, label: s.title }))
                   ]}
                   value={formData.survey_id || null}
+                  onChange={(val: string) => setFormData({ ...formData, survey_id: val })}
                   placeholder="No Survey"
                 />
               </div>
               {formData.survey_id && (
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.survey_required}
-                    onChange={e => setFormData({ ...formData, survey_required: e.target.checked })}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-sm text-gray-700">Survey is mandatory</span>
-                </label>
+                <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="survey_mode"
+                        checked={formData.survey_required}
+                        onChange={() => setFormData({ ...formData, survey_required: true })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-900">Mandatory</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="survey_mode"
+                        checked={!formData.survey_required}
+                        onChange={() => setFormData({ ...formData, survey_required: false })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-900">Optional</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {formData.survey_required
+                      ? 'Agent must complete this survey before checking out of the visit.'
+                      : 'Agent can skip this survey during the visit.'}
+                  </p>
+                </div>
               )}
             </div>
           </div>
