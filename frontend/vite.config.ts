@@ -9,34 +9,11 @@ export default defineConfig({
   // Do NOT override VITE_* env vars in the define block - let Vite handle them
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        navigateFallbackDenylist: [/^\/api/],
-      },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-      manifest: {
-                name: 'FieldVibe - Field Operations & Sales Intelligence',
-                short_name: 'FieldVibe',
-                description: 'Multi-tenant field operations and sales intelligence platform',
-                theme_color: '#0A0F1C',
-        background_color: '#ffffff',
-        display: 'standalone',
-        version: '1.0.0',
-        icons: [
-          {
-            src: 'favicon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
-          }
-        ]
-      }
-    })
+    // PWA disabled - was causing stale cache issues for users
+    // VitePWA({
+    //   registerType: 'autoUpdate',
+    //   ...
+    // })
   ],
   resolve: {
     alias: {
