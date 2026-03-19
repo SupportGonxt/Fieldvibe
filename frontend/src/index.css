@@ -471,30 +471,18 @@ html:not(.dark) [class*="text-night"] {
 }
 
 /* Ensure form inputs have readable text in light mode */
-html:not(.dark) input,
-html:not(.dark) select,
-html:not(.dark) textarea {
+/* Use :where() to zero specificity so Tailwind utilities (bg-gray-50 etc) still win */
+:where(html:not(.dark)) input,
+:where(html:not(.dark)) select,
+:where(html:not(.dark)) textarea {
   color: #111827;
   background-color: #FFFFFF;
   border-color: #D1D5DB;
 }
 
-html:not(.dark) input::placeholder,
-html:not(.dark) textarea::placeholder {
+:where(html:not(.dark)) input::placeholder,
+:where(html:not(.dark)) textarea::placeholder {
   color: #9CA3AF;
-}
-
-/* Ensure all input fields have solid dark text */
-html:not(.dark) .border-gray-300 input,
-html:not(.dark) .border-gray-200 input,
-html:not(.dark) input.border-gray-300,
-html:not(.dark) input.border-gray-200,
-html:not(.dark) textarea.border-gray-300,
-html:not(.dark) textarea.border-gray-200,
-html:not(.dark) select.border-gray-300,
-html:not(.dark) select.border-gray-200 {
-  color: #111827;
-  background-color: #FFFFFF;
 }
 
 /* Light mode: ensure text-white items outside dark containers remain readable */
