@@ -1859,6 +1859,48 @@ CREATE TABLE IF NOT EXISTS visit_survey_config (
 );
 CREATE INDEX IF NOT EXISTS idx_visit_survey_config_company ON visit_survey_config(company_id, visit_target_type);
 
+-- Boards (for board placements in visits)
+CREATE TABLE IF NOT EXISTS boards (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  board_type TEXT DEFAULT 'standard',
+  dimensions TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_boards_tenant ON boards(tenant_id, status);
+
+-- Visit Configurations (controls visit behavior by brand, customer type, with surveys and board placements)
+CREATE TABLE IF NOT EXISTS visit_configurations (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  target_type TEXT NOT NULL DEFAULT 'all',
+  brand_id TEXT,
+  customer_type TEXT,
+  valid_from TEXT,
+  valid_to TEXT,
+  survey_id TEXT,
+  survey_required INTEGER DEFAULT 0,
+  requires_board_placement INTEGER DEFAULT 0,
+  board_id TEXT,
+  board_photo_required INTEGER DEFAULT 0,
+  track_coverage_analytics INTEGER DEFAULT 0,
+  visit_type TEXT DEFAULT 'field_visit',
+  visit_category TEXT DEFAULT 'field_operations',
+  default_duration_minutes INTEGER DEFAULT 30,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_visit_configurations_tenant ON visit_configurations(tenant_id, is_active);
+
 -- ==================== SEED DATA: FIELD OPS SETTINGS & COMMISSION TIERS ====================
 
 -- Default field ops settings

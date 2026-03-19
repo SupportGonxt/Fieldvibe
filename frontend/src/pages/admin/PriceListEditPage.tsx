@@ -230,6 +230,7 @@ export default function PriceListEditPage() {
                   { value: 'distributor', label: 'Distributor' },
                 ]}
                 value={formData.customer_type || null}
+                onChange={(val) => setFormData({ ...formData, customer_type: val || '' })}
                 placeholder="All Types"
               />
             </div>
@@ -246,6 +247,7 @@ export default function PriceListEditPage() {
                   { value: 'online', label: 'Online' },
                 ]}
                 value={formData.channel || null}
+                onChange={(val) => setFormData({ ...formData, channel: val || '' })}
                 placeholder="All Channels"
               />
             </div>
@@ -262,6 +264,7 @@ export default function PriceListEditPage() {
                   { value: 'LKR', label: 'LKR' },
                 ]}
                 value={formData.currency}
+                onChange={(val) => setFormData({ ...formData, currency: val || 'USD' })}
                 placeholder="USD"
               />
             </div>
@@ -339,11 +342,9 @@ export default function PriceListEditPage() {
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Product *</label>
                     <SearchableSelect
-                      options={[
-                        { value: '', label: 'Select Product' },
-                        { value: 'product.id', label: '{product.code} - {product.name}' },
-                      ]}
+                      options={products.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
                       value={item.product_id || null}
+                      onChange={(val) => updateItem(index, 'product_id', val)}
                       placeholder="Select Product"
                     />
                   </div>

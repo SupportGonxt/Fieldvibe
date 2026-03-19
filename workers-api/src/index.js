@@ -4905,6 +4905,145 @@ api.delete('/visit-survey-config/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Survey config deleted' });
 });
 
+// ==================== BRANDS ====================
+api.get('/brands', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const brands = await db.prepare("SELECT id, name, code, description, logo_url, status FROM brands WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
+    return c.json({ success: true, data: brands.results || [] });
+  } catch { return c.json({ success: true, data: [] }); }
+});
+
+api.post('/brands', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name || !body.code) return c.json({ success: false, message: 'name and code are required' }, 400);
+  const id = uuidv4();
+  await db.prepare('INSERT INTO brands (id, tenant_id, name, code, description, logo_url) VALUES (?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.code, body.description || null, body.logo_url || null).run();
+  return c.json({ success: true, data: { id, ...body } }, 201);
+});
+
+// ==================== SURVEYS (questionnaires) ====================
+api.get('/surveys', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const surveys = await db.prepare("SELECT id, name, module, visit_type, target_type, brand_id, company_id, is_default, is_active FROM questionnaires WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all();
+    return c.json({ success: true, data: surveys.results || [] });
+  } catch { return c.json({ success: true, data: [] }); }
+});
+
+// ==================== BOARDS ====================
+api.get('/boards', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const boards = await db.prepare("SELECT id, name, description, board_type, dimensions, status FROM boards WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
+    return c.json({ success: true, data: boards.results || [] });
+  } catch { return c.json({ success: true, data: [] }); }
+});
+
+api.post('/boards', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name) return c.json({ success: false, message: 'name is required' }, 400);
+  const id = uuidv4();
+  await db.prepare('INSERT INTO boards (id, tenant_id, name, description, board_type, dimensions) VALUES (?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.description || null, body.board_type || 'standard', body.dimensions || null).run();
+  return c.json({ success: true, data: { id, ...body } }, 201);
+});
+
+// ==================== VISIT CONFIGURATIONS ====================
+api.get('/visit-configurations', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const configs = await db.prepare(`
+      SELECT vc.*, b.name as brand_name, q.name as survey_title, bd.name as board_name
+      FROM visit_configurations vc
+      LEFT JOIN brands b ON vc.brand_id = b.id
+      LEFT JOIN questionnaires q ON vc.survey_id = q.id
+      LEFT JOIN boards bd ON vc.board_id = bd.id
+      WHERE vc.tenant_id = ?
+      ORDER BY vc.created_at DESC
+    `).bind(tenantId).all();
+    return c.json({ success: true, data: configs.results || [] });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.get('/visit-configurations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const config = await db.prepare(`
+    SELECT vc.*, b.name as brand_name, q.name as survey_title, bd.name as board_name
+    FROM visit_configurations vc
+    LEFT JOIN brands b ON vc.brand_id = b.id
+    LEFT JOIN questionnaires q ON vc.survey_id = q.id
+    LEFT JOIN boards bd ON vc.board_id = bd.id
+    WHERE vc.id = ? AND vc.tenant_id = ?
+  `).bind(id, tenantId).first();
+  if (!config) return c.json({ success: false, message: 'Configuration not found' }, 404);
+  return c.json({ success: true, data: config });
+});
+
+api.post('/visit-configurations', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name) return c.json({ success: false, message: 'name is required' }, 400);
+  const id = uuidv4();
+  await db.prepare(`
+    INSERT INTO visit_configurations (id, tenant_id, name, description, target_type, brand_id, customer_type, valid_from, valid_to, survey_id, survey_required, requires_board_placement, board_id, board_photo_required, track_coverage_analytics, visit_type, visit_category, default_duration_minutes, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, tenantId, body.name, body.description || null, body.target_type || 'all',
+    body.brand_id || null, body.customer_type || null, body.valid_from || null, body.valid_to || null,
+    body.survey_id || null, body.survey_required ? 1 : 0,
+    body.requires_board_placement ? 1 : 0, body.board_id || null, body.board_photo_required ? 1 : 0,
+    body.track_coverage_analytics ? 1 : 0, body.visit_type || 'field_visit',
+    body.visit_category || 'field_operations', body.default_duration_minutes || 30,
+    body.is_active !== undefined ? (body.is_active ? 1 : 0) : 1
+  ).run();
+  return c.json({ success: true, data: { id, ...body } }, 201);
+});
+
+api.put('/visit-configurations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM visit_configurations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Configuration not found' }, 404);
+  const fields = ['name', 'description', 'target_type', 'brand_id', 'customer_type', 'valid_from', 'valid_to', 'survey_id', 'visit_type', 'visit_category', 'default_duration_minutes'];
+  const boolFields = ['survey_required', 'requires_board_placement', 'board_photo_required', 'track_coverage_analytics', 'is_active'];
+  const sets = [];
+  const vals = [];
+  for (const f of fields) {
+    if (body[f] !== undefined) { sets.push(f + ' = ?'); vals.push(body[f] || null); }
+  }
+  for (const f of boolFields) {
+    if (body[f] !== undefined) { sets.push(f + ' = ?'); vals.push(body[f] ? 1 : 0); }
+  }
+  if (body.board_id !== undefined) { sets.push('board_id = ?'); vals.push(body.board_id || null); }
+  if (sets.length === 0) return c.json({ success: false, message: 'No fields to update' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE visit_configurations SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Configuration updated' });
+});
+
+api.delete('/visit-configurations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM visit_configurations WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Configuration deleted' });
+});
+
 // --- Field Ops Survey Insights (wires survey data into reporting) ---
 api.get('/field-ops/survey-insights', authMiddleware, async (c) => {
   const db = c.env.DB;
