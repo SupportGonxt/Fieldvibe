@@ -4079,6 +4079,273 @@ api.put('/field-ops/hierarchy/assign', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Hierarchy updated' });
 });
 
+// ==================== FIELD OPS: SETTINGS ====================
+api.get('/field-ops/settings', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const settings = await db.prepare('SELECT * FROM field_ops_settings WHERE tenant_id = ? ORDER BY setting_key').bind(tenantId).all();
+    return c.json({ data: settings.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+api.put('/field-ops/settings', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { setting_key, setting_value, description } = body;
+  if (!setting_key || setting_value === undefined) return c.json({ success: false, message: 'setting_key and setting_value required' }, 400);
+  const existing = await db.prepare('SELECT id FROM field_ops_settings WHERE tenant_id = ? AND setting_key = ?').bind(tenantId, setting_key).first();
+  if (existing) {
+    await db.prepare('UPDATE field_ops_settings SET setting_value = ?, description = COALESCE(?, description), updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND setting_key = ?').bind(setting_value, description || null, tenantId, setting_key).run();
+  } else {
+    await db.prepare('INSERT INTO field_ops_settings (id, tenant_id, setting_key, setting_value, description) VALUES (?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, setting_key, setting_value, description || null).run();
+  }
+  return c.json({ success: true, message: 'Setting saved' });
+});
+
+api.post('/field-ops/settings/bulk', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { settings } = body;
+  if (!settings || !Array.isArray(settings)) return c.json({ success: false, message: 'settings array required' }, 400);
+  for (const s of settings) {
+    const existing = await db.prepare('SELECT id FROM field_ops_settings WHERE tenant_id = ? AND setting_key = ?').bind(tenantId, s.setting_key).first();
+    if (existing) {
+      await db.prepare('UPDATE field_ops_settings SET setting_value = ?, description = COALESCE(?, description), updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND setting_key = ?').bind(s.setting_value, s.description || null, tenantId, s.setting_key).run();
+    } else {
+      await db.prepare('INSERT INTO field_ops_settings (id, tenant_id, setting_key, setting_value, description) VALUES (?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, s.setting_key, s.setting_value, s.description || null).run();
+    }
+  }
+  return c.json({ success: true, message: `${settings.length} settings saved` });
+});
+
+// ==================== FIELD OPS: WORKING DAYS CONFIG ====================
+api.get('/field-ops/working-days', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, agent_id } = c.req.query();
+  try {
+    let where = 'WHERE wdc.tenant_id = ?';
+    const params = [tenantId];
+    if (company_id) { where += ' AND wdc.company_id = ?'; params.push(company_id); }
+    if (agent_id) { where += ' AND wdc.agent_id = ?'; params.push(agent_id); }
+    const configs = await db.prepare("SELECT wdc.*, fc.name as company_name, u.first_name || ' ' || u.last_name as agent_name FROM working_days_config wdc LEFT JOIN field_companies fc ON wdc.company_id = fc.id LEFT JOIN users u ON wdc.agent_id = u.id " + where + " ORDER BY wdc.created_at DESC").bind(...params).all();
+    return c.json({ data: configs.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+api.post('/field-ops/working-days', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const id = uuidv4();
+  await db.prepare('INSERT INTO working_days_config (id, tenant_id, company_id, agent_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, public_holidays, effective_from, effective_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.company_id || null, body.agent_id || null, body.monday ?? 1, body.tuesday ?? 1, body.wednesday ?? 1, body.thursday ?? 1, body.friday ?? 1, body.saturday ?? 0, body.sunday ?? 0, JSON.stringify(body.public_holidays || []), body.effective_from || null, body.effective_to || null).run();
+  return c.json({ id, message: 'Working days config created' }, 201);
+});
+
+api.put('/field-ops/working-days/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const sets = [];
+  const vals = [];
+  for (const [k, v] of Object.entries(body)) {
+    if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'company_id', 'agent_id', 'effective_from', 'effective_to'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
+    if (k === 'public_holidays') { sets.push('public_holidays = ?'); vals.push(JSON.stringify(v)); }
+  }
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE working_days_config SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Working days config updated' });
+});
+
+api.delete('/field-ops/working-days/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM working_days_config WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Working days config deleted' });
+});
+
+// Get effective working days for an agent (resolves: agent override > company config > global default)
+api.get('/field-ops/working-days/effective', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { agent_id, company_id, month } = c.req.query();
+  try {
+    // 1. Check agent-level override
+    let config = null;
+    if (agent_id) {
+      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId, agent_id).first();
+      if (!config && company_id) {
+        config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id = ? ORDER BY created_at DESC LIMIT 1').bind(tenantId, agent_id, company_id).first();
+      }
+    }
+    // 2. Check company-level config
+    if (!config && company_id) {
+      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND company_id = ? AND agent_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId, company_id).first();
+    }
+    // 3. Fall back to global default (no company, no agent)
+    if (!config) {
+      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND company_id IS NULL AND agent_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId).first();
+    }
+    // 4. Hard default
+    if (!config) {
+      config = { monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 0, sunday: 0, public_holidays: '[]' };
+    }
+    // Calculate working days count for the given month
+    let workingDaysCount = 0;
+    if (month) {
+      const [year, mon] = month.split('-').map(Number);
+      const daysInMonth = new Date(year, mon, 0).getDate();
+      const holidays = JSON.parse(config.public_holidays || '[]');
+      const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, mon - 1, d);
+        const dayName = dayMap[date.getDay()];
+        const dateStr = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (config[dayName] && !holidays.includes(dateStr)) workingDaysCount++;
+      }
+    }
+    return c.json({ data: { config, working_days_count: workingDaysCount } });
+  } catch { return c.json({ data: { config: { monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 0, sunday: 0 }, working_days_count: 22 } }); }
+});
+
+// ==================== FIELD OPS: MONTHLY TARGETS ====================
+api.get('/field-ops/monthly-targets', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const role = c.get('role');
+  const userId = c.get('userId');
+  const { agent_id, company_id, target_month } = c.req.query();
+  try {
+    let where = 'WHERE mt.tenant_id = ?';
+    const params = [tenantId];
+    if (role === 'agent' || role === 'field_agent') { where += ' AND mt.agent_id = ?'; params.push(userId); }
+    else if (agent_id) { where += ' AND mt.agent_id = ?'; params.push(agent_id); }
+    if (company_id) { where += ' AND mt.company_id = ?'; params.push(company_id); }
+    if (target_month) { where += ' AND mt.target_month = ?'; params.push(target_month); }
+    const targets = await db.prepare("SELECT mt.*, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM monthly_targets mt LEFT JOIN users u ON mt.agent_id = u.id LEFT JOIN field_companies fc ON mt.company_id = fc.id " + where + " ORDER BY mt.target_month DESC, u.first_name LIMIT 200").bind(...params).all();
+    return c.json({ data: targets.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+api.post('/field-ops/monthly-targets', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  if (!body.agent_id || !body.target_month) return c.json({ success: false, message: 'agent_id and target_month required' }, 400);
+  const id = uuidv4();
+  await db.prepare('INSERT INTO monthly_targets (id, tenant_id, agent_id, company_id, target_month, target_visits, target_conversions, target_registrations, working_days, commission_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.agent_id, body.company_id || null, body.target_month, body.target_visits || 0, body.target_conversions || 0, body.target_registrations || 0, body.working_days || 22, body.commission_rate || 0, userId).run();
+  return c.json({ id, message: 'Monthly target created' }, 201);
+});
+
+api.put('/field-ops/monthly-targets/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const sets = [];
+  const vals = [];
+  for (const [k, v] of Object.entries(body)) {
+    if (['target_visits', 'target_conversions', 'target_registrations', 'working_days', 'actual_visits', 'actual_conversions', 'actual_registrations', 'commission_rate', 'commission_amount', 'status', 'agent_id', 'company_id', 'target_month'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
+  }
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE monthly_targets SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Monthly target updated' });
+});
+
+api.delete('/field-ops/monthly-targets/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM monthly_targets WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Monthly target deleted' });
+});
+
+// Recalculate actuals for a monthly target (counts visits/regs/conversions for the month)
+api.post('/field-ops/monthly-targets/:id/recalculate', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  try {
+    const target = await db.prepare('SELECT * FROM monthly_targets WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+    if (!target) return c.json({ success: false, message: 'Target not found' }, 404);
+    const startDate = target.target_month + '-01';
+    const [year, mon] = target.target_month.split('-').map(Number);
+    const endDate = `${year}-${String(mon).padStart(2, '0')}-${new Date(year, mon, 0).getDate()}`;
+    let companyFilter = '';
+    const baseParams = [target.agent_id, tenantId, startDate, endDate];
+    if (target.company_id) { companyFilter = ' AND company_id = ?'; }
+    const visits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date <= ?" + (target.company_id ? " AND brand_id = ?" : '')).bind(...baseParams, ...(target.company_id ? [target.company_id] : [])).first();
+    const regs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND created_at >= ? AND created_at <= ?" + (target.company_id ? " AND company_id = ?" : '')).bind(target.agent_id, tenantId, startDate + ' 00:00:00', endDate + ' 23:59:59', ...(target.company_id ? [target.company_id] : [])).first();
+    const convs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND converted = 1 AND conversion_date >= ? AND conversion_date <= ?" + (target.company_id ? " AND company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
+    await db.prepare('UPDATE monthly_targets SET actual_visits = ?, actual_conversions = ?, actual_registrations = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(visits?.count || 0, convs?.count || 0, regs?.count || 0, id).run();
+    // Calculate commission based on achievement
+    const achievementPct = target.target_visits > 0 ? ((visits?.count || 0) / target.target_visits) * 100 : 0;
+    const tier = await db.prepare('SELECT * FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 AND min_achievement_pct <= ? AND (max_achievement_pct IS NULL OR max_achievement_pct >= ?) AND (company_id IS NULL OR company_id = ?) AND metric_type = ? ORDER BY min_achievement_pct DESC LIMIT 1').bind(tenantId, achievementPct, achievementPct, target.company_id || '', 'visits').first();
+    let commissionAmount = 0;
+    if (tier) {
+      commissionAmount = ((visits?.count || 0) * tier.commission_rate) + (tier.bonus_amount || 0);
+      await db.prepare('UPDATE monthly_targets SET commission_rate = ?, commission_amount = ? WHERE id = ?').bind(tier.commission_rate, commissionAmount, id).run();
+    }
+    return c.json({ success: true, actual_visits: visits?.count || 0, actual_registrations: regs?.count || 0, actual_conversions: convs?.count || 0, achievement_pct: achievementPct, commission_amount: commissionAmount });
+  } catch (e) { return c.json({ success: false, message: e.message || 'Recalculation failed' }, 500); }
+});
+
+// ==================== FIELD OPS: TARGET COMMISSION TIERS ====================
+api.get('/field-ops/commission-tiers', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id } = c.req.query();
+  try {
+    let where = 'WHERE tct.tenant_id = ?';
+    const params = [tenantId];
+    if (company_id) { where += ' AND (tct.company_id = ? OR tct.company_id IS NULL)'; params.push(company_id); }
+    const tiers = await db.prepare("SELECT tct.*, fc.name as company_name FROM target_commission_tiers tct LEFT JOIN field_companies fc ON tct.company_id = fc.id " + where + " ORDER BY tct.metric_type, tct.min_achievement_pct ASC").bind(...params).all();
+    return c.json({ data: tiers.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+api.post('/field-ops/commission-tiers', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.tier_name || body.min_achievement_pct === undefined || body.commission_rate === undefined) return c.json({ success: false, message: 'tier_name, min_achievement_pct, commission_rate required' }, 400);
+  const id = uuidv4();
+  await db.prepare('INSERT INTO target_commission_tiers (id, tenant_id, company_id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.company_id || null, body.tier_name, body.min_achievement_pct, body.max_achievement_pct || null, body.commission_rate, body.bonus_amount || 0, body.metric_type || 'visits').run();
+  return c.json({ id, message: 'Commission tier created' }, 201);
+});
+
+api.put('/field-ops/commission-tiers/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const sets = [];
+  const vals = [];
+  for (const [k, v] of Object.entries(body)) {
+    if (['tier_name', 'min_achievement_pct', 'max_achievement_pct', 'commission_rate', 'bonus_amount', 'metric_type', 'company_id', 'is_active'].includes(k)) { sets.push(k + ' = ?'); vals.push(v); }
+  }
+  if (sets.length === 0) return c.json({ success: false, message: 'No valid fields' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE target_commission_tiers SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+  return c.json({ success: true, message: 'Commission tier updated' });
+});
+
+api.delete('/field-ops/commission-tiers/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM target_commission_tiers WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Commission tier deleted' });
+});
+
 // ==================== FIELD OPERATIONS: PERFORMANCE (ROLE-BASED) ====================
 api.get('/field-ops/performance', authMiddleware, async (c) => {
   const db = c.env.DB;

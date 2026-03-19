@@ -15,13 +15,11 @@ export function getVersionString(): string {
 }
 
 export function logVersion(): void {
-╔════════════════════════════════════════════════════════════╗
-║                    FieldVibe Frontend                      ║
-║                                                            ║
-║  Version:     ${VERSION.version.padEnd(44)} ║
-║  Build Date:  ${VERSION.buildDate.split('T')[0].padEnd(44)} ║
-║  Git Commit:  ${VERSION.gitCommit.substring(0, 44).padEnd(44)} ║
-║  Environment: ${VERSION.environment.padEnd(44)} ║
-╚════════════════════════════════════════════════════════════╝
+  console.log(`
+  FieldVibe Frontend
+  Version:     ${VERSION.version}
+  Build Date:  ${VERSION.buildDate.split('T')[0]}
+  Git Commit:  ${VERSION.gitCommit.substring(0, 8)}
+  Environment: ${VERSION.environment}
   `);
 }

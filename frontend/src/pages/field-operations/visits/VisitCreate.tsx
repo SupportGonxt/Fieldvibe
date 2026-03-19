@@ -27,8 +27,10 @@ export default function VisitCreate() {
         fieldOperationsService.getAgents(),
         fieldOperationsService.getCustomers()
       ])
-      setAgents(agentsRes.data || [])
-      setCustomers(customersRes.data || [])
+      const agentsData = agentsRes?.data?.data || agentsRes?.data || []
+      const customersData = customersRes?.data?.data || customersRes?.data || []
+      setAgents(Array.isArray(agentsData) ? agentsData : [])
+      setCustomers(Array.isArray(customersData) ? customersData : [])
     } catch (error) {
       console.error('Failed to load form data:', error)
     }
@@ -46,9 +48,9 @@ export default function VisitCreate() {
       label: 'Agent',
       type: 'select' as const,
       required: true,
-      options: agents.map((a: any) => ({
-        value: a.id.toString(),
-        label: a.name
+      options: (agents || []).map((a: any) => ({
+        value: String(a.id || ''),
+        label: a.name || a.first_name ? `${a.first_name || ''} ${a.last_name || ''}`.trim() : 'Unknown'
       }))
     },
     {
@@ -56,9 +58,9 @@ export default function VisitCreate() {
       label: 'Customer',
       type: 'select' as const,
       required: true,
-      options: customers.map((c: any) => ({
-        value: c.id.toString(),
-        label: c.name
+      options: (customers || []).map((c: any) => ({
+        value: String(c.id || ''),
+        label: c.name || c.business_name || 'Unknown'
       }))
     },
     {

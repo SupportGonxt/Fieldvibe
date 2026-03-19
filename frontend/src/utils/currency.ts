@@ -165,8 +165,8 @@ export interface ExchangeRate {
   lastUpdated: Date
 }
 
-// Mock exchange rates - in production, these would come from an API
-const MOCK_EXCHANGE_RATES: ExchangeRate[] = [
+// Static fallback exchange rates - in production, these would come from an API
+const FALLBACK_EXCHANGE_RATES: ExchangeRate[] = [
   { from: 'USD', to: 'ZAR', rate: 18.50, lastUpdated: new Date() },
   { from: 'ZAR', to: 'USD', rate: 0.054, lastUpdated: new Date() },
   { from: 'EUR', to: 'ZAR', rate: 20.10, lastUpdated: new Date() },
@@ -182,13 +182,13 @@ export const convertCurrency = (
 ): number => {
   if (from === to) return amount
   
-  const rate = MOCK_EXCHANGE_RATES.find(r => r.from === from && r.to === to)
+  const rate = FALLBACK_EXCHANGE_RATES.find(r => r.from === from && r.to === to)
   if (rate) {
     return amount * rate.rate
   }
   
   // If direct rate not found, try reverse
-  const reverseRate = MOCK_EXCHANGE_RATES.find(r => r.from === to && r.to === from)
+  const reverseRate = FALLBACK_EXCHANGE_RATES.find(r => r.from === to && r.to === from)
   if (reverseRate) {
     return amount / reverseRate.rate
   }
@@ -200,10 +200,10 @@ export const convertCurrency = (
 export const getExchangeRate = (from: Currency, to: Currency): number | null => {
   if (from === to) return 1
   
-  const rate = MOCK_EXCHANGE_RATES.find(r => r.from === from && r.to === to)
+  const rate = FALLBACK_EXCHANGE_RATES.find(r => r.from === from && r.to === to)
   if (rate) return rate.rate
   
-  const reverseRate = MOCK_EXCHANGE_RATES.find(r => r.from === to && r.to === from)
+  const reverseRate = FALLBACK_EXCHANGE_RATES.find(r => r.from === to && r.to === from)
   if (reverseRate) return 1 / reverseRate.rate
   
   return null

@@ -102,8 +102,9 @@ export default function UserManagementPage() {
       if (statusFilter) params.append('status', statusFilter)
 
       const response = await apiClient.get(`/users?${params.toString()}`)
-      const userData = response.data.data.users || []
-      setUsers(userData)
+      const respData = response.data?.data || response.data || {}
+      const userData = respData.users || respData || []
+      setUsers(Array.isArray(userData) ? userData : [])
 
       // Calculate stats
       setStats({

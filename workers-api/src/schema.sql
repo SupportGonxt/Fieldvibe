@@ -1667,3 +1667,115 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_events_dates ON events(start_date, end_date);
+
+-- ==================== FIELD OPS: WORKING DAYS & MONTHLY TARGETS ====================
+
+-- Field Ops Settings (global defaults for working days, target defaults, etc.)
+CREATE TABLE IF NOT EXISTS field_ops_settings (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  setting_key TEXT NOT NULL,
+  setting_value TEXT NOT NULL,
+  description TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  UNIQUE(tenant_id, setting_key)
+);
+CREATE INDEX IF NOT EXISTS idx_field_ops_settings_tenant ON field_ops_settings(tenant_id, setting_key);
+
+-- Working Days Configuration (per company, overridable per agent)
+CREATE TABLE IF NOT EXISTS working_days_config (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT,
+  agent_id TEXT,
+  monday INTEGER DEFAULT 1,
+  tuesday INTEGER DEFAULT 1,
+  wednesday INTEGER DEFAULT 1,
+  thursday INTEGER DEFAULT 1,
+  friday INTEGER DEFAULT 1,
+  saturday INTEGER DEFAULT 0,
+  sunday INTEGER DEFAULT 0,
+  public_holidays TEXT DEFAULT '[]',
+  effective_from TEXT,
+  effective_to TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_working_days_tenant ON working_days_config(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_working_days_company ON working_days_config(company_id);
+CREATE INDEX IF NOT EXISTS idx_working_days_agent ON working_days_config(agent_id);
+
+-- Monthly Targets (aggregated view of daily targets for a month)
+CREATE TABLE IF NOT EXISTS monthly_targets (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  company_id TEXT,
+  target_month TEXT NOT NULL,
+  target_visits INTEGER DEFAULT 0,
+  target_conversions INTEGER DEFAULT 0,
+  target_registrations INTEGER DEFAULT 0,
+  actual_visits INTEGER DEFAULT 0,
+  actual_conversions INTEGER DEFAULT 0,
+  actual_registrations INTEGER DEFAULT 0,
+  working_days INTEGER DEFAULT 22,
+  commission_rate REAL DEFAULT 0,
+  commission_amount REAL DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (agent_id) REFERENCES users(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+CREATE INDEX IF NOT EXISTS idx_monthly_targets_tenant ON monthly_targets(tenant_id, agent_id, target_month);
+CREATE INDEX IF NOT EXISTS idx_monthly_targets_company ON monthly_targets(company_id, target_month);
+
+-- Target-Based Commission Rules (commission tiers based on target achievement %)
+CREATE TABLE IF NOT EXISTS target_commission_tiers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT,
+  tier_name TEXT NOT NULL,
+  min_achievement_pct REAL NOT NULL,
+  max_achievement_pct REAL,
+  commission_rate REAL NOT NULL,
+  bonus_amount REAL DEFAULT 0,
+  metric_type TEXT DEFAULT 'visits',
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+CREATE INDEX IF NOT EXISTS idx_target_commission_tiers_tenant ON target_commission_tiers(tenant_id, is_active);
+
+-- ==================== SEED DATA: FIELD OPS SETTINGS & COMMISSION TIERS ====================
+
+-- Default field ops settings
+INSERT OR IGNORE INTO field_ops_settings (id, tenant_id, setting_key, setting_value, description) VALUES
+  ('fos-001', 'default', 'default_working_days_per_week', '5', 'How many days per week agents work (Mon-Fri = 5)'),
+  ('fos-002', 'default', 'default_target_visits_per_day', '20', 'Default daily visit target for new agents'),
+  ('fos-003', 'default', 'default_target_registrations_per_day', '10', 'Default daily registration target'),
+  ('fos-004', 'default', 'default_target_conversions_per_day', '5', 'Default daily conversion target'),
+  ('fos-005', 'default', 'commission_calculation_method', 'tier_based', 'How commissions are calculated'),
+  ('fos-006', 'default', 'auto_recalculate_targets', 'false', 'Automatically recalculate actuals at end of day'),
+  ('fos-007', 'default', 'require_gps_for_visits', 'true', 'Require GPS location when checking in/out'),
+  ('fos-008', 'default', 'max_visit_duration_hours', '4', 'Maximum allowed visit duration before auto-checkout');
+
+-- Default working days config (Mon-Fri, no weekends)
+INSERT OR IGNORE INTO working_days_config (id, tenant_id, company_id, agent_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday) VALUES
+  ('wdc-001', 'default', NULL, NULL, 1, 1, 1, 1, 1, 0, 0);
+
+-- Default commission tiers
+INSERT OR IGNORE INTO target_commission_tiers (id, tenant_id, company_id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type, is_active) VALUES
+  ('tct-001', 'default', NULL, 'Bronze', 0, 49.99, 5.00, 0, 'visits', 1),
+  ('tct-002', 'default', NULL, 'Silver', 50, 79.99, 10.00, 500, 'visits', 1),
+  ('tct-003', 'default', NULL, 'Gold', 80, 99.99, 15.00, 1500, 'visits', 1),
+  ('tct-004', 'default', NULL, 'Platinum', 100, NULL, 25.00, 5000, 'visits', 1);

@@ -22,7 +22,7 @@ export const ProductHierarchyPage: React.FC = () => {
     queryFn: () => productsService.getProducts({ limit: 200 }),
   })
 
-  const mockHierarchy: HierarchyNode[] = (() => {
+  const hierarchy: HierarchyNode[] = (() => {
     const products = productsData?.products || productsData || []
     const categories: Record<string, any> = {}
     products.forEach((p: any) => {
@@ -180,7 +180,7 @@ export const ProductHierarchyPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Categories</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockHierarchy.length}
+                {hierarchy.length}
               </p>
             </div>
           </div>
@@ -196,7 +196,7 @@ export const ProductHierarchyPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Subcategories</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockHierarchy.reduce((sum, c) => sum + (c.children?.length || 0), 0)}
+                {hierarchy.reduce((sum, c) => sum + (c.children?.length || 0), 0)}
               </p>
             </div>
           </div>
@@ -212,7 +212,7 @@ export const ProductHierarchyPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Products</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {mockHierarchy.reduce((sum, c) => sum + (c.product_count || 0), 0)}
+                {hierarchy.reduce((sum, c) => sum + (c.product_count || 0), 0)}
               </p>
             </div>
           </div>
@@ -228,7 +228,7 @@ export const ProductHierarchyPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Value</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {formatCurrency(mockHierarchy.reduce((sum, c) => sum + (c.total_value || 0), 0))}
+                {formatCurrency(hierarchy.reduce((sum, c) => sum + (c.total_value || 0), 0))}
               </p>
             </div>
           </div>
@@ -242,7 +242,7 @@ export const ProductHierarchyPage: React.FC = () => {
             <h2 className="text-lg font-medium text-gray-900">Category Tree</h2>
           </div>
           <div className="p-6">
-            {mockHierarchy.length === 0 ? (
+            {hierarchy.length === 0 ? (
               <div className="text-center py-12">
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -252,7 +252,7 @@ export const ProductHierarchyPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-1">
-                {mockHierarchy.map(node => renderNode(node))}
+                {hierarchy.map(node => renderNode(node))}
               </div>
             )}
           </div>

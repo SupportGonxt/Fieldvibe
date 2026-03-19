@@ -845,6 +845,124 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // ==================== FIELD OPS: SETTINGS ====================
+  async getFieldOpsSettings() {
+    const response = await this.get('/field-ops/settings')
+    return response.data || response
+  }
+
+  async updateFieldOpsSetting(key: string, value: string, description?: string) {
+    const response = await this.put('/field-ops/settings', { setting_key: key, setting_value: value, description })
+    return response.data || response
+  }
+
+  async bulkSaveFieldOpsSettings(settings: { setting_key: string; setting_value: string; description?: string }[]) {
+    const response = await this.post('/field-ops/settings/bulk', { settings })
+    return response.data || response
+  }
+
+  // ==================== FIELD OPS: WORKING DAYS CONFIG ====================
+  async getWorkingDaysConfigs(filter: { company_id?: string; agent_id?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/working-days?${params.toString()}`)
+    return response.data || response
+  }
+
+  async createWorkingDaysConfig(data: {
+    company_id?: string; agent_id?: string;
+    monday?: number; tuesday?: number; wednesday?: number; thursday?: number;
+    friday?: number; saturday?: number; sunday?: number;
+    public_holidays?: string; effective_from?: string; effective_to?: string
+  }) {
+    const response = await this.post('/field-ops/working-days', data)
+    return response.data || response
+  }
+
+  async updateWorkingDaysConfig(id: string, data: Record<string, unknown>) {
+    const response = await this.put(`/field-ops/working-days/${id}`, data)
+    return response.data || response
+  }
+
+  async deleteWorkingDaysConfig(id: string) {
+    const response = await this.delete(`/field-ops/working-days/${id}`)
+    return response.data || response
+  }
+
+  async getEffectiveWorkingDays(filter: { agent_id?: string; company_id?: string; month?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/working-days/effective?${params.toString()}`)
+    return response.data || response
+  }
+
+  // ==================== FIELD OPS: MONTHLY TARGETS ====================
+  async getMonthlyTargets(filter: { agent_id?: string; company_id?: string; month?: string; status?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/monthly-targets?${params.toString()}`)
+    return response.data || response
+  }
+
+  async createMonthlyTarget(data: {
+    agent_id: string; company_id?: string; target_month: string;
+    target_visits?: number; target_conversions?: number; target_registrations?: number;
+    working_days?: number; commission_rate?: number
+  }) {
+    const response = await this.post('/field-ops/monthly-targets', data)
+    return response.data || response
+  }
+
+  async updateMonthlyTarget(id: string, data: Record<string, unknown>) {
+    const response = await this.put(`/field-ops/monthly-targets/${id}`, data)
+    return response.data || response
+  }
+
+  async deleteMonthlyTarget(id: string) {
+    const response = await this.delete(`/field-ops/monthly-targets/${id}`)
+    return response.data || response
+  }
+
+  async recalculateMonthlyTarget(id: string) {
+    const response = await this.post(`/field-ops/monthly-targets/${id}/recalculate`)
+    return response.data || response
+  }
+
+  // ==================== FIELD OPS: COMMISSION TIERS ====================
+  async getCommissionTiers(filter: { company_id?: string; metric_type?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/commission-tiers?${params.toString()}`)
+    return response.data || response
+  }
+
+  async createCommissionTier(data: {
+    company_id?: string; tier_name: string;
+    min_achievement_pct: number; max_achievement_pct?: number;
+    commission_rate: number; bonus_amount?: number; metric_type?: string
+  }) {
+    const response = await this.post('/field-ops/commission-tiers', data)
+    return response.data || response
+  }
+
+  async updateCommissionTier(id: string, data: Record<string, unknown>) {
+    const response = await this.put(`/field-ops/commission-tiers/${id}`, data)
+    return response.data || response
+  }
+
+  async deleteCommissionTier(id: string) {
+    const response = await this.delete(`/field-ops/commission-tiers/${id}`)
+    return response.data || response
+  }
+
   // Convenience: get visits for field ops with proper response shape
   async getVisits(filter: Record<string, string> = {}) {
     const params = new URLSearchParams(filter)
