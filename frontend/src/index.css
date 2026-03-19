@@ -451,6 +451,62 @@ html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
   background-color: #F3F4F6 !important;
 }
 
+/* ── Auth layout protection ── */
+/* The auth/login pages are ALWAYS dark regardless of light/dark mode. */
+/* These rules undo ALL light-mode overrides above for .auth-layout descendants. */
+.auth-layout,
+.auth-layout *,
+.auth-layout [class*="bg-\[#06090F\]"],
+.auth-layout [class*="bg-\[#0A0E18\]"],
+.auth-layout [class*="bg-\[#0A1628\]"],
+.auth-layout [class*="bg-\[#0F1D35\]"] {
+  background-color: unset !important;
+}
+
+.auth-layout [class~="text-white"] {
+  color: #FFFFFF !important;
+}
+
+.auth-layout [class~="text-gray-100"] {
+  color: #F3F4F6 !important;
+}
+
+.auth-layout [class~="text-gray-200"] {
+  color: #E5E7EB !important;
+}
+
+.auth-layout [class~="text-gray-300"],
+.auth-layout [class*="text-slate-300"] {
+  color: #CBD5E1 !important;
+}
+
+.auth-layout [class~="text-gray-400"],
+.auth-layout [class*="text-slate-400"] {
+  color: #94A3B8 !important;
+}
+
+.auth-layout [class*="text-slate-500"] {
+  color: #64748B !important;
+}
+
+.auth-layout [class*="border-white\\/5"],
+.auth-layout [class*="border-white\\/10"] {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.auth-layout input,
+.auth-layout select,
+.auth-layout textarea {
+  color: #FFFFFF !important;
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.auth-layout input::placeholder,
+.auth-layout textarea::placeholder {
+  color: #64748B !important;
+}
+
 /* Light mode card/panel styles for custom theme tokens */
 html:not(.dark) .bg-night-50,
 html:not(.dark) .bg-night-100,
