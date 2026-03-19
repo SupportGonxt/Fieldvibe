@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft } from 'lucide-react'
+import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft, Building2, Plus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -38,6 +38,10 @@ export default function AgentHierarchyPage() {
   const [creating, setCreating] = useState(false)
   const [generatedPassword, setGeneratedPassword] = useState('')
 
+  // Manager-company assignment state
+  const [assigningCompanyToManager, setAssigningCompanyToManager] = useState<string | null>(null)
+  const [selectedCompany, setSelectedCompany] = useState('')
+
   const { data: hierarchy, isLoading, error } = useQuery({
     queryKey: ['field-ops-hierarchy'],
     queryFn: () => fieldOperationsService.getHierarchy(),
@@ -55,6 +59,27 @@ export default function AgentHierarchyPage() {
       setReassignTarget('')
     },
     onError: () => toast.error('Failed to update hierarchy'),
+  })
+
+  const assignCompanyMutation = useMutation({
+    mutationFn: ({ managerId, companyId }: { managerId: string; companyId: string }) =>
+      fieldOperationsService.assignManagerToCompany(managerId, companyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
+      toast.success('Company assigned to manager')
+      setAssigningCompanyToManager(null)
+      setSelectedCompany('')
+    },
+    onError: () => toast.error('Failed to assign company'),
+  })
+
+  const unassignCompanyMutation = useMutation({
+    mutationFn: (linkId: string) => fieldOperationsService.unassignManagerFromCompany(linkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
+      toast.success('Company unassigned from manager')
+    },
+    onError: () => toast.error('Failed to unassign company'),
   })
 
   async function handleCreate(e: React.FormEvent) {
@@ -129,6 +154,7 @@ export default function AgentHierarchyPage() {
   const managers = hierarchy?.hierarchy || []
   const unassignedTeamLeads = hierarchy?.unassigned_team_leads || []
   const unassignedAgents = hierarchy?.unassigned_agents || []
+  const allCompanies: { id: string; name: string; code: string }[] = hierarchy?.all_companies || []
 
   // Build lists for assignment dropdowns
   const allTeamLeads = [
@@ -194,17 +220,78 @@ export default function AgentHierarchyPage() {
         )}
 
         {/* Managers */}
-        {managers.map((manager: any) => (
+        {managers.map((manager: any) => {
+          const managerCompanies: { id: string; name: string; code: string; link_id: string }[] = manager.companies || []
+          const assignedCompanyIds = new Set(managerCompanies.map((c: { id: string }) => c.id))
+          const availableCompanies = allCompanies.filter(c => !assignedCompanyIds.has(c.id))
+
+          return (
           <div key={manager.id} className="mb-4">
-            <button
-              onClick={() => toggleManager(manager.id)}
-              className="w-full flex items-center gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition"
-            >
-              {expandedManagers.has(manager.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <Crown className="w-5 h-5 text-purple-600" />
-              <span className="font-semibold text-gray-900 dark:text-white">{manager.first_name} {manager.last_name}</span>
-              <span className="text-sm text-gray-500 ml-auto">{manager.team_leads?.length || 0} team leads</span>
-            </button>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition">
+              <button
+                onClick={() => toggleManager(manager.id)}
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
+                {expandedManagers.has(manager.id) ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
+                <Crown className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                <span className="font-semibold text-gray-900 dark:text-white truncate">{manager.first_name} {manager.last_name}</span>
+              </button>
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                {/* Company badges */}
+                {managerCompanies.map((company: { id: string; name: string; code: string; link_id: string }) => (
+                  <span
+                    key={company.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                  >
+                    <Building2 className="w-3 h-3" />
+                    {company.name}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate(company.link_id) }}
+                      className="ml-0.5 text-indigo-400 hover:text-red-500 transition-colors"
+                      title={`Remove ${company.name}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {/* Add company button */}
+                {assigningCompanyToManager === manager.id ? (
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <SearchableSelect
+                      options={availableCompanies.map(c => ({ value: c.id, label: c.name }))}
+                      value={selectedCompany || null}
+                      onChange={(val) => setSelectedCompany(val || '')}
+                      placeholder="Select company"
+                    />
+                    <button
+                      onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ managerId: manager.id, companyId: selectedCompany }) }}
+                      disabled={!selectedCompany || assignCompanyMutation.isPending}
+                      className="text-green-600 text-xs font-medium px-2 py-1 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => { setAssigningCompanyToManager(null); setSelectedCompany('') }}
+                      className="text-gray-400 text-xs px-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  availableCompanies.length > 0 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setAssigningCompanyToManager(manager.id); setSelectedCompany('') }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors border border-dashed border-indigo-300 dark:border-indigo-700"
+                      title="Assign company to manager"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Company
+                    </button>
+                  )
+                )}
+                <span className="text-sm text-gray-500 ml-2">{manager.team_leads?.length || 0} team leads</span>
+              </div>
+            </div>
 
             {expandedManagers.has(manager.id) && (
               <div className="ml-8 mt-2 space-y-2">
@@ -270,7 +357,8 @@ export default function AgentHierarchyPage() {
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
 
         {/* Unassigned Team Leads */}
         {unassignedTeamLeads.length > 0 && (
@@ -409,6 +497,9 @@ export default function AgentHierarchyPage() {
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                   <p className="text-green-800 dark:text-green-300 font-medium mb-2">Successfully created!</p>
                   <p className="text-sm text-green-700 dark:text-green-400">Please save the temporary password below. The user will need it for their first login.</p>
+                  {(createForm.role === 'agent') && (
+                    <p className="text-sm text-green-700 dark:text-green-400 mt-1">Default agent PIN: <strong>12345</strong></p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -536,7 +627,12 @@ export default function AgentHierarchyPage() {
                   </div>
                 )}
 
-                <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically.</p>
+                {createForm.role === 'agent' && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically. Default PIN: <strong>12345</strong></p>
+                )}
+                {createForm.role !== 'agent' && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically.</p>
+                )}
 
                 <div className="flex justify-end gap-3 pt-2">
                   <button type="button" onClick={closeCreateModal} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">

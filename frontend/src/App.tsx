@@ -534,6 +534,8 @@ function App() {
             <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
             <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
             <Route path="field-operations/visits" element={<PageLoader><VisitManagementPage /></PageLoader>} />
+            <Route path="field-operations/visits/stores" element={<PageLoader><VisitManagementPage visitType="store" /></PageLoader>} />
+            <Route path="field-operations/visits/individuals" element={<PageLoader><VisitManagementPage visitType="individual" /></PageLoader>} />
             <Route path="field-operations/visits/create" element={<PageLoader><VisitCreate /></PageLoader>} />
             <Route path="field-operations/visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="field-operations/visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />

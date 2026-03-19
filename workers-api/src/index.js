@@ -424,8 +424,8 @@ app.post('/api/admin/seed-test-agents', authMiddleware, requireSuperAdmin, async
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    // Default PIN: 1234
-    const hashedPin = await bcrypt.hash('1234', 10);
+    // Default PIN: 12345
+    const hashedPin = await bcrypt.hash('12345', 10);
     const hashedPassword = await bcrypt.hash('Agent@123', 10);
 
     const agents = [
@@ -468,7 +468,7 @@ app.post('/api/admin/seed-test-agents', authMiddleware, requireSuperAdmin, async
       }
     }
 
-    return c.json({ success: true, data: { agents: results, default_pin: '1234', message: 'Test agents created/updated. Login with phone + PIN 1234' } });
+    return c.json({ success: true, data: { agents: results, default_pin: '12345', message: 'Test agents created/updated. Login with phone + PIN 12345' } });
   } catch (error) {
     console.error('Seed agents error:', error);
     return c.json({ success: false, message: error.message }, 500);
@@ -676,9 +676,14 @@ api.post('/users', requireRole('admin'), async (c) => {
   const id = uuidv4();
   const password = body.password || Math.random().toString(36).slice(-8);
   const hashedPassword = await bcrypt.hash(password, 10);
-  // Section 8: Removed admin_viewable_password storage
-  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.email, body.phone || null, hashedPassword, body.firstName || body.first_name || '', body.lastName || body.last_name || '', body.role || 'agent', body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
-  return c.json({ success: true, data: { id, password }, message: 'User created' }, 201);
+  const role = body.role || 'agent';
+  // Set default PIN 12345 for agents and field_agents
+  let pinHash = null;
+  if (role === 'agent' || role === 'field_agent') {
+    pinHash = await bcrypt.hash('12345', 10);
+  }
+  await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, body.email, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+  return c.json({ success: true, data: { id, password, default_pin: (role === 'agent' || role === 'field_agent') ? '12345' : undefined }, message: 'User created' }, 201);
 });
 
 api.put('/users/:id', requireRole('admin'), async (c) => {
@@ -2903,7 +2908,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const role = c.get('role');
   const userId = c.get('userId');
-  const { page = '1', limit = '20', status, agent_id, date } = c.req.query();
+  const { page = '1', limit = '20', status, agent_id, date, visit_type } = c.req.query();
   const offset = (parseInt(page) - 1) * parseInt(limit);
   let where = 'WHERE v.tenant_id = ?';
   const params = [tenantId];
@@ -2911,6 +2916,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   if (status) { where += ' AND v.status = ?'; params.push(status); }
   if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
+  if (visit_type) { where += ' AND (v.visit_target_type = ? OR v.visit_type = ?)'; params.push(visit_type, visit_type); }
   const total = await db.prepare('SELECT COUNT(*) as count FROM visits v ' + where).bind(...params).first();
   const visits = await db.prepare("SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
   return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
@@ -3460,8 +3466,21 @@ api.get('/beat-routes/:id', authMiddleware, async (c) => {
 api.get('/surveys', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const surveys = await db.prepare('SELECT * FROM questionnaires WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 500').bind(tenantId).all();
-  return c.json({ data: surveys.results || [] });
+  const { status, type, search } = c.req.query();
+  let where = 'WHERE tenant_id = ?';
+  const params = [tenantId];
+  if (status && status !== 'all') {
+    if (status === 'active') { where += ' AND is_active = 1'; }
+    else if (status === 'archived' || status === 'inactive') { where += ' AND is_active = 0'; }
+  }
+  if (type) { where += ' AND visit_type = ?'; params.push(type); }
+  if (search) { where += ' AND name LIKE ?'; params.push('%' + search + '%'); }
+  const surveys = await db.prepare('SELECT * FROM questionnaires ' + where + ' ORDER BY created_at DESC LIMIT 500').bind(...params).all();
+  const results = (surveys.results || []).map(q => {
+    try { q.questions = JSON.parse(q.questions); } catch(e) {}
+    return { ...q, title: q.name, survey_type: q.visit_type || 'adhoc', response_count: 0, completion_rate: 0 };
+  });
+  return c.json({ data: results });
 });
 
 api.get('/surveys/:id', authMiddleware, async (c) => {
@@ -3470,7 +3489,48 @@ api.get('/surveys/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const survey = await db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!survey) return c.json({ success: false, message: 'Survey not found' }, 404);
-  return c.json(survey);
+  try { survey.questions = JSON.parse(survey.questions); } catch(e) {}
+  const responses = await db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(id, tenantId).all();
+  return c.json({ ...survey, title: survey.name, survey_type: survey.visit_type || 'adhoc', response_count: responses.results?.[0]?.count || 0 });
+});
+
+api.post('/surveys', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const id = uuidv4();
+  const name = body.title || body.name;
+  if (!name) return c.json({ success: false, message: 'Survey title/name is required' }, 400);
+  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, visit_type, brand_id, questions, is_default, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime("now"), datetime("now"))').bind(
+    id, tenantId, name, body.survey_type || body.visit_type || 'adhoc', body.brand_id || null,
+    JSON.stringify(body.questions || []), body.is_default ? 1 : 0
+  ).run();
+  return c.json({ success: true, data: { id, name, title: name, status: body.status || 'draft' } }, 201);
+});
+
+api.put('/surveys/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Survey not found' }, 404);
+  const name = body.title || body.name || null;
+  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), visit_type = COALESCE(?, visit_type), brand_id = COALESCE(?, brand_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
+    name, body.survey_type || body.visit_type || null, body.brand_id || null,
+    body.questions ? JSON.stringify(body.questions) : null,
+    body.status === 'archived' ? 0 : (body.is_active !== undefined ? (body.is_active ? 1 : 0) : null),
+    id, tenantId
+  ).run();
+  return c.json({ success: true, message: 'Survey updated' });
+});
+
+api.delete('/surveys/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('UPDATE questionnaires SET is_active = 0, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Survey deleted' });
 });
 
 api.get('/kyc', authMiddleware, async (c) => {
@@ -4291,11 +4351,17 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {
-    const managers = await db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
-    const teamLeads = await db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
-    const agents = await db.prepare("SELECT id, first_name, last_name, email, role, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
+    const [managers, teamLeads, agents, managerCompanyLinks, companies] = await Promise.all([
+      db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
+      db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
+    ]);
+    const mcLinks = managerCompanyLinks.results || [];
     const hierarchy = (managers.results || []).map(m => ({
       ...m,
+      companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
       team_leads: (teamLeads.results || []).filter(tl => tl.manager_id === m.id).map(tl => ({
         ...tl,
         agents: (agents.results || []).filter(a => a.team_lead_id === tl.id)
@@ -4303,9 +4369,9 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
     }));
     const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id);
     const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id);
-    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
+    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companies.results || [], total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
   } catch {
-    return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
+    return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], all_companies: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
   }
 });
 
@@ -4323,6 +4389,40 @@ api.put('/field-ops/hierarchy/assign', authMiddleware, async (c) => {
   sets.push('updated_at = CURRENT_TIMESTAMP');
   await db.prepare('UPDATE users SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, user_id, tenantId).run();
   return c.json({ success: true, message: 'Hierarchy updated' });
+});
+
+// ── Manager-Company Links ──
+api.get('/field-ops/hierarchy/manager-companies/:managerId', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const managerId = c.req.param('managerId');
+  const links = await db.prepare("SELECT mcl.id, mcl.company_id, fc.name as company_name, fc.code as company_code, mcl.assigned_at FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 ORDER BY fc.name").bind(managerId, tenantId).all();
+  return c.json({ success: true, data: links.results || [] });
+});
+
+api.post('/field-ops/hierarchy/manager-companies', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { manager_id, company_id } = body;
+  if (!manager_id || !company_id) return c.json({ success: false, message: 'manager_id and company_id required' }, 400);
+  const existing = await db.prepare('SELECT id, is_active FROM manager_company_links WHERE manager_id = ? AND company_id = ? AND tenant_id = ?').bind(manager_id, company_id, tenantId).first();
+  if (existing) {
+    if (existing.is_active) return c.json({ success: false, message: 'Manager already assigned to this company' }, 409);
+    await db.prepare('UPDATE manager_company_links SET is_active = 1, assigned_at = CURRENT_TIMESTAMP WHERE id = ?').bind(existing.id).run();
+    return c.json({ success: true, message: 'Manager re-assigned to company' });
+  }
+  const id = uuidv4();
+  await db.prepare('INSERT INTO manager_company_links (id, manager_id, company_id, tenant_id) VALUES (?, ?, ?, ?)').bind(id, manager_id, company_id, tenantId).run();
+  return c.json({ success: true, data: { id }, message: 'Manager assigned to company' }, 201);
+});
+
+api.delete('/field-ops/hierarchy/manager-companies/:linkId', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const linkId = c.req.param('linkId');
+  await db.prepare('UPDATE manager_company_links SET is_active = 0 WHERE id = ? AND tenant_id = ?').bind(linkId, tenantId).run();
+  return c.json({ success: true, message: 'Manager unassigned from company' });
 });
 
 // ==================== FIELD OPS: SETTINGS ====================
@@ -4737,6 +4837,67 @@ api.post('/visit-survey-config', authMiddleware, async (c) => {
     id, tenantId, body.company_id, body.visit_target_type || 'store', body.survey_required ? 1 : 0, body.questionnaire_id || null
   ).run();
   return c.json({ data: { id, ...body }, message: 'Survey config created' }, 201);
+});
+
+api.put('/visit-survey-config/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM visit_survey_config WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Config not found' }, 404);
+  await db.prepare('UPDATE visit_survey_config SET visit_target_type = COALESCE(?, visit_target_type), survey_required = COALESCE(?, survey_required), questionnaire_id = COALESCE(?, questionnaire_id), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(
+    body.visit_target_type || null, body.survey_required !== undefined ? (body.survey_required ? 1 : 0) : null, body.questionnaire_id || null, id, tenantId
+  ).run();
+  return c.json({ success: true, message: 'Survey config updated' });
+});
+
+api.delete('/visit-survey-config/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM visit_survey_config WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Survey config deleted' });
+});
+
+// --- Field Ops Survey Insights (wires survey data into reporting) ---
+api.get('/field-ops/survey-insights', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, start_date, end_date } = c.req.query();
+  let dateFilter = '';
+  const params = [tenantId];
+  if (start_date) { dateFilter += ' AND vr.created_at >= ?'; params.push(start_date); }
+  if (end_date) { dateFilter += ' AND vr.created_at <= ?'; params.push(end_date + 'T23:59:59'); }
+
+  // Total surveys and responses
+  const [totalSurveys, totalResponses, surveyConfigs] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?' + dateFilter.replace(/vr\./g, '')).bind(...params).first(),
+    db.prepare('SELECT vsc.*, fc.name as company_name, q.name as survey_name FROM visit_survey_config vsc LEFT JOIN field_companies fc ON vsc.company_id = fc.id LEFT JOIN questionnaires q ON vsc.questionnaire_id = q.id WHERE vsc.tenant_id = ?' + (company_id ? ' AND vsc.company_id = ?' : '')).bind(...(company_id ? [tenantId, company_id] : [tenantId])).all()
+  ]);
+
+  // Responses per survey
+  const responsesPerSurvey = await db.prepare('SELECT vr.survey_template_id, q.name as survey_name, COUNT(*) as response_count FROM visit_responses vr LEFT JOIN questionnaires q ON vr.survey_template_id = q.id WHERE vr.tenant_id = ?' + dateFilter + ' GROUP BY vr.survey_template_id ORDER BY response_count DESC LIMIT 20').bind(...params).all();
+
+  // Responses per agent
+  const responsesPerAgent = await db.prepare("SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(*) as response_count FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN users u ON v.agent_id = u.id WHERE vr.tenant_id = ?" + dateFilter + ' GROUP BY v.agent_id ORDER BY response_count DESC LIMIT 20').bind(...params).all();
+
+  // Monthly trend
+  const monthlyTrend = await db.prepare("SELECT strftime('%Y-%m', vr.created_at) as month, COUNT(*) as count FROM visit_responses vr WHERE vr.tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
+
+  return c.json({
+    success: true,
+    data: {
+      total_active_surveys: totalSurveys?.count || 0,
+      total_responses: totalResponses?.count || 0,
+      survey_configs: surveyConfigs.results || [],
+      responses_per_survey: responsesPerSurvey.results || [],
+      responses_per_agent: responsesPerAgent.results || [],
+      monthly_trend: monthlyTrend.results || [],
+      companies_with_mandatory_surveys: (surveyConfigs.results || []).filter(c => c.survey_required).length
+    }
+  });
 });
 
 // --- Visit Workflow Business Rules ---
@@ -10174,46 +10335,85 @@ api.get('/suppliers', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// surveys routes
+// surveys routes (real implementations)
 api.post('/surveys/:surveyId/activate', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  await db.prepare('UPDATE questionnaires SET is_active = 1, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).run();
+  return c.json({ success: true, message: 'Survey activated' });
 });
 api.get('/surveys/:surveyId/analytics', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  const [totalResponses, survey] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first()
+  ]);
+  const responses = await db.prepare('SELECT * FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(surveyId, tenantId).all();
+  let questionStats = [];
+  if (survey) {
+    try {
+      const questions = JSON.parse(survey.questions || '[]');
+      questionStats = questions.map(q => ({ question_id: q.id, question_text: q.text || q.question_text, question_type: q.type || q.question_type, response_count: totalResponses?.count || 0 }));
+    } catch(e) {}
+  }
+  return c.json({ success: true, data: { total_responses: totalResponses?.count || 0, responses: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }), question_stats: questionStats } });
 });
 api.post('/surveys/:surveyId/archive', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  await db.prepare('UPDATE questionnaires SET is_active = 0, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).run();
+  return c.json({ success: true, message: 'Survey archived' });
 });
 api.post('/surveys/:surveyId/deactivate', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  await db.prepare('UPDATE questionnaires SET is_active = 0, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).run();
+  return c.json({ success: true, message: 'Survey deactivated' });
 });
 api.post('/surveys/:surveyId/duplicate', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  const original = await db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first();
+  if (!original) return c.json({ success: false, message: 'Survey not found' }, 404);
+  const newId = uuidv4();
+  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, visit_type, brand_id, questions, is_default, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, 1, datetime("now"), datetime("now"))').bind(newId, tenantId, original.name + ' (Copy)', original.visit_type, original.brand_id, original.questions).run();
+  return c.json({ success: true, data: { id: newId }, message: 'Survey duplicated' });
 });
-api.post('/surveys/:surveyId/export', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+api.get('/surveys/:surveyId/export', authMiddleware, async (c) => {
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  const responses = await db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id WHERE vr.survey_template_id = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC').bind(surveyId, tenantId).all();
+  return c.json({ success: true, data: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) });
 });
 api.get('/surveys/:surveyId/insights', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  const [totalResponses, survey, recentResponses] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT * FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 50').bind(surveyId, tenantId).all()
+  ]);
+  let questionInsights = [];
+  if (survey) {
+    try {
+      const questions = JSON.parse(survey.questions || '[]');
+      questionInsights = questions.map(q => ({ question: q.text || q.question_text, type: q.type || q.question_type, total_answers: totalResponses?.count || 0 }));
+    } catch(e) {}
+  }
+  return c.json({ success: true, data: { total_responses: totalResponses?.count || 0, survey_name: survey?.name, question_insights: questionInsights, recent_responses: (recentResponses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) } });
 });
 api.post('/surveys/:surveyId/publish', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  await db.prepare('UPDATE questionnaires SET is_active = 1, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).run();
+  return c.json({ success: true, message: 'Survey published' });
 });
 api.get('/surveys/:surveyId/report', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  const [survey, totalResponses, responses] = await Promise.all([
+    db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id WHERE vr.survey_template_id = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC LIMIT 200').bind(surveyId, tenantId).all()
+  ]);
+  return c.json({ success: true, data: { survey_name: survey?.name, total_responses: totalResponses?.count || 0, responses: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) } });
 });
 api.get('/surveys/:surveyId/responses', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+  const responses = await db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name, u.first_name || " " || u.last_name as agent_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id WHERE vr.survey_template_id = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC LIMIT 500').bind(surveyId, tenantId).all();
+  return c.json({ success: true, data: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) });
 });
 
 // trade-marketing routes
@@ -10514,14 +10714,32 @@ api.post('/van-sales/vans/:vanId/unload', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// visit-surveys routes
+// visit-surveys routes (real implementations)
 api.post('/visit-surveys/assign', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { visit_id, surveys } = body;
+  if (!visit_id || !surveys || !Array.isArray(surveys)) return c.json({ success: false, message: 'visit_id and surveys array required' }, 400);
+  const ids = [];
+  for (const s of surveys) {
+    const id = uuidv4();
+    await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, survey_template_id, responses, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))').bind(id, tenantId, visit_id, s.survey_id, JSON.stringify([])).run();
+    ids.push(id);
+  }
+  return c.json({ success: true, data: { ids }, message: 'Surveys assigned to visit' });
 });
 api.get('/visit-surveys/available', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const { target_type, brand_id } = c.req.query();
+  let where = 'WHERE tenant_id = ? AND is_active = 1';
+  const params = [tenantId];
+  if (brand_id) { where += ' AND (brand_id = ? OR brand_id IS NULL)'; params.push(brand_id); }
+  const surveys = await db.prepare('SELECT * FROM questionnaires ' + where + ' ORDER BY name').bind(...params).all();
+  const results = (surveys.results || []).map(q => {
+    try { q.questions = JSON.parse(q.questions); } catch(e) {}
+    return { ...q, title: q.name, survey_type: q.visit_type || 'adhoc', target_type: target_type || 'both' };
+  });
+  return c.json({ success: true, data: { surveys: results } });
 });
 
 // visits routes
@@ -10678,22 +10896,36 @@ api.get('/reports/:reportId', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// surveys additional routes (restored)
+// surveys additional routes (real implementations)
 api.get('/surveys/metrics', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const [totalSurveys, activeSurveys, totalResponses] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first()
+  ]);
+  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, total_responses: totalResponses?.count || 0, avg_completion_rate: totalSurveys?.count > 0 ? Math.round((totalResponses?.count || 0) / totalSurveys.count * 10) : 0 } });
 });
 api.get('/surveys/reports', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const surveys = await db.prepare('SELECT q.*, (SELECT COUNT(*) FROM visit_responses vr WHERE vr.survey_template_id = q.id AND vr.tenant_id = q.tenant_id) as response_count FROM questionnaires q WHERE q.tenant_id = ? AND q.is_active = 1 ORDER BY q.created_at DESC').bind(tenantId).all();
+  return c.json({ success: true, data: (surveys.results || []).map(s => ({ id: s.id, name: s.name, title: s.name, type: s.visit_type, response_count: s.response_count, created_at: s.created_at })) });
 });
 api.get('/surveys/stats', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const [totalSurveys, activeSurveys, totalResponses, recentSurveys] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT id, name, visit_type, is_active, created_at FROM questionnaires WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId).all()
+  ]);
+  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, completed_surveys: (totalSurveys?.count || 0) - (activeSurveys?.count || 0), total_responses: totalResponses?.count || 0, average_completion_rate: 0, recent_surveys: (recentSurveys.results || []).map(s => ({ ...s, title: s.name })) } });
 });
 api.get('/surveys/trends', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const monthlyResponses = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM visit_responses WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
+  const monthlySurveys = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM questionnaires WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
+  return c.json({ success: true, data: { response_trends: monthlyResponses.results || [], survey_trends: monthlySurveys.results || [] } });
 });
 
 // van-sales additional routes (restored)

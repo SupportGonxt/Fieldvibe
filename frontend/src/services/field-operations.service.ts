@@ -744,6 +744,17 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // ── Manager-Company Links ──
+  async assignManagerToCompany(managerId: string, companyId: string) {
+    const response = await this.post('/field-ops/hierarchy/manager-companies', { manager_id: managerId, company_id: companyId })
+    return response.data || response
+  }
+
+  async unassignManagerFromCompany(linkId: string) {
+    const response = await this.delete(`/field-ops/hierarchy/manager-companies/${linkId}`)
+    return response.data || response
+  }
+
   // ==================== FIELD OPS: PERFORMANCE (ROLE-BASED) ====================
   async getPerformance(filter: { date?: string; start_date?: string; end_date?: string; company_id?: string } = {}) {
     const params = new URLSearchParams()
@@ -1174,6 +1185,33 @@ class FieldOperationsService extends ApiService {
   // Create individual for visit workflow
   async createVisitIndividual(data: { first_name: string; last_name: string; id_number?: string; phone?: string; email?: string; company_id?: string; gps_latitude?: number; gps_longitude?: number }) {
     const response = await this.post('/individuals', data)
+    return response.data || response
+  }
+
+  // ==================== FIELD OPS: SURVEY INSIGHTS ====================
+  async getSurveyInsights(filter: { company_id?: string; start_date?: string; end_date?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/survey-insights?${params.toString()}`)
+    return response.data || response
+  }
+
+  // ==================== VISIT SURVEY CONFIG ====================
+  async getVisitSurveyConfigs(companyId?: string) {
+    const params = companyId ? `?company_id=${companyId}` : ''
+    const response = await this.get(`/visit-survey-config${params}`)
+    return response.data || response
+  }
+
+  async updateVisitSurveyConfig(id: string, data: { visit_target_type?: string; survey_required?: boolean; questionnaire_id?: string }) {
+    const response = await this.put(`/visit-survey-config/${id}`, data)
+    return response.data || response
+  }
+
+  async deleteVisitSurveyConfig(id: string) {
+    const response = await this.delete(`/visit-survey-config/${id}`)
     return response.data || response
   }
 

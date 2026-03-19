@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
-  Wifi, WifiOff, LogOut
+  Wifi, WifiOff, LogOut, Store, User
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 
@@ -129,11 +129,27 @@ export default function AgentDashboard() {
       </div>
 
       <div className="px-5 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <button
+            onClick={() => navigate('/field-operations/visits/create?type=store')}
+            className="py-3.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+          >
+            <Store className="w-4 h-4" />
+            Store Visit
+          </button>
+          <button
+            onClick={() => navigate('/field-operations/visits/create?type=individual')}
+            className="py-3.5 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white font-bold rounded-2xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+          >
+            <User className="w-4 h-4" />
+            Individual Visit
+          </button>
+        </div>
         <button
           onClick={() => navigate('/field-operations/visits/create')}
-          className="w-full py-4 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-[#00E87B]/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-base"
+          className="w-full py-3 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-[#00E87B]/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           Start New Visit
         </button>
       </div>
@@ -211,7 +227,11 @@ export default function AgentDashboard() {
                   <p className="text-sm font-medium text-white truncate">
                     {visit.customer_name || visit.individual_name || 'Visit'}
                   </p>
-                  <p className="text-xs text-gray-500">{visit.visit_type} &middot; {visit.visit_date}</p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    {(visit.visit_type || '').toLowerCase() === 'store' ? <Store className="w-3 h-3 text-purple-400" /> :
+                     (visit.visit_type || '').toLowerCase() === 'individual' ? <User className="w-3 h-3 text-cyan-400" /> : null}
+                    {visit.visit_type} &middot; {visit.visit_date}
+                  </p>
                 </div>
               </div>
             ))}

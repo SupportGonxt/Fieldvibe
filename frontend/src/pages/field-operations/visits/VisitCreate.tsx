@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box, Stepper, Step, StepLabel, Button, Paper, Typography, Alert,
   TextField, FormControl, InputLabel, Select, MenuItem, CircularProgress,
@@ -95,8 +95,17 @@ export default function VisitCreate() {
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
 
-  // Step 2: Visit Type
-  const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | ''>('')
+  // Step 2: Visit Type - pre-populate from URL ?type=store or ?type=individual
+  const [searchParams] = useSearchParams()
+  const preselectedType = searchParams.get('type') as 'individual' | 'store' | null
+  const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | ''>(preselectedType || '')
+
+  // Sync visitTargetType if URL param changes without unmounting
+  useEffect(() => {
+    if (preselectedType && preselectedType !== visitTargetType) {
+      setVisitTargetType(preselectedType)
+    }
+  }, [preselectedType])
 
   // Step 3: Details
   const [companies, setCompanies] = useState<Company[]>([])

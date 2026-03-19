@@ -1513,9 +1513,25 @@ CREATE TABLE IF NOT EXISTS company_logins (
   FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
+-- Manager-Company Links (managers can be assigned to one or many companies)
+CREATE TABLE IF NOT EXISTS manager_company_links (
+  id TEXT PRIMARY KEY,
+  manager_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  assigned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (manager_id) REFERENCES users(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_field_companies_tenant ON field_companies(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_agent_company_links_agent ON agent_company_links(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_company_links_company ON agent_company_links(company_id);
+CREATE INDEX IF NOT EXISTS idx_manager_company_links_manager ON manager_company_links(manager_id);
+CREATE INDEX IF NOT EXISTS idx_manager_company_links_company ON manager_company_links(company_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_manager_company_links_unique ON manager_company_links(manager_id, company_id);
 CREATE INDEX IF NOT EXISTS idx_daily_targets_agent ON daily_targets(tenant_id, agent_id, target_date);
 CREATE INDEX IF NOT EXISTS idx_daily_targets_company ON daily_targets(company_id, target_date);
 CREATE INDEX IF NOT EXISTS idx_individual_registrations_agent ON individual_registrations(tenant_id, agent_id);

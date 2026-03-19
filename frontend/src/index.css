@@ -470,7 +470,6 @@ html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
 #auth-layout [class*="bg-\[#0A1628\]"] {
   background-color: #0A1628 !important;
 }
-
 #auth-layout [class~="text-white"] {
   color: #FFFFFF !important;
 }
@@ -507,6 +506,11 @@ html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
 #auth-layout textarea {
   color: #FFFFFF !important;
   background-color: transparent !important;
+}
+
+#auth-layout input:not(:focus),
+#auth-layout select:not(:focus),
+#auth-layout textarea:not(:focus) {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
