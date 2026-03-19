@@ -101,7 +101,7 @@ export default function AgentVisits() {
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-white">My Visits</h1>
           <button
-            onClick={() => navigate('/field-operations/visits/create')}
+            onClick={() => navigate('/agent/visits/create')}
             className="bg-[#00E87B] text-[#0A1628] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" /> New Visit
@@ -177,7 +177,7 @@ export default function AgentVisits() {
              <MapPin className="w-10 h-10 text-gray-600 mx-auto mb-3" />}
             <p className="text-gray-500 text-sm">No {typeFilter !== 'all' ? `${typeFilter} ` : ''}visits found</p>
             <button
-              onClick={() => navigate(`/field-operations/visits/create${typeFilter !== 'all' ? `?type=${typeFilter}` : ''}`)}
+              onClick={() => navigate(`/agent/visits/create${typeFilter !== 'all' ? `?type=${typeFilter}` : ''}`)}
               className="mt-3 text-[#00E87B] text-sm font-medium"
             >
               + Create {typeFilter !== 'all' ? `${typeFilter} ` : ''}visit
@@ -188,7 +188,7 @@ export default function AgentVisits() {
             {filtered.map((visit) => (
               <button
                 key={visit.id}
-                onClick={() => navigate(`/field-operations/visits/${visit.id}`)}
+                onClick={() => navigate(`/agent/visits/${visit.id}`)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3.5 flex items-center gap-3 active:bg-white/10 transition-colors text-left"
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${statusColor(visit.status)}`}>

@@ -131,14 +131,14 @@ export default function AgentDashboard() {
       <div className="px-5 mb-4">
         <div className="grid grid-cols-2 gap-3 mb-3">
           <button
-            onClick={() => navigate('/field-operations/visits/create?type=store')}
+            onClick={() => navigate('/agent/visits/create?type=store')}
             className="py-3.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
           >
             <Store className="w-4 h-4" />
             Store Visit
           </button>
           <button
-            onClick={() => navigate('/field-operations/visits/create?type=individual')}
+            onClick={() => navigate('/agent/visits/create?type=individual')}
             className="py-3.5 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white font-bold rounded-2xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
           >
             <User className="w-4 h-4" />
@@ -146,7 +146,7 @@ export default function AgentDashboard() {
           </button>
         </div>
         <button
-          onClick={() => navigate('/field-operations/visits/create')}
+          onClick={() => navigate('/agent/visits/create')}
           className="w-full py-3 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-[#00E87B]/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
         >
           <Plus className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { X, HelpCircle, Plus, ShoppingCart, MapPin, FileText } from 'lucide-react'
 import Sidebar from './Sidebar'
 import Header from './Header'
@@ -10,6 +10,7 @@ import HelpPanel from '../help/HelpPanel'
 import Breadcrumbs from '../navigation/Breadcrumbs'
 import { useKeyboardShortcuts } from '../ui/KeyboardShortcuts'
 import { FloatingActionButton } from '../mobile/FloatingActionButton'
+import { useAuthStore } from '../../store/auth.store'
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -17,6 +18,12 @@ export default function DashboardLayout() {
   const [helpPanelOpen, setHelpPanelOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuthStore()
+
+  // Redirect agents to their dedicated mobile layout
+  if (user?.role === 'agent') {
+    return <Navigate to="/agent/dashboard" replace />
+  }
 
   // ENH-08: Global keyboard shortcuts
   useKeyboardShortcuts({
