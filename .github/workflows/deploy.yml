@@ -32,7 +32,7 @@ jobs:
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler pages deploy dist --project-name=fieldvibe --branch=production
+        run: npx wrangler pages deploy dist --project-name=fieldvibe --branch=main
 
   deploy-backend:
     name: Deploy Backend to Cloudflare Workers
