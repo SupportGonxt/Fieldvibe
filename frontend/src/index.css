@@ -463,6 +463,14 @@ html:not(.dark) [class*="hover\\:bg-white\\/10"]:hover {
   background-color: #0A0E18 !important;
 }
 
+/* Restore dark bg for elements using bg-[#0A1628] with opacity variants (/80, /50). */
+/* The light mode override at line ~406 sets these to #FFFFFF; this counteracts it. */
+/* We use the base color (fully opaque) since !important overrides Tailwind's rgba(); */
+/* the slight opacity difference is acceptable to keep auth pages dark-themed. */
+#auth-layout [class*="bg-\[#0A1628\]"] {
+  background-color: #0A1628 !important;
+}
+
 #auth-layout [class~="text-white"] {
   color: #FFFFFF !important;
 }
