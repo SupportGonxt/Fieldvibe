@@ -92,3 +92,68 @@ If new tables or columns are added to `workers-api/src/schema.sql`, they must be
 ```bash
 npx wrangler d1 execute fieldvibe-db --remote --command="CREATE TABLE IF NOT EXISTS ..."
 ```
+# Testing FieldVibe Platform
+
+## Environment Setup
+
+### Local Dev Server
+1. `cd frontend && npm install && npx vite --port 5173 --host 0.0.0.0`
+2. The dev server runs on port 5173 by default (vite.config.ts specifies port 12000 but `strictPort: false` allows fallback)
+3. **Important**: Check `frontend/.env.local` -- it overrides `VITE_API_BASE_URL`. Make sure it points to the correct backend API endpoint.
+4. The vite proxy config (for `/api` prefix) only works if `.env.local` uses `/api` as the base URL
+
+### Production URLs
+- Frontend: https://fieldvibe.pages.dev / https://fieldvibe.vantax.co.za
+- Backend API: https://fieldvibe-api.vantax.co.za/api
+
+### Deployment
+- Backend: `cd workers-api && npx wrangler deploy`
+- Frontend: `cd frontend && npx vite build && npx wrangler pages deploy dist --project-name=fieldvibe`
+- Requires Cloudflare credentials set as env vars
+
+## Devin Secrets Needed
+- `CLOUDFLARE_API_KEY` -- Cloudflare Global API Key for deployment
+- `CLOUDFLARE_EMAIL` -- Cloudflare account email
+- `GITHUB_TOKEN` -- GitHub PAT for PR operations
+
+## Test Credentials
+- Super admin and regular admin credentials are stored in `workers-api/src/seed.sql`
+- Super admin role: `super_admin`, regular admin role: `admin`
+- If seed credentials stop working, verify via API call to `/api/auth/login` with `X-Tenant-Code` header before proceeding with UI tests
+- You can create test admin users via the Super Admin > Tenant Management > Create Tenant flow
+
+## Common Testing Flows
+
+### Super Admin Flow
+1. Login as super admin
+2. Click "Super Admin" in sidebar (under PLATFORM section) to expand
+3. Click "Tenant Management" sub-item
+4. Verify KPI cards (Total Tenants, Active, Suspended, Total Users)
+5. Click "CREATE TENANT" to test tenant creation
+
+### ProtectedRoute Guard Testing
+1. Login as a non-super-admin user
+2. Navigate directly to `/superadmin/tenants` in URL bar
+3. Should see "Access Denied" message with "Go Back" button
+4. Sidebar should NOT show "Super Admin" nav item for non-super-admin users
+
+## Known Gotchas
+
+### React Form Inputs
+- The login form uses React controlled inputs -- Chrome's autofill may not trigger React state updates
+- If typing into form fields doesn't work, try: click the field, Ctrl+A to select all, type new value
+- As a fallback, verify credentials via curl/API first, then use browser console to set values
+
+### Port Mismatch
+- vite.config.ts specifies port 12000, but the dev server typically runs on 5173
+- HMR websocket connections to port 12000 will show ERR_CONNECTION_REFUSED in console -- this is harmless
+- The actual API calls use VITE_API_BASE_URL from .env.local, NOT the proxy config
+
+### audit_log Schema
+- The `audit_log` table uses `old_values` and `new_values` columns (NOT `details`)
+- If you see "An internal error occurred" on tenant creation or user registration, check for `details` column references in INSERT statements
+
+### D1 Database
+- Schema: `workers-api/src/schema.sql`
+- Seed data: `workers-api/src/seed.sql`
+- To apply schema changes: use wrangler D1 commands or redeploy the worker
