@@ -59,9 +59,12 @@ export default function VanSalesOrderCreate() {
         vanSalesService.getProducts(),
         discountsService.getDiscounts({ is_active: true })
       ])
-      setCustomers(customersRes.data || customersRes.customers || [])
-      setRoutes(routesRes.data || routesRes.routes || [])
-      setProducts(productsRes.data || productsRes.products || [])
+      const rawCustomers = customersRes.data || customersRes
+      setCustomers(Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers.customers || []))
+      const rawRoutes = routesRes.data || routesRes
+      setRoutes(Array.isArray(rawRoutes) ? rawRoutes : (rawRoutes.routes || []))
+      const rawProducts = productsRes.data || productsRes
+      setProducts(Array.isArray(rawProducts) ? rawProducts : (rawProducts.products || []))
       setDiscounts(discountsRes.map((d: any) => ({ id: d.id, name: d.name, value: d.value, discount_type: d.discount_type })))
     } catch (error) {
       console.error('Failed to load form data:', error)

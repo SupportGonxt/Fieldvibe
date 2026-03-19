@@ -25,9 +25,15 @@ export default function VisitEdit() {
         fieldOperationsService.getAgents(),
         fieldOperationsService.getCustomers()
       ])
-      setVisit(visitRes.data)
-      setAgents(agentsRes.data || [])
-      setCustomers(customersRes.data || [])
+      const visitData = visitRes?.data !== undefined ? visitRes.data : visitRes
+      setVisit(visitData)
+      // Agents endpoint returns a flat array
+      const agentsList = Array.isArray(agentsRes) ? agentsRes : (agentsRes.data || [])
+      // Customers endpoint returns { data: { customers: [...] } }
+      const rawCustomers = customersRes.data || customersRes
+      const customersList = Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers.customers || [])
+      setAgents(agentsList)
+      setCustomers(customersList)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {

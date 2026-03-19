@@ -113,7 +113,8 @@ const VisitManagement: React.FC = () => {
   const fetchAgents = async () => {
     try {
       const response = await apiClient.get('/agents')
-      setAgents(response.data.data || [])
+      const rawAgents = response.data.data || response.data || []
+      setAgents(Array.isArray(rawAgents) ? rawAgents : [])
     } catch (error) {
       console.error('Error fetching agents:', error)
     }
@@ -122,7 +123,8 @@ const VisitManagement: React.FC = () => {
   const fetchCustomers = async () => {
     try {
       const response = await apiClient.get('/customers')
-      setCustomers(response.data.data || [])
+      const rawCustomers = response.data.data || response.data || {}
+      setCustomers(Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers.customers || []))
     } catch (error) {
       console.error('Error fetching customers:', error)
     }

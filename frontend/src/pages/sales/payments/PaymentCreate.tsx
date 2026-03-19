@@ -14,7 +14,9 @@ export default function PaymentCreate() {
   const loadInvoices = async () => {
     try {
       const response = await salesService.getInvoices()
-      const unpaidInvoices = (response.data || []).filter((i: any) => 
+      const rawInvoices = response.data?.data || response.data || []
+      const invoicesList = Array.isArray(rawInvoices) ? rawInvoices : (rawInvoices.invoices || [])
+      const unpaidInvoices = invoicesList.filter((i: any) => 
         (i.status === 'sent' || i.status === 'overdue') && i.balance_due > 0
       )
       setInvoices(unpaidInvoices)

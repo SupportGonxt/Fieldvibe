@@ -20,9 +20,16 @@ export default function ProductDistributionCreate() {
         fieldOperationsService.getCustomers(),
         fieldOperationsService.getProducts()
       ])
-      setAgents(agentsRes.data || [])
-      setCustomers(customersRes.data || [])
-      setProducts(productsRes.data || [])
+      // Agents endpoint returns a flat array; others wrap in { data: ... }
+      const agentsList = Array.isArray(agentsRes) ? agentsRes : (agentsRes.data || [])
+      // Customers endpoint returns { data: { customers: [...] } }
+      const rawCustomers = customersRes.data || customersRes
+      const customersList = Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers.customers || [])
+      // Products endpoint returns { data: [...] }
+      const productsList = Array.isArray(productsRes) ? productsRes : (Array.isArray(productsRes.data) ? productsRes.data : [])
+      setAgents(agentsList)
+      setCustomers(customersList)
+      setProducts(productsList)
     } catch (error) {
       console.error('Failed to load form data:', error)
     }

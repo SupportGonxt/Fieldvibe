@@ -25,9 +25,12 @@ export default function VanSalesOrderEdit() {
         vanSalesService.getCustomers(),
         vanSalesService.getRoutes()
       ])
-      setOrder(orderRes.data)
-      setCustomers(customersRes.data || [])
-      setRoutes(routesRes.data || [])
+      const orderData = orderRes?.data !== undefined ? orderRes.data : orderRes
+      setOrder(orderData)
+      const rawCustomers = customersRes.data || customersRes
+      setCustomers(Array.isArray(rawCustomers) ? rawCustomers : (rawCustomers.customers || []))
+      const rawRoutes = routesRes.data || routesRes
+      setRoutes(Array.isArray(rawRoutes) ? rawRoutes : (rawRoutes.routes || []))
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
