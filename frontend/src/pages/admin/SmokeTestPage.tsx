@@ -228,6 +228,10 @@ export default function SmokeTestPage() {
   const apiErrorCount = apiHealthChecks.filter(c => c.status === 'error').length
   const apiPendingCount = apiHealthChecks.filter(c => c.status === 'pending').length
 
+  const successCount = routeSuccessCount + apiSuccessCount
+  const errorCount = routeErrorCount + apiErrorCount
+  const pendingCount = routePendingCount + apiPendingCount
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -311,7 +315,7 @@ export default function SmokeTestPage() {
       {/* Actions */}
       <div className="mb-6">
         <button
-          onClick={runTests}
+          onClick={() => { runApiHealthChecks(); runRouteTests(); }}
           disabled={running}
           className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >

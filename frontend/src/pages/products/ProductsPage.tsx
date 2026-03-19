@@ -74,6 +74,7 @@ interface ProductStats {
 }
 
 export default function ProductsPage() {
+  const navigate = useNavigate()
   const [products, setProducts] = useState<Product[]>([])
   const [stats, setStats] = useState<ProductStats | null>(null)
   const [loading, setLoading] = useState(true)
