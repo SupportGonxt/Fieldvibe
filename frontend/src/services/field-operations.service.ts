@@ -755,6 +755,17 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // ==================== MARKETING: HIERARCHY ====================
+  async getMarketingHierarchy() {
+    const response = await this.get('/marketing/hierarchy')
+    return response.data || response
+  }
+
+  async assignMarketingHierarchy(userId: string, data: { manager_id?: string | null; team_lead_id?: string | null }) {
+    const response = await this.put('/marketing/hierarchy/assign', { user_id: userId, ...data })
+    return response.data || response
+  }
+
   // ==================== FIELD OPS: PERFORMANCE (ROLE-BASED) ====================
   async getPerformance(filter: { date?: string; start_date?: string; end_date?: string; company_id?: string } = {}) {
     const params = new URLSearchParams()

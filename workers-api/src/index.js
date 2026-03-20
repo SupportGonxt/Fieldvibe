@@ -682,7 +682,7 @@ api.get('/users', requireRole('admin', 'manager'), async (c) => {
   const offset = (parseInt(page) - 1) * parseInt(limit);
   const countR = await db.prepare('SELECT COUNT(*) as total FROM users u ' + where).bind(...params).first();
   // Section 8: Remove admin_viewable_password from SELECT
-  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.agent_type, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
   return c.json({ success: true, data: { users: users.results || [], pagination: { total: countR ? countR.total : 0, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil((countR ? countR.total : 0) / parseInt(limit)) } } });
 });
 
@@ -709,7 +709,8 @@ api.post('/users', requireRole('admin'), async (c) => {
   // For agents without email, generate a placeholder to satisfy NOT NULL constraint
   const emailForDb = email || (isAgent ? `agent_${id.substring(0, 8)}@placeholder.local` : null);
   try {
-    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+    const agentType = body.agent_type || body.agentType || null;
+    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
     return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
   } catch (err) {
     const msg = err.message || 'Failed to create user';
@@ -728,7 +729,16 @@ api.put('/users/:id', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, body.phone || null, body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
+  const agentType = body.agent_type !== undefined ? body.agent_type : (body.agentType !== undefined ? body.agentType : undefined);
+  let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
+  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, body.phone || null, body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
+  if (agentType !== undefined) {
+    sql += ', agent_type = ?';
+    binds.push(agentType);
+  }
+  sql += ', updated_at = datetime("now") WHERE id = ? AND tenant_id = ?';
+  binds.push(id, tenantId);
+  await db.prepare(sql).bind(...binds).run();
   return c.json({ success: true, message: 'User updated' });
 });
 
@@ -4519,11 +4529,11 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {
-    // Core user queries - these must succeed
+    // Core user queries - filter by agent_type IN ('field_ops', 'both') or NULL (backward compat)
     const [managers, teamLeads, agents] = await Promise.all([
-      db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
     ]);
     // Optional queries - company links may not exist yet, don't let them break hierarchy
     let mcLinks = [];
@@ -4600,6 +4610,58 @@ api.delete('/field-ops/hierarchy/manager-companies/:linkId', authMiddleware, asy
   const linkId = c.req.param('linkId');
   await db.prepare('UPDATE manager_company_links SET is_active = 0 WHERE id = ? AND tenant_id = ?').bind(linkId, tenantId).run();
   return c.json({ success: true, message: 'Manager unassigned from company' });
+});
+
+// ==================== MARKETING: HIERARCHY ====================
+api.get('/marketing/hierarchy', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const [managers, teamLeads, agents] = await Promise.all([
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+    ]);
+    let mcLinks = [];
+    let companiesList = [];
+    try {
+      const [managerCompanyLinks, companies] = await Promise.all([
+        db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
+        db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
+      ]);
+      mcLinks = managerCompanyLinks.results || [];
+      companiesList = companies.results || [];
+    } catch { /* tables may not exist yet */ }
+    const hierarchy = (managers.results || []).map(m => ({
+      ...m,
+      companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
+      team_leads: (teamLeads.results || []).filter(tl => tl.manager_id === m.id).map(tl => ({
+        ...tl,
+        agents: (agents.results || []).filter(a => a.team_lead_id === tl.id)
+      }))
+    }));
+    const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id);
+    const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id);
+    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companiesList, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
+  } catch {
+    return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], all_companies: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
+  }
+});
+
+api.put('/marketing/hierarchy/assign', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { user_id, manager_id, team_lead_id } = body;
+  if (!user_id) return c.json({ success: false, message: 'user_id required' }, 400);
+  const sets = [];
+  const vals = [];
+  if (manager_id !== undefined) { sets.push('manager_id = ?'); vals.push(manager_id || null); }
+  if (team_lead_id !== undefined) { sets.push('team_lead_id = ?'); vals.push(team_lead_id || null); }
+  if (sets.length === 0) return c.json({ success: false, message: 'manager_id or team_lead_id required' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE users SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, user_id, tenantId).run();
+  return c.json({ success: true, message: 'Marketing hierarchy updated' });
 });
 
 // ==================== FIELD OPS: SETTINGS ====================
@@ -8627,6 +8689,21 @@ api.post('/error-logs', async (c) => {
   return c.json({ success: true, data: { id } }, 201);
 });
 
+
+// ==================== MIGRATIONS ====================
+api.post('/migrations/add-agent-type', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  try {
+    await db.prepare("ALTER TABLE users ADD COLUMN agent_type TEXT").run();
+    return c.json({ success: true, message: 'agent_type column added to users table' });
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('duplicate column') || msg.includes('already exists')) {
+      return c.json({ success: true, message: 'agent_type column already exists' });
+    }
+    return c.json({ success: false, message: `Migration failed: ${msg}` }, 500);
+  }
+});
 
 // ==================== X. DATA SEEDING & TESTING ====================
 

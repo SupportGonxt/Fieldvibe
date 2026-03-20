@@ -15,6 +15,7 @@ import NotFoundPage from './pages/NotFoundPage'
 
 // T-15: All page components loaded via React.lazy for code splitting
 const ActivationCreate = lazy(() => import('./pages/marketing/activations/ActivationCreate'))
+const MarketingHierarchyPage = lazy(() => import('./pages/marketing/MarketingHierarchyPage'))
 const ActivationDetail = lazy(() => import('./pages/marketing/activations/ActivationDetail'))
 const ActivationWorkflowPage = lazy(() => import('./pages/trade-marketing/ActivationWorkflowPage'))
 const ActivationsList = lazy(() => import('./pages/marketing/activations/ActivationsList'))
@@ -733,6 +734,7 @@ function App() {
             <Route path="marketing/events/create" element={<PageLoader><EventCreate /></PageLoader>} />
             <Route path="marketing/events/:id" element={<PageLoader><EventDetail /></PageLoader>} />
             <Route path="marketing/events/:id/edit" element={<PageLoader><EventEdit /></PageLoader>} />
+            <Route path="marketing/hierarchy" element={<PageLoader><MarketingHierarchyPage /></PageLoader>} />
             <Route path="marketing/activations" element={<PageLoader><ActivationsList /></PageLoader>} />
             <Route path="marketing/activations/create" element={<PageLoader><ActivationCreate /></PageLoader>} />
             <Route path="marketing/activations/:id" element={<PageLoader><ActivationDetail /></PageLoader>} />

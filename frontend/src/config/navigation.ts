@@ -214,6 +214,9 @@ export const navigation: NavigationItem[] = [
       { name: 'Trade Marketing', href: '/trade-marketing', permission: null, description: 'Trade marketing activities', group: 'Activations' },
       { name: 'Events', href: '/events', permission: null, description: 'Marketing events', group: 'Activations' },
       { name: 'Activations', href: '/marketing/activations', permission: null, description: 'Brand activations', group: 'Activations' },
+
+      // ── Organization ──
+      { name: 'Hierarchy', href: '/marketing/hierarchy', permission: null, description: 'Marketing agent hierarchy', group: 'Organization' },
     ],
   },
 

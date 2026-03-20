@@ -12,6 +12,7 @@ interface User {
   last_name: string
   phone: string | null
   role: string
+  agent_type: string | null
   status: string
   last_login: string | null
   created_at: string
@@ -24,6 +25,7 @@ interface FormData {
   lastName: string
   phone: string
   role: string
+  agent_type: string
 }
 
 const ROLES = [
@@ -71,7 +73,8 @@ export default function UserManagementPage() {
     firstName: '',
     lastName: '',
     phone: '',
-    role: 'salesman'
+    role: 'salesman',
+    agent_type: 'field_ops'
   })
 
   const [editFormData, setEditFormData] = useState({
@@ -80,6 +83,7 @@ export default function UserManagementPage() {
     lastName: '',
     phone: '',
     role: '',
+    agent_type: '',
     status: ''
   })
 
@@ -201,6 +205,7 @@ export default function UserManagementPage() {
       lastName: user.last_name,
       phone: user.phone || '',
       role: user.role,
+      agent_type: user.agent_type || '',
       status: user.status
     })
     setShowEditModal(true)
@@ -218,8 +223,30 @@ export default function UserManagementPage() {
       firstName: '',
       lastName: '',
       phone: '',
-      role: 'salesman'
+      role: 'salesman',
+      agent_type: 'field_ops'
     })
+  }
+
+  const AGENT_TYPE_LABELS: Record<string, string> = {
+    field_ops: 'Field Ops',
+    marketing: 'Marketing',
+    both: 'Both',
+  }
+
+  const getAgentTypeBadge = (agentType: string | null) => {
+    if (!agentType) return null
+    const label = AGENT_TYPE_LABELS[agentType] || agentType
+    const colors: Record<string, string> = {
+      field_ops: 'bg-blue-100 text-blue-800',
+      marketing: 'bg-pink-100 text-pink-800',
+      both: 'bg-purple-100 text-purple-800',
+    }
+    return (
+      <span className={`ml-1 px-2 py-0.5 text-xs font-medium rounded-full ${colors[agentType] || 'bg-gray-100 text-gray-800'}`}>
+        {label}
+      </span>
+    )
   }
 
   const showSuccess = (message: string) => {
@@ -411,6 +438,7 @@ export default function UserManagementPage() {
                       <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-${getRoleBadgeColor(user.role)}-100 text-${getRoleBadgeColor(user.role)}-800`}>
                         {ROLES.find(r => r.value === user.role)?.label || user.role}
                       </span>
+                      {getAgentTypeBadge(user.agent_type)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-${getStatusBadgeColor(user.status)}-100 text-${getStatusBadgeColor(user.status)}-800`}>
@@ -533,6 +561,21 @@ export default function UserManagementPage() {
                     required
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department <span className="text-red-500">*</span>
+                  </label>
+                  <SearchableSelect
+                    options={[
+                      { value: 'field_ops', label: 'Field Ops' },
+                      { value: 'marketing', label: 'Marketing' },
+                      { value: 'both', label: 'Both' },
+                    ]}
+                    value={formData.agent_type}
+                    onChange={(val) => setFormData({ ...formData, agent_type: val || 'field_ops' })}
+                    placeholder="Select department..."
+                  />
+                </div>
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
@@ -619,6 +662,21 @@ export default function UserManagementPage() {
                     value={editFormData.role}
                     onChange={(val) => setEditFormData({ ...editFormData, role: val || '' })}
                     placeholder="Select role..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department
+                  </label>
+                  <SearchableSelect
+                    options={[
+                      { value: 'field_ops', label: 'Field Ops' },
+                      { value: 'marketing', label: 'Marketing' },
+                      { value: 'both', label: 'Both' },
+                    ]}
+                    value={editFormData.agent_type}
+                    onChange={(val) => setEditFormData({ ...editFormData, agent_type: val || '' })}
+                    placeholder="Select department..."
                   />
                 </div>
                 <div>
