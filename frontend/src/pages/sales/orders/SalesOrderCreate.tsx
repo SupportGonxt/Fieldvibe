@@ -234,7 +234,7 @@ export default function SalesOrderCreate() {
                 <SearchableSelect
                   label="Customer *"
                   placeholder="Select a customer"
-                  options={customers.map(c => ({ value: c.id, label: c.name }))}
+                  options={customers.map(c => ({ value: c.id, label: c.name || c.business_name || c.email || 'Unknown' }))}
                   value={selectedCustomer}
                   onChange={(val) => setSelectedCustomer(val || '')}
                   required
@@ -244,7 +244,7 @@ export default function SalesOrderCreate() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sales Rep</label>
                 <SearchableSelect
                   label="Sales Rep"
-                  options={salesReps.map(r => ({ value: r.id, label: r.name }))}
+                  options={salesReps.map(r => ({ value: r.id, label: r.name || (r.first_name ? `${r.first_name} ${r.last_name || ''}`.trim() : (r.email || 'Unknown')) }))}
                   value={selectedSalesRep || null}
                   onChange={(val) => setSelectedSalesRep(val || '')}
                   placeholder="Select a sales rep..."
