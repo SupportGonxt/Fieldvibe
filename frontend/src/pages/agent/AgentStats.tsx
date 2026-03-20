@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, MapPin, Users, Target, Calendar, Award, BarChart3 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { API_CONFIG } from '../../config/api.config'
 
 interface StatsData {
   today_visits: number
@@ -27,8 +28,7 @@ export default function AgentStats() {
       try {
         const token = useAuthStore.getState().tokens?.access_token || localStorage.getItem('token')
         if (!token) { navigate('/auth/mobile-login'); return }
-        const apiUrl = import.meta.env.VITE_API_URL || ''
-        const res = await fetch(`${apiUrl}/api/agent/dashboard`, {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/agent/dashboard`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         const json = await res.json()

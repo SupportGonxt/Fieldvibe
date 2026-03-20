@@ -8,6 +8,7 @@ import {
 import { Refresh, LockReset, CheckCircle, Cancel } from '@mui/icons-material'
 import { toast } from 'react-hot-toast'
 import { useAuthStore } from '../../store/auth.store'
+import { API_CONFIG } from '../../config/api.config'
 
 function getToken(): string | null {
   return useAuthStore.getState().tokens?.access_token || localStorage.getItem('token')
@@ -37,8 +38,7 @@ export default function AgentPinManagement() {
     try {
       const token = getToken()
       if (!token) return
-      const apiUrl = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiUrl}/api/agent/pin-status`, {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/agent/pin-status`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const data = await res.json()
@@ -65,8 +65,7 @@ export default function AgentPinManagement() {
     setSaving(true)
     try {
       const token = getToken()
-      const apiUrl = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiUrl}/api/agent/set-pin`, {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/agent/set-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ agent_id: selectedAgent.id, pin: newPin })

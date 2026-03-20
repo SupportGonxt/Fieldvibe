@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { API_CONFIG } from '../../config/api.config'
 
 export default function AgentProfile() {
   const navigate = useNavigate()
@@ -40,8 +41,7 @@ export default function AgentProfile() {
     setPinLoading(true)
     try {
       const token = useAuthStore.getState().tokens?.access_token || localStorage.getItem('token')
-      const apiUrl = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiUrl}/api/agent/change-pin`, {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/agent/change-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ current_pin: currentPin, new_pin: newPin })

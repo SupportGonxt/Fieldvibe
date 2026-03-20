@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus } from 'lucide-react'
+import { API_CONFIG } from '../../config/api.config'
 
 interface Visit {
   id: string
@@ -32,8 +33,7 @@ export default function AgentVisits() {
     try {
       const token = localStorage.getItem('token')
       if (!token) { navigate('/auth/mobile-login'); return }
-      const apiUrl = import.meta.env.VITE_API_URL || ''
-      const res = await fetch(`${apiUrl}/api/field-operations/visits?limit=100&agent_id=me`, {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/field-operations/visits?limit=100&agent_id=me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const json = await res.json()
