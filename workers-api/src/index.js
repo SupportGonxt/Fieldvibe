@@ -3643,7 +3643,7 @@ api.get('/surveys', authMiddleware, async (c) => {
     try { q.questions = JSON.parse(q.questions); } catch(e) {}
     return { ...q, title: q.name, survey_type: q.visit_type || 'adhoc', response_count: 0, completion_rate: 0 };
   });
-  return c.json({ data: results });
+  return c.json({ success: true, data: results });
 });
 
 api.get('/surveys/:id', authMiddleware, async (c) => {
@@ -4068,8 +4068,8 @@ api.get('/analytics/commissions', authMiddleware, async (c) => {
 api.get('/sales-reps', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const reps = await db.prepare("SELECT id, first_name, last_name, email, phone, role FROM users WHERE tenant_id = ? AND role IN ('agent', 'sales_rep', 'van_sales') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
-  return c.json(reps.results || []);
+  const reps = await db.prepare("SELECT id, first_name || ' ' || last_name as name, first_name, last_name, email, phone, role FROM users WHERE tenant_id = ? AND role IN ('agent', 'sales_rep', 'van_sales') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
+  return c.json({ success: true, data: reps.results || [] });
 });
 
 // ==================== VAN SALES ADDITIONAL ROUTES ====================
@@ -5057,15 +5057,7 @@ api.post('/brands', authMiddleware, async (c) => {
   return c.json({ success: true, data: { id, ...body } }, 201);
 });
 
-// ==================== SURVEYS (questionnaires) ====================
-api.get('/surveys', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  try {
-    const surveys = await db.prepare("SELECT id, name, module, visit_type, target_type, brand_id, company_id, is_default, is_active FROM questionnaires WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all();
-    return c.json({ success: true, data: surveys.results || [] });
-  } catch { return c.json({ success: true, data: [] }); }
-});
+// NOTE: /surveys GET is defined earlier (line ~3626) - removed duplicate here
 
 // ==================== BOARDS ====================
 api.get('/boards', authMiddleware, async (c) => {
@@ -8646,6 +8638,45 @@ api.post('/seed/demo', requireRole('admin'), async (c) => {
   const seedId = uuidv4();
 
   try {
+    // Seed brands
+    const brands = [
+      { name: 'Coca-Cola', code: 'coca-cola', description: 'Coca-Cola beverages' },
+      { name: 'Pepsi', code: 'pepsi', description: 'Pepsi beverages' },
+      { name: 'Nestle', code: 'nestle', description: 'Nestle products' },
+      { name: 'Unilever', code: 'unilever', description: 'Unilever products' },
+      { name: 'Tiger Brands', code: 'tiger-brands', description: 'Tiger Brands products' }
+    ];
+    const brandIds = {};
+    for (const brand of brands) {
+      const existing = await db.prepare('SELECT id FROM brands WHERE code = ? AND tenant_id = ?').bind(brand.code, tenantId).first();
+      if (existing) {
+        brandIds[brand.code] = existing.id;
+      } else {
+        const id = uuidv4();
+        await db.prepare('INSERT INTO brands (id, tenant_id, name, code, description, status) VALUES (?, ?, ?, ?, ?, ?)').bind(id, tenantId, brand.name, brand.code, brand.description, 'active').run();
+        brandIds[brand.code] = id;
+      }
+    }
+
+    // Seed categories
+    const categories = [
+      { name: 'Beverages', code: 'beverages', brand_code: 'coca-cola' },
+      { name: 'Snacks', code: 'snacks', brand_code: 'pepsi' },
+      { name: 'Dairy', code: 'dairy', brand_code: 'nestle' },
+      { name: 'Personal Care', code: 'personal-care', brand_code: 'unilever' },
+      { name: 'Canned Foods', code: 'canned-foods', brand_code: 'tiger-brands' },
+      { name: 'Confectionery', code: 'confectionery', brand_code: 'nestle' },
+      { name: 'Household', code: 'household', brand_code: 'unilever' },
+      { name: 'Cereals', code: 'cereals', brand_code: 'tiger-brands' }
+    ];
+    for (const cat of categories) {
+      const existing = await db.prepare('SELECT id FROM categories WHERE code = ? AND tenant_id = ?').bind(cat.code, tenantId).first();
+      if (!existing) {
+        const id = uuidv4();
+        await db.prepare('INSERT INTO categories (id, tenant_id, name, code, brand_id) VALUES (?, ?, ?, ?, ?)').bind(id, tenantId, cat.name, cat.code, brandIds[cat.brand_code] || null).run();
+      }
+    }
+
     // Seed territories
     const territories = ['Johannesburg North', 'Johannesburg South', 'Pretoria', 'Cape Town', 'Durban'];
     for (const name of territories) {

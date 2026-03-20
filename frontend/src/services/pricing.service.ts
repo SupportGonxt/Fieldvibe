@@ -98,7 +98,14 @@ class PricingService {
 
   async updatePriceListItems(priceListId: string, items: Array<Omit<PriceListItem, 'id' | 'price_list_id' | 'created_at' | 'updated_at'>>): Promise<PriceListItem[]> {
     try {
-      const response = await apiClient.post(`/price-lists/${priceListId}/items`, { items })
+      // Backend expects array directly with fields: product_id, unit_price, min_qty, max_discount_pct
+      const backendItems = items.map(item => ({
+        product_id: item.product_id,
+        unit_price: item.price,
+        min_qty: item.min_quantity || 1,
+        max_discount_pct: item.discount_percentage || null
+      }))
+      const response = await apiClient.post(`/price-lists/${priceListId}/items`, backendItems)
       return response.data.data
     } catch (error) {
       console.error('Failed to update price list items:', error)
