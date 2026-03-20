@@ -26,11 +26,14 @@ export default function PromotionCreate() {
       type: 'select' as const,
       required: true,
       options: [
-        { value: 'percentage_discount', label: 'Percentage Discount' },
-        { value: 'fixed_amount', label: 'Fixed Amount Discount' },
-        { value: 'buy_one_get_one', label: 'Buy One Get One' },
-        { value: 'bundle', label: 'Bundle Deal' },
-        { value: 'free_shipping', label: 'Free Shipping' }
+        { value: 'TRADE_DISCOUNT', label: 'Trade Discount' },
+        { value: 'VOLUME_REBATE', label: 'Volume Rebate' },
+        { value: 'DISPLAY_ALLOWANCE', label: 'Display Allowance' },
+        { value: 'PERFORMANCE_BONUS', label: 'Performance Bonus' },
+        { value: 'CO_OP_ADVERTISING', label: 'Co-op Advertising' },
+        { value: 'SLOTTING_FEE', label: 'Slotting Fee' },
+        { value: 'FREE_GOODS', label: 'Free Goods' },
+        { value: 'MARKDOWN_ALLOWANCE', label: 'Markdown Allowance' }
       ]
     },
     {

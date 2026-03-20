@@ -14,9 +14,12 @@ export default function ProductCreatePage() {
 
   const loadFormData = async () => {
     try {
-      const productsData = await productsService.getProducts()
-      setCategories(productsData.categories || [])
-      setBrands(productsData.brands || [])
+      const [cats, brnds] = await Promise.all([
+        productsService.getCategories(),
+        productsService.getBrands()
+      ])
+      setCategories(cats || [])
+      setBrands(brnds || [])
     } catch (error) {
       console.error('Failed to load form data:', error)
     }
