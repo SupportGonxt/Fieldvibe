@@ -59,15 +59,17 @@ function Counter({ end, suffix = '', duration = 2000 }: { end: number; suffix?: 
 
   useEffect(() => {
     if (!started) return
+    let rafId: number
     const startTime = performance.now()
     const tick = (now: number) => {
       const elapsed = now - startTime
       const progress = Math.min(elapsed / duration, 1)
       const eased = 1 - Math.pow(1 - progress, 3)
       setValue(Math.round(eased * end))
-      if (progress < 1) requestAnimationFrame(tick)
+      if (progress < 1) rafId = requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
   }, [started, end, duration])
 
   return <span ref={ref}>{value}{suffix}</span>
