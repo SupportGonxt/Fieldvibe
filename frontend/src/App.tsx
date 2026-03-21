@@ -15,6 +15,7 @@ import NotFoundPage from './pages/NotFoundPage'
 
 // T-15: All page components loaded via React.lazy for code splitting
 const ActivationCreate = lazy(() => import('./pages/marketing/activations/ActivationCreate'))
+const MarketingHierarchyPage = lazy(() => import('./pages/marketing/MarketingHierarchyPage'))
 const ActivationDetail = lazy(() => import('./pages/marketing/activations/ActivationDetail'))
 const ActivationWorkflowPage = lazy(() => import('./pages/trade-marketing/ActivationWorkflowPage'))
 const ActivationsList = lazy(() => import('./pages/marketing/activations/ActivationsList'))
@@ -33,7 +34,11 @@ const AgentLayout = lazy(() => import('./pages/agent/AgentLayout'))
 const AgentVisits = lazy(() => import('./pages/agent/AgentVisits'))
 const AgentStats = lazy(() => import('./pages/agent/AgentStats'))
 const AgentProfile = lazy(() => import('./pages/agent/AgentProfile'))
+const AgentOnboarding = lazy(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazy(() => import('./pages/agent/AgentPinManagement'))
+const AgentTrainingGuide = lazy(() => import('./pages/agent/AgentTrainingGuide'))
+const TeamTab = lazy(() => import('./pages/agent/TeamTab'))
+const ManagerTeamsTab = lazy(() => import('./pages/agent/ManagerTeamsTab'))
 const AgentHierarchyPage = lazy(() => import('./pages/field-operations/AgentHierarchyPage'))
 const AnalyticsDashboardPage = lazy(() => import('./pages/reports/AnalyticsDashboardPage'))
 const AnalyticsPage = lazy(() => import('./pages/dashboard/AnalyticsPage'))
@@ -401,6 +406,14 @@ const VisitManagementPage = lazy(() => import('./pages/field-operations/VisitMan
 const VisitWorkflowPage = lazy(() => import('./pages/VisitWorkflowPage'))
 const VisitsList = lazy(() => import('./pages/field-operations/visits/VisitsList'))
 
+// Field Operations Reports (SSReports-style)
+const ReportsDashboard = lazy(() => import('./pages/field-operations/reports/ReportsDashboard'))
+const ReportsInsights = lazy(() => import('./pages/field-operations/reports/ReportsInsights'))
+const ReportsShopsAnalytics = lazy(() => import('./pages/field-operations/reports/ReportsShopsAnalytics'))
+const ReportsCustomersAnalytics = lazy(() => import('./pages/field-operations/reports/ReportsCustomersAnalytics'))
+const ReportsCheckinsList = lazy(() => import('./pages/field-operations/reports/ReportsCheckinsList'))
+const ReportsExport = lazy(() => import('./pages/field-operations/reports/ReportsExport'))
+
 // T-21: Suspense fallback for lazy-loaded pages
 function PageLoader({ children }: { children: React.ReactNode }) {
   return (
@@ -414,8 +427,10 @@ function PageLoader({ children }: { children: React.ReactNode }) {
   )
 }
 
+const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager']
+
 function App() {
-  const { isAuthenticated, isLoading, initialize, hydrated } = useAuthStore()
+  const { isAuthenticated, isLoading, initialize, hydrated, user } = useAuthStore()
 
   useEffect(() => {
     if (hydrated) {
@@ -441,7 +456,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />
@@ -524,6 +539,7 @@ function App() {
             <Route path="field-operations/agent-dashboard" element={<PageLoader><FieldAgentDashboardPage /></PageLoader>} />
             <Route path="field-operations/agents" element={<Navigate to="/field-operations" replace />} />
             <Route path="field-operations/mapping" element={<Navigate to="/field-operations/gps-tracking" replace />} />
+            <Route path="field-operations/live-map" element={<PageLoader><LiveGPSTrackingPage /></PageLoader>} />
             <Route path="field-operations/gps-tracking" element={<PageLoader><LiveGPSTrackingPage /></PageLoader>} />
             <Route path="field-operations/boards" element={<PageLoader><BoardPlacementsList /></PageLoader>} />
             <Route path="field-operations/boards/create" element={<PageLoader><BoardPlacementFormPage /></PageLoader>} />
@@ -725,6 +741,7 @@ function App() {
             <Route path="marketing/events/create" element={<PageLoader><EventCreate /></PageLoader>} />
             <Route path="marketing/events/:id" element={<PageLoader><EventDetail /></PageLoader>} />
             <Route path="marketing/events/:id/edit" element={<PageLoader><EventEdit /></PageLoader>} />
+            <Route path="marketing/hierarchy" element={<PageLoader><MarketingHierarchyPage /></PageLoader>} />
             <Route path="marketing/activations" element={<PageLoader><ActivationsList /></PageLoader>} />
             <Route path="marketing/activations/create" element={<PageLoader><ActivationCreate /></PageLoader>} />
             <Route path="marketing/activations/:id" element={<PageLoader><ActivationDetail /></PageLoader>} />
@@ -1030,6 +1047,15 @@ function App() {
             <Route path="van-sales/workflow" element={<PageLoader><VanSalesWorkflowPage /></PageLoader>} />
             <Route path="field-operations/visits/list" element={<PageLoader><VisitsList /></PageLoader>} />
 
+            {/* Field Operations Reports (SSReports-style) */}
+            <Route path="field-operations/reports" element={<PageLoader><ReportsDashboard /></PageLoader>} />
+            <Route path="field-operations/reports/dashboard" element={<PageLoader><ReportsDashboard /></PageLoader>} />
+            <Route path="field-operations/reports/insights" element={<PageLoader><ReportsInsights /></PageLoader>} />
+            <Route path="field-operations/reports/shops" element={<PageLoader><ReportsShopsAnalytics /></PageLoader>} />
+            <Route path="field-operations/reports/customers" element={<PageLoader><ReportsCustomersAnalytics /></PageLoader>} />
+            <Route path="field-operations/reports/checkins" element={<PageLoader><ReportsCheckinsList /></PageLoader>} />
+            <Route path="field-operations/reports/export" element={<PageLoader><ReportsExport /></PageLoader>} />
+
             {/* Mobile More Menu */}
             <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
             <Route path="more" element={<PageLoader><MoreMenuPage /></PageLoader>} />
@@ -1050,7 +1076,11 @@ function App() {
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
+            <Route path="team" element={<PageLoader><TeamTab /></PageLoader>} />
+            <Route path="teams" element={<PageLoader><ManagerTeamsTab /></PageLoader>} />
             <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
+            <Route path="onboarding" element={<PageLoader><AgentOnboarding /></PageLoader>} />
+            <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
             <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
 

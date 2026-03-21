@@ -3,7 +3,7 @@ export interface User {
   email: string
   first_name: string
   last_name: string
-  role: 'admin' | 'manager' | 'field_agent' | 'sales_rep' | 'agent' | 'super_admin'
+  role: 'admin' | 'manager' | 'team_lead' | 'field_agent' | 'sales_rep' | 'agent' | 'super_admin'
   department?: string
   phone?: string
   avatar?: string
@@ -63,6 +63,7 @@ export interface AuthError {
 export const ROLES = {
   ADMIN: 'admin',
   MANAGER: 'manager',
+  TEAM_LEAD: 'team_lead',
   FIELD_AGENT: 'field_agent',
   SALES_REP: 'sales_rep',
   AGENT: 'agent',
@@ -174,6 +175,18 @@ export const DEFAULT_PERMISSIONS = {
     PERMISSIONS.EXPORT_DATA,
     PERMISSIONS.VIEW_COMMISSIONS,
     PERMISSIONS.MANAGE_COMMISSIONS,
+  ],
+  [ROLES.TEAM_LEAD]: [
+    PERMISSIONS.VIEW_USERS,
+    PERMISSIONS.VIEW_CUSTOMERS,
+    PERMISSIONS.VIEW_ORDERS,
+    PERMISSIONS.VIEW_PRODUCTS,
+    PERMISSIONS.VIEW_FIELD_OPERATIONS,
+    PERMISSIONS.MANAGE_FIELD_AGENTS,
+    PERMISSIONS.VIEW_AGENT_LOCATIONS,
+    PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.VIEW_COMMISSIONS,
   ],
   [ROLES.FIELD_AGENT]: [
     PERMISSIONS.VIEW_CUSTOMERS,

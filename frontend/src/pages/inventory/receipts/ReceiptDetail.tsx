@@ -6,8 +6,11 @@ import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function ReceiptDetail() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,17 +34,20 @@ export default function ReceiptDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this receipt? This will reverse all inventory movements.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this receipt? This will reverse all inventory movements.',
+      action: async () => {
+        try {
       await inventoryService.reverseReceipt(Number(id))
       navigate('/inventory/receipts')
     } catch (error) {
       console.error('Failed to reverse receipt:', error)
       toast.error('Failed to reverse receipt')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
@@ -76,7 +82,8 @@ export default function ReceiptDetail() {
   }[receipt.status] as 'green' | 'yellow' | 'red'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Receipt ${receipt.receipt_number}`}
       fields={fields}
       auditTrail={receipt.audit_trail || []}
@@ -85,5 +92,15 @@ export default function ReceiptDetail() {
       status={receipt.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

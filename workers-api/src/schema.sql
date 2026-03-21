@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'agent',
+  agent_type TEXT,
   manager_id TEXT,
   team_lead_id TEXT,
   status TEXT DEFAULT 'active',

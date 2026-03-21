@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Phone, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { API_CONFIG } from '../../config/api.config'
 
 const MobileLoginPage: React.FC = () => {
   const navigate = useNavigate()
@@ -17,7 +18,7 @@ const MobileLoginPage: React.FC = () => {
     const { isAuthenticated, user } = useAuthStore.getState()
     if (isAuthenticated && user) {
       const role = user.role
-      if (role && ['agent', 'team_lead', 'field_agent', 'sales_rep'].includes(role)) {
+      if (role && ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager'].includes(role)) {
         navigate('/agent/dashboard')
         return
       }
@@ -64,8 +65,7 @@ const MobileLoginPage: React.FC = () => {
     }
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || ''
-      const response = await fetch(`${apiUrl}/api/auth/mobile-login`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/mobile-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, pin })

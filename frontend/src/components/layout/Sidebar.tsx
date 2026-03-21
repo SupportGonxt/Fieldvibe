@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react'
-import { useAuthStore } from '../../store/auth.store'
+import { useAuthStore, hasPermission } from '../../store/auth.store'
 import { navigation, navigationBySection } from '../../config/navigation'
-import type { NavigationItem } from '../../config/navigation'
+import type { NavigationItem, NavigationChild } from '../../config/navigation'
 
 interface SidebarProps {
   onNavigate?: () => void
@@ -43,6 +43,13 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
 
   const isNavItemVisible = (item: NavigationItem) => {
     if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') return false
+    // If item has a permission requirement, check it
+    if (item.permission && !hasPermission(item.permission)) return false
+    return true
+  }
+
+  const isChildVisible = (child: NavigationChild) => {
+    if (child.permission && !hasPermission(child.permission)) return false
     return true
   }
 
@@ -127,7 +134,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
 
                     {/* Children */}
                     {hasChildren && expanded && !collapsed && (() => {
-                      const children = item.children!
+                      const children = item.children!.filter(isChildVisible)
                       const hasGroups = children.some(c => c.group)
 
                       if (!hasGroups) {
@@ -153,7 +160,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                         )
                       }
 
-                      // Group children by group name
+                      // Group children by group name (filtered by permissions)
                       const groups: Record<string, typeof children> = {}
                       children.forEach(c => {
                         const g = c.group || 'Other'

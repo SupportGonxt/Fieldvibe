@@ -9,6 +9,7 @@ import { useAuthStore } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
 import { useToast } from '../../components/ui/Toast'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface Visit {
   id: string
@@ -55,6 +56,8 @@ interface Customer {
 }
 
 const VisitManagement: React.FC = () => {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const { user } = useAuthStore()
   const [visits, setVisits] = useState<Visit[]>([])
@@ -681,6 +684,16 @@ const VisitManagement: React.FC = () => {
           </div>
         </div>
       )}
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }

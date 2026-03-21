@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function ReceiptsList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [receipts, setReceipts] = useState([])
@@ -31,15 +34,20 @@ export default function ReceiptsList() {
   }
 
   const handleReverse = async (receiptId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this receipt?')) return
-
-    try {
-      await inventoryService.reverseReceipt(receiptId)
-      loadReceipts()
-    } catch (error) {
-      console.error('Failed to reverse receipt:', error)
-      toast.error('Failed to reverse receipt')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this receipt?',
+      action: async () => {
+        try {
+          await inventoryService.reverseReceipt(receiptId)
+          loadReceipts()
+        } catch (error) {
+          console.error('Failed to reverse receipt:', error)
+          toast.error('Failed to reverse receipt')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -120,13 +128,14 @@ export default function ReceiptsList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Inventory Receipts (GRN)"
       columns={columns}
       data={receipts}
@@ -135,5 +144,15 @@ export default function ReceiptsList() {
       createPath="/inventory/receipts/create"
       createLabel="Create Receipt"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

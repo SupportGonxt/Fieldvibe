@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function VanSalesOrdersList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
@@ -115,25 +118,31 @@ export default function VanSalesOrdersList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   const handleReverse = async (orderId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this order?')) return
-
-    try {
-      await vanSalesService.reverseOrder(orderId)
-      loadOrders()
-    } catch (error) {
-      console.error('Failed to reverse order:', error)
-      toast.error('Failed to reverse order')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this order?',
+      action: async () => {
+        try {
+          await vanSalesService.reverseOrder(orderId)
+          loadOrders()
+        } catch (error) {
+          console.error('Failed to reverse order:', error)
+          toast.error('Failed to reverse order')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Van Sales Orders"
       columns={columns}
       data={orders}
@@ -142,5 +151,15 @@ export default function VanSalesOrdersList() {
       createPath="/van-sales/orders/create"
       createLabel="Create Order"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

@@ -6,8 +6,11 @@ import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function ProductDistributionDetail() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,17 +34,20 @@ export default function ProductDistributionDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this product distribution? This will reverse the commission.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this product distribution? This will reverse the commission.',
+      action: async () => {
+        try {
       await fieldOperationsService.reverseProductDistribution(Number(id))
       navigate('/field-operations/product-distributions')
     } catch (error) {
       console.error('Failed to reverse product distribution:', error)
       toast.error('Failed to reverse product distribution')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
@@ -77,7 +83,8 @@ export default function ProductDistributionDetail() {
   }[distribution.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Product Distribution ${distribution.distribution_number}`}
       fields={fields}
       auditTrail={distribution.audit_trail || []}
@@ -86,5 +93,15 @@ export default function ProductDistributionDetail() {
       status={distribution.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

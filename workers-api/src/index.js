@@ -268,7 +268,7 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
       }
     }
     // Find agent by phone number (scoped to tenant if provided)
-    const user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep')${tenantFilter}`).bind(...tenantBinds).first();
+    const user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep', 'manager')${tenantFilter}`).bind(...tenantBinds).first();
     if (!user) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
     // Verify PIN (stored as pin_hash, fallback to password_hash for backward compat)
     const pinHash = user.pin_hash || user.password_hash;
@@ -337,6 +337,579 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
   }
 });
 
+// ==================== AGENT PERFORMANCE ====================
+app.get('/api/agent/performance', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+
+    // Fetch agent's team_lead_id to determine team membership
+    const agentUser = await db.prepare("SELECT team_lead_id FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
+    const teamLeadId = agentUser?.team_lead_id || null;
+
+    const [
+      monthlyTargets,
+      pendingCommissions,
+      approvedCommissions,
+      paidCommissions,
+      recentEarnings,
+      weeklyVisits,
+      streakData,
+      commissionRules,
+      commissionTiers,
+    ] = await Promise.all([
+      db.prepare("SELECT mt.*, fc.name as company_name FROM monthly_targets mt LEFT JOIN field_companies fc ON mt.company_id = fc.id WHERE mt.tenant_id = ? AND mt.agent_id = ? AND mt.target_month = ? ORDER BY fc.name").bind(tenantId, userId, currentMonth).all(),
+      db.prepare("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'pending'").bind(tenantId, userId).first(),
+      db.prepare("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'approved'").bind(tenantId, userId).first(),
+      db.prepare("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'paid'").bind(tenantId, userId).first(),
+      db.prepare("SELECT ce.id, ce.amount, ce.status, ce.source_type, ce.created_at, cr.name as rule_name FROM commission_earnings ce LEFT JOIN commission_rules cr ON ce.rule_id = cr.id WHERE ce.tenant_id = ? AND ce.earner_id = ? ORDER BY ce.created_at DESC LIMIT 10").bind(tenantId, userId).all(),
+      db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= date(?, '-6 days') GROUP BY visit_date ORDER BY visit_date").bind(tenantId, userId, today).all(),
+      db.prepare("SELECT DISTINCT visit_date FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date <= ? AND strftime('%w', visit_date) NOT IN ('0', '6') ORDER BY visit_date DESC LIMIT 30").bind(tenantId, userId, today).all(),
+      db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
+      db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
+    ]);
+
+    // Fetch team performance if agent belongs to a team
+    let teamPerformance = null;
+    let managerPerformance = null;
+    if (teamLeadId) {
+      const [teamMembers, teamVisits, teamRegs, teamLeadInfo] = await Promise.all([
+        db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(teamLeadId, tenantId).all(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ?").bind(tenantId, teamLeadId, tenantId, currentMonth + '-01').all(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND created_at >= ?").bind(tenantId, teamLeadId, tenantId, currentMonth + '-01').all(),
+        db.prepare("SELECT id, first_name, last_name, manager_id FROM users WHERE id = ? AND tenant_id = ?").bind(teamLeadId, tenantId).first(),
+      ]);
+      const memberCount = teamMembers?.results?.length || 0;
+      const totalTeamVisits = teamVisits?.results?.[0]?.count || 0;
+      const totalTeamRegs = teamRegs?.results?.[0]?.count || 0;
+      // Sum team monthly targets (agents + team lead's own targets)
+      const [agentTargets, tlOwnTargets] = await Promise.all([
+        db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(actual_visits), 0) as actual_visits, COALESCE(SUM(target_registrations), 0) as target_registrations, COALESCE(SUM(actual_registrations), 0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND target_month = ?").bind(tenantId, teamLeadId, tenantId, currentMonth).first(),
+        db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(actual_visits), 0) as actual_visits, COALESCE(SUM(target_registrations), 0) as target_registrations, COALESCE(SUM(actual_registrations), 0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, teamLeadId, currentMonth).first(),
+      ]);
+      const teamTargetVisits = (agentTargets?.target_visits || 0) + (tlOwnTargets?.target_visits || 0);
+      const teamActualVisits = (agentTargets?.actual_visits || 0) + (tlOwnTargets?.actual_visits || 0);
+      const teamTargetRegs = (agentTargets?.target_registrations || 0) + (tlOwnTargets?.target_registrations || 0);
+      const teamActualRegs = (agentTargets?.actual_registrations || 0) + (tlOwnTargets?.actual_registrations || 0);
+      const teamAchievement = teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0;
+      teamPerformance = {
+        team_lead_name: teamLeadInfo ? (teamLeadInfo.first_name + ' ' + teamLeadInfo.last_name) : 'Team Lead',
+        member_count: memberCount,
+        total_visits: totalTeamVisits,
+        total_registrations: totalTeamRegs,
+        target_visits: teamTargetVisits,
+        actual_visits: teamActualVisits,
+        target_registrations: teamTargetRegs,
+        actual_registrations: teamActualRegs,
+        achievement: teamAchievement,
+      };
+
+      // Fetch manager performance (team lead's manager)
+      const managerId = teamLeadInfo?.manager_id || null;
+      if (managerId) {
+        const managerInfo = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(managerId, tenantId).first();
+        // Get all team leads under this manager
+        const mgrTeamLeads = await db.prepare("SELECT id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?").bind(tenantId, managerId).all();
+        const mgrTlIds = (mgrTeamLeads.results || []).map(tl => tl.id);
+        let mgrTargetVisits = 0, mgrActualVisits = 0;
+        if (mgrTlIds.length > 0) {
+          // Get all agents under these team leads + team leads' own targets
+          const mgrTlPh = mgrTlIds.map(() => '?').join(',');
+          const [mgrAgentTargets, mgrTlOwnTargets] = await Promise.all([
+            db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id IN (${mgrTlPh}) AND is_active = 1) AND target_month = ?`).bind(tenantId, tenantId, ...mgrTlIds, currentMonth).first(),
+            db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${mgrTlPh}) AND target_month = ?`).bind(tenantId, ...mgrTlIds, currentMonth).first(),
+          ]);
+          mgrTargetVisits = (mgrAgentTargets?.tv || 0) + (mgrTlOwnTargets?.tv || 0);
+          mgrActualVisits = (mgrAgentTargets?.av || 0) + (mgrTlOwnTargets?.av || 0);
+        }
+        managerPerformance = {
+          manager_name: managerInfo ? (managerInfo.first_name + ' ' + managerInfo.last_name) : 'Manager',
+          achievement: mgrTargetVisits > 0 ? Math.round((mgrActualVisits / mgrTargetVisits) * 100) : 0,
+        };
+      }
+    }
+
+    // Calculate current streak
+    let streak = 0;
+    const streakDates = (streakData.results || []).map(r => r.visit_date);
+    if (streakDates.length > 0) {
+      const d = new Date(today);
+      // Skip weekends for initial date to match the weekday-only streak query
+      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+      // If no visit today yet, start checking from the previous weekday
+      if (streakDates[0] !== d.toISOString().split('T')[0]) {
+        d.setDate(d.getDate() - 1);
+        while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+      }
+      for (let i = 0; i < streakDates.length; i++) {
+        const expected = d.toISOString().split('T')[0];
+        if (streakDates[i] === expected) {
+          streak++;
+          d.setDate(d.getDate() - 1);
+          // Skip weekends
+          while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Aggregate monthly targets
+    const targets = monthlyTargets.results || [];
+    const totalTargetVisits = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
+    const totalActualVisits = targets.reduce((s, t) => s + (t.actual_visits || 0), 0);
+    const totalTargetRegs = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
+    const totalActualRegs = targets.reduce((s, t) => s + (t.actual_registrations || 0), 0);
+    const totalTargetConvs = targets.reduce((s, t) => s + (t.target_conversions || 0), 0);
+    const totalActualConvs = targets.reduce((s, t) => s + (t.actual_conversions || 0), 0);
+    const totalCommission = targets.reduce((s, t) => s + (t.commission_amount || 0), 0);
+    const overallAchievement = totalTargetVisits > 0 ? Math.round((totalActualVisits / totalTargetVisits) * 100) : 0;
+
+    // Determine current commission tier based on achievement
+    const tiers = commissionTiers.results || [];
+    let currentTier = null;
+    for (const tier of tiers) {
+      if (overallAchievement >= tier.min_achievement_pct && (tier.max_achievement_pct === null || overallAchievement <= tier.max_achievement_pct)) {
+        currentTier = tier;
+      }
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        month: currentMonth,
+        overall_achievement: overallAchievement,
+        total_target_visits: totalTargetVisits,
+        total_actual_visits: totalActualVisits,
+        total_target_registrations: totalTargetRegs,
+        total_actual_registrations: totalActualRegs,
+        total_target_conversions: totalTargetConvs,
+        total_actual_conversions: totalActualConvs,
+        monthly_targets: targets,
+        commission_summary: {
+          pending: pendingCommissions?.total || 0,
+          pending_count: pendingCommissions?.count || 0,
+          approved: approvedCommissions?.total || 0,
+          approved_count: approvedCommissions?.count || 0,
+          paid: paidCommissions?.total || 0,
+          paid_count: paidCommissions?.count || 0,
+          target_commission: totalCommission,
+        },
+        recent_earnings: recentEarnings.results || [],
+        weekly_visits: weeklyVisits.results || [],
+        streak: streak,
+        commission_rules: commissionRules.results || [],
+        commission_tiers: tiers,
+        current_tier: currentTier,
+        team_performance: teamPerformance,
+        manager_performance: managerPerformance,
+      }
+    });
+  } catch (error) {
+    console.error('Agent performance error:', error);
+    return c.json({ success: true, data: { month: '', overall_achievement: 0, total_target_visits: 0, total_actual_visits: 0, total_target_registrations: 0, total_actual_registrations: 0, total_target_conversions: 0, total_actual_conversions: 0, monthly_targets: [], commission_summary: { pending: 0, pending_count: 0, approved: 0, approved_count: 0, paid: 0, paid_count: 0, target_commission: 0 }, recent_earnings: [], weekly_visits: [], streak: 0, commission_rules: [], commission_tiers: [], current_tier: null, team_performance: null, manager_performance: null } });
+  }
+});
+
+// ==================== TEAM LEAD DASHBOARD (Mobile) ====================
+app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+
+    // Verify caller is a team lead
+    const caller = await db.prepare("SELECT role, first_name, last_name, manager_id FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
+    if (!caller || caller.role !== 'team_lead') {
+      return c.json({ success: false, message: 'Access denied. Team lead role required.' }, 403);
+    }
+
+    // Get team members under this team lead
+    const teamMembers = await db.prepare("SELECT id, first_name, last_name, phone, role, status FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1 ORDER BY first_name").bind(userId, tenantId).all();
+    const memberIds = (teamMembers.results || []).map(m => m.id);
+
+    if (memberIds.length === 0) {
+      // Still fetch team lead's own targets, commissions, and manager performance
+      const [tlOwnTargets, ownPendingE, ownApprovedE, ownPaidE, tlCommRules, tlCommTiers] = await Promise.all([
+        db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, userId, currentMonth).first(),
+        db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'pending'").bind(tenantId, userId).first(),
+        db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'approved'").bind(tenantId, userId).first(),
+        db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'paid'").bind(tenantId, userId).first(),
+        db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
+        db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
+      ]);
+      const tlTV = tlOwnTargets?.target_visits || 0;
+      const tlAV = tlOwnTargets?.actual_visits || 0;
+      const tlAch = tlTV > 0 ? Math.round((tlAV / tlTV) * 100) : 0;
+      const earlyTiers = tlCommTiers.results || [];
+      let earlyTier = null;
+      for (const tier of earlyTiers) {
+        if (tlAch >= tier.min_achievement_pct && (tier.max_achievement_pct === null || tlAch <= tier.max_achievement_pct)) earlyTier = tier;
+      }
+      // Fetch manager performance
+      let earlyMgrPerf = null;
+      const earlyMgrId = caller.manager_id || null;
+      if (earlyMgrId) {
+        const mgrInfo = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(earlyMgrId, tenantId).first();
+        const mgrTls = await db.prepare("SELECT id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?").bind(tenantId, earlyMgrId).all();
+        const mgrTlIds = (mgrTls.results || []).map(tl => tl.id);
+        let mTV = 0, mAV = 0;
+        if (mgrTlIds.length > 0) {
+          const mPh = mgrTlIds.map(() => '?').join(',');
+          const [mAT, mTT] = await Promise.all([
+            db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id IN (${mPh}) AND is_active = 1) AND target_month = ?`).bind(tenantId, tenantId, ...mgrTlIds, currentMonth).first(),
+            db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${mPh}) AND target_month = ?`).bind(tenantId, ...mgrTlIds, currentMonth).first(),
+          ]);
+          mTV = (mAT?.tv || 0) + (mTT?.tv || 0);
+          mAV = (mAT?.av || 0) + (mTT?.av || 0);
+        }
+        earlyMgrPerf = { manager_name: mgrInfo ? (mgrInfo.first_name + ' ' + mgrInfo.last_name) : 'Manager', achievement: mTV > 0 ? Math.round((mAV / mTV) * 100) : 0 };
+      }
+      return c.json({
+        success: true,
+        data: {
+          team_size: 0, agents: [],
+          team_totals: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0 },
+          team_targets: { target_visits: tlTV, actual_visits: tlAV, target_registrations: tlOwnTargets?.target_registrations || 0, actual_registrations: tlOwnTargets?.actual_registrations || 0, achievement: tlAch },
+          team_commission: { pending: ownPendingE?.total || 0, approved: ownApprovedE?.total || 0, paid: ownPaidE?.total || 0 },
+          team_lead_own: { target_visits: tlTV, actual_visits: tlAV, target_registrations: tlOwnTargets?.target_registrations || 0, actual_registrations: tlOwnTargets?.actual_registrations || 0, achievement: tlAch },
+          commission_rules: tlCommRules.results || [],
+          commission_tiers: earlyTiers,
+          current_team_tier: earlyTier,
+          manager_performance: earlyMgrPerf,
+        }
+      });
+    }
+
+    // Build IN clause for team member IDs
+    const placeholders = memberIds.map(() => '?').join(',');
+
+    // Get per-agent stats for current month
+    const agentStats = [];
+    for (const member of (teamMembers.results || [])) {
+      const [todayV, monthV, todayR, monthR, targets] = await Promise.all([
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, member.id, today).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, member.id, today).first(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, member.id, currentMonth).first(),
+      ]);
+      const tv = targets?.target_visits || 0;
+      const av = targets?.actual_visits || 0;
+      const tr = targets?.target_registrations || 0;
+      const ar = targets?.actual_registrations || 0;
+      agentStats.push({
+        id: member.id,
+        first_name: member.first_name,
+        last_name: member.last_name,
+        role: member.role,
+        today_visits: todayV?.count || 0,
+        month_visits: monthV?.count || 0,
+        today_registrations: todayR?.count || 0,
+        month_registrations: monthR?.count || 0,
+        target_visits: tv,
+        actual_visits: av,
+        target_registrations: tr,
+        actual_registrations: ar,
+        achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
+      });
+    }
+
+    // Aggregate team totals from agents
+    const teamTodayVisits = agentStats.reduce((s, a) => s + a.today_visits, 0);
+    const teamMonthVisits = agentStats.reduce((s, a) => s + a.month_visits, 0);
+    const teamTodayRegs = agentStats.reduce((s, a) => s + a.today_registrations, 0);
+    const teamMonthRegs = agentStats.reduce((s, a) => s + a.month_registrations, 0);
+    const agentTargetVisits = agentStats.reduce((s, a) => s + a.target_visits, 0);
+    const agentActualVisits = agentStats.reduce((s, a) => s + a.actual_visits, 0);
+    const agentTargetRegs = agentStats.reduce((s, a) => s + (a.target_registrations || 0), 0);
+    const agentActualRegs = agentStats.reduce((s, a) => s + (a.actual_registrations || 0), 0);
+
+    // Include team lead's own targets in team totals
+    const tlOwnTargets = await db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, userId, currentMonth).first();
+    const tlOwnTV = tlOwnTargets?.target_visits || 0;
+    const tlOwnAV = tlOwnTargets?.actual_visits || 0;
+    const tlOwnTR = tlOwnTargets?.target_registrations || 0;
+    const tlOwnAR = tlOwnTargets?.actual_registrations || 0;
+    const teamTargetVisits = agentTargetVisits + tlOwnTV;
+    const teamActualVisits = agentActualVisits + tlOwnAV;
+    const teamTargetRegs = agentTargetRegs + tlOwnTR;
+    const teamActualRegs = agentActualRegs + tlOwnAR;
+
+    // Fetch commission rules and tiers (apply to both agent and team level)
+    const [commissionRules, commissionTiers] = await Promise.all([
+      db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
+      db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
+    ]);
+
+    // Determine current team tier based on achievement
+    const teamAch = teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0;
+    const tiers = commissionTiers.results || [];
+    let currentTeamTier = null;
+    for (const tier of tiers) {
+      if (teamAch >= tier.min_achievement_pct && (tier.max_achievement_pct === null || teamAch <= tier.max_achievement_pct)) {
+        currentTeamTier = tier;
+      }
+    }
+
+    // Team commission totals (sum of all team members' commissions)
+    const [teamPending, teamApproved, teamPaid] = await Promise.all([
+      db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${placeholders}) AND status = 'pending'`).bind(tenantId, ...memberIds).first(),
+      db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${placeholders}) AND status = 'approved'`).bind(tenantId, ...memberIds).first(),
+      db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${placeholders}) AND status = 'paid'`).bind(tenantId, ...memberIds).first(),
+    ]);
+
+    // Also include the team lead's own commissions
+    const [ownPending, ownApproved, ownPaid] = await Promise.all([
+      db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'pending'").bind(tenantId, userId).first(),
+      db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'approved'").bind(tenantId, userId).first(),
+      db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'paid'").bind(tenantId, userId).first(),
+    ]);
+
+    // Fetch manager performance (team lead's manager)
+    let tlManagerPerf = null;
+    const tlManagerId = caller.manager_id || null;
+    if (tlManagerId) {
+      const mgrInfo = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(tlManagerId, tenantId).first();
+      const mgrTls = await db.prepare("SELECT id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?").bind(tenantId, tlManagerId).all();
+      const mgrTlIds = (mgrTls.results || []).map(tl => tl.id);
+      let mgrTV = 0, mgrAV = 0;
+      if (mgrTlIds.length > 0) {
+        const mgrPh = mgrTlIds.map(() => '?').join(',');
+        const [mgrAT, mgrTT] = await Promise.all([
+          db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id IN (${mgrPh}) AND is_active = 1) AND target_month = ?`).bind(tenantId, tenantId, ...mgrTlIds, currentMonth).first(),
+          db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${mgrPh}) AND target_month = ?`).bind(tenantId, ...mgrTlIds, currentMonth).first(),
+        ]);
+        mgrTV = (mgrAT?.tv || 0) + (mgrTT?.tv || 0);
+        mgrAV = (mgrAT?.av || 0) + (mgrTT?.av || 0);
+      }
+      tlManagerPerf = { manager_name: mgrInfo ? (mgrInfo.first_name + ' ' + mgrInfo.last_name) : 'Manager', achievement: mgrTV > 0 ? Math.round((mgrAV / mgrTV) * 100) : 0 };
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        team_size: memberIds.length,
+        agents: agentStats,
+        team_totals: {
+          today_visits: teamTodayVisits,
+          month_visits: teamMonthVisits,
+          today_registrations: teamTodayRegs,
+          month_registrations: teamMonthRegs,
+        },
+        team_targets: {
+          target_visits: teamTargetVisits,
+          actual_visits: teamActualVisits,
+          target_registrations: teamTargetRegs,
+          actual_registrations: teamActualRegs,
+          achievement: teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0,
+        },
+        team_commission: {
+          pending: (teamPending?.total || 0) + (ownPending?.total || 0),
+          approved: (teamApproved?.total || 0) + (ownApproved?.total || 0),
+          paid: (teamPaid?.total || 0) + (ownPaid?.total || 0),
+        },
+        commission_rules: commissionRules.results || [],
+        commission_tiers: tiers,
+        current_team_tier: currentTeamTier,
+        team_lead_own: { target_visits: tlOwnTV, actual_visits: tlOwnAV, target_registrations: tlOwnTR, actual_registrations: tlOwnAR, achievement: tlOwnTV > 0 ? Math.round((tlOwnAV / tlOwnTV) * 100) : 0 },
+        manager_performance: tlManagerPerf,
+      }
+    });
+  } catch (error) {
+    console.error('Team lead dashboard error:', error);
+    return c.json({ success: true, data: { team_size: 0, agents: [], team_totals: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0 }, team_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0, achievement: 0 }, team_commission: { pending: 0, approved: 0, paid: 0 }, commission_rules: [], commission_tiers: [], current_team_tier: null, team_lead_own: null, manager_performance: null } });
+  }
+});
+
+// ==================== MANAGER DASHBOARD (Mobile) ====================
+app.get('/api/manager/dashboard', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+
+    // Verify caller is a manager or admin
+    const caller = await db.prepare("SELECT role, first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
+    if (!caller || !['manager', 'admin', 'super_admin'].includes(caller.role)) {
+      return c.json({ success: false, message: 'Access denied. Manager role required.' }, 403);
+    }
+
+    // Get all team leads under this manager (or all if admin)
+    const isAdmin = ['admin', 'super_admin'].includes(caller.role);
+    const teamLeadsQuery = isAdmin
+      ? "SELECT id, first_name, last_name, phone, role FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name"
+      : "SELECT id, first_name, last_name, phone, role FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ? ORDER BY first_name";
+    const teamLeadsBinds = isAdmin ? [tenantId] : [tenantId, userId];
+    const teamLeads = await db.prepare(teamLeadsQuery).bind(...teamLeadsBinds).all();
+
+    // Get agents scoped to this manager's team leads (or all if admin)
+    const teamLeadIds = (teamLeads.results || []).map(tl => tl.id);
+    let allAgents;
+    if (isAdmin) {
+      allAgents = await db.prepare("SELECT id, first_name, last_name, role, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1").bind(tenantId).all();
+    } else if (teamLeadIds.length > 0) {
+      const tlPh = teamLeadIds.map(() => '?').join(',');
+      allAgents = await db.prepare(`SELECT id, first_name, last_name, role, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1 AND (team_lead_id IN (${tlPh}) OR team_lead_id IS NULL)`).bind(tenantId, ...teamLeadIds).all();
+    } else {
+      allAgents = { results: [] };
+    }
+
+    // Build team lead breakdown with their agents' performance
+    const teamsData = [];
+    for (const tl of (teamLeads.results || [])) {
+      const members = (allAgents.results || []).filter(a => a.team_lead_id === tl.id);
+      const memberIds = members.map(m => m.id);
+
+      let teamVisits = 0;
+      let teamRegs = 0;
+      let teamTargetVisits = 0;
+      let teamActualVisits = 0;
+      let teamTargetRegs = 0;
+      let teamActualRegs = 0;
+
+      if (memberIds.length > 0) {
+        const ph = memberIds.map(() => '?').join(',');
+        const [vRes, rRes, tRes] = await Promise.all([
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph}) AND visit_date >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
+          db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph}) AND created_at >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
+          db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av, COALESCE(SUM(target_registrations),0) as tr, COALESCE(SUM(actual_registrations),0) as ar FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${ph}) AND target_month = ?`).bind(tenantId, ...memberIds, currentMonth).first(),
+        ]);
+        teamVisits = vRes?.count || 0;
+        teamRegs = rRes?.count || 0;
+        teamTargetVisits = tRes?.tv || 0;
+        teamActualVisits = tRes?.av || 0;
+        teamTargetRegs = tRes?.tr || 0;
+        teamActualRegs = tRes?.ar || 0;
+      }
+
+      // Include team lead's own targets in team totals
+      const tlOwnTgt = await db.prepare("SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av, COALESCE(SUM(target_registrations),0) as tr, COALESCE(SUM(actual_registrations),0) as ar FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, tl.id, currentMonth).first();
+      teamTargetVisits += (tlOwnTgt?.tv || 0);
+      teamActualVisits += (tlOwnTgt?.av || 0);
+      teamTargetRegs += (tlOwnTgt?.tr || 0);
+      teamActualRegs += (tlOwnTgt?.ar || 0);
+
+      teamsData.push({
+        team_lead_id: tl.id,
+        team_lead_name: tl.first_name + ' ' + tl.last_name,
+        agent_count: memberIds.length,
+        month_visits: teamVisits,
+        month_registrations: teamRegs,
+        target_visits: teamTargetVisits,
+        actual_visits: teamActualVisits,
+        target_registrations: teamTargetRegs,
+        actual_registrations: teamActualRegs,
+        achievement: teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0,
+        team_lead_own: { target_visits: tlOwnTgt?.tv || 0, actual_visits: tlOwnTgt?.av || 0, target_registrations: tlOwnTgt?.tr || 0, actual_registrations: tlOwnTgt?.ar || 0 },
+      });
+    }
+
+    // Org-wide totals (use teamsData which already includes team lead own targets)
+    const allAgentIds = (allAgents.results || []).map(a => a.id);
+    let orgTodayVisits = 0, orgMonthVisits = 0, orgTodayRegs = 0, orgMonthRegs = 0;
+    let orgPending = 0, orgApproved = 0, orgPaid = 0;
+
+    // Org targets = sum from all teams (which now include TL own targets)
+    const orgTargetVisits = teamsData.reduce((s, t) => s + t.target_visits, 0);
+    const orgActualVisits = teamsData.reduce((s, t) => s + t.actual_visits, 0);
+    const orgTargetRegs = teamsData.reduce((s, t) => s + t.target_registrations, 0);
+    const orgActualRegs = teamsData.reduce((s, t) => s + t.actual_registrations, 0);
+
+    if (allAgentIds.length > 0) {
+      const ph2 = allAgentIds.map(() => '?').join(',');
+      const [tvRes, mvRes, trRes, mrRes, cpRes, caRes, cdRes] = await Promise.all([
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ?`).bind(tenantId, ...allAgentIds, today).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ?`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph2}) AND DATE(created_at) = ?`).bind(tenantId, ...allAgentIds, today).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph2}) AND created_at >= ?`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'pending'`).bind(tenantId, ...allAgentIds).first(),
+        db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'approved'`).bind(tenantId, ...allAgentIds).first(),
+        db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'paid'`).bind(tenantId, ...allAgentIds).first(),
+      ]);
+      orgTodayVisits = tvRes?.count || 0;
+      orgMonthVisits = mvRes?.count || 0;
+      orgTodayRegs = trRes?.count || 0;
+      orgMonthRegs = mrRes?.count || 0;
+      orgPending = cpRes?.total || 0;
+      orgApproved = caRes?.total || 0;
+      orgPaid = cdRes?.total || 0;
+    }
+
+    // Include team lead commission earnings in org totals
+    if (teamLeadIds.length > 0) {
+      const tlPh3 = teamLeadIds.map(() => '?').join(',');
+      const [tlPendingC, tlApprovedC, tlPaidC] = await Promise.all([
+        db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${tlPh3}) AND status = 'pending'`).bind(tenantId, ...teamLeadIds).first(),
+        db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${tlPh3}) AND status = 'approved'`).bind(tenantId, ...teamLeadIds).first(),
+        db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${tlPh3}) AND status = 'paid'`).bind(tenantId, ...teamLeadIds).first(),
+      ]);
+      orgPending += (tlPendingC?.total || 0);
+      orgApproved += (tlApprovedC?.total || 0);
+      orgPaid += (tlPaidC?.total || 0);
+    }
+
+    // Fetch commission rules and tiers
+    const [mgrCommRules, mgrCommTiers] = await Promise.all([
+      db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
+      db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
+    ]);
+
+    const mgrTiers = mgrCommTiers.results || [];
+    const orgAch = orgTargetVisits > 0 ? Math.round((orgActualVisits / orgTargetVisits) * 100) : 0;
+    let currentOrgTier = null;
+    for (const tier of mgrTiers) {
+      if (orgAch >= tier.min_achievement_pct && (tier.max_achievement_pct === null || orgAch <= tier.max_achievement_pct)) {
+        currentOrgTier = tier;
+      }
+    }
+
+    // Unassigned agents (no team lead)
+    const unassigned = (allAgents.results || []).filter(a => !a.team_lead_id);
+
+    return c.json({
+      success: true,
+      data: {
+        total_team_leads: (teamLeads.results || []).length,
+        total_agents: allAgentIds.length,
+        unassigned_agents: unassigned.length,
+        teams: teamsData,
+        org_totals: {
+          today_visits: orgTodayVisits,
+          month_visits: orgMonthVisits,
+          today_registrations: orgTodayRegs,
+          month_registrations: orgMonthRegs,
+        },
+        org_targets: {
+          target_visits: orgTargetVisits,
+          actual_visits: orgActualVisits,
+          target_registrations: orgTargetRegs,
+          actual_registrations: orgActualRegs,
+          achievement: orgTargetVisits > 0 ? Math.round((orgActualVisits / orgTargetVisits) * 100) : 0,
+        },
+        org_commission: {
+          pending: orgPending,
+          approved: orgApproved,
+          paid: orgPaid,
+        },
+        commission_rules: mgrCommRules.results || [],
+        commission_tiers: mgrTiers,
+        current_org_tier: currentOrgTier,
+      }
+    });
+  } catch (error) {
+    console.error('Manager dashboard error:', error);
+    return c.json({ success: true, data: { total_team_leads: 0, total_agents: 0, unassigned_agents: 0, teams: [], org_totals: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0 }, org_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0, achievement: 0 }, org_commission: { pending: 0, approved: 0, paid: 0 }, commission_rules: [], commission_tiers: [], current_org_tier: null } });
+  }
+});
+
 // ==================== AGENT PIN MANAGEMENT ====================
 
 // Manager/Admin: Set or reset PIN for an agent
@@ -362,10 +935,14 @@ app.post('/api/agent/set-pin', authMiddleware, async (c) => {
       return c.json({ success: false, message: 'Only admins, managers, and team leads can set agent PINs' }, 403);
     }
 
-    // Verify target user exists and has an agent-like role
+    // Verify target user exists and has a mobile-login-capable role
+    // Managers can only set PINs for agents/team_leads/field_agents/sales_reps (not other managers)
+    // Only admins/super_admins can set PINs for manager-level users
     const targetQuery = isTeamLead
-      ? "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep') AND team_lead_id = ?"
-      : "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep')";
+      ? "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep', 'manager') AND team_lead_id = ?"
+      : isManager
+        ? "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep')"
+        : "SELECT id FROM users WHERE id = ? AND tenant_id = ? AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep', 'manager')";
     const targetBinds = isTeamLead ? [agent_id, tenantId, requesterId] : [agent_id, tenantId];
     const targetAgent = await db.prepare(targetQuery).bind(...targetBinds).first();
     if (!targetAgent) {
@@ -682,7 +1259,7 @@ api.get('/users', requireRole('admin', 'manager'), async (c) => {
   const offset = (parseInt(page) - 1) * parseInt(limit);
   const countR = await db.prepare('SELECT COUNT(*) as total FROM users u ' + where).bind(...params).first();
   // Section 8: Remove admin_viewable_password from SELECT
-  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
+  const users = await db.prepare("SELECT u.id, u.email, u.phone, u.first_name, u.last_name, u.role, u.agent_type, u.status, u.is_active, u.manager_id, u.team_lead_id, u.last_login, u.created_at, m.first_name || ' ' || m.last_name as manager_name FROM users u LEFT JOIN users m ON u.manager_id = m.id " + where + ' ORDER BY u.created_at DESC LIMIT ? OFFSET ?').bind(...params, parseInt(limit), offset).all();
   return c.json({ success: true, data: { users: users.results || [], pagination: { total: countR ? countR.total : 0, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil((countR ? countR.total : 0) / parseInt(limit)) } } });
 });
 
@@ -694,23 +1271,25 @@ api.post('/users', requireRole('admin'), async (c) => {
   if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
   const role = body.role || 'agent';
-  // Agents default to password 12345; other roles get random password
+  // Agents/team_leads/managers default to password 12345; other roles get random password
   const isAgent = role === 'agent' || role === 'field_agent' || role === 'sales_rep';
-  const password = body.password || (isAgent ? '12345' : Math.random().toString(36).slice(-8));
+  const isMobileRole = isAgent || role === 'team_lead' || role === 'manager';
+  const password = body.password || (isMobileRole ? '12345' : Math.random().toString(36).slice(-8));
   const hashedPassword = await bcrypt.hash(password, 10);
-  // Set default PIN 12345 for agents and field_agents
+  // Set default PIN 12345 for all mobile-login-capable roles
   let pinHash = null;
-  if (isAgent) {
+  if (isMobileRole) {
     pinHash = await bcrypt.hash('12345', 10);
   }
-  // Email is optional for agents but required for non-agent roles
+  // Email is optional for mobile-login roles (agent, team_lead, manager) but required for other roles
   const email = body.email || null;
-  if (!email && !isAgent) return c.json({ success: false, message: 'Email is required for non-agent roles' }, 400);
-  // For agents without email, generate a placeholder to satisfy NOT NULL constraint
-  const emailForDb = email || (isAgent ? `agent_${id.substring(0, 8)}@placeholder.local` : null);
+  if (!email && !isMobileRole) return c.json({ success: false, message: 'Email is required for non-mobile roles' }, 400);
+  // For mobile roles without email, generate a placeholder to satisfy NOT NULL constraint
+  const emailForDb = email || (isMobileRole ? `user_${id.substring(0, 8)}@placeholder.local` : null);
   try {
-    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
-    return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
+    const agentType = body.agent_type || body.agentType || null;
+    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+    return c.json({ success: true, data: { id, password, default_pin: isMobileRole ? '12345' : undefined }, message: 'User created' }, 201);
   } catch (err) {
     const msg = err.message || 'Failed to create user';
     if (msg.includes('UNIQUE constraint failed: users.email')) {
@@ -728,7 +1307,16 @@ api.put('/users/:id', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, body.phone || null, body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
+  const agentType = body.agent_type !== undefined ? body.agent_type : (body.agentType !== undefined ? body.agentType : undefined);
+  let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
+  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, body.phone || null, body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
+  if (agentType !== undefined) {
+    sql += ', agent_type = ?';
+    binds.push(agentType);
+  }
+  sql += ', updated_at = datetime("now") WHERE id = ? AND tenant_id = ?';
+  binds.push(id, tenantId);
+  await db.prepare(sql).bind(...binds).run();
   return c.json({ success: true, message: 'User updated' });
 });
 
@@ -3643,7 +4231,7 @@ api.get('/surveys', authMiddleware, async (c) => {
     try { q.questions = JSON.parse(q.questions); } catch(e) {}
     return { ...q, title: q.name, survey_type: q.visit_type || 'adhoc', response_count: 0, completion_rate: 0 };
   });
-  return c.json({ data: results });
+  return c.json({ success: true, data: results });
 });
 
 api.get('/surveys/:id', authMiddleware, async (c) => {
@@ -4068,8 +4656,8 @@ api.get('/analytics/commissions', authMiddleware, async (c) => {
 api.get('/sales-reps', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const reps = await db.prepare("SELECT id, first_name, last_name, email, phone, role FROM users WHERE tenant_id = ? AND role IN ('agent', 'sales_rep', 'van_sales') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
-  return c.json(reps.results || []);
+  const reps = await db.prepare("SELECT id, first_name || ' ' || last_name as name, first_name, last_name, email, phone, role FROM users WHERE tenant_id = ? AND role IN ('agent', 'sales_rep', 'van_sales') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
+  return c.json({ success: true, data: reps.results || [] });
 });
 
 // ==================== VAN SALES ADDITIONAL ROUTES ====================
@@ -4519,11 +5107,11 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {
-    // Core user queries - these must succeed
+    // Core user queries - filter by agent_type IN ('field_ops', 'both') or NULL (backward compat)
     const [managers, teamLeads, agents] = await Promise.all([
-      db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
     ]);
     // Optional queries - company links may not exist yet, don't let them break hierarchy
     let mcLinks = [];
@@ -4600,6 +5188,58 @@ api.delete('/field-ops/hierarchy/manager-companies/:linkId', authMiddleware, asy
   const linkId = c.req.param('linkId');
   await db.prepare('UPDATE manager_company_links SET is_active = 0 WHERE id = ? AND tenant_id = ?').bind(linkId, tenantId).run();
   return c.json({ success: true, message: 'Manager unassigned from company' });
+});
+
+// ==================== MARKETING: HIERARCHY ====================
+api.get('/marketing/hierarchy', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const [managers, teamLeads, agents] = await Promise.all([
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+    ]);
+    let mcLinks = [];
+    let companiesList = [];
+    try {
+      const [managerCompanyLinks, companies] = await Promise.all([
+        db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
+        db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
+      ]);
+      mcLinks = managerCompanyLinks.results || [];
+      companiesList = companies.results || [];
+    } catch { /* tables may not exist yet */ }
+    const hierarchy = (managers.results || []).map(m => ({
+      ...m,
+      companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
+      team_leads: (teamLeads.results || []).filter(tl => tl.manager_id === m.id).map(tl => ({
+        ...tl,
+        agents: (agents.results || []).filter(a => a.team_lead_id === tl.id)
+      }))
+    }));
+    const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id);
+    const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id);
+    return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companiesList, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
+  } catch {
+    return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], all_companies: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
+  }
+});
+
+api.put('/marketing/hierarchy/assign', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { user_id, manager_id, team_lead_id } = body;
+  if (!user_id) return c.json({ success: false, message: 'user_id required' }, 400);
+  const sets = [];
+  const vals = [];
+  if (manager_id !== undefined) { sets.push('manager_id = ?'); vals.push(manager_id || null); }
+  if (team_lead_id !== undefined) { sets.push('team_lead_id = ?'); vals.push(team_lead_id || null); }
+  if (sets.length === 0) return c.json({ success: false, message: 'manager_id or team_lead_id required' }, 400);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  await db.prepare('UPDATE users SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, user_id, tenantId).run();
+  return c.json({ success: true, message: 'Marketing hierarchy updated' });
 });
 
 // ==================== FIELD OPS: SETTINGS ====================
@@ -5057,15 +5697,7 @@ api.post('/brands', authMiddleware, async (c) => {
   return c.json({ success: true, data: { id, ...body } }, 201);
 });
 
-// ==================== SURVEYS (questionnaires) ====================
-api.get('/surveys', authMiddleware, async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  try {
-    const surveys = await db.prepare("SELECT id, name, module, visit_type, target_type, brand_id, company_id, is_default, is_active FROM questionnaires WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all();
-    return c.json({ success: true, data: surveys.results || [] });
-  } catch { return c.json({ success: true, data: [] }); }
-});
+// NOTE: /surveys GET is defined earlier (line ~3626) - removed duplicate here
 
 // ==================== BOARDS ====================
 api.get('/boards', authMiddleware, async (c) => {
@@ -8636,6 +9268,21 @@ api.post('/error-logs', async (c) => {
 });
 
 
+// ==================== MIGRATIONS ====================
+api.post('/migrations/add-agent-type', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  try {
+    await db.prepare("ALTER TABLE users ADD COLUMN agent_type TEXT").run();
+    return c.json({ success: true, message: 'agent_type column added to users table' });
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('duplicate column') || msg.includes('already exists')) {
+      return c.json({ success: true, message: 'agent_type column already exists' });
+    }
+    return c.json({ success: false, message: `Migration failed: ${msg}` }, 500);
+  }
+});
+
 // ==================== X. DATA SEEDING & TESTING ====================
 
 // X.1 Seed Demo Data
@@ -8646,6 +9293,45 @@ api.post('/seed/demo', requireRole('admin'), async (c) => {
   const seedId = uuidv4();
 
   try {
+    // Seed brands
+    const brands = [
+      { name: 'Coca-Cola', code: 'coca-cola', description: 'Coca-Cola beverages' },
+      { name: 'Pepsi', code: 'pepsi', description: 'Pepsi beverages' },
+      { name: 'Nestle', code: 'nestle', description: 'Nestle products' },
+      { name: 'Unilever', code: 'unilever', description: 'Unilever products' },
+      { name: 'Tiger Brands', code: 'tiger-brands', description: 'Tiger Brands products' }
+    ];
+    const brandIds = {};
+    for (const brand of brands) {
+      const existing = await db.prepare('SELECT id FROM brands WHERE code = ? AND tenant_id = ?').bind(brand.code, tenantId).first();
+      if (existing) {
+        brandIds[brand.code] = existing.id;
+      } else {
+        const id = uuidv4();
+        await db.prepare('INSERT INTO brands (id, tenant_id, name, code, description, status) VALUES (?, ?, ?, ?, ?, ?)').bind(id, tenantId, brand.name, brand.code, brand.description, 'active').run();
+        brandIds[brand.code] = id;
+      }
+    }
+
+    // Seed categories
+    const categories = [
+      { name: 'Beverages', code: 'beverages', brand_code: 'coca-cola' },
+      { name: 'Snacks', code: 'snacks', brand_code: 'pepsi' },
+      { name: 'Dairy', code: 'dairy', brand_code: 'nestle' },
+      { name: 'Personal Care', code: 'personal-care', brand_code: 'unilever' },
+      { name: 'Canned Foods', code: 'canned-foods', brand_code: 'tiger-brands' },
+      { name: 'Confectionery', code: 'confectionery', brand_code: 'nestle' },
+      { name: 'Household', code: 'household', brand_code: 'unilever' },
+      { name: 'Cereals', code: 'cereals', brand_code: 'tiger-brands' }
+    ];
+    for (const cat of categories) {
+      const existing = await db.prepare('SELECT id FROM categories WHERE code = ? AND tenant_id = ?').bind(cat.code, tenantId).first();
+      if (!existing) {
+        const id = uuidv4();
+        await db.prepare('INSERT INTO categories (id, tenant_id, name, code, brand_id) VALUES (?, ?, ?, ?, ?)').bind(id, tenantId, cat.name, cat.code, brandIds[cat.brand_code] || null).run();
+      }
+    }
+
     // Seed territories
     const territories = ['Johannesburg North', 'Johannesburg South', 'Pretoria', 'Cape Town', 'Durban'];
     for (const name of territories) {
@@ -9853,9 +10539,19 @@ api.post('/rbac/roles', requireRole('admin'), async (c) => {
     const body = await c.req.json();
     const id = crypto.randomUUID();
     await db.prepare('INSERT INTO roles (id, tenant_id, name, description, created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)').bind(id, tenantId, body.name, body.description || null).run();
-    if (body.permission_ids && body.permission_ids.length > 0) {
-      for (const pid of body.permission_ids) {
+    // Accept permission_ids (UUIDs) or permissions (names)
+    const permissionIds = body.permission_ids || [];
+    const permissionNames = body.permissions || [];
+    if (permissionIds.length > 0) {
+      for (const pid of permissionIds) {
         await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, pid).run();
+      }
+    } else if (permissionNames.length > 0) {
+      for (const pName of permissionNames) {
+        const perm = await db.prepare('SELECT id FROM permissions WHERE name = ?').bind(pName).first();
+        if (perm) {
+          await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, perm.id).run();
+        }
       }
     }
     return c.json({ success: true, data: { id, name: body.name } }, 201);
@@ -9869,10 +10565,22 @@ api.put('/rbac/roles/:id', requireRole('admin'), async (c) => {
     const body = await c.req.json();
     const id = c.req.param('id');
     await db.prepare('UPDATE roles SET name=?, description=? WHERE id=? AND (tenant_id=? OR tenant_id IS NULL)').bind(body.name, body.description || null, id, tenantId).run();
-    if (body.permission_ids) {
+    // Accept permission_ids (UUIDs) or permissions (names)
+    const permissionIds = body.permission_ids || [];
+    const permissionNames = body.permissions || [];
+    if (body.permissions !== undefined || body.permission_ids !== undefined) {
       await db.prepare('DELETE FROM role_permissions WHERE role_id = ?').bind(id).run();
-      for (const pid of body.permission_ids) {
-        await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, pid).run();
+      if (permissionIds.length > 0) {
+        for (const pid of permissionIds) {
+          await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, pid).run();
+        }
+      } else {
+        for (const pName of permissionNames) {
+          const perm = await db.prepare('SELECT id FROM permissions WHERE name = ?').bind(pName).first();
+          if (perm) {
+            await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)').bind(crypto.randomUUID(), id, perm.id).run();
+          }
+        }
       }
     }
     return c.json({ success: true, data: { id, ...body } });
@@ -9886,6 +10594,611 @@ api.delete('/rbac/roles/:id', requireRole('admin'), async (c) => {
     await db.prepare('DELETE FROM role_permissions WHERE role_id = ?').bind(c.req.param('id')).run();
     await db.prepare('DELETE FROM roles WHERE id = ? AND tenant_id = ?').bind(c.req.param('id'), tenantId).run();
     return c.json({ success: true, message: 'Role deleted' });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ==================== RBAC: ENHANCED PERMISSIONS & PRESET ROLES ====================
+
+// All available permissions grouped by module
+const RBAC_PERMISSIONS = [
+  // User Management
+  { name: 'view_users', description: 'View user list', module: 'users', action: 'read' },
+  { name: 'create_users', description: 'Create new users', module: 'users', action: 'create' },
+  { name: 'edit_users', description: 'Edit existing users', module: 'users', action: 'update' },
+  { name: 'delete_users', description: 'Delete users', module: 'users', action: 'delete' },
+  { name: 'manage_roles', description: 'Manage roles and permissions', module: 'users', action: 'manage' },
+  // Customers
+  { name: 'view_customers', description: 'View customer list', module: 'customers', action: 'read' },
+  { name: 'create_customers', description: 'Create new customers', module: 'customers', action: 'create' },
+  { name: 'edit_customers', description: 'Edit existing customers', module: 'customers', action: 'update' },
+  { name: 'delete_customers', description: 'Delete customers', module: 'customers', action: 'delete' },
+  // Orders
+  { name: 'view_orders', description: 'View orders', module: 'orders', action: 'read' },
+  { name: 'create_orders', description: 'Create new orders', module: 'orders', action: 'create' },
+  { name: 'edit_orders', description: 'Edit orders', module: 'orders', action: 'update' },
+  { name: 'delete_orders', description: 'Delete orders', module: 'orders', action: 'delete' },
+  { name: 'process_orders', description: 'Process and approve orders', module: 'orders', action: 'process' },
+  // Products
+  { name: 'view_products', description: 'View product catalog', module: 'products', action: 'read' },
+  { name: 'create_products', description: 'Create new products', module: 'products', action: 'create' },
+  { name: 'edit_products', description: 'Edit products', module: 'products', action: 'update' },
+  { name: 'delete_products', description: 'Delete products', module: 'products', action: 'delete' },
+  { name: 'manage_inventory', description: 'Manage inventory levels', module: 'products', action: 'manage' },
+  // Van Sales
+  { name: 'view_van_sales', description: 'View van sales data', module: 'van_sales', action: 'read' },
+  { name: 'manage_van_sales', description: 'Manage van sales operations', module: 'van_sales', action: 'manage' },
+  { name: 'manage_routes', description: 'Manage delivery routes', module: 'van_sales', action: 'routes' },
+  { name: 'view_inventory', description: 'View van inventory', module: 'van_sales', action: 'inventory' },
+  { name: 'manage_transactions', description: 'Manage van transactions', module: 'van_sales', action: 'transactions' },
+  { name: 'manage_deliveries', description: 'Manage deliveries', module: 'van_sales', action: 'deliveries' },
+  // Trade Marketing
+  { name: 'view_trade_marketing', description: 'View trade marketing', module: 'trade_marketing', action: 'read' },
+  { name: 'view_promotions', description: 'View promotions', module: 'trade_marketing', action: 'promotions' },
+  { name: 'manage_promotions', description: 'Manage promotions', module: 'trade_marketing', action: 'manage_promos' },
+  { name: 'manage_incentives', description: 'Manage incentives', module: 'trade_marketing', action: 'incentives' },
+  { name: 'view_market_analysis', description: 'View market analysis', module: 'trade_marketing', action: 'analysis' },
+  { name: 'manage_trade_spend', description: 'Manage trade spend', module: 'trade_marketing', action: 'spend' },
+  // Campaigns
+  { name: 'view_campaigns', description: 'View campaigns', module: 'campaigns', action: 'read' },
+  { name: 'manage_campaigns', description: 'Manage campaigns', module: 'campaigns', action: 'manage' },
+  { name: 'manage_audiences', description: 'Manage campaign audiences', module: 'campaigns', action: 'audiences' },
+  { name: 'view_campaign_performance', description: 'View campaign performance', module: 'campaigns', action: 'performance' },
+  { name: 'manage_ab_testing', description: 'Manage A/B testing', module: 'campaigns', action: 'ab_testing' },
+  // Field Operations
+  { name: 'view_field_operations', description: 'View field operations', module: 'field_ops', action: 'read' },
+  { name: 'manage_field_agents', description: 'Manage field agents', module: 'field_ops', action: 'agents' },
+  { name: 'manage_board_placements', description: 'Manage board placements', module: 'field_ops', action: 'boards' },
+  { name: 'manage_product_distribution', description: 'Manage product distribution', module: 'field_ops', action: 'distribution' },
+  { name: 'view_agent_locations', description: 'View agent GPS locations', module: 'field_ops', action: 'gps' },
+  { name: 'view_field_reports', description: 'View field operations reports', module: 'field_ops', action: 'reports' },
+  // KYC
+  { name: 'view_kyc', description: 'View KYC records', module: 'kyc', action: 'read' },
+  { name: 'manage_kyc', description: 'Manage KYC verification', module: 'kyc', action: 'manage' },
+  { name: 'view_kyc_reports', description: 'View KYC reports', module: 'kyc', action: 'reports' },
+  // Surveys
+  { name: 'view_surveys', description: 'View surveys', module: 'surveys', action: 'read' },
+  { name: 'manage_surveys', description: 'Create and manage surveys', module: 'surveys', action: 'manage' },
+  // Inventory Reports
+  { name: 'view_inventory_reports', description: 'View inventory reports', module: 'inventory', action: 'reports' },
+  // Analytics & Reports
+  { name: 'view_analytics', description: 'View analytics dashboards', module: 'analytics', action: 'read' },
+  { name: 'view_reports', description: 'View reports', module: 'analytics', action: 'reports' },
+  { name: 'export_data', description: 'Export data to Excel/PDF', module: 'analytics', action: 'export' },
+  // System Admin
+  { name: 'manage_system_settings', description: 'Manage system settings', module: 'system', action: 'settings' },
+  { name: 'view_audit_logs', description: 'View audit logs', module: 'system', action: 'audit' },
+  { name: 'manage_integrations', description: 'Manage integrations', module: 'system', action: 'integrations' },
+  // Commissions
+  { name: 'view_commissions', description: 'View commissions', module: 'commissions', action: 'read' },
+  { name: 'manage_commissions', description: 'Manage commission rules', module: 'commissions', action: 'manage' },
+  { name: 'process_payments', description: 'Process commission payments', module: 'commissions', action: 'payments' },
+  // Finance
+  { name: 'view_finance', description: 'View financial data', module: 'finance', action: 'read' },
+  { name: 'manage_finance', description: 'Manage financial records', module: 'finance', action: 'manage' },
+  // Super Admin
+  { name: 'manage_tenants', description: 'Manage tenants', module: 'platform', action: 'tenants' },
+  { name: 'view_all_tenants', description: 'View all tenants', module: 'platform', action: 'view_tenants' },
+];
+
+// Preset role definitions
+const PRESET_ROLES = {
+  super_admin: {
+    name: 'Super Admin',
+    description: 'Full platform access including tenant management',
+    permissions: RBAC_PERMISSIONS.map(p => p.name),
+  },
+  admin: {
+    name: 'Admin',
+    description: 'Full company access excluding tenant management',
+    permissions: RBAC_PERMISSIONS.filter(p => p.module !== 'platform').map(p => p.name),
+  },
+  manager: {
+    name: 'Manager',
+    description: 'Team management, reporting, and operational oversight',
+    permissions: [
+      'view_users', 'view_customers', 'create_customers', 'edit_customers',
+      'view_orders', 'create_orders', 'edit_orders', 'process_orders',
+      'view_products', 'view_van_sales', 'view_inventory',
+      'view_field_operations', 'view_agent_locations', 'view_field_reports',
+      'view_trade_marketing', 'view_promotions', 'view_campaigns', 'view_campaign_performance',
+      'view_surveys', 'view_analytics', 'view_reports', 'export_data',
+      'view_commissions', 'manage_commissions', 'view_finance',
+      'view_kyc', 'view_kyc_reports', 'view_inventory_reports',
+    ],
+  },
+  field_agent: {
+    name: 'Field Agent',
+    description: 'Field operations - visits, boards, distribution',
+    permissions: [
+      'view_customers', 'view_products',
+      'view_field_operations', 'manage_board_placements', 'manage_product_distribution',
+      'view_surveys', 'view_commissions',
+    ],
+  },
+  sales_rep: {
+    name: 'Sales Rep',
+    description: 'Sales operations - orders, customers, basic reporting',
+    permissions: [
+      'view_customers', 'create_customers', 'edit_customers',
+      'view_orders', 'create_orders', 'edit_orders',
+      'view_products', 'view_van_sales', 'manage_van_sales',
+      'view_analytics', 'view_commissions',
+    ],
+  },
+  company: {
+    name: 'Company',
+    description: 'Company portal - reports only access for field operations',
+    permissions: [
+      'view_field_operations', 'view_field_reports',
+      'view_analytics', 'view_reports', 'export_data',
+    ],
+  },
+};
+
+// List all available permissions (grouped by module)
+api.get('/rbac/permissions/all', requireRole('admin'), async (c) => {
+  try {
+    const grouped = {};
+    for (const p of RBAC_PERMISSIONS) {
+      if (!grouped[p.module]) grouped[p.module] = [];
+      grouped[p.module].push(p);
+    }
+    return c.json({ success: true, data: { permissions: RBAC_PERMISSIONS, grouped } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// List preset role templates
+api.get('/rbac/preset-roles', requireRole('admin'), async (c) => {
+  try {
+    const presets = Object.entries(PRESET_ROLES).map(([key, val]) => ({
+      key,
+      name: val.name,
+      description: val.description,
+      permission_count: val.permissions.length,
+      permissions: val.permissions,
+    }));
+    return c.json({ success: true, data: presets });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Seed permissions into DB
+api.post('/rbac/seed-permissions', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    let seeded = 0;
+    for (const p of RBAC_PERMISSIONS) {
+      const existing = await db.prepare('SELECT id FROM permissions WHERE name = ?').bind(p.name).first();
+      if (!existing) {
+        await db.prepare('INSERT INTO permissions (id, name, description, category, created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)')
+          .bind(crypto.randomUUID(), p.name, p.description, p.module).run();
+        seeded++;
+      }
+    }
+    return c.json({ success: true, message: `Seeded ${seeded} new permissions`, total: RBAC_PERMISSIONS.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Seed preset roles for a tenant
+api.post('/rbac/seed-roles', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    let seeded = 0;
+    for (const [key, preset] of Object.entries(PRESET_ROLES)) {
+      const existing = await db.prepare('SELECT id FROM roles WHERE tenant_id = ? AND name = ?').bind(tenantId, preset.name).first();
+      if (!existing) {
+        const roleId = crypto.randomUUID();
+        await db.prepare('INSERT INTO roles (id, tenant_id, name, description, is_system, created_at) VALUES (?,?,?,?,1,CURRENT_TIMESTAMP)')
+          .bind(roleId, tenantId, preset.name, preset.description).run();
+        // Assign permissions
+        for (const permName of preset.permissions) {
+          const perm = await db.prepare('SELECT id FROM permissions WHERE name = ?').bind(permName).first();
+          if (perm) {
+            await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)')
+              .bind(crypto.randomUUID(), roleId, perm.id).run();
+          }
+        }
+        seeded++;
+      }
+    }
+    return c.json({ success: true, message: `Seeded ${seeded} preset roles`, total: Object.keys(PRESET_ROLES).length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Apply a preset role template to an existing role
+api.post('/rbac/roles/:id/apply-preset', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const roleId = c.req.param('id');
+    const { preset_key } = await c.req.json();
+    const preset = PRESET_ROLES[preset_key];
+    if (!preset) return c.json({ success: false, message: 'Invalid preset key' }, 400);
+    // Verify role belongs to this tenant
+    const role = await db.prepare('SELECT id FROM roles WHERE id = ? AND (tenant_id = ? OR tenant_id IS NULL)').bind(roleId, tenantId).first();
+    if (!role) return c.json({ success: false, message: 'Role not found' }, 404);
+    // Clear existing permissions
+    await db.prepare('DELETE FROM role_permissions WHERE role_id = ?').bind(roleId).run();
+    // Apply preset permissions
+    let assigned = 0;
+    for (const permName of preset.permissions) {
+      const perm = await db.prepare('SELECT id FROM permissions WHERE name = ?').bind(permName).first();
+      if (perm) {
+        await db.prepare('INSERT INTO role_permissions (id, role_id, permission_id) VALUES (?,?,?)')
+          .bind(crypto.randomUUID(), roleId, perm.id).run();
+        assigned++;
+      }
+    }
+    return c.json({ success: true, message: `Applied preset "${preset.name}" with ${assigned} permissions` });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Get user's effective permissions (from their role in user_roles table)
+api.get('/rbac/users/:userId/permissions', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.req.param('userId');
+    const userRoles = await db.prepare('SELECT ur.role_id, r.name as role_name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ? AND ur.is_active = 1').bind(userId).all();
+    const permissions = new Set();
+    for (const ur of (userRoles.results || [])) {
+      const perms = await db.prepare('SELECT p.name FROM permissions p JOIN role_permissions rp ON p.id = rp.permission_id WHERE rp.role_id = ?').bind(ur.role_id).all();
+      for (const p of (perms.results || [])) permissions.add(p.name);
+    }
+    return c.json({ success: true, data: { user_id: userId, roles: userRoles.results || [], permissions: [...permissions] } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Assign role to user
+api.post('/rbac/users/:userId/roles', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const userId = c.req.param('userId');
+    const { role_id } = await c.req.json();
+    // Check if already assigned
+    const existing = await db.prepare('SELECT id FROM user_roles WHERE user_id = ? AND role_id = ?').bind(userId, role_id).first();
+    if (existing) {
+      await db.prepare('UPDATE user_roles SET is_active = 1 WHERE id = ?').bind(existing.id).run();
+    } else {
+      await db.prepare('INSERT INTO user_roles (id, user_id, role_id, is_active, created_at) VALUES (?,?,?,1,CURRENT_TIMESTAMP)')
+        .bind(crypto.randomUUID(), userId, role_id).run();
+    }
+    return c.json({ success: true, message: 'Role assigned to user' });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Remove role from user
+api.delete('/rbac/users/:userId/roles/:roleId', requireRole('admin'), async (c) => {
+  try {
+    const db = c.env.DB;
+    await db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role_id = ?').bind(c.req.param('userId'), c.req.param('roleId')).run();
+    return c.json({ success: true, message: 'Role removed from user' });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ==================== FIELD OPS REPORTS (SSReports-style, native FieldVibe data) ====================
+
+// Report KPIs - total visits, agents, shops, conversions
+api.get('/field-ops/reports/kpis', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+
+    const totalVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
+    const completedVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.status = 'completed'${dateFilter}`).bind(...binds).first();
+    const activeAgents = await db.prepare(`SELECT COUNT(DISTINCT v.agent_id) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
+    const totalCustomers = await db.prepare(`SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v WHERE v.tenant_id = ? AND v.customer_id IS NOT NULL${dateFilter}`).bind(...binds).first();
+    const totalIndividuals = await db.prepare('SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ?').bind(tenantId).first();
+    const conversions = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.status = 'completed' AND v.visit_target_type = 'individual'${dateFilter}`).bind(...binds).first();
+
+    return c.json({ success: true, kpis: {
+      total_checkins: totalVisits?.count || 0,
+      approved_checkins: completedVisits?.count || 0,
+      active_agents: activeAgents?.count || 0,
+      total_shops: totalCustomers?.count || 0,
+      conversions: conversions?.count || 0,
+      total_visits: totalVisits?.count || 0,
+      total_individuals: totalIndividuals?.count || 0,
+    }});
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Agent performance
+api.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+
+    const agents = await db.prepare(`
+      SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
+        COUNT(*) as checkin_count,
+        SUM(CASE WHEN v.status = 'completed' AND v.visit_target_type = 'individual' THEN 1 ELSE 0 END) as conversions
+      FROM visits v
+      LEFT JOIN users u ON v.agent_id = u.id
+      WHERE v.tenant_id = ?${dateFilter}
+      GROUP BY v.agent_id
+      ORDER BY checkin_count DESC
+      LIMIT 50
+    `).bind(...binds).all();
+
+    const data = (agents.results || []).map(a => ({
+      ...a,
+      conversion_rate: a.checkin_count > 0 ? parseFloat(((a.conversions / a.checkin_count) * 100).toFixed(1)) : 0,
+    }));
+
+    return c.json({ success: true, data });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Checkins by hour
+api.get('/field-ops/reports/checkins-by-hour', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND visit_date <= ?"; binds.push(endDate); }
+
+    const result = await db.prepare(`
+      SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
+      FROM visits
+      WHERE tenant_id = ?${dateFilter}
+      GROUP BY hour
+      ORDER BY hour
+    `).bind(...binds).all();
+
+    // Fill in missing hours
+    const hourMap = {};
+    for (const r of (result.results || [])) hourMap[r.hour] = r.count;
+    const data = [];
+    for (let h = 0; h < 24; h++) data.push({ hour: h, count: hourMap[h] || 0 });
+
+    return c.json({ success: true, data });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Checkins by day of week
+api.get('/field-ops/reports/checkins-by-day', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND visit_date <= ?"; binds.push(endDate); }
+
+    const result = await db.prepare(`
+      SELECT CAST(strftime('%w', visit_date) AS INTEGER) as day_num, COUNT(*) as count
+      FROM visits
+      WHERE tenant_id = ?${dateFilter}
+      GROUP BY day_num
+      ORDER BY day_num
+    `).bind(...binds).all();
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayMap = {};
+    for (const r of (result.results || [])) dayMap[r.day_num] = r.count;
+    const data = dayNames.map((name, i) => ({ day_name: name, day_num: i, count: dayMap[i] || 0 }));
+
+    return c.json({ success: true, data });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Conversion stats
+api.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND visit_date <= ?"; binds.push(endDate); }
+
+    const total = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ?${dateFilter}`).bind(...binds).first();
+    const converted = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND status = 'completed' AND visit_target_type = 'individual'${dateFilter}`).bind(...binds).first();
+    const storeVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_target_type = 'store'${dateFilter}`).bind(...binds).first();
+
+    return c.json({ success: true, data: {
+      converted_yes: converted?.count || 0,
+      converted_no: (total?.count || 0) - (converted?.count || 0),
+      betting_yes: storeVisits?.count || 0,
+      betting_no: (total?.count || 0) - (storeVisits?.count || 0),
+    }});
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Shops analytics (customer/store analytics)
+api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { page = '1', limit = '15', startDate, endDate } = c.req.query();
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+
+    const totalResult = await db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first();
+
+    const shops = await db.prepare(`
+      SELECT c.id, c.name, c.address, c.latitude, c.longitude,
+        COUNT(v.id) as total_checkins,
+        SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as approved_checkins,
+        SUM(CASE WHEN v.status = 'completed' AND v.visit_target_type = 'individual' THEN 1 ELSE 0 END) as conversions,
+        MAX(v.visit_date) as last_visit
+      FROM customers c
+      LEFT JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id${dateFilter.replace(/AND v\./g, 'AND v.')}
+      WHERE c.tenant_id = ?
+      GROUP BY c.id
+      ORDER BY total_checkins DESC
+      LIMIT ? OFFSET ?
+    `).bind(...binds, tenantId, parseInt(limit), offset).all();
+
+    return c.json({ success: true, shops: shops.results || [], total: totalResult?.count || 0 });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Shop detail
+api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const shopId = c.req.param('shopId');
+    const shop = await db.prepare('SELECT * FROM customers WHERE id = ? AND tenant_id = ?').bind(shopId, tenantId).first();
+    const checkins = await db.prepare(`
+      SELECT v.id, v.visit_date as timestamp, v.status, v.agent_id,
+        CASE WHEN v.visit_target_type = 'individual' AND v.status = 'completed' THEN 1 ELSE 0 END as converted,
+        v.notes as responses
+      FROM visits v
+      WHERE v.customer_id = ? AND v.tenant_id = ?
+      ORDER BY v.visit_date DESC
+      LIMIT 50
+    `).bind(shopId, tenantId).all();
+    const stats = await db.prepare(`
+      SELECT COUNT(*) as total_checkins,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
+        SUM(CASE WHEN status = 'completed' AND visit_target_type = 'individual' THEN 1 ELSE 0 END) as conversions
+      FROM visits WHERE customer_id = ? AND tenant_id = ?
+    `).bind(shopId, tenantId).first();
+
+    return c.json({ success: true, shop, checkins: checkins.results || [], stats });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Customers analytics (individual registrations)
+api.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { page = '1', limit = '20', startDate, endDate } = c.req.query();
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    let dateFilter = '';
+    const binds = [tenantId];
+    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+
+    const totalResult = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
+
+    const customers = await db.prepare(`
+      SELECT v.id as checkin_id, v.visit_date as timestamp,
+        v.checkin_latitude as latitude, v.checkin_longitude as longitude,
+        v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
+        c.name as shop_name, v.customer_id as shop_id,
+        v.notes as responses,
+        CASE WHEN v.status = 'completed' AND v.visit_target_type = 'individual' THEN 1 ELSE 0 END as converted,
+        CASE WHEN v.visit_target_type = 'store' THEN 1 ELSE 0 END as already_betting
+      FROM visits v
+      LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN customers c ON v.customer_id = c.id
+      WHERE v.tenant_id = ?${dateFilter}
+      ORDER BY v.visit_date DESC
+      LIMIT ? OFFSET ?
+    `).bind(...binds, parseInt(limit), offset).all();
+
+    const statsResult = await db.prepare(`
+      SELECT COUNT(*) as total_customers,
+        SUM(CASE WHEN status = 'completed' AND visit_target_type = 'individual' THEN 1 ELSE 0 END) as converted,
+        SUM(CASE WHEN visit_target_type = 'store' THEN 1 ELSE 0 END) as already_betting
+      FROM visits WHERE tenant_id = ?
+    `).bind(tenantId).first();
+
+    return c.json({ success: true, customers: customers.results || [], total: totalResult?.count || 0, stats: statsResult });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Checkins list with filters
+api.get('/field-ops/reports/checkins', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { page = '1', limit = '20', startDate, endDate, status, agentId } = c.req.query();
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    let where = 'WHERE v.tenant_id = ?';
+    const binds = [tenantId];
+    if (startDate) { where += ' AND v.visit_date >= ?'; binds.push(startDate); }
+    if (endDate) { where += ' AND v.visit_date <= ?'; binds.push(endDate); }
+    if (status) { where += ' AND v.status = ?'; binds.push(status); }
+    if (agentId) { where += ' AND v.agent_id = ?'; binds.push(agentId); }
+
+    const totalResult = await db.prepare(`SELECT COUNT(*) as count FROM visits v ${where}`).bind(...binds).first();
+
+    const checkins = await db.prepare(`
+      SELECT v.id, v.agent_id, v.customer_id as shop_id, v.visit_date as timestamp,
+        v.checkin_latitude as latitude, v.checkin_longitude as longitude,
+        v.status, v.notes, v.visit_target_type
+      FROM visits v
+      ${where}
+      ORDER BY v.visit_date DESC
+      LIMIT ? OFFSET ?
+    `).bind(...binds, parseInt(limit), offset).all();
+
+    return c.json({ success: true, checkins: checkins.results || [], total: totalResult?.count || 0 });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Checkin detail
+api.get('/field-ops/reports/checkins/:checkinId', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const checkinId = c.req.param('checkinId');
+    const checkin = await db.prepare('SELECT * FROM visits WHERE id = ? AND tenant_id = ?').bind(checkinId, tenantId).first();
+    if (!checkin) return c.json({ success: false, message: 'Not found' }, 404);
+    // Get survey response if any
+    const response = await db.prepare('SELECT * FROM survey_responses WHERE visit_id = ? LIMIT 1').bind(checkinId).first();
+    return c.json({ success: true, checkin, response: response || null });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Agents list for filters
+api.get('/field-ops/reports/agents', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const agents = await db.prepare("SELECT id as agent_id, first_name || ' ' || last_name as agent_name FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') ORDER BY first_name LIMIT 500").bind(tenantId).all();
+    return c.json({ success: true, agents: agents.results || [] });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Export checkins data
+api.get('/field-ops/reports/export/checkins', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+    let where = 'WHERE v.tenant_id = ?';
+    const binds = [tenantId];
+    if (startDate) { where += ' AND v.visit_date >= ?'; binds.push(startDate); }
+    if (endDate) { where += ' AND v.visit_date <= ?'; binds.push(endDate); }
+
+    const data = await db.prepare(`
+      SELECT v.id, v.agent_id, v.customer_id as shop_id, v.visit_date as timestamp,
+        v.checkin_latitude as latitude, v.checkin_longitude as longitude,
+        v.status, v.notes, v.visit_target_type as visit_type,
+        CASE WHEN v.status = 'completed' AND v.visit_target_type = 'individual' THEN 1 ELSE 0 END as converted,
+        CASE WHEN v.visit_target_type = 'store' THEN 1 ELSE 0 END as already_betting
+      FROM visits v
+      ${where}
+      ORDER BY v.visit_date DESC
+      LIMIT 10000
+    `).bind(...binds).all();
+
+    return c.json({ success: true, data: data.results || [] });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 

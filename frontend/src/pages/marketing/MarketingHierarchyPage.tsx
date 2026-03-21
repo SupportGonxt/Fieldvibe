@@ -3,14 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft, Building2, Plus } from 'lucide-react'
+import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 
 type CreateRole = 'manager' | 'team_lead' | 'agent'
-
-type AgentType = 'field_ops' | 'marketing' | 'both'
 
 interface CreateForm {
   firstName: string
@@ -18,16 +15,14 @@ interface CreateForm {
   email: string
   phone: string
   role: CreateRole
-  agentType: AgentType
   managerId: string
   teamLeadId: string
 }
 
-const EMPTY_FORM: CreateForm = { firstName: '', lastName: '', email: '', phone: '', role: 'agent', agentType: 'field_ops', managerId: '', teamLeadId: '' }
+const EMPTY_FORM: CreateForm = { firstName: '', lastName: '', email: '', phone: '', role: 'agent', managerId: '', teamLeadId: '' }
 
-export default function AgentHierarchyPage() {
+export default function MarketingHierarchyPage() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const [expandedManagers, setExpandedManagers] = useState<Set<string>>(new Set())
   const [expandedTeamLeads, setExpandedTeamLeads] = useState<Set<string>>(new Set())
   const [assigningUser, setAssigningUser] = useState<string | null>(null)
@@ -41,20 +36,16 @@ export default function AgentHierarchyPage() {
   const [creating, setCreating] = useState(false)
   const [generatedPassword, setGeneratedPassword] = useState('')
 
-  // Manager-company assignment state
-  const [assigningCompanyToManager, setAssigningCompanyToManager] = useState<string | null>(null)
-  const [selectedCompany, setSelectedCompany] = useState('')
-
   const { data: hierarchy, isLoading, error } = useQuery({
-    queryKey: ['field-ops-hierarchy'],
-    queryFn: () => fieldOperationsService.getHierarchy(),
+    queryKey: ['marketing-hierarchy'],
+    queryFn: () => fieldOperationsService.getMarketingHierarchy(),
   })
 
   const assignMutation = useMutation({
     mutationFn: ({ userId, data }: { userId: string; data: { manager_id?: string | null; team_lead_id?: string | null } }) =>
-      fieldOperationsService.assignHierarchy(userId, data),
+      fieldOperationsService.assignMarketingHierarchy(userId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
+      queryClient.invalidateQueries({ queryKey: ['marketing-hierarchy'] })
       toast.success('Hierarchy updated')
       setAssigningUser(null)
       setAssignTarget('')
@@ -62,27 +53,6 @@ export default function AgentHierarchyPage() {
       setReassignTarget('')
     },
     onError: () => toast.error('Failed to update hierarchy'),
-  })
-
-  const assignCompanyMutation = useMutation({
-    mutationFn: ({ managerId, companyId }: { managerId: string; companyId: string }) =>
-      fieldOperationsService.assignManagerToCompany(managerId, companyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
-      toast.success('Company assigned to manager')
-      setAssigningCompanyToManager(null)
-      setSelectedCompany('')
-    },
-    onError: () => toast.error('Failed to assign company'),
-  })
-
-  const unassignCompanyMutation = useMutation({
-    mutationFn: (linkId: string) => fieldOperationsService.unassignManagerFromCompany(linkId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
-      toast.success('Company unassigned from manager')
-    },
-    onError: () => toast.error('Failed to unassign company'),
   })
 
   async function handleCreate(e: React.FormEvent) {
@@ -98,7 +68,7 @@ export default function AgentHierarchyPage() {
         lastName: createForm.lastName,
         phone: createForm.phone || null,
         role: createForm.role,
-        agent_type: createForm.agentType,
+        agent_type: 'marketing',
       }
       if (createForm.email) {
         payload.email = createForm.email
@@ -112,7 +82,7 @@ export default function AgentHierarchyPage() {
       const res = await apiClient.post('/users', payload)
       const data = res.data?.data || res.data || {}
       setGeneratedPassword(data.password || '')
-      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
+      queryClient.invalidateQueries({ queryKey: ['marketing-hierarchy'] })
       toast.success(`${createForm.role === 'team_lead' ? 'Team Lead' : createForm.role === 'manager' ? 'Manager' : 'Agent'} created`)
       if (!data.password) {
         closeCreateModal()
@@ -151,7 +121,7 @@ export default function AgentHierarchyPage() {
     return (
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-          Failed to load hierarchy data.
+          Failed to load marketing hierarchy data.
         </div>
       </div>
     )
@@ -160,7 +130,6 @@ export default function AgentHierarchyPage() {
   const managers = hierarchy?.hierarchy || []
   const unassignedTeamLeads = hierarchy?.unassigned_team_leads || []
   const unassignedAgents = hierarchy?.unassigned_agents || []
-  const allCompanies: { id: string; name: string; code: string }[] = hierarchy?.all_companies || []
 
   // Build lists for assignment dropdowns
   const allTeamLeads = [
@@ -174,14 +143,14 @@ export default function AgentHierarchyPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Agent Hierarchy</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Marketing Hierarchy</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Manage the Agent &rarr; Team Lead &rarr; Manager hierarchy
+            Manage the Marketing Agent &rarr; Team Lead &rarr; Manager hierarchy
           </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#00E87B] hover:bg-[#00D06E] text-[#06090F] font-semibold rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-semibold rounded-lg transition-colors"
         >
           <UserPlus className="w-4 h-4" />
           Add Person
@@ -205,9 +174,9 @@ export default function AgentHierarchyPage() {
           </div>
         </div>
         <div className="card p-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30"><User className="w-5 h-5 text-green-600" /></div>
+          <div className="p-2 rounded-lg bg-pink-100 dark:bg-pink-900/30"><User className="w-5 h-5 text-pink-600" /></div>
           <div>
-            <p className="text-sm text-gray-500">Agents</p>
+            <p className="text-sm text-gray-500">Marketing Agents</p>
             <p className="text-xl font-bold text-gray-900 dark:text-white">{hierarchy?.total_agents || 0}</p>
           </div>
         </div>
@@ -215,23 +184,18 @@ export default function AgentHierarchyPage() {
 
       {/* Hierarchy Tree */}
       <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Organization Tree</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Marketing Organization Tree</h3>
         
         {managers.length === 0 && unassignedTeamLeads.length === 0 && unassignedAgents.length === 0 && (
           <div className="text-center py-12">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-lg font-medium">No hierarchy configured</p>
-            <p className="text-gray-400 text-sm">Click &ldquo;Add Person&rdquo; above to create managers, team leads, and agents</p>
+            <p className="text-gray-500 text-lg font-medium">No marketing hierarchy configured</p>
+            <p className="text-gray-400 text-sm">Click &ldquo;Add Person&rdquo; above to create marketing managers, team leads, and agents</p>
           </div>
         )}
 
         {/* Managers */}
-        {managers.map((manager: any) => {
-          const managerCompanies: { id: string; name: string; code: string; link_id: string }[] = manager.companies || []
-          const assignedCompanyIds = new Set(managerCompanies.map((c: { id: string }) => c.id))
-          const availableCompanies = allCompanies.filter(c => !assignedCompanyIds.has(c.id))
-
-          return (
+        {managers.map((manager: any) => (
           <div key={manager.id} className="mb-4">
             <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition">
               <button
@@ -242,61 +206,7 @@ export default function AgentHierarchyPage() {
                 <Crown className="w-5 h-5 text-purple-600 flex-shrink-0" />
                 <span className="font-semibold text-gray-900 dark:text-white truncate">{manager.first_name} {manager.last_name}</span>
               </button>
-              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                {/* Company badges */}
-                {managerCompanies.map((company: { id: string; name: string; code: string; link_id: string }) => (
-                  <span
-                    key={company.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
-                  >
-                    <Building2 className="w-3 h-3" />
-                    {company.name}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate(company.link_id) }}
-                      className="ml-0.5 text-indigo-400 hover:text-red-500 transition-colors"
-                      title={`Remove ${company.name}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-                {/* Add company button */}
-                {assigningCompanyToManager === manager.id ? (
-                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <SearchableSelect
-                      options={availableCompanies.map(c => ({ value: c.id, label: c.name }))}
-                      value={selectedCompany || null}
-                      onChange={(val) => setSelectedCompany(val || '')}
-                      placeholder="Select company"
-                    />
-                    <button
-                      onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ managerId: manager.id, companyId: selectedCompany }) }}
-                      disabled={!selectedCompany || assignCompanyMutation.isPending}
-                      className="text-green-600 text-xs font-medium px-2 py-1 disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => { setAssigningCompanyToManager(null); setSelectedCompany('') }}
-                      className="text-gray-400 text-xs px-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  availableCompanies.length > 0 && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setAssigningCompanyToManager(manager.id); setSelectedCompany('') }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors border border-dashed border-indigo-300 dark:border-indigo-700"
-                      title="Assign company to manager"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Company
-                    </button>
-                  )
-                )}
-                <span className="text-sm text-gray-500 ml-2">{manager.team_leads?.length || 0} team leads</span>
-              </div>
+              <span className="text-sm text-gray-500 flex-shrink-0">{manager.team_leads?.length || 0} team leads</span>
             </div>
 
             {expandedManagers.has(manager.id) && (
@@ -329,13 +239,13 @@ export default function AgentHierarchyPage() {
                     {expandedTeamLeads.has(tl.id) && (
                       <div className="ml-8 mt-1 space-y-1">
                         {(tl.agents || []).map((agent: any) => (
-                          <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-                            <User className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-pink-50 dark:bg-pink-900/20">
+                            <User className="w-4 h-4 text-pink-600 flex-shrink-0" />
                             <span className="text-gray-900 dark:text-white truncate">{agent.first_name} {agent.last_name}</span>
                             <div className="ml-auto flex items-center gap-1 flex-shrink-0">
                               <button
                                 onClick={() => setReassigningUser({ id: agent.id, type: 'agent', name: `${agent.first_name} ${agent.last_name}` })}
-                                className="text-gray-400 hover:text-green-600 p-1 rounded"
+                                className="text-gray-400 hover:text-pink-600 p-1 rounded"
                                 title="Reassign to another team lead"
                               >
                                 <ArrowRightLeft className="w-3.5 h-3.5" />
@@ -363,8 +273,7 @@ export default function AgentHierarchyPage() {
               </div>
             )}
           </div>
-          )
-        })}
+        ))}
 
         {/* Unassigned Team Leads */}
         {unassignedTeamLeads.length > 0 && (
@@ -406,7 +315,7 @@ export default function AgentHierarchyPage() {
         {/* Unassigned Agents */}
         {unassignedAgents.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium text-gray-500 uppercase mb-2">Unassigned Agents</h4>
+            <h4 className="text-sm font-medium text-gray-500 uppercase mb-2">Unassigned Marketing Agents</h4>
             <div className="space-y-2">
               {unassignedAgents.map((agent: any) => (
                 <div key={agent.id} className="flex items-center gap-3 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
@@ -441,7 +350,7 @@ export default function AgentHierarchyPage() {
         )}
       </div>
 
-      {/* ═══ Reassign Modal ═══ */}
+      {/* Reassign Modal */}
       {reassigningUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-md w-full shadow-2xl">
@@ -453,46 +362,46 @@ export default function AgentHierarchyPage() {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Select a new {reassigningUser.type === 'agent' ? 'team lead' : 'manager'} to assign <strong>{reassigningUser.name}</strong> to:
+                Select a new {reassigningUser.type === 'team_lead' ? 'manager' : 'team lead'} for {reassigningUser.name}:
               </p>
               <SearchableSelect
-                options={reassigningUser.type === 'agent' ? allTeamLeads : allManagers}
+                options={reassigningUser.type === 'team_lead' ? allManagers : allTeamLeads}
                 value={reassignTarget || null}
                 onChange={(val) => setReassignTarget(val || '')}
-                placeholder={`Select ${reassigningUser.type === 'agent' ? 'Team Lead' : 'Manager'}`}
-                label={reassigningUser.type === 'agent' ? 'Team Lead' : 'Manager'}
+                placeholder={`Select ${reassigningUser.type === 'team_lead' ? 'Manager' : 'Team Lead'}`}
               />
-            </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-gray-200 dark:border-white/10">
-              <button onClick={() => { setReassigningUser(null); setReassignTarget('') }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (!reassignTarget) return
-                  const data = reassigningUser.type === 'agent'
-                    ? { team_lead_id: reassignTarget }
-                    : { manager_id: reassignTarget }
-                  assignMutation.mutate({ userId: reassigningUser.id, data })
-                }}
-                disabled={!reassignTarget || assignMutation.isPending}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {assignMutation.isPending ? 'Saving...' : 'Reassign'}
-              </button>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => { setReassigningUser(null); setReassignTarget('') }}
+                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-surface-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!reassignTarget) return
+                    const data = reassigningUser.type === 'team_lead'
+                      ? { manager_id: reassignTarget }
+                      : { team_lead_id: reassignTarget }
+                    assignMutation.mutate({ userId: reassigningUser.id, data })
+                  }}
+                  disabled={!reassignTarget || assignMutation.isPending}
+                  className="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-700 text-white font-medium disabled:opacity-50"
+                >
+                  Reassign
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══ Create Person Modal ═══ */}
+      {/* Create Person Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {generatedPassword ? 'Person Created' : 'Add New Person'}
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add Marketing Person</h3>
               <button onClick={closeCreateModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <X className="w-5 h-5" />
               </button>
@@ -501,39 +410,14 @@ export default function AgentHierarchyPage() {
             {generatedPassword ? (
               <div className="p-5 space-y-4">
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                  <p className="text-green-800 dark:text-green-300 font-medium mb-2">Successfully created!</p>
-                  <p className="text-sm text-green-700 dark:text-green-400">Please save the temporary password below. The user will need it for their first login.</p>
-                  {(createForm.role === 'agent') && (
-                    <p className="text-sm text-green-700 dark:text-green-400 mt-1">Default agent PIN: <strong>12345</strong></p>
-                  )}
+                  <p className="text-green-800 dark:text-green-200 font-medium">Person created successfully!</p>
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">Default password:</p>
+                  <code className="block mt-1 text-lg font-mono font-bold text-green-900 dark:text-green-100">{generatedPassword}</code>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-2">Share this password securely. They can change it after logging in.</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                  <p className="text-gray-900 dark:text-white">{createForm.firstName} {createForm.lastName}</p>
-                </div>
-                {createForm.email && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                  <p className="text-gray-900 dark:text-white">{createForm.email}</p>
-                </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Temporary Password</label>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 px-3 py-2 bg-gray-100 dark:bg-[#0F1420] rounded-lg text-lg font-mono text-gray-900 dark:text-white tracking-wider">{generatedPassword}</code>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(generatedPassword); toast.success('Copied!') }}
-                      className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-                <div className="flex justify-end pt-2">
-                  <button onClick={closeCreateModal} className="px-4 py-2 bg-[#00E87B] text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E]">
-                    Done
-                  </button>
-                </div>
+                <button onClick={closeCreateModal} className="w-full px-4 py-2 rounded-lg bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 font-medium">
+                  Done
+                </button>
               </div>
             ) : (
               <form onSubmit={handleCreate} className="p-5 space-y-4">
@@ -544,7 +428,7 @@ export default function AgentHierarchyPage() {
                     {([
                       { value: 'manager' as const, label: 'Manager', icon: Crown, activeBorder: 'border-purple-500', activeBg: 'bg-purple-50 dark:bg-purple-900/20', iconColor: 'text-purple-600' },
                       { value: 'team_lead' as const, label: 'Team Lead', icon: Shield, activeBorder: 'border-blue-500', activeBg: 'bg-blue-50 dark:bg-blue-900/20', iconColor: 'text-blue-600' },
-                      { value: 'agent' as const, label: 'Agent', icon: User, activeBorder: 'border-green-500', activeBg: 'bg-green-50 dark:bg-green-900/20', iconColor: 'text-green-600' },
+                      { value: 'agent' as const, label: 'Agent', icon: User, activeBorder: 'border-pink-500', activeBg: 'bg-pink-50 dark:bg-pink-900/20', iconColor: 'text-pink-600' },
                     ]).map(({ value, label, icon: Icon, activeBorder, activeBg, iconColor }) => (
                       <button
                         key={value}
@@ -563,96 +447,49 @@ export default function AgentHierarchyPage() {
                   </div>
                 </div>
 
-                {/* Agent Type / Department */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department <span className="text-red-500">*</span></label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCreateForm(f => ({ ...f, agentType: 'field_ops' }))}
-                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                        createForm.agentType === 'field_ops'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      Field Ops
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreateForm(f => ({ ...f, agentType: 'marketing' }))}
-                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                        createForm.agentType === 'marketing'
-                          ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-300'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      Marketing
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreateForm(f => ({ ...f, agentType: 'both' }))}
-                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                        createForm.agentType === 'both'
-                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      Both
-                    </button>
-                  </div>
-                </div>
-
                 {/* Name */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name <span className="text-red-500">*</span></label>
                     <input
-                      type="text"
-                      required
                       value={createForm.firstName}
-                      onChange={(e) => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white"
+                      required
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name <span className="text-red-500">*</span></label>
                     <input
-                      type="text"
-                      required
                       value={createForm.lastName}
-                      onChange={(e) => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white"
+                      required
                     />
                   </div>
                 </div>
 
-                {/* Email */}
+                {/* Contact */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email {createForm.role !== 'agent' && <span className="text-red-500">*</span>}</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                   <input
                     type="email"
-                    required={createForm.role !== 'agent'}
                     value={createForm.email}
-                    onChange={(e) => setCreateForm(f => ({ ...f, email: e.target.value }))}
-                    placeholder={createForm.role === 'agent' ? 'Optional for agents' : ''}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white"
                   />
                 </div>
-
-                {/* Phone */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
                   <input
                     type="tel"
                     value={createForm.phone}
-                    onChange={(e) => setCreateForm(f => ({ ...f, phone: e.target.value }))}
-                    placeholder="+27..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white"
                   />
                 </div>
 
-                {/* Assignment (conditional) */}
+                {/* Assignment */}
                 {createForm.role === 'team_lead' && allManagers.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign to Manager</label>
@@ -676,21 +513,14 @@ export default function AgentHierarchyPage() {
                   </div>
                 )}
 
-                {createForm.role === 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Default password: <strong>12345</strong> &middot; Default PIN: <strong>12345</strong></p>
-                )}
-                {createForm.role !== 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically.</p>
-                )}
-
                 <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={closeCreateModal} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                  <button type="button" onClick={closeCreateModal} className="px-4 py-2 rounded-lg border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-surface-secondary">
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={creating}
-                    className="px-4 py-2 text-sm bg-[#00E87B] text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E] disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-700 text-white font-medium disabled:opacity-50"
                   >
                     {creating ? 'Creating...' : 'Create'}
                   </button>

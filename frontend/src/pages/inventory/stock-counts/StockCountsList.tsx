@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function StockCountsList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [stockCounts, setStockCounts] = useState([])
@@ -31,15 +34,20 @@ export default function StockCountsList() {
   }
 
   const handleConfirm = async (countId: number) => {
-    if (!window.confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) return
-
-    try {
-      await inventoryService.confirmStockCount(countId)
-      loadStockCounts()
-    } catch (error) {
-      console.error('Failed to confirm stock count:', error)
-      toast.error('Failed to confirm stock count')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this stock count? This will create adjustments for variances.',
+      action: async () => {
+        try {
+          await inventoryService.confirmStockCount(countId)
+          loadStockCounts()
+        } catch (error) {
+          console.error('Failed to confirm stock count:', error)
+          toast.error('Failed to confirm stock count')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -133,13 +141,14 @@ export default function StockCountsList() {
               <CheckCircle className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Stock Counts"
       columns={columns}
       data={stockCounts}
@@ -148,5 +157,15 @@ export default function StockCountsList() {
       createPath="/inventory/stock-counts/create"
       createLabel="Create Stock Count"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

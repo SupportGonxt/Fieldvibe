@@ -6,8 +6,11 @@ import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function BoardPlacementDetail() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,17 +34,20 @@ export default function BoardPlacementDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this board placement? This will reverse the commission.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this board placement? This will reverse the commission.',
+      action: async () => {
+        try {
       await fieldOperationsService.reverseBoardPlacement(Number(id))
       navigate('/field-operations/board-placements')
     } catch (error) {
       console.error('Failed to reverse board placement:', error)
       toast.error('Failed to reverse board placement')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
@@ -79,7 +85,8 @@ export default function BoardPlacementDetail() {
   }[placement.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Board Placement ${placement.placement_number}`}
       fields={fields}
       auditTrail={placement.audit_trail || []}
@@ -88,5 +95,15 @@ export default function BoardPlacementDetail() {
       status={placement.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

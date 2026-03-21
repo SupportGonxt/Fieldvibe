@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function IssuesList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [issues, setIssues] = useState([])
@@ -31,15 +34,20 @@ export default function IssuesList() {
   }
 
   const handleReverse = async (issueId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this issue?')) return
-
-    try {
-      await inventoryService.reverseIssue(issueId)
-      loadIssues()
-    } catch (error) {
-      console.error('Failed to reverse issue:', error)
-      toast.error('Failed to reverse issue')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this issue?',
+      action: async () => {
+        try {
+          await inventoryService.reverseIssue(issueId)
+          loadIssues()
+        } catch (error) {
+          console.error('Failed to reverse issue:', error)
+          toast.error('Failed to reverse issue')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -120,13 +128,14 @@ export default function IssuesList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Inventory Issues"
       columns={columns}
       data={issues}
@@ -135,5 +144,15 @@ export default function IssuesList() {
       createPath="/inventory/issues/create"
       createLabel="Create Issue"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

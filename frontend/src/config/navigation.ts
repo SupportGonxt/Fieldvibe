@@ -102,6 +102,14 @@ export const navigation: NavigationItem[] = [
       { name: 'Live Map', href: '/field-operations/mapping', permission: null, description: 'Real-time agent tracking', group: 'Performance & Tracking' },
       { name: 'GPS Tracking', href: '/field-operations/gps-tracking', permission: null, description: 'GPS compliance monitoring', group: 'Performance & Tracking' },
       { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Performance & Tracking' },
+
+      // ── Reports (SSReports-style) ──
+      { name: 'Reports Dashboard', href: '/field-operations/reports/dashboard', permission: 'view_field_reports', description: 'KPIs, agent performance, charts', group: 'Reports' },
+      { name: 'Deep Insights', href: '/field-operations/reports/insights', permission: 'view_field_reports', description: 'Performance highlights & analytics', group: 'Reports' },
+      { name: 'Shops Analytics', href: '/field-operations/reports/shops', permission: 'view_field_reports', description: 'Shop-level analytics & drill-down', group: 'Reports' },
+      { name: 'Customer Analytics', href: '/field-operations/reports/customers', permission: 'view_field_reports', description: 'Customer interaction analysis', group: 'Reports' },
+      { name: 'Check-ins List', href: '/field-operations/reports/checkins', permission: 'view_field_reports', description: 'Paginated check-in records', group: 'Reports' },
+      { name: 'Export Reports', href: '/field-operations/reports/export', permission: 'export_data', description: 'Export data to CSV', group: 'Reports' },
     ],
   },
   {
@@ -206,6 +214,9 @@ export const navigation: NavigationItem[] = [
       { name: 'Trade Marketing', href: '/trade-marketing', permission: null, description: 'Trade marketing activities', group: 'Activations' },
       { name: 'Events', href: '/events', permission: null, description: 'Marketing events', group: 'Activations' },
       { name: 'Activations', href: '/marketing/activations', permission: null, description: 'Brand activations', group: 'Activations' },
+
+      // ── Organization ──
+      { name: 'Hierarchy', href: '/marketing/hierarchy', permission: null, description: 'Marketing agent hierarchy', group: 'Organization' },
     ],
   },
 
@@ -240,8 +251,8 @@ export const navigation: NavigationItem[] = [
     category: 'System',
     children: [
       // ── Access Control ──
-      { name: 'Users', href: '/admin/users', permission: null, description: 'User management', group: 'Access Control' },
-      { name: 'Roles', href: '/admin/roles', permission: null, description: 'Roles & permissions', group: 'Access Control' },
+      { name: 'Users', href: '/admin/users', permission: 'view_users', description: 'User management', group: 'Access Control' },
+      { name: 'Roles', href: '/admin/roles', permission: 'manage_roles', description: 'Roles & permissions (RBAC)', group: 'Access Control' },
 
       // ── Catalog ──
       { name: 'Brands', href: '/admin/brands', permission: null, description: 'Brand management', group: 'Catalog' },

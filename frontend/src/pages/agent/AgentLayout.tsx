@@ -1,25 +1,56 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MapPin, BarChart3, User, Plus, ArrowLeft } from 'lucide-react'
+import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2 } from 'lucide-react'
+import { useAuthStore } from '../../store/auth.store'
 
-const tabs = [
-  { path: '/agent/dashboard', label: 'Home', icon: Home },
-  { path: '/agent/visits', label: 'Visits', icon: MapPin },
-  { path: '/agent/visits/create', label: 'New', icon: Plus, isCta: true },
-  { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
-  { path: '/agent/profile', label: 'Profile', icon: User },
-]
+function getTabsForRole(role: string | undefined) {
+  const baseTabs = [
+    { path: '/agent/dashboard', label: 'Home', icon: Home },
+  ]
+
+  if (role === 'team_lead') {
+    return [
+      ...baseTabs,
+      { path: '/agent/visits', label: 'Visits', icon: MapPin },
+      { path: '/agent/visits/create', label: 'New', icon: Plus, isCta: true },
+      { path: '/agent/team', label: 'Team', icon: Users },
+      { path: '/agent/profile', label: 'Profile', icon: User },
+    ]
+  }
+
+  if (role === 'manager') {
+    return [
+      ...baseTabs,
+      { path: '/agent/teams', label: 'Teams', icon: Building2 },
+      { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
+      { path: '/agent/profile', label: 'Profile', icon: User },
+    ]
+  }
+
+  // Default: agent / field_agent / sales_rep
+  return [
+    ...baseTabs,
+    { path: '/agent/visits', label: 'Visits', icon: MapPin },
+    { path: '/agent/visits/create', label: 'New', icon: Plus, isCta: true },
+    { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
+    { path: '/agent/profile', label: 'Profile', icon: User },
+  ]
+}
 
 function isSubPage(pathname: string): boolean {
   if (pathname === '/agent/visits/create') return true
   if (/^\/agent\/visits\/[^/]+$/.test(pathname)) return true
   if (/^\/agent\/visits\/[^/]+\/edit$/.test(pathname)) return true
+  if (pathname === '/agent/onboarding') return true
+  if (pathname === '/agent/training') return true
   return false
 }
 
 function getBackPath(pathname: string): string {
   if (pathname === '/agent/visits/create') return '/agent/visits'
   if (/^\/agent\/visits\/[^/]+/.test(pathname)) return '/agent/visits'
+  if (pathname === '/agent/onboarding') return '/agent/dashboard'
+  if (pathname === '/agent/training') return '/agent/dashboard'
   return '/agent/dashboard'
 }
 
@@ -27,12 +58,16 @@ function getSubPageTitle(pathname: string): string {
   if (pathname === '/agent/visits/create') return 'New Visit'
   if (/^\/agent\/visits\/[^/]+\/edit$/.test(pathname)) return 'Edit Visit'
   if (/^\/agent\/visits\/[^/]+$/.test(pathname)) return 'Visit Details'
+  if (pathname === '/agent/onboarding') return 'Getting Started'
+  if (pathname === '/agent/training') return 'Training Guide'
   return ''
 }
 
 export default function AgentLayout() {
   const location = useLocation()
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
+  const tabs = getTabsForRole(user?.role)
   const onSubPage = isSubPage(location.pathname)
 
   return (
@@ -62,7 +97,7 @@ export default function AgentLayout() {
               const isActive = location.pathname === tab.path || (tab.path === '/agent/dashboard' && location.pathname === '/agent')
               const Icon = tab.icon
 
-              if (tab.isCta) {
+              if ('isCta' in tab && tab.isCta) {
                 return (
                   <button
                     key={tab.path}
