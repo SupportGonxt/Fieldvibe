@@ -412,8 +412,8 @@ export default function AgentStats() {
     const fetchAll = async () => {
       try {
         const [dashRes, perfRes] = await Promise.all([
-          apiClient.get('/agent/dashboard'),
-          apiClient.get('/agent/performance'),
+          apiClient.get('/agent/dashboard').catch(() => null),
+          apiClient.get('/agent/performance').catch(() => null),
         ])
         if (dashRes.data?.success && dashRes.data?.data) setDashData(dashRes.data.data)
         if (perfRes.data?.success && perfRes.data?.data) setPerfData(perfRes.data.data)
