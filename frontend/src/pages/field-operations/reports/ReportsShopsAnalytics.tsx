@@ -36,7 +36,7 @@ const ReportsShopsAnalytics: React.FC = () => {
     },
   })
 
-  const { data: shopDetail, isLoading: detailLoading , isError } = useQuery({
+  const { data: shopDetail, isLoading: detailLoading , isError: isDetailError } = useQuery({
     queryKey: ['shop-detail', selectedShop],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/shops/${selectedShop}`)

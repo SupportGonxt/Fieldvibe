@@ -6,7 +6,7 @@ import {
   Wifi, WifiOff, LogOut, Store, User
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
-import { API_CONFIG } from '../../config/api.config'
+import { apiClient } from '../../services/api.service'
 
 interface DashboardData {
   today_visits: number
@@ -56,13 +56,8 @@ export default function AgentDashboard() {
     else setLoading(true)
 
     try {
-      const token = useAuthStore.getState().tokens?.access_token || localStorage.getItem('token')
-      if (!token) { navigate('/auth/mobile-login'); return }
-
-      const res = await fetch(`${API_CONFIG.BASE_URL}/agent/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      const json = await res.json()
+      const res = await apiClient.get('/agent/dashboard')
+      const json = res.data
       if (json.success && json.data) {
         setData(json.data)
       }
