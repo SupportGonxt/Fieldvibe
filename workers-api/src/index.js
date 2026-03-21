@@ -345,7 +345,6 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
     const userId = c.get('userId');
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = today.substring(0, 7);
-    const monthStart = currentMonth + '-01';
 
     const [
       monthlyTargets,

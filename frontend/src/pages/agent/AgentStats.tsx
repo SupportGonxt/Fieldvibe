@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   TrendingUp, MapPin, Users, Target, Calendar, Award, BarChart3,
   DollarSign, Flame, Zap, Trophy, Clock
@@ -404,7 +403,6 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
 }
 
 export default function AgentStats() {
-  const navigate = useNavigate()
   const [dashData, setDashData] = useState<DashboardData | null>(null)
   const [perfData, setPerfData] = useState<PerformanceData | null>(null)
   const [loading, setLoading] = useState(true)
