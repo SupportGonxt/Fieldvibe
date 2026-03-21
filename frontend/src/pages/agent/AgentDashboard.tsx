@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
-  Wifi, WifiOff, LogOut, Store, User
+  Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { API_CONFIG } from '../../config/api.config'
@@ -243,6 +243,36 @@ export default function AgentDashboard() {
             <p className="text-xs text-gray-600 mt-1">Start your first visit above</p>
           </div>
         )}
+      </div>
+      {/* Help & Training */}
+      <div className="px-5 mb-4">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Help & Training</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => navigate('/agent/onboarding')}
+            className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+              <GraduationCap className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-medium text-white">Get Started</p>
+              <p className="text-[10px] text-gray-500">Onboarding</p>
+            </div>
+          </button>
+          <button
+            onClick={() => navigate('/agent/training')}
+            className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-teal-400" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-medium text-white">Training</p>
+              <p className="text-[10px] text-gray-500">Visit guide</p>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -34,7 +34,9 @@ const AgentLayout = lazy(() => import('./pages/agent/AgentLayout'))
 const AgentVisits = lazy(() => import('./pages/agent/AgentVisits'))
 const AgentStats = lazy(() => import('./pages/agent/AgentStats'))
 const AgentProfile = lazy(() => import('./pages/agent/AgentProfile'))
+const AgentOnboarding = lazy(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazy(() => import('./pages/agent/AgentPinManagement'))
+const AgentTrainingGuide = lazy(() => import('./pages/agent/AgentTrainingGuide'))
 const AgentHierarchyPage = lazy(() => import('./pages/field-operations/AgentHierarchyPage'))
 const AnalyticsDashboardPage = lazy(() => import('./pages/reports/AnalyticsDashboardPage'))
 const AnalyticsPage = lazy(() => import('./pages/dashboard/AnalyticsPage'))
@@ -1070,6 +1072,8 @@ function App() {
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
             <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
+            <Route path="onboarding" element={<PageLoader><AgentOnboarding /></PageLoader>} />
+            <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
             <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
 
