@@ -1,6 +1,9 @@
+const [confirmOpen, setConfirmOpen] = useState(false)
+const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, MapPin } from 'lucide-react';
 import { apiClient } from '../../services/api.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface Territory { id: number; name: string; region: string; agents: number; area: string; coordinates: string; }
 
@@ -30,11 +33,14 @@ const TerritoryManagementPage: React.FC = () => {
   };
 
   const deleteTerritory = async (id: number) => {
-    if (!window.confirm('Delete territory?')) return;
+    setPendingAction({ title: 'Confirm', message: 'Delete territory?', action: async () => {
     try {
       const res = await apiClient.delete(`/admin/territories/${id}`);
       loadTerritories();
     } catch (err) { console.error(err); }
+    } })
+    setConfirmOpen(true)
+    return
   };
 
   return (
@@ -84,6 +90,16 @@ const TerritoryManagementPage: React.FC = () => {
           </div>
         ))}
       </div>
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   );
 };

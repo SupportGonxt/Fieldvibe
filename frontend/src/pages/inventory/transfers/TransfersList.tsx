@@ -1,3 +1,5 @@
+const [confirmOpen, setConfirmOpen] = useState(false)
+const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, RotateCcw } from 'lucide-react'
@@ -5,6 +7,7 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function TransfersList() {
   const { toast } = useToast()
@@ -116,7 +119,17 @@ export default function TransfersList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+        
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </div>
       )
     }
   ]

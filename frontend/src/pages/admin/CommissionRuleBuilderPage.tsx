@@ -1,7 +1,10 @@
+const [confirmOpen, setConfirmOpen] = useState(false)
+const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Calculator } from 'lucide-react';
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { apiClient } from '../../services/api.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface Rule { id: number; name: string; boardType: string; minQty: number; maxQty: number; rate: number; bonusRate: number; }
 
@@ -26,11 +29,14 @@ const CommissionRuleBuilderPage: React.FC = () => {
   };
 
   const deleteRule = async (id: number) => {
-    if (!window.confirm('Delete rule?')) return;
+    setPendingAction({ title: 'Confirm', message: 'Delete rule?', action: async () => {
     try {
       const res = await apiClient.delete(`/admin/commission-rules/${id}`);
       loadRules();
     } catch (err) { console.error(err); }
+    } })
+    setConfirmOpen(true)
+    return
   };
 
   return (
@@ -90,6 +96,16 @@ const CommissionRuleBuilderPage: React.FC = () => {
           ))}
         </div>
       </div>
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   );
 };

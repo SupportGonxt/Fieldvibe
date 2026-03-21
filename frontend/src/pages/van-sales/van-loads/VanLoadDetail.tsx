@@ -1,3 +1,5 @@
+const [confirmOpen, setConfirmOpen] = useState(false)
+const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
@@ -6,6 +8,7 @@ import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function VanLoadDetail() {
   const { toast } = useToast()
@@ -48,7 +51,17 @@ export default function VanLoadDetail() {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-      </div>
+      
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </div>
     )
   }
 

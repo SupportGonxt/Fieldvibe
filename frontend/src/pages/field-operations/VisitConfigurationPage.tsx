@@ -1,8 +1,11 @@
+const [confirmOpen, setConfirmOpen] = useState(false)
+const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, Trash2, Calendar, MapPin, CheckSquare, Camera, BarChart3 } from 'lucide-react'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { apiClient } from '../../services/api.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface VisitConfiguration {
   id: string
@@ -223,10 +226,10 @@ export default function VisitConfigurationPage() {
                         </button>
                         <button
                           onClick={() => {
-                            // TODO: Replace with ConfirmDialog
-            if (window.confirm('Delete this configuration?')) {
+            setPendingAction({ title: 'Confirm', message: 'Delete this configuration?', action: async () => {
                               deleteMutation.mutate(config.id)
-                            }
+                            } })
+                            setConfirmOpen(true)
                           }}
                           className="text-red-600 hover:text-red-900"
                         >
@@ -588,6 +591,16 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
           </div>
         </form>
       </div>
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }
