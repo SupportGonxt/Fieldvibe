@@ -34,15 +34,20 @@ export default function VanLoadsList() {
   }
 
   const handleConfirm = async (loadId: number) => {
-    if (!window.confirm('Are you sure you want to confirm this van load?')) return
-
-    try {
-      await vanSalesService.confirmVanLoad(loadId)
-      loadVanLoads()
-    } catch (error) {
-      console.error('Failed to confirm van load:', error)
-      toast.error('Failed to confirm van load')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this van load?',
+      action: async () => {
+        try {
+          await vanSalesService.confirmVanLoad(loadId)
+          loadVanLoads()
+        } catch (error) {
+          console.error('Failed to confirm van load:', error)
+          toast.error('Failed to confirm van load')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -124,7 +129,22 @@ export default function VanLoadsList() {
               <CheckCircle className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Van Loads"
+      columns={columns}
+      data={vanLoads}
+      loading={loading}
+      onRefresh={loadVanLoads}
+      createPath="/van-sales/van-loads/create"
+      createLabel="Create Van Load"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -134,20 +154,6 @@ export default function VanLoadsList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Van Loads"
-      columns={columns}
-      data={vanLoads}
-      loading={loading}
-      onRefresh={loadVanLoads}
-      createPath="/van-sales/van-loads/create"
-      createLabel="Create Van Load"
-    />
+    </>
   )
 }

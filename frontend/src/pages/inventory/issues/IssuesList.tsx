@@ -34,15 +34,20 @@ export default function IssuesList() {
   }
 
   const handleReverse = async (issueId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this issue?')) return
-
-    try {
-      await inventoryService.reverseIssue(issueId)
-      loadIssues()
-    } catch (error) {
-      console.error('Failed to reverse issue:', error)
-      toast.error('Failed to reverse issue')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this issue?',
+      action: async () => {
+        try {
+          await inventoryService.reverseIssue(issueId)
+          loadIssues()
+        } catch (error) {
+          console.error('Failed to reverse issue:', error)
+          toast.error('Failed to reverse issue')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -123,7 +128,22 @@ export default function IssuesList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Inventory Issues"
+      columns={columns}
+      data={issues}
+      loading={loading}
+      onRefresh={loadIssues}
+      createPath="/inventory/issues/create"
+      createLabel="Create Issue"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -133,20 +153,6 @@ export default function IssuesList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Inventory Issues"
-      columns={columns}
-      data={issues}
-      loading={loading}
-      onRefresh={loadIssues}
-      createPath="/inventory/issues/create"
-      createLabel="Create Issue"
-    />
+    </>
   )
 }

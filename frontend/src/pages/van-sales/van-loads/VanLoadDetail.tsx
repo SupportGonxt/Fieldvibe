@@ -34,34 +34,27 @@ export default function VanLoadDetail() {
   }
 
   const handleConfirm = async () => {
-    if (!window.confirm('Are you sure you want to confirm this van load?')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this van load?',
+      action: async () => {
+        try {
       await vanSalesService.confirmVanLoad(Number(id))
       navigate('/van-sales/van-loads')
     } catch (error) {
       console.error('Failed to confirm van load:', error)
       toast.error('Failed to confirm van load')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-      
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
-        title={pendingAction.title}
-        message={pendingAction.message}
-        confirmLabel="Confirm"
-        variant="danger"
-      />
-    </div>
+      </div>
     )
   }
 
@@ -90,7 +83,8 @@ export default function VanLoadDetail() {
   }[vanLoad.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Van Load ${vanLoad.load_number}`}
       fields={fields}
       auditTrail={vanLoad.audit_trail || []}
@@ -98,5 +92,15 @@ export default function VanLoadDetail() {
       status={vanLoad.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

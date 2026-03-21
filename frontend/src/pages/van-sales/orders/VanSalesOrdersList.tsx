@@ -118,7 +118,39 @@ export default function VanSalesOrdersList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  const handleReverse = async (orderId: number) => {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this order?',
+      action: async () => {
+        try {
+          await vanSalesService.reverseOrder(orderId)
+          loadOrders()
+        } catch (error) {
+          console.error('Failed to reverse order:', error)
+          toast.error('Failed to reverse order')
+        }
+      }
+    })
+    setConfirmOpen(true)
+  }
+
+  return (
+    <>
+      <TransactionList
+      title="Van Sales Orders"
+      columns={columns}
+      data={orders}
+      loading={loading}
+      onRefresh={loadOrders}
+      createPath="/van-sales/orders/create"
+      createLabel="Create Order"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -128,32 +160,6 @@ export default function VanSalesOrdersList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  const handleReverse = async (orderId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this order?')) return
-
-    try {
-      await vanSalesService.reverseOrder(orderId)
-      loadOrders()
-    } catch (error) {
-      console.error('Failed to reverse order:', error)
-      toast.error('Failed to reverse order')
-    }
-  }
-
-  return (
-    <TransactionList
-      title="Van Sales Orders"
-      columns={columns}
-      data={orders}
-      loading={loading}
-      onRefresh={loadOrders}
-      createPath="/van-sales/orders/create"
-      createLabel="Create Order"
-    />
+    </>
   )
 }

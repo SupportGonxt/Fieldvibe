@@ -34,15 +34,20 @@ export default function StockCountsList() {
   }
 
   const handleConfirm = async (countId: number) => {
-    if (!window.confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) return
-
-    try {
-      await inventoryService.confirmStockCount(countId)
-      loadStockCounts()
-    } catch (error) {
-      console.error('Failed to confirm stock count:', error)
-      toast.error('Failed to confirm stock count')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this stock count? This will create adjustments for variances.',
+      action: async () => {
+        try {
+          await inventoryService.confirmStockCount(countId)
+          loadStockCounts()
+        } catch (error) {
+          console.error('Failed to confirm stock count:', error)
+          toast.error('Failed to confirm stock count')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -136,7 +141,22 @@ export default function StockCountsList() {
               <CheckCircle className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Stock Counts"
+      columns={columns}
+      data={stockCounts}
+      loading={loading}
+      onRefresh={loadStockCounts}
+      createPath="/inventory/stock-counts/create"
+      createLabel="Create Stock Count"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -146,20 +166,6 @@ export default function StockCountsList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Stock Counts"
-      columns={columns}
-      data={stockCounts}
-      loading={loading}
-      onRefresh={loadStockCounts}
-      createPath="/inventory/stock-counts/create"
-      createLabel="Create Stock Count"
-    />
+    </>
   )
 }

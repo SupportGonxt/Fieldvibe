@@ -34,34 +34,27 @@ export default function ReceiptDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this receipt? This will reverse all inventory movements.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this receipt? This will reverse all inventory movements.',
+      action: async () => {
+        try {
       await inventoryService.reverseReceipt(Number(id))
       navigate('/inventory/receipts')
     } catch (error) {
       console.error('Failed to reverse receipt:', error)
       toast.error('Failed to reverse receipt')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-      
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
-        title={pendingAction.title}
-        message={pendingAction.message}
-        confirmLabel="Confirm"
-        variant="danger"
-      />
-    </div>
+      </div>
     )
   }
 
@@ -89,7 +82,8 @@ export default function ReceiptDetail() {
   }[receipt.status] as 'green' | 'yellow' | 'red'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Receipt ${receipt.receipt_number}`}
       fields={fields}
       auditTrail={receipt.audit_trail || []}
@@ -98,5 +92,15 @@ export default function ReceiptDetail() {
       status={receipt.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

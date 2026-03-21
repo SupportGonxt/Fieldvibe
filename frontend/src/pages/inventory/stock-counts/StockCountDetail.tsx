@@ -34,34 +34,27 @@ export default function StockCountDetail() {
   }
 
   const handleConfirm = async () => {
-    if (!window.confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this stock count? This will create adjustments for variances.',
+      action: async () => {
+        try {
       await inventoryService.confirmStockCount(Number(id))
       navigate('/inventory/stock-counts')
     } catch (error) {
       console.error('Failed to confirm stock count:', error)
       toast.error('Failed to confirm stock count')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-      
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
-        title={pendingAction.title}
-        message={pendingAction.message}
-        confirmLabel="Confirm"
-        variant="danger"
-      />
-    </div>
+      </div>
     )
   }
 
@@ -97,7 +90,8 @@ export default function StockCountDetail() {
   }[stockCount.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Stock Count ${stockCount.count_number}`}
       fields={fields}
       auditTrail={stockCount.audit_trail || []}
@@ -105,5 +99,15 @@ export default function StockCountDetail() {
       status={stockCount.status.replace('_', ' ')}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

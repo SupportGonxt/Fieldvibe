@@ -34,34 +34,27 @@ export default function VanSalesOrderDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this order? This action cannot be undone.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this order? This action cannot be undone.',
+      action: async () => {
+        try {
       await vanSalesService.reverseOrder(Number(id))
       navigate('/van-sales/orders')
     } catch (error) {
       console.error('Failed to reverse order:', error)
       toast.error('Failed to reverse order')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-      
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
-        title={pendingAction.title}
-        message={pendingAction.message}
-        confirmLabel="Confirm"
-        variant="danger"
-      />
-    </div>
+      </div>
     )
   }
 
@@ -94,7 +87,8 @@ export default function VanSalesOrderDetail() {
   }[order.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Order ${order.order_number}`}
       fields={fields}
       auditTrail={auditTrail}
@@ -104,5 +98,15 @@ export default function VanSalesOrderDetail() {
       status={order.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

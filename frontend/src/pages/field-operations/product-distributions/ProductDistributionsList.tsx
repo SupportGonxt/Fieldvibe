@@ -32,15 +32,20 @@ export default function ProductDistributionsList() {
   }
 
   const handleReverse = async (distributionId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this product distribution?')) return
-
-    try {
-      await fieldOperationsService.reverseProductDistribution(distributionId)
-      loadDistributions()
-    } catch (error) {
-      console.error('Failed to reverse product distribution:', error)
-      toast.error('Failed to reverse product distribution')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this product distribution?',
+      action: async () => {
+        try {
+          await fieldOperationsService.reverseProductDistribution(distributionId)
+          loadDistributions()
+        } catch (error) {
+          console.error('Failed to reverse product distribution:', error)
+          toast.error('Failed to reverse product distribution')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -126,7 +131,22 @@ export default function ProductDistributionsList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Product Distributions"
+      columns={columns}
+      data={distributions}
+      loading={loading}
+      onRefresh={loadDistributions}
+      createPath="/field-operations/product-distributions/create"
+      createLabel="Create Distribution"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -136,20 +156,6 @@ export default function ProductDistributionsList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Product Distributions"
-      columns={columns}
-      data={distributions}
-      loading={loading}
-      onRefresh={loadDistributions}
-      createPath="/field-operations/product-distributions/create"
-      createLabel="Create Distribution"
-    />
+    </>
   )
 }

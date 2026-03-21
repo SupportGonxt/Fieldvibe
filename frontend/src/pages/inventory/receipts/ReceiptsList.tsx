@@ -34,15 +34,20 @@ export default function ReceiptsList() {
   }
 
   const handleReverse = async (receiptId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this receipt?')) return
-
-    try {
-      await inventoryService.reverseReceipt(receiptId)
-      loadReceipts()
-    } catch (error) {
-      console.error('Failed to reverse receipt:', error)
-      toast.error('Failed to reverse receipt')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this receipt?',
+      action: async () => {
+        try {
+          await inventoryService.reverseReceipt(receiptId)
+          loadReceipts()
+        } catch (error) {
+          console.error('Failed to reverse receipt:', error)
+          toast.error('Failed to reverse receipt')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -123,7 +128,22 @@ export default function ReceiptsList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Inventory Receipts (GRN)"
+      columns={columns}
+      data={receipts}
+      loading={loading}
+      onRefresh={loadReceipts}
+      createPath="/inventory/receipts/create"
+      createLabel="Create Receipt"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -133,20 +153,6 @@ export default function ReceiptsList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Inventory Receipts (GRN)"
-      columns={columns}
-      data={receipts}
-      loading={loading}
-      onRefresh={loadReceipts}
-      createPath="/inventory/receipts/create"
-      createLabel="Create Receipt"
-    />
+    </>
   )
 }

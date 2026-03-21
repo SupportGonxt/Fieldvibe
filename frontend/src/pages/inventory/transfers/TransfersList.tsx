@@ -34,15 +34,20 @@ export default function TransfersList() {
   }
 
   const handleReverse = async (transferId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this transfer?')) return
-
-    try {
-      await inventoryService.reverseTransfer(transferId)
-      loadTransfers()
-    } catch (error) {
-      console.error('Failed to reverse transfer:', error)
-      toast.error('Failed to reverse transfer')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this transfer?',
+      action: async () => {
+        try {
+          await inventoryService.reverseTransfer(transferId)
+          loadTransfers()
+        } catch (error) {
+          console.error('Failed to reverse transfer:', error)
+          toast.error('Failed to reverse transfer')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -119,7 +124,22 @@ export default function TransfersList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Inventory Transfers"
+      columns={columns}
+      data={transfers}
+      loading={loading}
+      onRefresh={loadTransfers}
+      createPath="/inventory/transfers/create"
+      createLabel="Create Transfer"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -129,20 +149,6 @@ export default function TransfersList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Inventory Transfers"
-      columns={columns}
-      data={transfers}
-      loading={loading}
-      onRefresh={loadTransfers}
-      createPath="/inventory/transfers/create"
-      createLabel="Create Transfer"
-    />
+    </>
   )
 }

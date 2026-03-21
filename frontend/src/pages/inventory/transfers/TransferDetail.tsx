@@ -34,34 +34,27 @@ export default function TransferDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this transfer? This will reverse all inventory movements.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this transfer? This will reverse all inventory movements.',
+      action: async () => {
+        try {
       await inventoryService.reverseTransfer(Number(id))
       navigate('/inventory/transfers')
     } catch (error) {
       console.error('Failed to reverse transfer:', error)
       toast.error('Failed to reverse transfer')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-      
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
-        title={pendingAction.title}
-        message={pendingAction.message}
-        confirmLabel="Confirm"
-        variant="danger"
-      />
-    </div>
+      </div>
     )
   }
 
@@ -91,7 +84,8 @@ export default function TransferDetail() {
   }[transfer.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Transfer ${transfer.transfer_number}`}
       fields={fields}
       auditTrail={transfer.audit_trail || []}
@@ -100,5 +94,15 @@ export default function TransferDetail() {
       status={transfer.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

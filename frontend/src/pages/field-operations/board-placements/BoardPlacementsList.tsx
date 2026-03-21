@@ -32,15 +32,20 @@ export default function BoardPlacementsList() {
   }
 
   const handleReverse = async (placementId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this board placement?')) return
-
-    try {
-      await fieldOperationsService.reverseBoardPlacement(placementId)
-      loadPlacements()
-    } catch (error) {
-      console.error('Failed to reverse board placement:', error)
-      toast.error('Failed to reverse board placement')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this board placement?',
+      action: async () => {
+        try {
+          await fieldOperationsService.reverseBoardPlacement(placementId)
+          loadPlacements()
+        } catch (error) {
+          console.error('Failed to reverse board placement:', error)
+          toast.error('Failed to reverse board placement')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -122,7 +127,22 @@ export default function BoardPlacementsList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        
+    </div>
+      )
+    }
+  ]
+
+  return (
+    <>
+      <TransactionList
+      title="Board Placements"
+      columns={columns}
+      data={placements}
+      loading={loading}
+      onRefresh={loadPlacements}
+      createPath="/field-operations/board-placements/create"
+      createLabel="Create Placement"
+    />
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
@@ -132,20 +152,6 @@ export default function BoardPlacementsList() {
         confirmLabel="Confirm"
         variant="danger"
       />
-    </div>
-      )
-    }
-  ]
-
-  return (
-    <TransactionList
-      title="Board Placements"
-      columns={columns}
-      data={placements}
-      loading={loading}
-      onRefresh={loadPlacements}
-      createPath="/field-operations/board-placements/create"
-      createLabel="Create Placement"
-    />
+    </>
   )
 }
