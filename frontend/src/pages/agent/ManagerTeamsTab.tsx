@@ -13,6 +13,12 @@ interface TeamStat {
   target_registrations: number
   actual_registrations: number
   achievement: number
+  team_lead_own?: {
+    target_visits: number
+    actual_visits: number
+    target_registrations: number
+    actual_registrations: number
+  }
 }
 
 interface CommissionRule {
@@ -350,6 +356,51 @@ export default function ManagerTeamsTab() {
         </div>
       )}
 
+      {/* Hierarchy Scorecard: Manager Score */}
+      <div className="px-5 py-2">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Hierarchy Scores
+          </h3>
+          <div className="space-y-2.5">
+            {/* Manager's Own Score */}
+            <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-gray-400">My Score (Org Total)</p>
+                <p className="text-sm font-semibold text-white">Manager</p>
+              </div>
+              <div className="text-right">
+                <span className={`text-lg font-bold ${pctClass(achievement)}`}>{achievement}%</span>
+              </div>
+              <div className={`w-2.5 h-2.5 rounded-full ${achievement >= 100 ? 'bg-[#00E87B]' : achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+            </div>
+
+            {/* Team Lead Scores */}
+            {(data?.teams || []).map((team) => {
+              const tlAch = team.achievement || 0
+              return (
+                <div key={team.team_lead_id} className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-400">Team Lead</p>
+                    <p className="text-sm font-semibold text-white">{team.team_lead_name}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-lg font-bold ${pctClass(tlAch)}`}>{tlAch}%</span>
+                  </div>
+                  <div className={`w-2.5 h-2.5 rounded-full ${tlAch >= 100 ? 'bg-[#00E87B]' : tlAch >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Team Leads List */}
       <div className="px-5 pt-2 pb-4">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Team Performance</h2>
@@ -378,7 +429,7 @@ export default function ManagerTeamsTab() {
                       <p className="text-[10px] text-gray-500">{team.agent_count} agents</p>
                     </div>
                     <div className="text-right mr-1">
-                      <span className={`text-xs font-bold ${team.achievement >= 80 ? 'text-[#00E87B]' : team.achievement >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                      <span className={`text-xs font-bold ${pctClass(team.achievement)}`}>
                         {team.achievement}%
                       </span>
                     </div>

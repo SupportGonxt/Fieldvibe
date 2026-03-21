@@ -63,6 +63,17 @@ interface TeamData {
   commission_rules: CommissionRule[]
   commission_tiers: CommissionTier[]
   current_team_tier: CommissionTier | null
+  team_lead_own: {
+    target_visits: number
+    actual_visits: number
+    target_registrations: number
+    actual_registrations: number
+    achievement: number
+  } | null
+  manager_performance: {
+    manager_name: string
+    achievement: number
+  } | null
 }
 
 function tierColor(name: string): string {
@@ -341,6 +352,65 @@ export default function TeamTab() {
         </div>
       )}
 
+      {/* Hierarchy Scorecard: Team Lead → Agents → Manager */}
+      <div className="px-5 py-2">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Hierarchy Scores
+          </h3>
+          <div className="space-y-2.5">
+            {/* My Score (Team Lead) */}
+            <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
+                <Users className="w-4 h-4 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-gray-400">My Score (Team Total)</p>
+                <p className="text-sm font-semibold text-white">Team Lead</p>
+              </div>
+              <div className="text-right">
+                <span className={`text-lg font-bold ${pctClass(achievement)}`}>{achievement}%</span>
+              </div>
+              <div className={`w-2.5 h-2.5 rounded-full ${achievement >= 100 ? 'bg-[#00E87B]' : achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+            </div>
+
+            {/* Team Lead's Own Contribution */}
+            {data?.team_lead_own && (
+              <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-400">My Own Contribution</p>
+                  <p className="text-[10px] text-gray-500">{data.team_lead_own.actual_visits}/{data.team_lead_own.target_visits} visits</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-lg font-bold ${pctClass(data.team_lead_own.achievement)}`}>{data.team_lead_own.achievement}%</span>
+                </div>
+                <div className={`w-2.5 h-2.5 rounded-full ${data.team_lead_own.achievement >= 100 ? 'bg-[#00E87B]' : data.team_lead_own.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              </div>
+            )}
+
+            {/* Manager Score */}
+            {data?.manager_performance && (
+              <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-400">Manager</p>
+                  <p className="text-sm font-semibold text-white">{data.manager_performance.manager_name}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-lg font-bold ${pctClass(data.manager_performance.achievement)}`}>{data.manager_performance.achievement}%</span>
+                </div>
+                <div className={`w-2.5 h-2.5 rounded-full ${data.manager_performance.achievement >= 100 ? 'bg-[#00E87B]' : data.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Agent List */}
       <div className="px-5 pt-2 pb-4">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Agent Performance</h2>
@@ -369,7 +439,7 @@ export default function TeamTab() {
                       <p className="text-[10px] text-gray-500">{agent.today_visits} visits · {agent.today_registrations} individuals today</p>
                     </div>
                     <div className="text-right mr-1">
-                      <span className={`text-xs font-bold ${agent.achievement >= 80 ? 'text-[#00E87B]' : agent.achievement >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                      <span className={`text-xs font-bold ${pctClass(agent.achievement)}`}>
                         {agent.achievement}%
                       </span>
                     </div>

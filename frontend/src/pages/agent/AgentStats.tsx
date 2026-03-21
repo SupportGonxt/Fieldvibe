@@ -98,6 +98,10 @@ interface PerformanceData {
     actual_registrations: number
     achievement: number
   } | null
+  manager_performance: {
+    manager_name: string
+    achievement: number
+  } | null
 }
 
 function getBarBg(isToday: boolean, count: number): string {
@@ -277,6 +281,65 @@ function OverviewTab({
               <p className={'text-sm font-bold ' + (perfData.team_performance.achievement >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{perfData.team_performance.achievement}%</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Hierarchy Scorecard: Agent → Team Lead → Manager */}
+      {(perfData?.team_performance || perfData?.manager_performance) && (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Hierarchy Scores
+          </h3>
+          <div className="space-y-2.5">
+            {/* My Score */}
+            <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
+                <UserCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-gray-400">My Score</p>
+                <p className="text-sm font-semibold text-white">Agent</p>
+              </div>
+              <div className="text-right">
+                <span className={`text-lg font-bold ${pctClass(overallPct)}`}>{overallPct}%</span>
+              </div>
+              <div className={`w-2.5 h-2.5 rounded-full ${overallPct >= 100 ? 'bg-[#00E87B]' : overallPct >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+            </div>
+
+            {/* Team Lead Score */}
+            {perfData?.team_performance && (
+              <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-400">Team Lead</p>
+                  <p className="text-sm font-semibold text-white">{perfData.team_performance.team_lead_name}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-lg font-bold ${pctClass(perfData.team_performance.achievement)}`}>{perfData.team_performance.achievement}%</span>
+                </div>
+                <div className={`w-2.5 h-2.5 rounded-full ${perfData.team_performance.achievement >= 100 ? 'bg-[#00E87B]' : perfData.team_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              </div>
+            )}
+
+            {/* Manager Score */}
+            {perfData?.manager_performance && (
+              <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-400">Manager</p>
+                  <p className="text-sm font-semibold text-white">{perfData.manager_performance.manager_name}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-lg font-bold ${pctClass(perfData.manager_performance.achievement)}`}>{perfData.manager_performance.achievement}%</span>
+                </div>
+                <div className={`w-2.5 h-2.5 rounded-full ${perfData.manager_performance.achievement >= 100 ? 'bg-[#00E87B]' : perfData.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>
