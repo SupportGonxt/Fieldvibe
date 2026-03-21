@@ -1277,15 +1277,15 @@ api.post('/users', requireRole('admin'), async (c) => {
   if (isMobileRole) {
     pinHash = await bcrypt.hash('12345', 10);
   }
-  // Email is optional for agents but required for non-agent roles
+  // Email is optional for mobile-login roles (agent, team_lead, manager) but required for other roles
   const email = body.email || null;
-  if (!email && !isAgent) return c.json({ success: false, message: 'Email is required for non-agent roles' }, 400);
-  // For agents without email, generate a placeholder to satisfy NOT NULL constraint
-  const emailForDb = email || (isAgent ? `agent_${id.substring(0, 8)}@placeholder.local` : null);
+  if (!email && !isMobileRole) return c.json({ success: false, message: 'Email is required for non-mobile roles' }, 400);
+  // For mobile roles without email, generate a placeholder to satisfy NOT NULL constraint
+  const emailForDb = email || (isMobileRole ? `user_${id.substring(0, 8)}@placeholder.local` : null);
   try {
     const agentType = body.agent_type || body.agentType || null;
     await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, body.phone || null, hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
-    return c.json({ success: true, data: { id, password, default_pin: isAgent ? '12345' : undefined }, message: 'User created' }, 201);
+    return c.json({ success: true, data: { id, password, default_pin: isMobileRole ? '12345' : undefined }, message: 'User created' }, 201);
   } catch (err) {
     const msg = err.message || 'Failed to create user';
     if (msg.includes('UNIQUE constraint failed: users.email')) {
