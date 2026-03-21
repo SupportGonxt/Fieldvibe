@@ -378,7 +378,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       const [teamMembers, teamVisits, teamRegs, teamLeadInfo] = await Promise.all([
         db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(teamLeadId, tenantId).all(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ?").bind(tenantId, teamLeadId, tenantId, currentMonth + '-01').all(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ? AND visit_type = 'individual'").bind(tenantId, teamLeadId, tenantId, currentMonth + '-01').all(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND created_at >= ?").bind(tenantId, teamLeadId, tenantId, currentMonth + '-01').all(),
         db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(teamLeadId, tenantId).first(),
       ]);
       const memberCount = teamMembers?.results?.length || 0;
@@ -617,8 +617,17 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     const teamLeadsBinds = isAdmin ? [tenantId] : [tenantId, userId];
     const teamLeads = await db.prepare(teamLeadsQuery).bind(...teamLeadsBinds).all();
 
-    // Get all agents (to show org-wide stats)
-    const allAgents = await db.prepare("SELECT id, first_name, last_name, role, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1").bind(tenantId).all();
+    // Get agents scoped to this manager's team leads (or all if admin)
+    const teamLeadIds = (teamLeads.results || []).map(tl => tl.id);
+    let allAgents;
+    if (isAdmin) {
+      allAgents = await db.prepare("SELECT id, first_name, last_name, role, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1").bind(tenantId).all();
+    } else if (teamLeadIds.length > 0) {
+      const tlPh = teamLeadIds.map(() => '?').join(',');
+      allAgents = await db.prepare(`SELECT id, first_name, last_name, role, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1 AND (team_lead_id IN (${tlPh}) OR team_lead_id IS NULL)`).bind(tenantId, ...teamLeadIds).all();
+    } else {
+      allAgents = { results: [] };
+    }
 
     // Build team lead breakdown with their agents' performance
     const teamsData = [];
