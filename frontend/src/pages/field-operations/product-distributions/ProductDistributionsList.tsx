@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function ProductDistributionsList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [distributions, setDistributions] = useState([])
@@ -29,15 +32,20 @@ export default function ProductDistributionsList() {
   }
 
   const handleReverse = async (distributionId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this product distribution?')) return
-
-    try {
-      await fieldOperationsService.reverseProductDistribution(distributionId)
-      loadDistributions()
-    } catch (error) {
-      console.error('Failed to reverse product distribution:', error)
-      toast.error('Failed to reverse product distribution')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this product distribution?',
+      action: async () => {
+        try {
+          await fieldOperationsService.reverseProductDistribution(distributionId)
+          loadDistributions()
+        } catch (error) {
+          console.error('Failed to reverse product distribution:', error)
+          toast.error('Failed to reverse product distribution')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -123,13 +131,14 @@ export default function ProductDistributionsList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Product Distributions"
       columns={columns}
       data={distributions}
@@ -138,5 +147,15 @@ export default function ProductDistributionsList() {
       createPath="/field-operations/product-distributions/create"
       createLabel="Create Distribution"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

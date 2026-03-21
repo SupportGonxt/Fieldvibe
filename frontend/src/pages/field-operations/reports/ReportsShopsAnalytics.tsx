@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Store, MapPin, Eye, ChevronLeft } from 'lucide-react'
+import { Store, MapPin, Eye, ChevronLeft , AlertTriangle } from 'lucide-react'
 
 interface Shop {
   id: string
@@ -28,7 +28,7 @@ const ReportsShopsAnalytics: React.FC = () => {
 
   const dateParams = `${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading , isError } = useQuery({
     queryKey: ['shops-analytics', page, startDate, endDate],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/shops-analytics?page=${page}&limit=15${dateParams}`)
@@ -36,7 +36,7 @@ const ReportsShopsAnalytics: React.FC = () => {
     },
   })
 
-  const { data: shopDetail, isLoading: detailLoading } = useQuery({
+  const { data: shopDetail, isLoading: detailLoading , isError: isDetailError } = useQuery({
     queryKey: ['shop-detail', selectedShop],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/shops/${selectedShop}`)
@@ -46,6 +46,14 @@ const ReportsShopsAnalytics: React.FC = () => {
   })
 
   if (isLoading) return <LoadingSpinner />
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Failed to load data</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400">Please try refreshing the page</p>
+    </div>
+  )
+
 
   if (selectedShop && shopDetail) {
     const shop = shopDetail.shop as Record<string, string>

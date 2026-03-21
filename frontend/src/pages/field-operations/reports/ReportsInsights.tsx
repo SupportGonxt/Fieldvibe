@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { TrendingUp, Award, Activity, Target } from 'lucide-react'
+import { TrendingUp, Award, Activity, Target , AlertTriangle } from 'lucide-react'
 
 interface AgentPerformance {
   agent_id: string
@@ -43,6 +43,14 @@ const ReportsInsights: React.FC = () => {
   })
 
   if (isLoading) return <LoadingSpinner />
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Failed to load data</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400">Please try refreshing the page</p>
+    </div>
+  )
+
 
   const topAgents = [...agentPerf].sort((a, b) => b.conversion_rate - a.conversion_rate).slice(0, 5)
   const mostActive = [...agentPerf].sort((a, b) => b.checkin_count - a.checkin_count).slice(0, 5)

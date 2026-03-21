@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Calendar } from 'lucide-react';
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { apiClient } from '../../services/api.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface Campaign { id: number; name: string; startDate: string; endDate: string; budget: number; status: string; target: number; }
 
 const CampaignManagementPage: React.FC = () => {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<Campaign>>({ status: 'planned' });
@@ -31,11 +34,14 @@ const CampaignManagementPage: React.FC = () => {
   };
 
   const deleteCampaign = async (id: number) => {
-    if (!window.confirm('Delete campaign?')) return;
+    setPendingAction({ title: 'Confirm', message: 'Delete campaign?', action: async () => {
     try {
       const res = await apiClient.delete(`/admin/campaigns/${id}`);
       loadCampaigns();
     } catch (err) { console.error(err); }
+    } })
+    setConfirmOpen(true)
+    return
   };
 
   const getStatusColor = (status: string) => {
@@ -99,6 +105,16 @@ const CampaignManagementPage: React.FC = () => {
           </div>
         ))}
       </div>
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   );
 };

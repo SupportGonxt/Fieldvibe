@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function BoardPlacementsList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [placements, setPlacements] = useState([])
@@ -29,15 +32,20 @@ export default function BoardPlacementsList() {
   }
 
   const handleReverse = async (placementId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this board placement?')) return
-
-    try {
-      await fieldOperationsService.reverseBoardPlacement(placementId)
-      loadPlacements()
-    } catch (error) {
-      console.error('Failed to reverse board placement:', error)
-      toast.error('Failed to reverse board placement')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this board placement?',
+      action: async () => {
+        try {
+          await fieldOperationsService.reverseBoardPlacement(placementId)
+          loadPlacements()
+        } catch (error) {
+          console.error('Failed to reverse board placement:', error)
+          toast.error('Failed to reverse board placement')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -119,13 +127,14 @@ export default function BoardPlacementsList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Board Placements"
       columns={columns}
       data={placements}
@@ -134,5 +143,15 @@ export default function BoardPlacementsList() {
       createPath="/field-operations/board-placements/create"
       createLabel="Create Placement"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

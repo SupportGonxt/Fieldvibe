@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { BarChart3, Users, MapPin, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { BarChart3, Users, MapPin, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight , AlertTriangle } from 'lucide-react'
 
 interface KPIs {
   total_checkins: number
@@ -46,7 +46,7 @@ const ReportsDashboard: React.FC = () => {
 
   const dateParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
 
-  const { data: kpis, isLoading: kpisLoading } = useQuery({
+  const { data: kpis, isLoading: kpisLoading , isError: kpisError } = useQuery({
     queryKey: ['field-ops-kpis', startDate, endDate],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/kpis${dateParams}`)
@@ -87,6 +87,14 @@ const ReportsDashboard: React.FC = () => {
   })
 
   if (kpisLoading) return <LoadingSpinner />
+  if (kpisError) return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Failed to load data</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400">Please try refreshing the page</p>
+    </div>
+  )
+
 
   const maxHourly = Math.max(...hourlyData.map(h => h.count), 1)
   const maxDaily = Math.max(...dailyData.map(d => d.count), 1)

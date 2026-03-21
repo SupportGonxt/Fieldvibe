@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Users, TrendingUp, MapPin } from 'lucide-react'
+import { Users, TrendingUp, MapPin , AlertTriangle } from 'lucide-react'
 
 interface CustomerRecord {
   checkin_id: string
@@ -25,7 +25,7 @@ const ReportsCustomersAnalytics: React.FC = () => {
 
   const dateParams = `${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading , isError } = useQuery({
     queryKey: ['customers-analytics', page, startDate, endDate],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/customers-analytics?page=${page}&limit=20${dateParams}`)
@@ -38,6 +38,14 @@ const ReportsCustomersAnalytics: React.FC = () => {
   })
 
   if (isLoading) return <LoadingSpinner />
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Failed to load data</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400">Please try refreshing the page</p>
+    </div>
+  )
+
 
   const totalPages = Math.ceil((data?.total || 0) / 20)
   const stats = data?.stats || { total_customers: 0, converted: 0, already_betting: 0 }

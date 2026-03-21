@@ -6,8 +6,11 @@ import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function TransferDetail() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,17 +34,20 @@ export default function TransferDetail() {
   }
 
   const handleReverse = async () => {
-    if (!window.confirm('Are you sure you want to reverse this transfer? This will reverse all inventory movements.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this transfer? This will reverse all inventory movements.',
+      action: async () => {
+        try {
       await inventoryService.reverseTransfer(Number(id))
       navigate('/inventory/transfers')
     } catch (error) {
       console.error('Failed to reverse transfer:', error)
       toast.error('Failed to reverse transfer')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
@@ -78,7 +84,8 @@ export default function TransferDetail() {
   }[transfer.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Transfer ${transfer.transfer_number}`}
       fields={fields}
       auditTrail={transfer.audit_trail || []}
@@ -87,5 +94,15 @@ export default function TransferDetail() {
       status={transfer.status}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

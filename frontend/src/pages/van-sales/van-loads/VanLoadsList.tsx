@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function VanLoadsList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [vanLoads, setVanLoads] = useState([])
@@ -31,15 +34,20 @@ export default function VanLoadsList() {
   }
 
   const handleConfirm = async (loadId: number) => {
-    if (!window.confirm('Are you sure you want to confirm this van load?')) return
-
-    try {
-      await vanSalesService.confirmVanLoad(loadId)
-      loadVanLoads()
-    } catch (error) {
-      console.error('Failed to confirm van load:', error)
-      toast.error('Failed to confirm van load')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this van load?',
+      action: async () => {
+        try {
+          await vanSalesService.confirmVanLoad(loadId)
+          loadVanLoads()
+        } catch (error) {
+          console.error('Failed to confirm van load:', error)
+          toast.error('Failed to confirm van load')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -121,13 +129,14 @@ export default function VanLoadsList() {
               <CheckCircle className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Van Loads"
       columns={columns}
       data={vanLoads}
@@ -136,5 +145,15 @@ export default function VanLoadsList() {
       createPath="/van-sales/van-loads/create"
       createLabel="Create Van Load"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

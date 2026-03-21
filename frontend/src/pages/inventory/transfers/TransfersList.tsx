@@ -5,8 +5,11 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function TransfersList() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [transfers, setTransfers] = useState([])
@@ -31,15 +34,20 @@ export default function TransfersList() {
   }
 
   const handleReverse = async (transferId: number) => {
-    if (!window.confirm('Are you sure you want to reverse this transfer?')) return
-
-    try {
-      await inventoryService.reverseTransfer(transferId)
-      loadTransfers()
-    } catch (error) {
-      console.error('Failed to reverse transfer:', error)
-      toast.error('Failed to reverse transfer')
-    }
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to reverse this transfer?',
+      action: async () => {
+        try {
+          await inventoryService.reverseTransfer(transferId)
+          loadTransfers()
+        } catch (error) {
+          console.error('Failed to reverse transfer:', error)
+          toast.error('Failed to reverse transfer')
+        }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   const columns = [
@@ -116,13 +124,14 @@ export default function TransfersList() {
               <RotateCcw className="w-4 h-4" />
             </button>
           )}
-        </div>
+    </div>
       )
     }
   ]
 
   return (
-    <TransactionList
+    <>
+      <TransactionList
       title="Inventory Transfers"
       columns={columns}
       data={transfers}
@@ -131,5 +140,15 @@ export default function TransfersList() {
       createPath="/inventory/transfers/create"
       createLabel="Create Transfer"
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Search } from 'lucide-react'
 import { brandService } from '../../services/brand.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { useToast } from '../../components/ui/Toast'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 interface Brand {
   id: string
@@ -15,6 +16,8 @@ interface Brand {
 }
 
 export default function BrandManagementPage() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
@@ -296,6 +299,16 @@ export default function BrandManagementPage() {
           </div>
         </div>
       )}
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }

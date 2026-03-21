@@ -6,8 +6,11 @@ import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
 
 export default function StockCountDetail() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,17 +34,20 @@ export default function StockCountDetail() {
   }
 
   const handleConfirm = async () => {
-    if (!window.confirm('Are you sure you want to confirm this stock count? This will create adjustments for variances.')) {
-      return
-    }
-
-    try {
+    setPendingAction({
+      title: 'Confirm',
+      message: 'Are you sure you want to confirm this stock count? This will create adjustments for variances.',
+      action: async () => {
+        try {
       await inventoryService.confirmStockCount(Number(id))
       navigate('/inventory/stock-counts')
     } catch (error) {
       console.error('Failed to confirm stock count:', error)
       toast.error('Failed to confirm stock count')
     }
+      }
+    })
+    setConfirmOpen(true)
   }
 
   if (loading) {
@@ -84,7 +90,8 @@ export default function StockCountDetail() {
   }[stockCount.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
+    <>
+      <TransactionDetail
       title={`Stock Count ${stockCount.count_number}`}
       fields={fields}
       auditTrail={stockCount.audit_trail || []}
@@ -92,5 +99,15 @@ export default function StockCountDetail() {
       status={stockCount.status.replace('_', ' ')}
       statusColor={statusColor}
     />
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
+    </>
   )
 }

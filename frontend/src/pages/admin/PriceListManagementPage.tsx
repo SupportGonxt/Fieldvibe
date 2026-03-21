@@ -5,8 +5,11 @@ import { pricingService, PriceList } from '../../services/pricing.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { useToast } from '../../components/ui/Toast'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export default function PriceListManagementPage() {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{ title: string; message: string; action: () => void }>({ title: '', message: '', action: () => {} })
   const { toast } = useToast()
   const navigate = useNavigate()
   const [priceLists, setPriceLists] = useState<PriceList[]>([])
@@ -205,6 +208,16 @@ export default function PriceListManagementPage() {
           </tbody>
         </table>
       </div>
+    
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => { pendingAction.action(); setConfirmOpen(false); }}
+        title={pendingAction.title}
+        message={pendingAction.message}
+        confirmLabel="Confirm"
+        variant="danger"
+      />
     </div>
   )
 }
