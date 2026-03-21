@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import DocumentActions from '../../../components/export/DocumentActions'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
+import type { DocumentData } from '../../../utils/pdf/document-generator'
 
 export default function ReceiptDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -81,8 +83,35 @@ export default function ReceiptDetail() {
     reversed: 'red'
   }[receipt.status] as 'green' | 'yellow' | 'red'
 
+  const documentData: DocumentData = {
+    type: 'goods_receipt',
+    number: receipt.receipt_number || `GRN-${id}`,
+    date: receipt.receipt_date || new Date().toISOString(),
+    status: receipt.status,
+    company: { name: 'Fieldvibe', email: 'warehouse@fieldvibe.com' },
+    customer: { name: receipt.supplier_name || 'Supplier' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    warehouse: receipt.warehouse_name,
+    supplier_name: receipt.supplier_name,
+    po_number: receipt.po_number,
+    notes: receipt.notes,
+    inventory_items: (receipt.items || []).map((item: any) => ({
+      description: item.product_name || item.description || 'Item',
+      sku: item.sku || item.product_code,
+      quantity: item.quantity || 0,
+      uom: item.uom,
+      batch_number: item.batch_number,
+    })),
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-4">
+        <DocumentActions documentData={documentData} />
+      </div>
       <TransactionDetail
       title={`Receipt ${receipt.receipt_number}`}
       fields={fields}

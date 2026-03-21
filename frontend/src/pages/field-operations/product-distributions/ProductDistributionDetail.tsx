@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import DocumentActions from '../../../components/export/DocumentActions'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
+import type { DocumentData } from '../../../utils/pdf/document-generator'
 
 export default function ProductDistributionDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -82,8 +84,36 @@ export default function ProductDistributionDetail() {
     reversed: 'gray'
   }[distribution.status] as 'green' | 'yellow' | 'red' | 'gray'
 
+  const documentData: DocumentData = {
+    type: 'product_distribution',
+    number: distribution.distribution_number || `PD-${id}`,
+    date: distribution.distribution_date || new Date().toISOString(),
+    status: distribution.status,
+    company: { name: 'Fieldvibe', email: 'fieldops@fieldvibe.com' },
+    customer: { name: distribution.customer_name || 'Customer' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    agent_name: distribution.agent_name,
+    product_name: distribution.product_name,
+    quantity: distribution.quantity,
+    commission_amount: distribution.commission_amount,
+    gps_location: distribution.gps_location,
+    notes: distribution.notes,
+    detail_rows: [
+      { label: 'Product', value: distribution.product_name || '-' },
+      { label: 'Quantity', value: String(distribution.quantity || 0) },
+      { label: 'Agent', value: distribution.agent_name || '-' },
+      { label: 'Commission', value: formatCurrency(distribution.commission_amount) },
+    ],
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-4">
+        <DocumentActions documentData={documentData} />
+      </div>
       <TransactionDetail
       title={`Product Distribution ${distribution.distribution_number}`}
       fields={fields}

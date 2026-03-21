@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import DocumentActions from '../../../components/export/DocumentActions'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
+import type { DocumentData } from '../../../utils/pdf/document-generator'
 
 export default function StockCountDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -89,8 +91,35 @@ export default function StockCountDetail() {
     confirmed: 'green'
   }[stockCount.status] as 'green' | 'yellow' | 'red' | 'gray'
 
+  const documentData: DocumentData = {
+    type: 'stock_count',
+    number: stockCount.count_number || `SC-${id}`,
+    date: stockCount.count_date || new Date().toISOString(),
+    status: stockCount.status,
+    company: { name: 'Fieldvibe', email: 'warehouse@fieldvibe.com' },
+    customer: { name: stockCount.warehouse_name || 'Warehouse' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    warehouse: stockCount.warehouse_name,
+    count_type: typeLabels[stockCount.count_type] || stockCount.count_type,
+    notes: stockCount.notes,
+    inventory_items: (stockCount.items || []).map((item: any) => ({
+      description: item.product_name || item.description || 'Item',
+      sku: item.sku || item.product_code,
+      quantity: item.counted_qty || item.quantity || 0,
+      expected_qty: item.expected_qty || item.system_qty,
+      variance: item.variance,
+      uom: item.uom,
+    })),
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-4">
+        <DocumentActions documentData={documentData} />
+      </div>
       <TransactionDetail
       title={`Stock Count ${stockCount.count_number}`}
       fields={fields}

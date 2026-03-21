@@ -30,6 +30,16 @@ export default function DocumentActions({ documentData, className = '' }: Docume
     delivery_note: 'Delivery Note',
     quotation: 'Quotation',
     receipt: 'Receipt',
+    van_load: 'Van Load Sheet',
+    van_sales_order: 'Van Sales Order',
+    stock_count: 'Stock Count Sheet',
+    stock_transfer: 'Stock Transfer Note',
+    stock_issue: 'Stock Issue Note',
+    goods_receipt: 'Goods Received Note',
+    board_placement: 'Board Placement Record',
+    product_distribution: 'Product Distribution Record',
+    commission_statement: 'Commission Statement',
+    sales_return: 'Sales Return Note',
   }
 
   const handlePrint = () => {

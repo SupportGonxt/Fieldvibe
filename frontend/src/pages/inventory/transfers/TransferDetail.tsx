@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import DocumentActions from '../../../components/export/DocumentActions'
 import { inventoryService } from '../../../services/inventory.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
+import type { DocumentData } from '../../../utils/pdf/document-generator'
 
 export default function TransferDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -83,8 +85,34 @@ export default function TransferDetail() {
     reversed: 'red'
   }[transfer.status] as 'green' | 'yellow' | 'red' | 'gray'
 
+  const documentData: DocumentData = {
+    type: 'stock_transfer',
+    number: transfer.transfer_number || `TRF-${id}`,
+    date: transfer.transfer_date || new Date().toISOString(),
+    status: transfer.status,
+    company: { name: 'Fieldvibe', email: 'warehouse@fieldvibe.com' },
+    customer: { name: transfer.to_warehouse || 'Destination Warehouse' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    from_warehouse: transfer.from_warehouse,
+    to_warehouse: transfer.to_warehouse,
+    notes: transfer.notes,
+    inventory_items: (transfer.items || []).map((item: any) => ({
+      description: item.product_name || item.description || 'Item',
+      sku: item.sku || item.product_code,
+      quantity: item.quantity || 0,
+      uom: item.uom,
+      batch_number: item.batch_number,
+    })),
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-4">
+        <DocumentActions documentData={documentData} />
+      </div>
       <TransactionDetail
       title={`Transfer ${transfer.transfer_number}`}
       fields={fields}

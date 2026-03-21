@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import DocumentActions from '../../../components/export/DocumentActions'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
+import type { DocumentData } from '../../../utils/pdf/document-generator'
 
 export default function BoardPlacementDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -84,8 +86,36 @@ export default function BoardPlacementDetail() {
     reversed: 'gray'
   }[placement.status] as 'green' | 'yellow' | 'red' | 'gray'
 
+  const documentData: DocumentData = {
+    type: 'board_placement',
+    number: placement.placement_number || `BP-${id}`,
+    date: placement.placement_date || new Date().toISOString(),
+    status: placement.status,
+    company: { name: 'Fieldvibe', email: 'fieldops@fieldvibe.com' },
+    customer: { name: placement.customer_name || 'Customer' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    agent_name: placement.agent_name,
+    board_type: placement.board_type,
+    dimensions: placement.dimensions,
+    commission_amount: placement.commission_amount,
+    gps_location: placement.gps_location,
+    notes: placement.notes,
+    detail_rows: [
+      { label: 'Board Type', value: placement.board_type || '-' },
+      { label: 'Dimensions', value: placement.dimensions || '-' },
+      { label: 'Agent', value: placement.agent_name || '-' },
+      { label: 'Commission', value: formatCurrency(placement.commission_amount) },
+    ],
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-4">
+        <DocumentActions documentData={documentData} />
+      </div>
       <TransactionDetail
       title={`Board Placement ${placement.placement_number}`}
       fields={fields}

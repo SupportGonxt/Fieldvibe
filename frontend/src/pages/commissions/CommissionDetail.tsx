@@ -2,8 +2,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Edit, DollarSign, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
+import DocumentActions from '../../components/export/DocumentActions'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import type { DocumentData } from '../../utils/pdf/document-generator'
 
 export default function CommissionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -49,6 +51,29 @@ export default function CommissionDetail() {
     return <div className="p-6">Commission not found</div>
   }
 
+  const documentData: DocumentData = {
+    type: 'commission_statement',
+    number: `COM-${id}`,
+    date: commission.payment_date || new Date().toISOString(),
+    status: commission.status,
+    company: { name: 'Fieldvibe', email: 'commissions@fieldvibe.com' },
+    customer: { name: commission.agent_name || 'Agent' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: commission.total_amount || 0,
+    agent_name: commission.agent_name,
+    period: commission.period,
+    base_amount: commission.base_amount,
+    bonus_amount: commission.bonus_amount,
+    total_amount: commission.total_amount,
+    sales_target: commission.sales_target,
+    sales_achieved: commission.sales_achieved,
+    achievement_rate: commission.achievement_rate,
+    payment_date: commission.payment_date,
+    notes: commission.notes,
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -65,6 +90,7 @@ export default function CommissionDetail() {
             <p className="text-gray-600">{commission.period}</p>
           </div>
           <div className="flex gap-2">
+            <DocumentActions documentData={documentData} />
             <button
               onClick={() => navigate(`/commissions/${id}/edit`)}
               className="btn-secondary flex items-center gap-2"

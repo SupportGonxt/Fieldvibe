@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
+import DocumentActions from '../../../components/export/DocumentActions'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { useToast } from '../../../components/ui/Toast'
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog'
+import type { DocumentData } from '../../../utils/pdf/document-generator'
 
 export default function VanLoadDetail() {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -82,8 +84,34 @@ export default function VanLoadDetail() {
     completed: 'gray'
   }[vanLoad.status] as 'green' | 'yellow' | 'red' | 'gray'
 
+  const documentData: DocumentData = {
+    type: 'van_load',
+    number: vanLoad.load_number || `VL-${id}`,
+    date: vanLoad.load_date || new Date().toISOString(),
+    status: vanLoad.status,
+    company: { name: 'Fieldvibe', email: 'operations@fieldvibe.com' },
+    customer: { name: vanLoad.driver_name || 'Driver' },
+    items: [],
+    subtotal: 0,
+    tax_total: 0,
+    total: 0,
+    van_number: vanLoad.van_number,
+    driver_name: vanLoad.driver_name,
+    route_name: vanLoad.route_name,
+    notes: vanLoad.notes,
+    inventory_items: (vanLoad.items || []).map((item: any) => ({
+      description: item.product_name || item.description || 'Item',
+      sku: item.sku || item.product_code,
+      quantity: item.quantity || 0,
+      uom: item.uom,
+    })),
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-4">
+        <DocumentActions documentData={documentData} />
+      </div>
       <TransactionDetail
       title={`Van Load ${vanLoad.load_number}`}
       fields={fields}
