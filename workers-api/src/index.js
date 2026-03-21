@@ -268,7 +268,7 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
       }
     }
     // Find agent by phone number (scoped to tenant if provided)
-    const user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep')${tenantFilter}`).bind(...tenantBinds).first();
+    const user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep', 'manager')${tenantFilter}`).bind(...tenantBinds).first();
     if (!user) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
     // Verify PIN (stored as pin_hash, fallback to password_hash for backward compat)
     const pinHash = user.pin_hash || user.password_hash;
@@ -613,8 +613,8 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     const isAdmin = ['admin', 'super_admin'].includes(caller.role);
     const teamLeadsQuery = isAdmin
       ? "SELECT id, first_name, last_name, phone, role FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name"
-      : "SELECT id, first_name, last_name, phone, role FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name";
-    const teamLeadsBinds = [tenantId];
+      : "SELECT id, first_name, last_name, phone, role FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ? ORDER BY first_name";
+    const teamLeadsBinds = isAdmin ? [tenantId] : [tenantId, userId];
     const teamLeads = await db.prepare(teamLeadsQuery).bind(...teamLeadsBinds).all();
 
     // Get all agents (to show org-wide stats)
