@@ -6147,7 +6147,7 @@ api.get('/visit-process-flow', authMiddleware, async (c) => {
       flow = await db.prepare("SELECT * FROM process_flows WHERE id = ? AND is_active = 1").bind(defaultId).first();
     }
     if (!flow) return c.json({ data: null, steps: [] });
-    const steps = await db.prepare("SELECT * FROM process_flow_steps WHERE process_flow_id = ? AND is_active = 1 ORDER BY step_order").bind(flow.id).all();
+    const steps = await db.prepare("SELECT * FROM process_flow_steps WHERE process_flow_id = ? AND tenant_id IN (?, 'default') AND is_active = 1 ORDER BY step_order").bind(flow.id, tenantId).all();
     // Deduplicate steps by step_key (prefer tenant-specific over default, keep lowest step_order per key)
     const allSteps = steps?.results || [];
     const seen = new Map();
