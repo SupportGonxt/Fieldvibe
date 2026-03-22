@@ -10,6 +10,7 @@ import {
   DollarSign,
   Settings,
   ShieldCheck,
+  Database,
   LucideIcon
 } from 'lucide-react'
 
@@ -217,6 +218,30 @@ export const navigation: NavigationItem[] = [
 
       // ── Organization ──
       { name: 'Hierarchy', href: '/marketing/hierarchy', permission: null, description: 'Marketing agent hierarchy', group: 'Organization' },
+    ],
+  },
+
+  // ═══════════════════ SECTION: MASTER DATA ═══════════════════
+  {
+    name: 'Master Data',
+    href: '/master-data',
+    icon: Database,
+    permission: null,
+    section: 'Platform',
+    category: 'System',
+    children: [
+      // ── Core Records ──
+      { name: 'Customers', href: '/customers', permission: null, description: 'Customer directory', group: 'Core Records' },
+      { name: 'Brands', href: '/admin/brands', permission: null, description: 'Brand management', group: 'Core Records' },
+      { name: 'Products', href: '/products', permission: null, description: 'Product catalog', group: 'Core Records' },
+      { name: 'Territories', href: '/admin/territories', permission: null, description: 'Territory management', group: 'Core Records' },
+
+      // ── Pricing & Commissions ──
+      { name: 'Price Lists', href: '/admin/price-lists', permission: null, description: 'Pricing management', group: 'Pricing & Commissions' },
+      { name: 'Commission Tiers', href: '/field-operations/commission-tiers', permission: null, description: 'Commission tier configuration', group: 'Pricing & Commissions' },
+
+      // ── Surveys ──
+      { name: 'Surveys', href: '/surveys', permission: null, description: 'Survey management', group: 'Surveys' },
     ],
   },
 

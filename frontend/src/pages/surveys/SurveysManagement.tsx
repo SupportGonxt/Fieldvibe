@@ -20,7 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { surveysService, Survey, SurveyFilter } from '../../services/surveys.service'
+import { surveysService, Survey, SurveyFilter, SurveyModule } from '../../services/surveys.service'
 import { formatDate, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { DataTable } from '../../components/ui/tables/DataTable'
@@ -140,6 +140,30 @@ export default function SurveysManagement() {
     )
   }
 
+  const MODULE_LABELS: Record<string, string> = {
+    field_ops: 'Field Ops',
+    marketing: 'Marketing',
+    promotions: 'Promotions',
+    van_sales: 'Van Sales',
+    inventory: 'Inventory',
+    general: 'General',
+  }
+
+  const MODULE_COLORS: Record<string, string> = {
+    field_ops: 'bg-blue-100 text-blue-800',
+    marketing: 'bg-pink-100 text-pink-800',
+    promotions: 'bg-orange-100 text-orange-800',
+    van_sales: 'bg-teal-100 text-teal-800',
+    inventory: 'bg-cyan-100 text-cyan-800',
+    general: 'bg-gray-100 text-gray-800',
+  }
+
+  const getModuleBadge = (module: string) => (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${MODULE_COLORS[module] || MODULE_COLORS.general}`}>
+      {MODULE_LABELS[module] || module}
+    </span>
+  )
+
   const handleViewDetails = async (id: string) => {
     try {
       const survey = await surveysService.getSurvey(id)
@@ -217,6 +241,22 @@ export default function SurveysManagement() {
           <div className="font-medium text-gray-900">{row.title}</div>
           <div className="text-sm text-gray-500">{row.description?.substring(0, 50)}...</div>
         </div>
+      )
+    },
+    {
+      key: 'module',
+      title: 'Module',
+      render: (value: any, row: any) => getModuleBadge(row.module || 'general')
+    },
+    {
+      key: 'is_mandatory',
+      title: 'Mandatory',
+      render: (value: any, row: any) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+          row.is_mandatory ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'
+        }`}>
+          {row.is_mandatory ? 'Required' : 'Optional'}
+        </span>
       )
     },
     {
@@ -611,6 +651,20 @@ export default function SurveysManagement() {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Type</label>
                     <div className="mt-1">{getTypeBadge(selectedSurvey.type)}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Module</label>
+                    <div className="mt-1">{getModuleBadge(selectedSurvey.module || 'general')}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Mandatory</label>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        selectedSurvey.is_mandatory ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {selectedSurvey.is_mandatory ? 'Required' : 'Optional'}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Status</label>

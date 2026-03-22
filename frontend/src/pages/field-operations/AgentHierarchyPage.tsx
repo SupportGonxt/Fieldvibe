@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft, Building2, Plus } from 'lucide-react'
+import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft, Building2, Plus, Pencil, Check, Mail, Phone, KeyRound } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -17,13 +17,15 @@ interface CreateForm {
   lastName: string
   email: string
   phone: string
+  pin: string
   role: CreateRole
   agentType: AgentType
   managerId: string
   teamLeadId: string
+  companyIds: string[]
 }
 
-const EMPTY_FORM: CreateForm = { firstName: '', lastName: '', email: '', phone: '', role: 'agent', agentType: 'field_ops', managerId: '', teamLeadId: '' }
+const EMPTY_FORM: CreateForm = { firstName: '', lastName: '', email: '', phone: '', pin: '', role: 'agent', agentType: 'field_ops', managerId: '', teamLeadId: '', companyIds: [] }
 
 export default function AgentHierarchyPage() {
   const queryClient = useQueryClient()
@@ -44,6 +46,10 @@ export default function AgentHierarchyPage() {
   // Manager-company assignment state
   const [assigningCompanyToManager, setAssigningCompanyToManager] = useState<string | null>(null)
   const [selectedCompany, setSelectedCompany] = useState('')
+
+  // Quick-edit state
+  const [editingUser, setEditingUser] = useState<string | null>(null)
+  const [editFields, setEditFields] = useState<{ email: string; phone: string; pin: string }>({ email: '', phone: '', pin: '' })
 
   const { data: hierarchy, isLoading, error } = useQuery({
     queryKey: ['field-ops-hierarchy'],
@@ -85,6 +91,41 @@ export default function AgentHierarchyPage() {
     onError: () => toast.error('Failed to unassign company'),
   })
 
+  const quickEditMutation = useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: { email?: string; phone?: string; pin?: string } }) =>
+      apiClient.patch(`/users/${userId}/quick-edit`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
+      toast.success('Details updated successfully')
+      setEditingUser(null)
+    },
+    onError: (err: unknown) => {
+      const message = (err && typeof err === 'object' && 'message' in err) ? (err as { message: string }).message : 'Failed to update details'
+      toast.error(message)
+    },
+  })
+
+  function startQuickEdit(user: { id: string; email?: string; phone?: string }) {
+    setEditingUser(user.id)
+    setEditFields({
+      email: user.email && !user.email.includes('@placeholder.local') ? user.email : '',
+      phone: user.phone || '',
+      pin: '',
+    })
+  }
+
+  function saveQuickEdit(userId: string) {
+    const data: { email?: string; phone?: string; pin?: string } = {}
+    if (editFields.email) data.email = editFields.email
+    if (editFields.phone) data.phone = editFields.phone
+    if (editFields.pin) data.pin = editFields.pin
+    if (Object.keys(data).length === 0) {
+      toast.error('No changes to save')
+      return
+    }
+    quickEditMutation.mutate({ userId, data })
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!createForm.firstName || !createForm.lastName) {
@@ -103,6 +144,9 @@ export default function AgentHierarchyPage() {
       if (createForm.email) {
         payload.email = createForm.email
       }
+      if (createForm.pin) {
+        payload.pin = createForm.pin
+      }
       if (createForm.role === 'team_lead' && createForm.managerId) {
         payload.managerId = createForm.managerId
       }
@@ -111,6 +155,17 @@ export default function AgentHierarchyPage() {
       }
       const res = await apiClient.post('/users', payload)
       const data = res.data?.data || res.data || {}
+      const userId = data.id || data.user_id
+      // Assign companies after user creation
+      if (userId && createForm.companyIds.length > 0) {
+        for (const companyId of createForm.companyIds) {
+          try {
+            await fieldOperationsService.assignManagerToCompany(userId, companyId)
+          } catch {
+            // Continue with other company assignments even if one fails
+          }
+        }
+      }
       setGeneratedPassword(data.password || '')
       queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
       toast.success(`${createForm.role === 'team_lead' ? 'Team Lead' : createForm.role === 'manager' ? 'Manager' : 'Agent'} created`)
@@ -243,6 +298,37 @@ export default function AgentHierarchyPage() {
                 <span className="font-semibold text-gray-900 dark:text-white truncate">{manager.first_name} {manager.last_name}</span>
               </button>
               <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                {/* Quick Edit */}
+                {editingUser !== manager.id ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startQuickEdit(manager) }}
+                    className="text-gray-400 hover:text-purple-600 p-1 rounded"
+                    title="Quick edit email, phone, PIN"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-gray-400" />
+                      <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-36 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-gray-400" />
+                      <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-gray-400" />
+                      <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="New PIN" className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                    </div>
+                    <button onClick={() => saveQuickEdit(manager.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save">
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 {/* Company badges */}
                 {managerCompanies.map((company: { id: string; name: string; code: string; link_id: string }) => (
                   <span
@@ -310,6 +396,33 @@ export default function AgentHierarchyPage() {
                         <span className="font-medium text-gray-900 dark:text-white truncate">{tl.first_name} {tl.last_name}</span>
                         <span className="text-sm text-gray-500 ml-auto flex-shrink-0">{tl.agents?.length || 0} agents</span>
                       </button>
+                      {/* Quick Edit for Team Lead */}
+                      {editingUser === tl.id ? (
+                        <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            <Mail className="w-3.5 h-3.5 text-gray-400" />
+                            <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-36 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Phone className="w-3.5 h-3.5 text-gray-400" />
+                            <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <KeyRound className="w-3.5 h-3.5 text-gray-400" />
+                            <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="New PIN" className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                          </div>
+                          <button onClick={() => saveQuickEdit(tl.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save"><Check className="w-4 h-4" /></button>
+                          <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel"><X className="w-4 h-4" /></button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startQuickEdit(tl) }}
+                          className="text-gray-400 hover:text-blue-600 p-1 rounded flex-shrink-0"
+                          title="Quick edit email, phone, PIN"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => setReassigningUser({ id: tl.id, type: 'team_lead', name: `${tl.first_name} ${tl.last_name}` })}
                         className="text-gray-400 hover:text-blue-600 p-1 rounded flex-shrink-0"
@@ -332,7 +445,32 @@ export default function AgentHierarchyPage() {
                           <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
                             <User className="w-4 h-4 text-green-600 flex-shrink-0" />
                             <span className="text-gray-900 dark:text-white truncate">{agent.first_name} {agent.last_name}</span>
+                            {editingUser === agent.id ? (
+                              <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center gap-1">
+                                  <Mail className="w-3 h-3 text-gray-400" />
+                                  <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-gray-400" />
+                                  <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-24 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <KeyRound className="w-3 h-3 text-gray-400" />
+                                  <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="PIN" className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                                </div>
+                                <button onClick={() => saveQuickEdit(agent.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save"><Check className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                              </div>
+                            ) : (
                             <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); startQuickEdit(agent) }}
+                                className="text-gray-400 hover:text-green-600 p-1 rounded"
+                                title="Quick edit email, phone, PIN"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 onClick={() => setReassigningUser({ id: agent.id, type: 'agent', name: `${agent.first_name} ${agent.last_name}` })}
                                 className="text-gray-400 hover:text-green-600 p-1 rounded"
@@ -348,6 +486,7 @@ export default function AgentHierarchyPage() {
                                 <Unlink className="w-3.5 h-3.5" />
                               </button>
                             </div>
+                            )}
                           </div>
                         ))}
                         {(tl.agents || []).length === 0 && (
@@ -652,6 +791,21 @@ export default function AgentHierarchyPage() {
                   />
                 </div>
 
+                {/* Mobile PIN */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mobile PIN</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={createForm.pin}
+                    onChange={(e) => setCreateForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                    placeholder="4-6 digits (default: 12345)"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Leave blank to use default PIN: 12345</p>
+                </div>
+
                 {/* Assignment (conditional) */}
                 {createForm.role === 'team_lead' && allManagers.length > 0 && (
                   <div>
@@ -676,12 +830,55 @@ export default function AgentHierarchyPage() {
                   </div>
                 )}
 
-                {createForm.role === 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Default password: <strong>12345</strong> &middot; Default PIN: <strong>12345</strong></p>
+                {/* Assign to Companies (multi-select, managers only) */}
+                {createForm.role === 'manager' && allCompanies.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Assign to Companies
+                    </label>
+                    <div className="space-y-2">
+                      {/* Selected companies */}
+                      {createForm.companyIds.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {createForm.companyIds.map(cId => {
+                            const company = allCompanies.find(c => c.id === cId)
+                            return company ? (
+                              <span key={cId} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                                <Building2 className="w-3 h-3" />
+                                {company.name}
+                                <button
+                                  type="button"
+                                  onClick={() => setCreateForm(f => ({ ...f, companyIds: f.companyIds.filter(id => id !== cId) }))}
+                                  className="ml-0.5 text-indigo-400 hover:text-red-500"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ) : null
+                          })}
+                        </div>
+                      )}
+                      {/* Company selector */}
+                      <SearchableSelect
+                        options={allCompanies
+                          .filter(c => !createForm.companyIds.includes(c.id))
+                          .map(c => ({ value: c.id, label: c.name }))}
+                        value={null}
+                        onChange={(val) => {
+                          if (val && !createForm.companyIds.includes(val)) {
+                            setCreateForm(f => ({ ...f, companyIds: [...f.companyIds, val] }))
+                          }
+                        }}
+                        placeholder="Select companies to assign..."
+                      />
+                      <p className="text-xs text-gray-400">Select one or more Field Ops companies</p>
+                    </div>
+                  </div>
                 )}
-                {createForm.role !== 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically.</p>
-                )}
+
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Default password: <strong>12345</strong> &middot; {createForm.pin ? <>PIN: <strong>{createForm.pin}</strong></> : <>Default PIN: <strong>12345</strong></>}
+                </p>
 
                 <div className="flex justify-end gap-3 pt-2">
                   <button type="button" onClick={closeCreateModal} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
