@@ -309,15 +309,23 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const today = new Date().toISOString().split('T')[0];
     const monthStart = today.substring(0, 7) + '-01';
 
-    const [todayVisits, monthVisits, todayRegs, monthRegs, recentVisits, companies, targets] = await Promise.all([
-      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, userId, today).first(),
-      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, monthStart).first(),
-      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, userId, today).first(),
-      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, monthStart).first(),
-      db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all(),
-      db.prepare("SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all(),
-      db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(),
-    ]);
+    // Query visits, registrations, companies separately to handle missing columns/tables gracefully
+    let todayVisits = { count: 0 };
+    let monthVisits = { count: 0 };
+    let todayRegs = { count: 0 };
+    let monthRegs = { count: 0 };
+    let recentVisits = { results: [] };
+    let companies = { results: [] };
+    let targets = { results: [] };
+
+    try { todayVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, userId, today).first(); } catch { /* */ }
+    try { monthVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
+    try { todayRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, userId, today).first(); } catch { /* */ }
+    try { monthRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
+    try { recentVisits = await db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all(); } catch { /* */ }
+    try { companies = await db.prepare("SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all(); } catch { /* */ }
+    // Use brand_id as fallback for company_id in visit counting (company_id column may not exist yet)
+    try { targets = await db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.brand_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(); } catch { /* daily_targets table may not exist */ }
 
     // Fetch company target rules as fallback if no daily_targets exist
     let companyTargetRules = [];
@@ -6208,6 +6216,12 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
     )`).run();
     results.push('manager_company_links table created');
 
+    // Add company_id column to visits table if missing
+    try {
+      await db.prepare("ALTER TABLE visits ADD COLUMN company_id TEXT").run();
+      results.push('visits.company_id column added');
+    } catch { results.push('visits.company_id column already exists'); }
+
     // Seed default process flows
     await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-store-default', 'default', 'Standard Store Visit', 'Default workflow for store visits: GPS, Details, Survey, Photo, Review', 1)").run();
     await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-individual-default', 'default', 'Standard Individual Visit', 'Default workflow for individual visits: GPS, Details, Survey, Review (no photos)', 1)").run();
@@ -6467,25 +6481,51 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     let customerId = body.customer_id || null;
     if (body.visit_target_type === 'store' && !customerId && body.store_name) {
       customerId = crypto.randomUUID();
-      await db.prepare('INSERT INTO customers (id, tenant_id, name, type, customer_type, latitude, longitude, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
-        customerId, tenantId, body.store_name, 'retail', 'SHOP',
-        body.checkin_latitude ?? null, body.checkin_longitude ?? null,
-        'active', now, now
-      ).run();
+      try {
+        await db.prepare('INSERT INTO customers (id, tenant_id, name, type, customer_type, latitude, longitude, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+          customerId, tenantId, body.store_name, 'retail', 'SHOP',
+          body.checkin_latitude ?? null, body.checkin_longitude ?? null,
+          'active', now, now
+        ).run();
+      } catch {
+        // Fallback: customer_type column may not exist on older schemas
+        await db.prepare('INSERT INTO customers (id, tenant_id, name, type, latitude, longitude, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+          customerId, tenantId, body.store_name, 'retail',
+          body.checkin_latitude ?? null, body.checkin_longitude ?? null,
+          'active', now, now
+        ).run();
+      }
     }
 
-    // 1. Create the visit record
-    await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
-      visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-      body.visit_target_type || 'customer', now,
-      body.checkin_latitude ?? null, body.checkin_longitude ?? null,
-      body.brand_id || body.company_id || null,
-      body.individual_first_name || null, body.individual_last_name || null,
-      body.individual_id_number || null, body.individual_phone || null,
-      body.purpose || body.visit_target_type || 'field_visit',
-      body.notes || null, body.questionnaire_id || null,
-      now, now
-    ).run();
+    // 1. Create the visit record (try with company_id column first, fallback without)
+    const companyId = body.company_id || null;
+    const brandId = body.brand_id || body.company_id || null;
+    try {
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
+        visitId, tenantId, body.agent_id || userId, customerId, visitDate,
+        body.visit_target_type || 'customer', now,
+        body.checkin_latitude ?? null, body.checkin_longitude ?? null,
+        brandId, companyId,
+        body.individual_first_name || null, body.individual_last_name || null,
+        body.individual_id_number || null, body.individual_phone || null,
+        body.purpose || body.visit_target_type || 'field_visit',
+        body.notes || null, body.questionnaire_id || null,
+        now, now
+      ).run();
+    } catch {
+      // Fallback: company_id column may not exist yet
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
+        visitId, tenantId, body.agent_id || userId, customerId, visitDate,
+        body.visit_target_type || 'customer', now,
+        body.checkin_latitude ?? null, body.checkin_longitude ?? null,
+        brandId,
+        body.individual_first_name || null, body.individual_last_name || null,
+        body.individual_id_number || null, body.individual_phone || null,
+        body.purpose || body.visit_target_type || 'field_visit',
+        body.notes || null, body.questionnaire_id || null,
+        now, now
+      ).run();
+    }
 
     // 2. If individual visit, create or link the individual
     let individualId = null;

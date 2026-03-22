@@ -181,6 +181,7 @@ CREATE TABLE IF NOT EXISTS visits (
   photo_base64 TEXT,
   additional_photos TEXT,
   brand_id TEXT,
+  company_id TEXT,
   category_id TEXT,
   product_id TEXT,
   individual_name TEXT,
