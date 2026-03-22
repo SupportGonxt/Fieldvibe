@@ -4406,8 +4406,9 @@ api.get('/commissions/stats', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const { start, end } = c.req.query();
   let dateFilter = '';
+  let joinedDateFilter = '';
   const baseParams = [tenantId];
-  if (start && end) { dateFilter = ' AND created_at >= ? AND created_at <= ?'; baseParams.push(start, end + 'T23:59:59'); }
+  if (start && end) { dateFilter = ' AND created_at >= ? AND created_at <= ?'; joinedDateFilter = ' AND ce.created_at >= ? AND ce.created_at <= ?'; baseParams.push(start, end + 'T23:59:59'); }
   const [totalAmt, pendingAmt, approvedAmt, paidAmt, totalCount, pendingCount, approvedCount, paidCount, topEarners, byType] = await Promise.all([
     db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM commission_earnings WHERE tenant_id = ?' + dateFilter).bind(...baseParams).first(),
     db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM commission_earnings WHERE tenant_id = ? AND status = 'pending'" + dateFilter).bind(...baseParams).first(),
@@ -4417,7 +4418,7 @@ api.get('/commissions/stats', authMiddleware, async (c) => {
     db.prepare("SELECT COUNT(*) as total FROM commission_earnings WHERE tenant_id = ? AND status = 'pending'" + dateFilter).bind(...baseParams).first(),
     db.prepare("SELECT COUNT(*) as total FROM commission_earnings WHERE tenant_id = ? AND status = 'approved'" + dateFilter).bind(...baseParams).first(),
     db.prepare("SELECT COUNT(*) as total FROM commission_earnings WHERE tenant_id = ? AND status = 'paid'" + dateFilter).bind(...baseParams).first(),
-    db.prepare("SELECT u.first_name || ' ' || u.last_name as name, u.role, COALESCE(SUM(ce.amount), 0) as total_commission, COUNT(*) as transaction_count FROM commission_earnings ce JOIN users u ON ce.earner_id = u.id WHERE ce.tenant_id = ?" + dateFilter + " GROUP BY ce.earner_id ORDER BY total_commission DESC LIMIT 10").bind(...baseParams).all(),
+    db.prepare("SELECT u.first_name || ' ' || u.last_name as name, u.role, COALESCE(SUM(ce.amount), 0) as total_commission, COUNT(*) as transaction_count FROM commission_earnings ce JOIN users u ON ce.earner_id = u.id WHERE ce.tenant_id = ?" + joinedDateFilter + " GROUP BY ce.earner_id ORDER BY total_commission DESC LIMIT 10").bind(...baseParams).all(),
     db.prepare("SELECT source_type as type, COALESCE(SUM(amount), 0) as amount, COUNT(*) as count FROM commission_earnings WHERE tenant_id = ?" + dateFilter + " GROUP BY source_type ORDER BY amount DESC").bind(...baseParams).all(),
   ]);
   return c.json({ success: true, data: {
@@ -11593,6 +11594,8 @@ api.delete('/admin/territories/:id', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
+  const existing = await db.prepare('SELECT id FROM territories WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Territory not found' }, 404);
   await db.prepare('DELETE FROM territory_assignments WHERE territory_id = ?').bind(id).run();
   await db.prepare('DELETE FROM territories WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
   return c.json({ success: true, message: 'Territory deleted' });
