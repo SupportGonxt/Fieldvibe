@@ -31,6 +31,8 @@ interface FormData {
 const ROLES = [
   { value: 'admin', label: 'Administrator', color: 'red' },
   { value: 'manager', label: 'Manager', color: 'blue' },
+  { value: 'team_lead', label: 'Team Lead', color: 'cyan' },
+  { value: 'agent', label: 'Agent', color: 'green' },
   { value: 'salesman', label: 'Salesman', color: 'green' },
   { value: 'promoter', label: 'Promoter', color: 'yellow' },
   { value: 'merchandiser', label: 'Merchandiser', color: 'purple' },
