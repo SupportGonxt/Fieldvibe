@@ -17,6 +17,7 @@ interface CreateForm {
   lastName: string
   email: string
   phone: string
+  pin: string
   role: CreateRole
   agentType: AgentType
   managerId: string
@@ -24,7 +25,7 @@ interface CreateForm {
   companyIds: string[]
 }
 
-const EMPTY_FORM: CreateForm = { firstName: '', lastName: '', email: '', phone: '', role: 'agent', agentType: 'field_ops', managerId: '', teamLeadId: '', companyIds: [] }
+const EMPTY_FORM: CreateForm = { firstName: '', lastName: '', email: '', phone: '', pin: '', role: 'agent', agentType: 'field_ops', managerId: '', teamLeadId: '', companyIds: [] }
 
 export default function AgentHierarchyPage() {
   const queryClient = useQueryClient()
@@ -142,6 +143,9 @@ export default function AgentHierarchyPage() {
       }
       if (createForm.email) {
         payload.email = createForm.email
+      }
+      if (createForm.pin) {
+        payload.pin = createForm.pin
       }
       if (createForm.role === 'team_lead' && createForm.managerId) {
         payload.managerId = createForm.managerId
@@ -787,6 +791,21 @@ export default function AgentHierarchyPage() {
                   />
                 </div>
 
+                {/* Mobile PIN */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mobile PIN</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={createForm.pin}
+                    onChange={(e) => setCreateForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                    placeholder="4-6 digits (default: 12345)"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Leave blank to use default PIN: 12345</p>
+                </div>
+
                 {/* Assignment (conditional) */}
                 {createForm.role === 'team_lead' && allManagers.length > 0 && (
                   <div>
@@ -857,12 +876,10 @@ export default function AgentHierarchyPage() {
                   </div>
                 )}
 
-                {createForm.role === 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Default password: <strong>12345</strong> &middot; Default PIN: <strong>12345</strong></p>
-                )}
-                {createForm.role !== 'agent' && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">A temporary password will be generated automatically.</p>
-                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Default password: <strong>12345</strong> &middot; Default PIN: <strong>12345</strong>
+                  {createForm.pin && <> &middot; Custom PIN: <strong>{createForm.pin}</strong></>}
+                </p>
 
                 <div className="flex justify-end gap-3 pt-2">
                   <button type="button" onClick={closeCreateModal} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">

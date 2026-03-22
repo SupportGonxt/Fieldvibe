@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS questionnaires (
   questions TEXT NOT NULL,
   is_default INTEGER DEFAULT 0,
   is_active INTEGER DEFAULT 1,
+  is_mandatory INTEGER DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),

@@ -1276,10 +1276,14 @@ api.post('/users', requireRole('admin'), async (c) => {
   const isMobileRole = isAgent || role === 'team_lead' || role === 'manager';
   const password = body.password || (isMobileRole ? '12345' : Math.random().toString(36).slice(-8));
   const hashedPassword = await bcrypt.hash(password, 10);
-  // Set default PIN 12345 for all mobile-login-capable roles
+  // Set PIN for mobile-login-capable roles: use custom PIN if provided, otherwise default 12345
   let pinHash = null;
   if (isMobileRole) {
-    pinHash = await bcrypt.hash('12345', 10);
+    const pinValue = body.pin || '12345';
+    if (body.pin && !/^\d{4,6}$/.test(body.pin)) {
+      return c.json({ success: false, message: 'PIN must be 4-6 digits' }, 400);
+    }
+    pinHash = await bcrypt.hash(pinValue, 10);
   }
   // Email is optional for mobile-login roles (agent, team_lead, manager) but required for other roles
   const email = body.email || null;
