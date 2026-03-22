@@ -5169,9 +5169,9 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   try {
     // Core user queries - filter by agent_type IN ('field_ops', 'both') or NULL (backward compat)
     const [managers, teamLeads, agents] = await Promise.all([
-      db.prepare("SELECT id, first_name, last_name, email, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
     ]);
     // Optional queries - company links may not exist yet, don't let them break hierarchy
     let mcLinks = [];
@@ -5256,9 +5256,9 @@ api.get('/marketing/hierarchy', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   try {
     const [managers, teamLeads, agents] = await Promise.all([
-      db.prepare("SELECT id, first_name, last_name, email, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
-      db.prepare("SELECT id, first_name, last_name, email, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
+      db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND agent_type IN ('marketing', 'both') ORDER BY first_name").bind(tenantId).all(),
     ]);
     let mcLinks = [];
     let companiesList = [];

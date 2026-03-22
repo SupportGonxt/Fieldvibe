@@ -830,8 +830,8 @@ export default function AgentHierarchyPage() {
                   </div>
                 )}
 
-                {/* Assign to Companies (multi-select) */}
-                {allCompanies.length > 0 && (
+                {/* Assign to Companies (multi-select, managers only) */}
+                {createForm.role === 'manager' && allCompanies.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Assign to Companies
