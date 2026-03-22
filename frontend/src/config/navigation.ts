@@ -81,6 +81,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Hierarchy', href: '/field-operations/hierarchy', permission: null, description: 'Agent hierarchy management', group: 'Master Data' },
       { name: 'Agent PINs', href: '/agent/pin-management', permission: null, description: 'Set/reset agent login PINs', group: 'Master Data' },
       { name: 'Working Days', href: '/field-operations/working-days', permission: null, description: 'Working days configuration', group: 'Master Data' },
+      { name: 'Process Flows', href: '/field-operations/process-flows', permission: null, description: 'Manage visit workflow steps per company', group: 'Master Data' },
       { name: 'Settings', href: '/field-operations/settings', permission: null, description: 'Field ops global settings', group: 'Master Data' },
 
       // ── Targets & Commissions ──

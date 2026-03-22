@@ -398,6 +398,7 @@ const VanSalesWorkflowPageMobile = lazy(() => import('./pages/van-sales/VanSales
 const VarianceAnalysisReport = lazy(() => import('./pages/reports/inventory/VarianceAnalysisReport'))
 const VarianceResolution = lazy(() => import('./pages/inventory/stock-count-lines/VarianceResolution'))
 const VisitConfigurationPage = lazy(() => import('./pages/field-operations/VisitConfigurationPage'))
+const ProcessFlowManagementPage = lazy(() => import('./pages/field-operations/ProcessFlowManagementPage'))
 const VisitCreate = lazy(() => import('./pages/field-operations/visits/VisitCreate'))
 const VisitDetail = lazy(() => import('./pages/field-operations/visits/VisitDetail'))
 const VisitEdit = lazy(() => import('./pages/field-operations/visits/VisitEdit'))
@@ -556,6 +557,7 @@ function App() {
             <Route path="field-operations/visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="field-operations/visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="field-operations/visit-configurations" element={<PageLoader><VisitConfigurationPage /></PageLoader>} />
+            <Route path="field-operations/process-flows" element={<PageLoader><ProcessFlowManagementPage /></PageLoader>} />
             <Route path="field-operations/visit-history" element={<PageLoader><VisitHistoryPage /></PageLoader>} />
             <Route path="field-operations/visit-management" element={<PageLoader><VisitManagementPage /></PageLoader>} />
 
