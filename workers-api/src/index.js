@@ -5325,20 +5325,25 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
       db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
       db.prepare("SELECT id, first_name, last_name, email, phone, role, agent_type, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops', 'both')) ORDER BY first_name").bind(tenantId).all(),
     ]);
-    // Optional queries - company links may not exist yet, don't let them break hierarchy
+    // Optional queries - query each separately so one missing table doesn't break the rest
     let mcLinks = [];
     let acLinks = [];
     let companiesList = [];
+    // Always fetch companies first (field_companies should always exist)
     try {
-      const [managerCompanyLinks, agentCompanyLinks, companies] = await Promise.all([
-        db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
-        db.prepare("SELECT acl.id, acl.agent_id, acl.company_id, fc.name as company_name, fc.code as company_code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.tenant_id = ? AND acl.is_active = 1").bind(tenantId).all(),
-        db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
-      ]);
-      mcLinks = managerCompanyLinks.results || [];
-      acLinks = agentCompanyLinks.results || [];
+      const companies = await db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
       companiesList = companies.results || [];
-    } catch { /* manager_company_links or field_companies table may not exist yet */ }
+    } catch { /* field_companies table may not exist yet */ }
+    // Fetch manager company links (table may not exist)
+    try {
+      const managerCompanyLinks = await db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all();
+      mcLinks = managerCompanyLinks.results || [];
+    } catch { /* manager_company_links table may not exist yet */ }
+    // Fetch agent company links (table may not exist)
+    try {
+      const agentCompanyLinks = await db.prepare("SELECT acl.id, acl.agent_id, acl.company_id, fc.name as company_name, fc.code as company_code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.tenant_id = ? AND acl.is_active = 1").bind(tenantId).all();
+      acLinks = agentCompanyLinks.results || [];
+    } catch { /* agent_company_links table may not exist yet */ }
     // Helper to get agent/team_lead company links
     const getPersonCompanies = (personId) => acLinks.filter(l => l.agent_id === personId).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id }));
     const hierarchy = (managers.results || []).map(m => ({
@@ -5421,13 +5426,13 @@ api.get('/marketing/hierarchy', authMiddleware, async (c) => {
     let mcLinks = [];
     let companiesList = [];
     try {
-      const [managerCompanyLinks, companies] = await Promise.all([
-        db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
-        db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
-      ]);
-      mcLinks = managerCompanyLinks.results || [];
+      const companies = await db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
       companiesList = companies.results || [];
-    } catch { /* tables may not exist yet */ }
+    } catch { /* field_companies table may not exist yet */ }
+    try {
+      const managerCompanyLinks = await db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all();
+      mcLinks = managerCompanyLinks.results || [];
+    } catch { /* manager_company_links table may not exist yet */ }
     const hierarchy = (managers.results || []).map(m => ({
       ...m,
       companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
@@ -6195,6 +6200,13 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
       created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`).run();
     results.push('company_target_rules table created');
+
+    await db.prepare(`CREATE TABLE IF NOT EXISTS manager_company_links (
+      id TEXT PRIMARY KEY, manager_id TEXT NOT NULL, company_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL, is_active INTEGER DEFAULT 1,
+      assigned_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+    results.push('manager_company_links table created');
 
     // Seed default process flows
     await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-store-default', 'default', 'Standard Store Visit', 'Default workflow for store visits: GPS, Details, Survey, Photo, Review', 1)").run();
