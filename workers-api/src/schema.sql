@@ -1242,16 +1242,45 @@ CREATE TABLE IF NOT EXISTS visit_photos (
   ai_raw_response TEXT,
   ai_processed_at TEXT,
   photo_hash TEXT,
+  board_placement_location TEXT,
+  board_placement_position TEXT,
+  board_condition TEXT,
+  sample_board_id TEXT,
+  sample_board_match_score REAL,
   uploaded_by TEXT NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   FOREIGN KEY (visit_id) REFERENCES visits(id),
-  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+  FOREIGN KEY (uploaded_by) REFERENCES users(id),
+  FOREIGN KEY (sample_board_id) REFERENCES company_sample_boards(id)
 );
 CREATE INDEX IF NOT EXISTS idx_photos_visit ON visit_photos(visit_id);
 CREATE INDEX IF NOT EXISTS idx_photos_tenant_type ON visit_photos(tenant_id, photo_type);
 CREATE INDEX IF NOT EXISTS idx_photos_ai_status ON visit_photos(ai_analysis_status);
 CREATE INDEX IF NOT EXISTS idx_photos_hash ON visit_photos(tenant_id, photo_hash) WHERE photo_hash IS NOT NULL;
+
+-- Company Sample Boards (reference images for photo comparison)
+CREATE TABLE IF NOT EXISTS company_sample_boards (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  r2_key TEXT NOT NULL,
+  r2_url TEXT,
+  thumbnail_r2_key TEXT,
+  valid_from TEXT NOT NULL,
+  valid_to TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_sample_boards_company ON company_sample_boards(company_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sample_boards_validity ON company_sample_boards(tenant_id, valid_from, valid_to);
 
 -- Share of Voice Snapshots
 CREATE TABLE IF NOT EXISTS share_of_voice_snapshots (
@@ -1489,6 +1518,19 @@ CREATE TABLE IF NOT EXISTS company_target_rules (
   team_lead_own_target_visits INTEGER DEFAULT 20,
   team_lead_own_target_registrations INTEGER DEFAULT 10,
   team_lead_own_target_conversions INTEGER DEFAULT 5,
+  -- Store visit targets
+  store_target_per_month_tl INTEGER,
+  store_target_per_month_agent INTEGER,
+  -- Individual visit targets
+  individual_target_per_week_agent INTEGER,
+  individual_target_per_month_agent INTEGER,
+  -- Working days config
+  working_days_per_week INTEGER DEFAULT 5,
+  working_days TEXT DEFAULT 'mon,tue,wed,thu,fri',
+  allow_weekend_catchup INTEGER DEFAULT 0,
+  -- Roll-up rules: tl_target = sum(agent_targets), mgr_target = sum(tl_targets)
+  tl_target_is_agent_sum INTEGER DEFAULT 1,
+  mgr_target_is_tl_sum INTEGER DEFAULT 1,
   created_by TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

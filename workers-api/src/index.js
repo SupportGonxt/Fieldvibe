@@ -368,6 +368,25 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       }));
     }
 
+    // Visit breakdown by type (store vs individual) and per company
+    let visitBreakdown = { results: [] };
+    try {
+      visitBreakdown = await db.prepare(`
+        SELECT 
+          COALESCE(v.company_id, 'unassigned') as company_id,
+          COALESCE(fc.name, 'Unassigned') as company_name,
+          COALESCE(v.visit_type, 'unknown') as visit_type,
+          COUNT(*) as count,
+          SUM(CASE WHEN v.visit_date = ? THEN 1 ELSE 0 END) as today_count,
+          SUM(CASE WHEN v.visit_date >= ? THEN 1 ELSE 0 END) as month_count
+        FROM visits v
+        LEFT JOIN field_companies fc ON v.company_id = fc.id
+        WHERE v.tenant_id = ? AND v.agent_id = ?
+        GROUP BY v.company_id, v.visit_type
+        ORDER BY fc.name, v.visit_type
+      `).bind(today, monthStart, tenantId, userId).all();
+    } catch { /* visit_type column may not exist in older schema */ }
+
     // Weekly targets: count visits/regs for the current week (Mon-Sun)
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
@@ -406,11 +425,12 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         company_target_rules: companyTargetRules,
         weekly_targets: { target_visits: weekTargetVisits, actual_visits: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: weekRegs?.count || 0 },
         monthly_targets: { target_visits: monthTargetVisits, actual_visits: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: monthRegs?.count || 0 },
+        visit_breakdown: visitBreakdown.results || [],
       }
     });
   } catch (error) {
     console.error('Agent dashboard error:', error);
-    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, week_visits: 0, today_registrations: 0, month_registrations: 0, week_registrations: 0, recent_visits: [], companies: [], daily_targets: [], company_target_rules: [], weekly_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 }, monthly_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 } } });
+    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, week_visits: 0, today_registrations: 0, month_registrations: 0, week_registrations: 0, recent_visits: [], companies: [], daily_targets: [], company_target_rules: [], weekly_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 }, monthly_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 }, visit_breakdown: [] } });
   }
 });
 
@@ -6636,16 +6656,28 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       ).run();
     }
 
-    // 4. Save photos with GPS and hash
+    // 4. Save photos with GPS, hash, and board placement data
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       for (const photo of body.photos) {
         const photoId = crypto.randomUUID();
-        await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-          photoId, tenantId, visitId, photo.photo_type || 'board',
-          photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
-          photo.gps_latitude ?? null, photo.gps_longitude ?? null,
-          photo.captured_at || now, photo.photo_hash || null, userId
-        ).run();
+        try {
+          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+            photoId, tenantId, visitId, photo.photo_type || 'board',
+            photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+            photo.gps_latitude ?? null, photo.gps_longitude ?? null,
+            photo.captured_at || now, photo.photo_hash || null,
+            photo.board_placement_location || null, photo.board_placement_position || null,
+            photo.board_condition || null, photo.sample_board_id || null, userId
+          ).run();
+        } catch {
+          // Fallback: board placement columns may not exist yet
+          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+            photoId, tenantId, visitId, photo.photo_type || 'board',
+            photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+            photo.gps_latitude ?? null, photo.gps_longitude ?? null,
+            photo.captured_at || now, photo.photo_hash || null, userId
+          ).run();
+        }
       }
     }
 
@@ -10070,6 +10102,311 @@ api.get('/seed/runs', requireRole('admin'), async (c) => {
   return c.json({ success: true, data: runs.results || [] });
 });
 
+// ==================== X.2 Seed Goldrush Company + Questionnaires ====================
+api.post('/seed/goldrush', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  try {
+    // 1. Ensure Goldrush company exists
+    let goldrushId;
+    const existing = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+    if (existing) {
+      goldrushId = existing.id;
+    } else {
+      goldrushId = crypto.randomUUID();
+      await db.prepare("INSERT INTO field_companies (id, tenant_id, name, code, status, created_at) VALUES (?, ?, 'Goldrush', 'goldrush', 'active', datetime('now'))").bind(goldrushId, tenantId).run();
+    }
+
+    // 2. Shop Visit Questionnaire (16 questions)
+    const shopQuestions = [
+      { key: 'brand_awareness', label: 'Does the customer know the brand?', type: 'radio', options: ['Yes', 'No'], required: true, order: 1 },
+      { key: 'stocks_product', label: 'Does the customer stock the product?', type: 'radio', options: ['Yes', 'No'], required: true, order: 2 },
+      { key: 'sales_volume', label: 'Current sales volume', type: 'text', required: false, order: 3 },
+      { key: 'stock_source', label: 'Where do they get stock?', type: 'select', options: ['Wholesaler', 'Manufacturer', 'Other'], required: true, order: 4 },
+      { key: 'competitors_in_store', label: 'Competitors in store', type: 'text', required: false, order: 5 },
+      { key: 'competitor_stock_source', label: 'Where do competitors get stock?', type: 'select', options: ['Wholesaler', 'Manufacturer', 'Other'], required: false, order: 6 },
+      { key: 'competitor_products', label: 'Competitor products', type: 'textarea', required: false, order: 7 },
+      { key: 'competitor_prices', label: 'Competitor prices', type: 'text', required: false, order: 8 },
+      { key: 'has_advertising', label: 'Does the shop have our advertising?', type: 'radio', options: ['Yes', 'No'], required: true, order: 9 },
+      { key: 'other_ad_brands', label: 'Other advertising brands visible', type: 'text', required: false, order: 10 },
+      { key: 'board_installed', label: 'Did you put up our board?', type: 'radio', options: ['Yes', 'No'], required: true, order: 11 },
+      { key: 'shop_exterior_photo', label: 'Shop exterior photo', type: 'image', required: false, order: 12 },
+      { key: 'competitor_photo', label: 'Competitor product photos', type: 'image', required: false, order: 13 },
+      { key: 'ad_board_photo', label: 'Advertising board photo', type: 'image', required: true, order: 14 },
+      { key: 'goldrush_id', label: 'Goldrush ID (Optional)', type: 'text', required: false, order: 15 },
+      { key: 'additional_notes', label: 'Additional Notes', type: 'textarea', required: false, order: 16 }
+    ];
+
+    const shopQId = crypto.randomUUID();
+    const existingShopQ = await db.prepare("SELECT id FROM questionnaires WHERE company_id = ? AND tenant_id = ? AND (visit_type = 'customer' OR target_type = 'store')").bind(goldrushId, tenantId).first();
+    if (!existingShopQ) {
+      await db.prepare("INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, company_id, questions, is_default, is_active, is_mandatory, created_at, updated_at) VALUES (?, ?, ?, 'field_ops', 'customer', 'store', ?, ?, 1, 1, 1, datetime('now'), datetime('now'))").bind(
+        shopQId, tenantId, 'Goldrush Shop Visit Questionnaire', goldrushId, JSON.stringify(shopQuestions)
+      ).run();
+    }
+
+    // 3. Individual Visit Questionnaire (15 questions)
+    const individualQuestions = [
+      { key: 'gave_brand_info', label: 'Did you give brand information?', type: 'radio', options: ['Yes', 'No'], required: true, order: 1 },
+      { key: 'consumer_name', label: 'Consumer Name', type: 'text', required: true, order: 2 },
+      { key: 'consumer_surname', label: 'Consumer Surname', type: 'text', required: true, order: 3 },
+      { key: 'id_passport', label: 'ID/Passport Number', type: 'text', required: false, order: 4 },
+      { key: 'cellphone', label: 'Cellphone Number', type: 'text', required: true, order: 5 },
+      { key: 'goldrush_id', label: 'Goldrush ID', type: 'text', required: true, order: 6 },
+      { key: 'id_passport_photo', label: 'ID/Passport Photo', type: 'image', required: false, order: 7 },
+      { key: 'consumer_converted', label: 'Did the consumer convert (buy first voucher)?', type: 'radio', options: ['Yes', 'No'], required: true, order: 8 },
+      { key: 'betting_elsewhere', label: 'Is the consumer betting somewhere?', type: 'radio', options: ['Yes', 'No'], required: true, order: 9 },
+      { key: 'competitor_company', label: 'What company do you use?', type: 'text', required: false, order: 10 },
+      { key: 'used_goldrush_before', label: 'Have they used Goldrush before?', type: 'radio', options: ['Yes', 'No'], required: true, order: 11 },
+      { key: 'goldrush_comparison', label: 'How does Goldrush compare?', type: 'textarea', required: false, order: 12 },
+      { key: 'likes_goldrush', label: 'Do they like Goldrush?', type: 'radio', options: ['Yes', 'No'], required: true, order: 13 },
+      { key: 'platform_suggestions', label: 'Platform suggestions', type: 'textarea', required: false, order: 14 },
+      { key: 'additional_notes', label: 'Additional Notes', type: 'textarea', required: false, order: 15 }
+    ];
+
+    const indivQId = crypto.randomUUID();
+    const existingIndivQ = await db.prepare("SELECT id FROM questionnaires WHERE company_id = ? AND tenant_id = ? AND (visit_type = 'individual' OR target_type = 'individual')").bind(goldrushId, tenantId).first();
+    if (!existingIndivQ) {
+      await db.prepare("INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, company_id, questions, is_default, is_active, is_mandatory, created_at, updated_at) VALUES (?, ?, ?, 'field_ops', 'individual', 'individual', ?, ?, 1, 1, 1, datetime('now'), datetime('now'))").bind(
+        indivQId, tenantId, 'Goldrush Individual Visit Questionnaire', goldrushId, JSON.stringify(individualQuestions)
+      ).run();
+    }
+
+    // 4. Goldrush Target Rules
+    // Store: 160/month for TL (sum of agents), agents get proportional share
+    // Individual: 20/week per agent (Mon-Fri, Sat-Sun catch-up allowed)
+    // TL targets = sum of agents, Manager targets = sum of TLs
+    const existingRules = await db.prepare("SELECT id FROM company_target_rules WHERE company_id = ? AND tenant_id = ?").bind(goldrushId, tenantId).first();
+    let targetRuleId;
+    if (!existingRules) {
+      targetRuleId = crypto.randomUUID();
+      try {
+        await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id,
+          target_visits_per_day, target_registrations_per_day, target_conversions_per_day,
+          team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions,
+          store_target_per_month_tl, store_target_per_month_agent,
+          individual_target_per_week_agent, individual_target_per_month_agent,
+          working_days_per_week, working_days, allow_weekend_catchup,
+          tl_target_is_agent_sum, mgr_target_is_tl_sum,
+          created_by, created_at, updated_at)
+          VALUES (?, ?, ?,
+            8, 4, 2,
+            0, 0, 0,
+            160, NULL,
+            20, 80,
+            5, 'mon,tue,wed,thu,fri', 1,
+            1, 1,
+            ?, datetime('now'), datetime('now'))`).bind(targetRuleId, tenantId, goldrushId, userId).run();
+      } catch {
+        // Fallback if new columns don't exist yet
+        targetRuleId = crypto.randomUUID();
+        await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id, target_visits_per_day, target_registrations_per_day, target_conversions_per_day, team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions, created_by) VALUES (?, ?, ?, 8, 4, 2, 0, 0, 0, ?)`).bind(targetRuleId, tenantId, goldrushId, userId).run();
+      }
+    } else {
+      targetRuleId = existingRules.id;
+    }
+
+    // 5. Seed sample board if image was provided via body (optional, can also be uploaded via CRUD)
+    // The seed endpoint creates a placeholder; actual image uploaded via /company-sample-boards POST
+    const existingBoard = await db.prepare("SELECT id FROM company_sample_boards WHERE company_id = ? AND tenant_id = ? AND is_active = 1").bind(goldrushId, tenantId).first();
+    let sampleBoardId = existingBoard?.id;
+    if (!existingBoard) {
+      sampleBoardId = crypto.randomUUID();
+      const now = new Date().toISOString().split('T')[0];
+      const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      try {
+        await db.prepare(`INSERT INTO company_sample_boards (id, tenant_id, company_id, name, description, r2_key, valid_from, valid_to, is_active, created_by, created_at, updated_at) VALUES (?, ?, ?, 'GR Welcome Offer Banner', 'Approved Goldrush Welcome Offer Banner - primary sample board for comparison', ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`).bind(
+          sampleBoardId, tenantId, goldrushId, `sample-boards/${tenantId}/${goldrushId}/${sampleBoardId}.jpg`, now, oneYearLater, userId
+        ).run();
+      } catch (e) { console.error('Sample board seed error (table may not exist yet):', e); }
+    }
+
+    return c.json({
+      success: true,
+      message: 'Goldrush company, questionnaires, targets, and sample board seeded',
+      data: {
+        company_id: goldrushId,
+        shop_questionnaire_id: existingShopQ?.id || shopQId,
+        individual_questionnaire_id: existingIndivQ?.id || indivQId,
+        target_rule_id: targetRuleId,
+        sample_board_id: sampleBoardId
+      }
+    });
+  } catch (e) {
+    return c.json({ success: false, message: 'Seed failed: ' + (e.message || e) }, 500);
+  }
+});
+
+// Upload sample board image for existing record (used after seed/goldrush)
+api.post('/seed/goldrush-sample-board', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const formData = await c.req.formData();
+    const image = formData.get('image');
+    if (!image) return c.json({ success: false, message: 'image file required' }, 400);
+
+    // Find the Goldrush company and its sample board
+    const company = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+    if (!company) return c.json({ success: false, message: 'Goldrush company not found. Run /seed/goldrush first.' }, 404);
+
+    const board = await db.prepare("SELECT id, r2_key FROM company_sample_boards WHERE company_id = ? AND tenant_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1").bind(company.id, tenantId).first();
+    if (!board) return c.json({ success: false, message: 'No sample board record found. Run /seed/goldrush first.' }, 404);
+
+    // Upload to R2
+    const bucket = c.env.UPLOADS;
+    if (bucket) {
+      await bucket.put(board.r2_key, image.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
+      await db.prepare("UPDATE company_sample_boards SET r2_url = ?, updated_at = datetime('now') WHERE id = ?").bind(board.r2_key, board.id).run();
+    }
+
+    return c.json({ success: true, message: 'Sample board image uploaded', data: { board_id: board.id, r2_key: board.r2_key } });
+  } catch (e) {
+    return c.json({ success: false, message: 'Upload failed: ' + (e.message || e) }, 500);
+  }
+});
+
+// ==================== DYNAMIC SURVEY INSIGHTS / REPORTING ====================
+// Returns aggregated analytics for survey responses, dynamically per company questionnaire
+api.get('/survey-insights', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, questionnaire_id, date_from, date_to, visit_type } = c.req.query();
+
+  try {
+    // 1. Get the questionnaire(s) for this company
+    let qWhere = 'WHERE q.tenant_id = ? AND q.is_active = 1';
+    const qParams = [tenantId];
+    if (questionnaire_id) { qWhere += ' AND q.id = ?'; qParams.push(questionnaire_id); }
+    if (company_id) { qWhere += ' AND q.company_id = ?'; qParams.push(company_id); }
+    if (visit_type) { qWhere += ' AND (q.visit_type = ? OR q.target_type = ?)'; qParams.push(visit_type, visit_type); }
+
+    const questionnaires = await db.prepare(`SELECT q.*, fc.name as company_name FROM questionnaires q LEFT JOIN field_companies fc ON q.company_id = fc.id ${qWhere} ORDER BY q.name`).bind(...qParams).all();
+
+    if (!questionnaires.results || questionnaires.results.length === 0) {
+      return c.json({ success: true, data: { questionnaires: [], total_responses: 0, insights: [] } });
+    }
+
+    const insights = [];
+    let totalResponses = 0;
+
+    for (const questionnaire of questionnaires.results) {
+      let questions;
+      try { questions = typeof questionnaire.questions === 'string' ? JSON.parse(questionnaire.questions) : questionnaire.questions; } catch { questions = []; }
+
+      // 2. Get all responses for this questionnaire
+      let rWhere = 'WHERE vr.survey_template_id = ? AND vr.tenant_id = ?';
+      const rParams = [questionnaire.id, tenantId];
+      if (date_from) { rWhere += " AND vr.created_at >= ?"; rParams.push(date_from); }
+      if (date_to) { rWhere += " AND vr.created_at <= ?"; rParams.push(date_to); }
+
+      const responses = await db.prepare(`SELECT vr.responses, vr.created_at FROM visit_responses vr ${rWhere} ORDER BY vr.created_at DESC`).bind(...rParams).all();
+      const responseList = responses.results || [];
+      totalResponses += responseList.length;
+
+      // 3. Aggregate answers per question dynamically
+      const questionInsights = questions.map(q => {
+        const answers = [];
+        for (const resp of responseList) {
+          let parsed;
+          try { parsed = typeof resp.responses === 'string' ? JSON.parse(resp.responses) : resp.responses; } catch { parsed = {}; }
+          const val = parsed[q.key] || parsed[q.label];
+          if (val !== undefined && val !== null && val !== '') answers.push(val);
+        }
+
+        const insight = {
+          question_key: q.key,
+          question_label: q.label,
+          question_type: q.type,
+          total_answered: answers.length,
+          total_skipped: responseList.length - answers.length
+        };
+
+        // For radio/select questions: count each option
+        if (q.type === 'radio' || q.type === 'select') {
+          const counts = {};
+          for (const a of answers) { counts[a] = (counts[a] || 0) + 1; }
+          insight.option_counts = counts;
+          insight.option_percentages = {};
+          for (const [opt, cnt] of Object.entries(counts)) {
+            insight.option_percentages[opt] = answers.length > 0 ? Math.round((cnt / answers.length) * 100) : 0;
+          }
+          // For Yes/No questions, provide a direct yes_rate
+          if (q.options && q.options.length === 2 && q.options.includes('Yes') && q.options.includes('No')) {
+            insight.yes_count = counts['Yes'] || 0;
+            insight.no_count = counts['No'] || 0;
+            insight.yes_rate = answers.length > 0 ? Math.round(((counts['Yes'] || 0) / answers.length) * 100) : 0;
+          }
+        }
+
+        // For text/textarea: provide sample answers and word frequency
+        if (q.type === 'text' || q.type === 'textarea') {
+          insight.sample_answers = answers.slice(0, 10);
+          // Simple word frequency for text analysis
+          const wordCounts = {};
+          for (const a of answers) {
+            const words = String(a).toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            for (const w of words) { wordCounts[w] = (wordCounts[w] || 0) + 1; }
+          }
+          const sorted = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 20);
+          insight.top_keywords = sorted.map(([word, count]) => ({ word, count }));
+        }
+
+        // For number fields: provide avg, min, max
+        if (q.type === 'number') {
+          const nums = answers.map(Number).filter(n => !isNaN(n));
+          if (nums.length > 0) {
+            insight.average = Math.round(nums.reduce((s, n) => s + n, 0) / nums.length * 100) / 100;
+            insight.min = Math.min(...nums);
+            insight.max = Math.max(...nums);
+          }
+        }
+
+        return insight;
+      });
+
+      insights.push({
+        questionnaire_id: questionnaire.id,
+        questionnaire_name: questionnaire.name,
+        company_id: questionnaire.company_id,
+        company_name: questionnaire.company_name,
+        visit_type: questionnaire.visit_type,
+        target_type: questionnaire.target_type,
+        total_responses: responseList.length,
+        question_count: questions.length,
+        questions: questionInsights,
+        // Summary metrics
+        completion_rate: responseList.length > 0 ? Math.round(questionInsights.filter(q => q.total_answered > 0).length / questions.length * 100) : 0,
+        last_response_at: responseList.length > 0 ? responseList[0].created_at : null
+      });
+    }
+
+    return c.json({ success: true, data: { questionnaires: insights, total_responses: totalResponses } });
+  } catch (e) {
+    return c.json({ success: false, message: 'Failed to get survey insights: ' + (e.message || e) }, 500);
+  }
+});
+
+// Get company-specific questionnaire for visit workflow (mobile use)
+api.get('/survey-insights/company/:companyId', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.req.param('companyId');
+  const { visit_type } = c.req.query();
+
+  let where = 'WHERE q.tenant_id = ? AND q.company_id = ? AND q.is_active = 1';
+  const params = [tenantId, companyId];
+  if (visit_type) { where += ' AND (q.visit_type = ? OR q.target_type = ?)'; params.push(visit_type, visit_type); }
+
+  const questionnaires = await db.prepare(`SELECT q.id, q.name, q.visit_type, q.target_type, q.questions, q.is_mandatory FROM questionnaires q ${where} ORDER BY q.is_default DESC, q.name`).bind(...params).all();
+  const results = (questionnaires.results || []).map(q => {
+    try { q.questions = typeof q.questions === 'string' ? JSON.parse(q.questions) : q.questions; } catch { q.questions = []; }
+    return q;
+  });
+  return c.json({ success: true, data: results });
+});
+
 // ==================== Y. DEPLOYMENT & HEALTH ====================
 
 api.get('/health', async (c) => {
@@ -10127,6 +10464,103 @@ api.get('/docs/index', (c) => {
   });
 });
 
+
+// ==================== COMPANY SAMPLE BOARDS (reference images for photo comparison) ====================
+
+// List sample boards for a company
+api.get('/company-sample-boards', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, active_only } = c.req.query();
+  let where = 'WHERE tenant_id = ?';
+  const params = [tenantId];
+  if (company_id) { where += ' AND company_id = ?'; params.push(company_id); }
+  if (active_only === 'true') {
+    where += " AND is_active = 1 AND valid_from <= date('now') AND (valid_to IS NULL OR valid_to >= date('now'))";
+  }
+  const boards = await db.prepare(`SELECT csb.*, fc.name as company_name FROM company_sample_boards csb LEFT JOIN field_companies fc ON csb.company_id = fc.id ${where} ORDER BY csb.created_at DESC`).bind(...params).all();
+  return c.json({ success: true, data: boards.results || [] });
+});
+
+// Get single sample board
+api.get('/company-sample-boards/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { id } = c.req.param();
+  const board = await db.prepare('SELECT csb.*, fc.name as company_name FROM company_sample_boards csb LEFT JOIN field_companies fc ON csb.company_id = fc.id WHERE csb.id = ? AND csb.tenant_id = ?').bind(id, tenantId).first();
+  if (!board) return c.json({ success: false, message: 'Sample board not found' }, 404);
+  return c.json({ success: true, data: board });
+});
+
+// Create sample board (with image upload)
+api.post('/company-sample-boards', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  try {
+    const formData = await c.req.formData();
+    const image = formData.get('image');
+    const companyId = formData.get('company_id');
+    const name = formData.get('name');
+    const description = formData.get('description') || '';
+    const validFrom = formData.get('valid_from');
+    const validTo = formData.get('valid_to') || null;
+
+    if (!image || !companyId || !name || !validFrom) {
+      return c.json({ success: false, message: 'image, company_id, name, and valid_from are required' }, 400);
+    }
+
+    const id = crypto.randomUUID();
+    const r2Key = `sample-boards/${tenantId}/${companyId}/${id}.jpg`;
+    let r2Url = null;
+
+    const bucket = c.env.UPLOADS;
+    if (bucket) {
+      try {
+        await bucket.put(r2Key, image.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
+        r2Url = r2Key;
+      } catch (e) { console.error('R2 upload error for sample board:', e); }
+    }
+
+    await db.prepare(`INSERT INTO company_sample_boards (id, tenant_id, company_id, name, description, r2_key, r2_url, valid_from, valid_to, is_active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`).bind(
+      id, tenantId, companyId, name, description, r2Key, r2Url, validFrom, validTo, userId
+    ).run();
+
+    return c.json({ success: true, data: { id, r2_key: r2Key }, message: 'Sample board created' }, 201);
+  } catch (e) { return c.json({ success: false, message: 'Failed to create sample board: ' + (e.message || e) }, 500); }
+});
+
+// Update sample board
+api.put('/company-sample-boards/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  const existing = await db.prepare('SELECT id FROM company_sample_boards WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!existing) return c.json({ success: false, message: 'Sample board not found' }, 404);
+  await db.prepare(`UPDATE company_sample_boards SET name = COALESCE(?, name), description = COALESCE(?, description), valid_from = COALESCE(?, valid_from), valid_to = ?, is_active = COALESCE(?, is_active), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`).bind(
+    body.name || null, body.description || null, body.valid_from || null, body.valid_to ?? null, body.is_active ?? null, id, tenantId
+  ).run();
+  return c.json({ success: true, message: 'Sample board updated' });
+});
+
+// Delete sample board (soft delete)
+api.delete('/company-sample-boards/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { id } = c.req.param();
+  await db.prepare("UPDATE company_sample_boards SET is_active = 0, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Sample board deactivated' });
+});
+
+// Get active sample boards for a company (mobile agent use)
+api.get('/company-sample-boards/active/:companyId', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.req.param('companyId');
+  const boards = await db.prepare("SELECT id, name, description, r2_key, r2_url, valid_from, valid_to FROM company_sample_boards WHERE tenant_id = ? AND company_id = ? AND is_active = 1 AND valid_from <= date('now') AND (valid_to IS NULL OR valid_to >= date('now')) ORDER BY valid_from DESC").bind(tenantId, companyId).all();
+  return c.json({ success: true, data: boards.results || [] });
+});
 
 // ==================== TRADE MARKETING: PHOTO UPLOAD + AI ANALYSIS ====================
 
@@ -10207,6 +10641,11 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
     const photoType = formData.get('photo_type') || 'general';
     const latitude = formData.get('latitude');
     const longitude = formData.get('longitude');
+    const boardPlacementLocation = formData.get('board_placement_location') || null;
+    const boardPlacementPosition = formData.get('board_placement_position') || null;
+    const boardCondition = formData.get('board_condition') || null;
+    const sampleBoardId = formData.get('sample_board_id') || null;
+    const photoHash = formData.get('photo_hash') || null;
 
     if (!photo || !visitId) return c.json({ success: false, message: 'photo and visit_id required' }, 400);
 
@@ -10225,21 +10664,23 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
       }
     }
 
-    // Insert into visit_photos - try with all columns, fallback to minimal columns
+    // Insert into visit_photos - try with all columns including board placement, fallback to minimal
     try {
       await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, thumbnail_r2_key,
-        original_size_bytes, compressed_size_bytes, gps_latitude, gps_longitude, captured_at, uploaded_by, ai_analysis_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending')`).bind(
+        original_size_bytes, compressed_size_bytes, gps_latitude, gps_longitude, captured_at, uploaded_by,
+        ai_analysis_status, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending', ?, ?, ?, ?, ?)`).bind(
         id, tenantId, visitId, photoType, photoKey, thumbnail ? thumbKey : null,
         parseInt(formData.get('original_size') || '0'), photo.size,
-        latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, userId
+        latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, userId,
+        photoHash, boardPlacementLocation, boardPlacementPosition, boardCondition, sampleBoardId
       ).run();
     } catch {
       // Fallback: minimal columns if some don't exist in the schema yet
       await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)`).bind(
         id, tenantId, visitId, photoType, photoKey, null,
-        latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, null, userId
+        latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, photoHash, userId
       ).run();
     }
 

@@ -1,9 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import {
   TrendingUp, MapPin, Users, Target, Calendar, Award, BarChart3,
-  DollarSign, Flame, Zap, Trophy, Clock, Shield, Star, UserCheck
+  DollarSign, Flame, Zap, Trophy, Clock, Shield, Star, UserCheck, Store, User
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+
+interface VisitBreakdownItem {
+  company_id: string
+  company_name: string
+  visit_type: string
+  count: number
+  today_count: number
+  month_count: number
+}
 
 interface DashboardData {
   today_visits: number
@@ -17,6 +26,8 @@ interface DashboardData {
     target_registrations: number
     actual_registrations: number
   }>
+  visit_breakdown?: VisitBreakdownItem[]
+  companies?: Array<{ id: string; name: string }>
 }
 
 interface PerformanceData {
@@ -183,6 +194,77 @@ function CommissionRow({ label, amount, count, color }: { label: string; amount:
   )
 }
 
+function VisitBreakdownSection({ breakdown, companies }: { breakdown: VisitBreakdownItem[]; companies: Array<{ id: string; name: string }> }) {
+  // Group by company
+  const byCompany: Record<string, { company_name: string; store_today: number; store_month: number; individual_today: number; individual_month: number; other_today: number; other_month: number }> = {}
+  for (const item of breakdown) {
+    const key = item.company_id || 'unassigned'
+    if (!byCompany[key]) {
+      byCompany[key] = { company_name: item.company_name || 'Unassigned', store_today: 0, store_month: 0, individual_today: 0, individual_month: 0, other_today: 0, other_month: 0 }
+    }
+    const vt = (item.visit_type || '').toLowerCase()
+    if (vt === 'store') {
+      byCompany[key].store_today += item.today_count || 0
+      byCompany[key].store_month += item.month_count || 0
+    } else if (vt === 'individual') {
+      byCompany[key].individual_today += item.today_count || 0
+      byCompany[key].individual_month += item.month_count || 0
+    } else {
+      byCompany[key].other_today += item.today_count || 0
+      byCompany[key].other_month += item.month_count || 0
+    }
+  }
+
+  const companyEntries = Object.entries(byCompany)
+  if (companyEntries.length === 0) return null
+
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Visit Breakdown</h3>
+      <div className="space-y-3">
+        {companyEntries.map(([key, data]) => (
+          <div key={key} className="bg-white/5 rounded-xl p-3">
+            <p className="text-sm font-semibold text-white mb-2">{data.company_name}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center gap-2">
+                <Store className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase">Store Visits</p>
+                  <p className="text-sm text-white font-medium">
+                    <span className="text-purple-400">{data.store_today}</span>
+                    <span className="text-gray-600 text-xs"> today</span>
+                    {' / '}
+                    <span className="text-purple-300">{data.store_month}</span>
+                    <span className="text-gray-600 text-xs"> month</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase">Individual</p>
+                  <p className="text-sm text-white font-medium">
+                    <span className="text-cyan-400">{data.individual_today}</span>
+                    <span className="text-gray-600 text-xs"> today</span>
+                    {' / '}
+                    <span className="text-cyan-300">{data.individual_month}</span>
+                    <span className="text-gray-600 text-xs"> month</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            {(data.other_today > 0 || data.other_month > 0) && (
+              <div className="mt-1 text-xs text-gray-500">
+                Other: {data.other_today} today / {data.other_month} month
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function OverviewTab({
   overallPct, totalEarnings, streak, weekDays, weeklyMax, perfData, dashData
 }: {
@@ -253,6 +335,11 @@ function OverviewTab({
         <StatCard icon={<TrendingUp className="w-5 h-5 text-emerald-400" />} label="Month Visits" value={dashData?.month_visits || 0} />
         <StatCard icon={<Award className="w-5 h-5 text-amber-400" />} label="Month Regs" value={dashData?.month_registrations || 0} />
       </div>
+
+      {/* Visit breakdown by company and type */}
+      {dashData?.visit_breakdown && dashData.visit_breakdown.length > 0 && (
+        <VisitBreakdownSection breakdown={dashData.visit_breakdown} companies={dashData.companies || []} />
+      )}
 
       {perfData && perfData.total_target_visits > 0 && (
         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">

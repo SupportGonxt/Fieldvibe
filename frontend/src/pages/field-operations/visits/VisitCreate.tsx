@@ -183,10 +183,14 @@ export default function VisitCreate() {
   const [surveyRequired, setSurveyRequired] = useState(false)
   const [skipSurvey, setSkipSurvey] = useState(false)
 
-  // Step 5: Photo
-  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string }>>([])
+  // Step 5: Photo (with board placement questions)
+  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string }>>([])
   const [photoGps, setPhotoGps] = useState<GpsLocation | null>(null)
   const [photoDuplicateWarning, setPhotoDuplicateWarning] = useState<string | null>(null)
+  // Board placement defaults for the next photo
+  const [boardPlacementLocation, setBoardPlacementLocation] = useState<string>('')
+  const [boardPlacementPosition, setBoardPlacementPosition] = useState<string>('')
+  const [boardCondition, setBoardCondition] = useState<string>('')
 
   // Notes
   const [notes, setNotes] = useState('')
@@ -503,6 +507,9 @@ export default function VisitCreate() {
       }
 
       setPhotos(prev => [...prev, {
+        boardPlacementLocation: boardPlacementLocation || undefined,
+        boardPlacementPosition: boardPlacementPosition || undefined,
+        boardCondition: boardCondition || undefined,
         dataUrl,
         hash,
         gps: currentGps,
@@ -552,7 +559,7 @@ export default function VisitCreate() {
         }
         return true
       }
-      case 'photo': return true
+      case 'photo': return photos.length > 0
       case 'review': return true
       default: return true
     }
@@ -647,6 +654,9 @@ export default function VisitCreate() {
         payload.photos = photos.map(p => ({
           photo_url: p.dataUrl,
           photo_hash: p.hash,
+          board_placement_location: p.boardPlacementLocation || null,
+          board_placement_position: p.boardPlacementPosition || null,
+          board_condition: p.boardCondition || null,
           gps_latitude: p.gps?.latitude,
           gps_longitude: p.gps?.longitude,
           photo_type: 'board',
@@ -1126,9 +1136,70 @@ export default function VisitCreate() {
       <CardContent>
         <Typography variant="h6" gutterBottom>Board Photo Capture</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Take a photo of the boards/signage. GPS will be captured again at this point.
-          Duplicate photos are not allowed.
+          Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
+          Duplicate photos are not allowed. <strong>At least one photo is required.</strong>
         </Typography>
+
+        {/* Board Placement Questions */}
+        <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Board Placement Details</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Board Location</InputLabel>
+                <Select
+                  value={boardPlacementLocation}
+                  label="Board Location"
+                  onChange={(e) => setBoardPlacementLocation(e.target.value)}
+                >
+                  <MenuItem value=""><em>Select...</em></MenuItem>
+                  <MenuItem value="inside_store">Inside Store</MenuItem>
+                  <MenuItem value="outside_store">Outside Store</MenuItem>
+                  <MenuItem value="window">Window Display</MenuItem>
+                  <MenuItem value="entrance">Entrance</MenuItem>
+                  <MenuItem value="counter">Counter/Till Area</MenuItem>
+                  <MenuItem value="aisle">In-Aisle</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Board Position</InputLabel>
+                <Select
+                  value={boardPlacementPosition}
+                  label="Board Position"
+                  onChange={(e) => setBoardPlacementPosition(e.target.value)}
+                >
+                  <MenuItem value=""><em>Select...</em></MenuItem>
+                  <MenuItem value="front">Front</MenuItem>
+                  <MenuItem value="side">Side</MenuItem>
+                  <MenuItem value="back">Back</MenuItem>
+                  <MenuItem value="above">Above Eye Level</MenuItem>
+                  <MenuItem value="eye_level">Eye Level</MenuItem>
+                  <MenuItem value="below">Below Eye Level</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Board Condition</InputLabel>
+                <Select
+                  value={boardCondition}
+                  label="Board Condition"
+                  onChange={(e) => setBoardCondition(e.target.value)}
+                >
+                  <MenuItem value=""><em>Select...</em></MenuItem>
+                  <MenuItem value="good">Good</MenuItem>
+                  <MenuItem value="fair">Fair</MenuItem>
+                  <MenuItem value="damaged">Damaged</MenuItem>
+                  <MenuItem value="faded">Faded</MenuItem>
+                  <MenuItem value="missing">Missing</MenuItem>
+                  <MenuItem value="obstructed">Obstructed</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </Box>
 
         <Box sx={{ mb: 3, textAlign: 'center' }}>
           <Button
@@ -1174,9 +1245,24 @@ export default function VisitCreate() {
                     </IconButton>
                   </Box>
                   <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" display="block">
                       {photo.gps ? `GPS: ${photo.gps.latitude.toFixed(4)}, ${photo.gps.longitude.toFixed(4)}` : 'No GPS'}
                     </Typography>
+                    {photo.boardPlacementLocation && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Location: {photo.boardPlacementLocation.replace(/_/g, ' ')}
+                      </Typography>
+                    )}
+                    {photo.boardPlacementPosition && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Position: {photo.boardPlacementPosition.replace(/_/g, ' ')}
+                      </Typography>
+                    )}
+                    {photo.boardCondition && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Condition: {photo.boardCondition}
+                      </Typography>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
