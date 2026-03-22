@@ -108,8 +108,8 @@ export const navigation: NavigationItem[] = [
       // ── Reports (SSReports-style) ──
       { name: 'Reports Dashboard', href: '/field-operations/reports/dashboard', permission: 'view_field_reports', description: 'KPIs, agent performance, charts', group: 'Reports' },
       { name: 'Deep Insights', href: '/field-operations/reports/insights', permission: 'view_field_reports', description: 'Performance highlights & analytics', group: 'Reports' },
-      { name: 'Shops Analytics', href: '/field-operations/reports/shops', permission: 'view_field_reports', description: 'Shop-level analytics & drill-down', group: 'Reports' },
-      { name: 'Customer Analytics', href: '/field-operations/reports/customers', permission: 'view_field_reports', description: 'Customer interaction analysis', group: 'Reports' },
+      { name: 'Store Analytics', href: '/field-operations/reports/shops', permission: 'view_field_reports', description: 'Store-level analytics & drill-down', group: 'Reports' },
+      { name: 'Individual Analytics', href: '/field-operations/reports/customers', permission: 'view_field_reports', description: 'Individual interaction analysis', group: 'Reports' },
       { name: 'Check-ins List', href: '/field-operations/reports/checkins', permission: 'view_field_reports', description: 'Paginated check-in records', group: 'Reports' },
       { name: 'Export Reports', href: '/field-operations/reports/export', permission: 'export_data', description: 'Export data to CSV', group: 'Reports' },
     ],

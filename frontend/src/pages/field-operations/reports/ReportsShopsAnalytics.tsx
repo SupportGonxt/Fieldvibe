@@ -60,10 +60,10 @@ const ReportsShopsAnalytics: React.FC = () => {
     return (
       <div className="space-y-6">
         <button onClick={() => setSelectedShop(null)} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
-          <ChevronLeft className="h-4 w-4" /> Back to Shops
+          <ChevronLeft className="h-4 w-4" /> Back to Stores
         </button>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{shop.name || 'Shop Details'}</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{shop.name || 'Store Details'}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{shop.address || 'No address'}</p>
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -117,8 +117,8 @@ const ReportsShopsAnalytics: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shops Analytics</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Shop-level check-in analytics and conversion rates</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Store Analytics</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Store-level check-in analytics and conversion rates</p>
         </div>
         <div className="flex gap-2">
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
@@ -133,7 +133,7 @@ const ReportsShopsAnalytics: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <Store className="h-5 w-5 text-blue-500 mb-2" />
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.total || 0}</p>
-          <p className="text-sm text-gray-500">Total Shops</p>
+          <p className="text-sm text-gray-500">Total Stores</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <MapPin className="h-5 w-5 text-green-500 mb-2" />
@@ -157,7 +157,7 @@ const ReportsShopsAnalytics: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-700/50">
               <tr>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Shop</th>
+                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Store</th>
                 <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Check-ins</th>
                 <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Approved</th>
                 <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conversions</th>
@@ -167,7 +167,7 @@ const ReportsShopsAnalytics: React.FC = () => {
             </thead>
             <tbody>
               {(data?.shops || []).length === 0 ? (
-                <tr><td colSpan={6} className="py-12 text-center text-gray-400">No shops found</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-gray-400">No stores found</td></tr>
               ) : (data?.shops || []).map((shop) => (
                 <tr key={shop.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="py-3 px-4">
