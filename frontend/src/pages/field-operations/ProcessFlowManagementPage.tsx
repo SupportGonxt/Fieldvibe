@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Database,
   CheckCircle,
+  Target,
 } from 'lucide-react'
 
 // ── Types ──
@@ -90,12 +91,13 @@ const FIELD_TYPES = [
 // ── Main Page Component ──
 
 export default function ProcessFlowManagementPage() {
-  const [activeTab, setActiveTab] = useState<'flows' | 'assignments' | 'questions' | 'migration'>('flows')
+  const [activeTab, setActiveTab] = useState<'flows' | 'assignments' | 'questions' | 'targets' | 'migration'>('flows')
 
   const tabs = [
     { key: 'flows' as const, label: 'Process Flows', icon: Workflow },
     { key: 'assignments' as const, label: 'Company Assignments', icon: Link2 },
     { key: 'questions' as const, label: 'Custom Questions', icon: MessageSquare },
+    { key: 'targets' as const, label: 'Target Rules', icon: Target },
     { key: 'migration' as const, label: 'Database Setup', icon: Database },
   ]
 
@@ -132,6 +134,7 @@ export default function ProcessFlowManagementPage() {
       {activeTab === 'flows' && <ProcessFlowsTab />}
       {activeTab === 'assignments' && <CompanyAssignmentsTab />}
       {activeTab === 'questions' && <CustomQuestionsTab />}
+      {activeTab === 'targets' && <CompanyTargetRulesTab />}
       {activeTab === 'migration' && <MigrationTab />}
     </div>
   )
@@ -957,7 +960,229 @@ function CustomQuestionsTab() {
 }
 
 // ══════════════════════════════════════════════════════════
-// Tab 4: Database Setup (Migration)
+// Tab 4: Company Target Rules
+// ══════════════════════════════════════════════════════════
+
+interface TargetRuleForm {
+  company_id: string
+  target_visits_per_day: number
+  target_registrations_per_day: number
+  target_conversions_per_day: number
+  team_lead_own_target_visits: number
+  team_lead_own_target_registrations: number
+  team_lead_own_target_conversions: number
+}
+
+const EMPTY_TARGET_FORM: TargetRuleForm = {
+  company_id: '',
+  target_visits_per_day: 20,
+  target_registrations_per_day: 10,
+  target_conversions_per_day: 5,
+  team_lead_own_target_visits: 20,
+  team_lead_own_target_registrations: 10,
+  team_lead_own_target_conversions: 5,
+}
+
+function CompanyTargetRulesTab() {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState<TargetRuleForm>(EMPTY_TARGET_FORM)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-ops-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies: { id: string; name: string; code: string }[] = Array.isArray(companiesResp) ? companiesResp : (companiesResp?.data || [])
+
+  const { data: rulesResp, isLoading, isError } = useQuery({
+    queryKey: ['company-target-rules'],
+    queryFn: () => fieldOperationsService.getCompanyTargetRules(),
+  })
+  const rules: (TargetRuleForm & { id: string; company_name: string; company_code: string })[] = Array.isArray(rulesResp) ? rulesResp : (rulesResp?.data || [])
+
+  const saveMutation = useMutation({
+    mutationFn: (data: TargetRuleForm) => fieldOperationsService.saveCompanyTargetRule(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-target-rules'] })
+      toast.success(editingId ? 'Target rules updated' : 'Target rules created')
+      setForm(EMPTY_TARGET_FORM)
+      setEditingId(null)
+    },
+    onError: () => toast.error('Failed to save target rules'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => fieldOperationsService.deleteCompanyTargetRule(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-target-rules'] })
+      toast.success('Target rules deleted')
+    },
+    onError: () => toast.error('Failed to delete'),
+  })
+
+  function startEdit(rule: typeof rules[0]) {
+    setEditingId(rule.id)
+    setForm({
+      company_id: rule.company_id,
+      target_visits_per_day: rule.target_visits_per_day,
+      target_registrations_per_day: rule.target_registrations_per_day,
+      target_conversions_per_day: rule.target_conversions_per_day,
+      team_lead_own_target_visits: rule.team_lead_own_target_visits,
+      team_lead_own_target_registrations: rule.team_lead_own_target_registrations,
+      team_lead_own_target_conversions: rule.team_lead_own_target_conversions,
+    })
+  }
+
+  // Companies that don't already have rules
+  const companiesWithoutRules = companies.filter(c => !rules.some(r => r.company_id === c.id))
+
+  return (
+    <div className="space-y-6">
+      {/* Form */}
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          {editingId ? 'Edit Target Rules' : 'Create Target Rules'}
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Set daily targets per company. These apply to all agents linked to the company. Team leads have their own individual targets as well as responsibility for their team&apos;s aggregated performance. All levels must hit targets for commission eligibility.
+        </p>
+
+        <div className="space-y-4">
+          {/* Company select */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label>
+            {editingId ? (
+              <p className="text-gray-900 dark:text-white font-medium">{rules.find(r => r.id === editingId)?.company_name || form.company_id}</p>
+            ) : (
+              <SearchableSelect
+                options={companiesWithoutRules.map(c => ({ value: c.id, label: c.name }))}
+                value={form.company_id || null}
+                onChange={(val) => setForm(f => ({ ...f, company_id: val || '' }))}
+                placeholder="Select company..."
+              />
+            )}
+          </div>
+
+          {/* Agent Targets */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Agent Daily Targets</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Visits/Day</label>
+                <input type="number" min={0} value={form.target_visits_per_day} onChange={(e) => setForm(f => ({ ...f, target_visits_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Registrations/Day</label>
+                <input type="number" min={0} value={form.target_registrations_per_day} onChange={(e) => setForm(f => ({ ...f, target_registrations_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Conversions/Day</label>
+                <input type="number" min={0} value={form.target_conversions_per_day} onChange={(e) => setForm(f => ({ ...f, target_conversions_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              </div>
+            </div>
+          </div>
+
+          {/* Team Lead Own Targets */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Team Lead Own Daily Targets</h4>
+            <p className="text-xs text-gray-400 mb-2">Team leads must also hit their own individual targets in addition to their team hitting the agent targets above.</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Visits/Day</label>
+                <input type="number" min={0} value={form.team_lead_own_target_visits} onChange={(e) => setForm(f => ({ ...f, team_lead_own_target_visits: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Registrations/Day</label>
+                <input type="number" min={0} value={form.team_lead_own_target_registrations} onChange={(e) => setForm(f => ({ ...f, team_lead_own_target_registrations: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Conversions/Day</label>
+                <input type="number" min={0} value={form.team_lead_own_target_conversions} onChange={(e) => setForm(f => ({ ...f, team_lead_own_target_conversions: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { if (!form.company_id && !editingId) { toast.error('Select a company'); return; } saveMutation.mutate(form); }}
+              disabled={saveMutation.isPending}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {saveMutation.isPending ? 'Saving...' : editingId ? 'Update Rules' : 'Create Rules'}
+            </button>
+            {editingId && (
+              <button onClick={() => { setEditingId(null); setForm(EMPTY_TARGET_FORM); }} className="text-gray-500 hover:text-gray-700 text-sm">
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Existing Rules List */}
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Existing Target Rules</h3>
+        {isLoading && <LoadingSpinner />}
+        {isError && <p className="text-red-500">Failed to load target rules</p>}
+        {!isLoading && rules.length === 0 && (
+          <div className="text-center py-8 text-gray-400">
+            <Target className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p>No target rules configured yet. Create one above.</p>
+          </div>
+        )}
+        {rules.length > 0 && (
+          <div className="space-y-3">
+            {rules.map(rule => (
+              <div key={rule.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-indigo-600" />
+                    <span className="font-semibold text-gray-900 dark:text-white">{rule.company_name}</span>
+                    <span className="text-xs text-gray-400">({rule.company_code})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => startEdit(rule)} className="text-blue-600 hover:text-blue-700 p-1" title="Edit">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => deleteMutation.mutate(rule.id)} className="text-red-500 hover:text-red-600 p-1" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">Agent Targets</p>
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-gray-700 dark:text-gray-300"><strong>{rule.target_visits_per_day}</strong> visits</span>
+                      <span className="text-gray-700 dark:text-gray-300"><strong>{rule.target_registrations_per_day}</strong> regs</span>
+                      <span className="text-gray-700 dark:text-gray-300"><strong>{rule.target_conversions_per_day}</strong> conv</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">Team Lead Own Targets</p>
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-gray-700 dark:text-gray-300"><strong>{rule.team_lead_own_target_visits}</strong> visits</span>
+                      <span className="text-gray-700 dark:text-gray-300"><strong>{rule.team_lead_own_target_registrations}</strong> regs</span>
+                      <span className="text-gray-700 dark:text-gray-300"><strong>{rule.team_lead_own_target_conversions}</strong> conv</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  All levels (agent + team lead + manager) must hit targets for commission payout
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════
+// Tab 5: Database Setup (Migration)
 // ══════════════════════════════════════════════════════════
 
 function MigrationTab() {

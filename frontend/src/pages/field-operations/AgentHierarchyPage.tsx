@@ -43,8 +43,8 @@ export default function AgentHierarchyPage() {
   const [creating, setCreating] = useState(false)
   const [generatedPassword, setGeneratedPassword] = useState('')
 
-  // Manager-company assignment state
-  const [assigningCompanyToManager, setAssigningCompanyToManager] = useState<string | null>(null)
+  // Company assignment state (for any role)
+  const [assigningCompanyTo, setAssigningCompanyTo] = useState<{ id: string; role: 'manager' | 'team_lead' | 'agent' } | null>(null)
   const [selectedCompany, setSelectedCompany] = useState('')
 
   // Quick-edit state
@@ -71,22 +71,27 @@ export default function AgentHierarchyPage() {
   })
 
   const assignCompanyMutation = useMutation({
-    mutationFn: ({ managerId, companyId }: { managerId: string; companyId: string }) =>
-      fieldOperationsService.assignManagerToCompany(managerId, companyId),
+    mutationFn: ({ personId, companyId, role }: { personId: string; companyId: string; role: 'manager' | 'team_lead' | 'agent' }) =>
+      role === 'manager'
+        ? fieldOperationsService.assignManagerToCompany(personId, companyId)
+        : fieldOperationsService.linkAgentToCompany(personId, companyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
-      toast.success('Company assigned to manager')
-      setAssigningCompanyToManager(null)
+      toast.success('Company assigned')
+      setAssigningCompanyTo(null)
       setSelectedCompany('')
     },
     onError: () => toast.error('Failed to assign company'),
   })
 
   const unassignCompanyMutation = useMutation({
-    mutationFn: (linkId: string) => fieldOperationsService.unassignManagerFromCompany(linkId),
+    mutationFn: ({ linkId, role }: { linkId: string; role: 'manager' | 'team_lead' | 'agent' }) =>
+      role === 'manager'
+        ? fieldOperationsService.unassignManagerFromCompany(linkId)
+        : fieldOperationsService.unlinkAgentFromCompany(linkId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
-      toast.success('Company unassigned from manager')
+      toast.success('Company unassigned')
     },
     onError: () => toast.error('Failed to unassign company'),
   })
@@ -156,11 +161,15 @@ export default function AgentHierarchyPage() {
       const res = await apiClient.post('/users', payload)
       const data = res.data?.data || res.data || {}
       const userId = data.id || data.user_id
-      // Assign companies after user creation
+      // Assign companies after user creation - use correct table based on role
       if (userId && createForm.companyIds.length > 0) {
         for (const companyId of createForm.companyIds) {
           try {
-            await fieldOperationsService.assignManagerToCompany(userId, companyId)
+            if (createForm.role === 'manager') {
+              await fieldOperationsService.assignManagerToCompany(userId, companyId)
+            } else {
+              await fieldOperationsService.linkAgentToCompany(userId, companyId)
+            }
           } catch {
             // Continue with other company assignments even if one fails
           }
@@ -338,7 +347,7 @@ export default function AgentHierarchyPage() {
                     <Building2 className="w-3 h-3" />
                     {company.name}
                     <button
-                      onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate(company.link_id) }}
+                      onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate({ linkId: company.link_id, role: 'manager' }) }}
                       className="ml-0.5 text-indigo-400 hover:text-red-500 transition-colors"
                       title={`Remove ${company.name}`}
                     >
@@ -347,7 +356,7 @@ export default function AgentHierarchyPage() {
                   </span>
                 ))}
                 {/* Add company button */}
-                {assigningCompanyToManager === manager.id ? (
+                {assigningCompanyTo?.id === manager.id && assigningCompanyTo?.role === 'manager' ? (
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <SearchableSelect
                       options={availableCompanies.map(c => ({ value: c.id, label: c.name }))}
@@ -356,14 +365,14 @@ export default function AgentHierarchyPage() {
                       placeholder="Select company"
                     />
                     <button
-                      onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ managerId: manager.id, companyId: selectedCompany }) }}
+                      onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ personId: manager.id, companyId: selectedCompany, role: 'manager' }) }}
                       disabled={!selectedCompany || assignCompanyMutation.isPending}
                       className="text-green-600 text-xs font-medium px-2 py-1 disabled:opacity-50"
                     >
                       Add
                     </button>
                     <button
-                      onClick={() => { setAssigningCompanyToManager(null); setSelectedCompany('') }}
+                      onClick={() => { setAssigningCompanyTo(null); setSelectedCompany('') }}
                       className="text-gray-400 text-xs px-1"
                     >
                       Cancel
@@ -372,7 +381,7 @@ export default function AgentHierarchyPage() {
                 ) : (
                   availableCompanies.length > 0 && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setAssigningCompanyToManager(manager.id); setSelectedCompany('') }}
+                      onClick={(e) => { e.stopPropagation(); setAssigningCompanyTo({ id: manager.id, role: 'manager' }); setSelectedCompany('') }}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors border border-dashed border-indigo-300 dark:border-indigo-700"
                       title="Assign company to manager"
                     >
@@ -394,6 +403,27 @@ export default function AgentHierarchyPage() {
                         {expandedTeamLeads.has(tl.id) ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
                         <Shield className="w-5 h-5 text-blue-600 flex-shrink-0" />
                         <span className="font-medium text-gray-900 dark:text-white truncate">{tl.first_name} {tl.last_name}</span>
+                        {/* TL company badges */}
+                        {(tl.companies || []).map((company: { id: string; name: string; code: string; link_id: string }) => (
+                          <span key={company.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                            <Building2 className="w-2.5 h-2.5" />
+                            {company.name}
+                            <button onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate({ linkId: company.link_id, role: 'team_lead' }) }} className="ml-0.5 text-blue-400 hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
+                          </span>
+                        ))}
+                        {assigningCompanyTo?.id === tl.id && assigningCompanyTo?.role === 'team_lead' ? (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <SearchableSelect options={allCompanies.filter((c: { id: string }) => !(tl.companies || []).some((tc: { id: string }) => tc.id === c.id)).map((c: { id: string; name: string }) => ({ value: c.id, label: c.name }))} value={selectedCompany || null} onChange={(val) => setSelectedCompany(val || '')} placeholder="Company" />
+                            <button onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ personId: tl.id, companyId: selectedCompany, role: 'team_lead' }) }} disabled={!selectedCompany || assignCompanyMutation.isPending} className="text-green-600 text-xs font-medium px-1 disabled:opacity-50">Add</button>
+                            <button onClick={() => { setAssigningCompanyTo(null); setSelectedCompany('') }} className="text-gray-400 text-xs px-1">Cancel</button>
+                          </div>
+                        ) : (
+                          allCompanies.length > 0 && (
+                            <button onClick={(e) => { e.stopPropagation(); setAssigningCompanyTo({ id: tl.id, role: 'team_lead' }); setSelectedCompany('') }} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-dashed border-blue-300 dark:border-blue-700" title="Assign company">
+                              <Plus className="w-2.5 h-2.5" /> Co.
+                            </button>
+                          )
+                        )}
                         <span className="text-sm text-gray-500 ml-auto flex-shrink-0">{tl.agents?.length || 0} agents</span>
                       </button>
                       {/* Quick Edit for Team Lead */}
@@ -442,9 +472,30 @@ export default function AgentHierarchyPage() {
                     {expandedTeamLeads.has(tl.id) && (
                       <div className="ml-8 mt-1 space-y-1">
                         {(tl.agents || []).map((agent: any) => (
-                          <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
+                          <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20 flex-wrap">
                             <User className="w-4 h-4 text-green-600 flex-shrink-0" />
                             <span className="text-gray-900 dark:text-white truncate">{agent.first_name} {agent.last_name}</span>
+                            {/* Agent company badges */}
+                            {(agent.companies || []).map((company: { id: string; name: string; code: string; link_id: string }) => (
+                              <span key={company.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-800/30 text-green-700 dark:text-green-300">
+                                <Building2 className="w-2.5 h-2.5" />
+                                {company.name}
+                                <button onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate({ linkId: company.link_id, role: 'agent' }) }} className="ml-0.5 text-green-400 hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
+                              </span>
+                            ))}
+                            {assigningCompanyTo?.id === agent.id && assigningCompanyTo?.role === 'agent' ? (
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <SearchableSelect options={allCompanies.filter((c: { id: string }) => !(agent.companies || []).some((ac: { id: string }) => ac.id === c.id)).map((c: { id: string; name: string }) => ({ value: c.id, label: c.name }))} value={selectedCompany || null} onChange={(val) => setSelectedCompany(val || '')} placeholder="Company" />
+                                <button onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ personId: agent.id, companyId: selectedCompany, role: 'agent' }) }} disabled={!selectedCompany || assignCompanyMutation.isPending} className="text-green-600 text-xs font-medium px-1 disabled:opacity-50">Add</button>
+                                <button onClick={() => { setAssigningCompanyTo(null); setSelectedCompany('') }} className="text-gray-400 text-xs px-1">Cancel</button>
+                              </div>
+                            ) : (
+                              allCompanies.length > 0 && (
+                                <button onClick={(e) => { e.stopPropagation(); setAssigningCompanyTo({ id: agent.id, role: 'agent' }); setSelectedCompany('') }} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-dashed border-green-300 dark:border-green-700" title="Assign company">
+                                  <Plus className="w-2.5 h-2.5" /> Co.
+                                </button>
+                              )
+                            )}
                             {editingUser === agent.id ? (
                               <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center gap-1">
@@ -830,8 +881,8 @@ export default function AgentHierarchyPage() {
                   </div>
                 )}
 
-                {/* Assign to Companies (multi-select, managers only) */}
-                {createForm.role === 'manager' && allCompanies.length > 0 && (
+                {/* Assign to Companies (multi-select, all roles) */}
+                {allCompanies.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Assign to Companies

@@ -1477,6 +1477,24 @@ CREATE TABLE IF NOT EXISTS daily_targets (
   FOREIGN KEY (company_id) REFERENCES field_companies(id)
 );
 
+-- Company Target Rules (company-level target rules that apply to all agents in a company)
+CREATE TABLE IF NOT EXISTS company_target_rules (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  target_visits_per_day INTEGER DEFAULT 20,
+  target_registrations_per_day INTEGER DEFAULT 10,
+  target_conversions_per_day INTEGER DEFAULT 5,
+  team_lead_own_target_visits INTEGER DEFAULT 20,
+  team_lead_own_target_registrations INTEGER DEFAULT 10,
+  team_lead_own_target_conversions INTEGER DEFAULT 5,
+  created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id)
+);
+
 -- Individual Registrations (people registered on-site by agents)
 CREATE TABLE IF NOT EXISTS individual_registrations (
   id TEXT PRIMARY KEY,

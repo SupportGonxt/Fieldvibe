@@ -703,6 +703,37 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // ==================== FIELD OPS: COMPANY TARGET RULES ====================
+  async getCompanyTargetRules(companyId?: string) {
+    const params = companyId ? `?company_id=${companyId}` : ''
+    const response = await this.get(`/field-ops/company-target-rules${params}`)
+    return response.data || response
+  }
+
+  async getCompanyTargetRule(companyId: string) {
+    const response = await this.get(`/field-ops/company-target-rules/${companyId}`)
+    return response.data || response
+  }
+
+  async saveCompanyTargetRule(data: { company_id: string; target_visits_per_day?: number; target_registrations_per_day?: number; target_conversions_per_day?: number; team_lead_own_target_visits?: number; team_lead_own_target_registrations?: number; team_lead_own_target_conversions?: number }) {
+    const response = await this.post('/field-ops/company-target-rules', data)
+    return response.data || response
+  }
+
+  async deleteCompanyTargetRule(id: string) {
+    const response = await this.delete(`/field-ops/company-target-rules/${id}`)
+    return response.data || response
+  }
+
+  async getCommissionEligibility(filter: { date?: string; company_id?: string; agent_id?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/commission-eligibility?${params.toString()}`)
+    return response.data || response
+  }
+
   // ==================== FIELD OPS: INDIVIDUAL REGISTRATIONS ====================
   async getIndividuals(filter: { agent_id?: string; company_id?: string; converted?: string; search?: string; page?: number; limit?: number } = {}) {
     const params = new URLSearchParams()
