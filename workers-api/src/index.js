@@ -6006,7 +6006,16 @@ api.get('/process-flows/:id', authMiddleware, async (c) => {
     const flow = await db.prepare("SELECT * FROM process_flows WHERE id = ? AND tenant_id IN (?, 'default')").bind(id, tenantId).first();
     if (!flow) return c.json({ error: 'Process flow not found' }, 404);
     const steps = await db.prepare("SELECT * FROM process_flow_steps WHERE process_flow_id = ? AND tenant_id IN (?, 'default') AND is_active = 1 ORDER BY step_order").bind(id, tenantId).all();
-    return c.json({ data: { ...flow, steps: steps?.results || [] } });
+    // Deduplicate steps by step_key (prefer tenant-specific over default)
+    const allSteps = steps?.results || [];
+    const seen = new Map();
+    for (const s of allSteps) {
+      if (!seen.has(s.step_key) || (s.tenant_id !== 'default' && seen.get(s.step_key).tenant_id === 'default')) {
+        seen.set(s.step_key, s);
+      }
+    }
+    const dedupedSteps = Array.from(seen.values()).sort((a, b) => a.step_order - b.step_order);
+    return c.json({ data: { ...flow, steps: dedupedSteps } });
   } catch (err) { return c.json({ error: 'Failed to get process flow: ' + (err.message || err) }, 500); }
 });
 
@@ -6139,7 +6148,16 @@ api.get('/visit-process-flow', authMiddleware, async (c) => {
     }
     if (!flow) return c.json({ data: null, steps: [] });
     const steps = await db.prepare("SELECT * FROM process_flow_steps WHERE process_flow_id = ? AND is_active = 1 ORDER BY step_order").bind(flow.id).all();
-    return c.json({ data: { ...flow, steps: steps?.results || [] } });
+    // Deduplicate steps by step_key (prefer tenant-specific over default, keep lowest step_order per key)
+    const allSteps = steps?.results || [];
+    const seen = new Map();
+    for (const s of allSteps) {
+      if (!seen.has(s.step_key) || (s.tenant_id !== 'default' && seen.get(s.step_key).tenant_id === 'default')) {
+        seen.set(s.step_key, s);
+      }
+    }
+    const dedupedSteps = Array.from(seen.values()).sort((a, b) => a.step_order - b.step_order);
+    return c.json({ data: { ...flow, steps: dedupedSteps } });
   } catch (err) { return c.json({ error: 'Failed to get visit process flow: ' + (err.message || err) }, 500); }
 });
 
