@@ -281,8 +281,15 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
     const refreshToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role, type: 'refresh' }, jwtSecret, 604800);
     try { await db.prepare('UPDATE users SET last_login = datetime("now") WHERE id = ?').bind(user.id).run(); } catch(e) {}
     const tenant = await db.prepare('SELECT id, name, code FROM tenants WHERE id = ?').bind(user.tenant_id).first();
-    // Get agent's assigned companies
-    const companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(user.id, user.tenant_id).all();
+    // Get user's assigned companies (role-aware: managers use manager_company_links, agents/TLs use agent_company_links)
+    let companies = { results: [] };
+    try {
+      if (user.role === 'manager') {
+        companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active'").bind(user.id, user.tenant_id).all();
+      } else {
+        companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(user.id, user.tenant_id).all();
+      }
+    } catch { /* company links table may not exist */ }
     return c.json({
       success: true,
       data: {
@@ -323,7 +330,15 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     try { todayRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, userId, today).first(); } catch { /* */ }
     try { monthRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
     try { recentVisits = await db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all(); } catch { /* */ }
-    try { companies = await db.prepare("SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all(); } catch { /* */ }
+    // Role-aware company query: managers use manager_company_links, agents/TLs use agent_company_links
+    const userRole = c.get('role');
+    try {
+      if (userRole === 'manager') {
+        companies = await db.prepare("SELECT fc.id, fc.name, fc.code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+      } else {
+        companies = await db.prepare("SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+      }
+    } catch { /* company links table may not exist */ }
     // Use brand_id as fallback for company_id in visit counting (company_id column may not exist yet)
     try { targets = await db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.brand_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(); } catch { /* daily_targets table may not exist */ }
 
