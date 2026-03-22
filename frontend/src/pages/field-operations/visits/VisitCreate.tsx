@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import {
   Box, Stepper, Step, StepLabel, Button, Paper, Typography, Alert,
   TextField, FormControl, InputLabel, Select, MenuItem, CircularProgress,
@@ -125,7 +125,9 @@ const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
 
 export default function VisitCreate() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
+  const isMobileContext = location.pathname.startsWith('/agent/')
   const [activeStep, setActiveStep] = useState(0)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1254,15 +1256,33 @@ export default function VisitCreate() {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 900, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <IconButton onClick={() => navigate('/field-operations/visits')} sx={{ mr: 1 }}>
-          <BackIcon />
-        </IconButton>
-        <Typography variant="h5">Create Field Visit</Typography>
-      </Box>
+    <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 900, mx: 'auto' }}>
+      {/* Hide header on mobile - AgentLayout already provides back navigation */}
+      {!isMobileContext && (
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          <IconButton onClick={() => navigate('/field-operations/visits')} sx={{ mr: 1 }}>
+            <BackIcon />
+          </IconButton>
+          <Typography variant="h5">Create Field Visit</Typography>
+        </Box>
+      )}
 
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }} alternativeLabel>
+      {/* Compact stepper on mobile to prevent overflow */}
+      <Stepper
+        activeStep={activeStep}
+        sx={{
+          mb: { xs: 2, sm: 4 },
+          '& .MuiStepLabel-label': {
+            fontSize: { xs: '0.65rem', sm: '0.875rem' },
+          },
+          '& .MuiStepLabel-iconContainer': {
+            '& .MuiSvgIcon-root': {
+              fontSize: { xs: '1.2rem', sm: '1.5rem' },
+            },
+          },
+        }}
+        alternativeLabel
+      >
         {stepLabels.map((label) => (
           <Step key={label}>
             <StepLabel>{label}</StepLabel>
@@ -1284,12 +1304,13 @@ export default function VisitCreate() {
         renderStepContent()
       )}
 
-      {/* Navigation */}
-      <Paper sx={{ mt: 3, p: 2, display: 'flex', justifyContent: 'space-between' }}>
+      {/* Navigation - add bottom padding on mobile so it doesn't overlap bottom nav */}
+      <Paper sx={{ mt: { xs: 2, sm: 3 }, p: { xs: 1.5, sm: 2 }, mb: isMobileContext ? 10 : 0, display: 'flex', justifyContent: 'space-between' }}>
         <Button
           disabled={activeStep === 0}
           onClick={handleBack}
           startIcon={<BackIcon />}
+          size={isMobileContext ? 'medium' : 'large'}
         >
           Back
         </Button>
@@ -1300,6 +1321,7 @@ export default function VisitCreate() {
             onClick={handleNext}
             disabled={!canProceed()}
             endIcon={<NextIcon />}
+            size={isMobileContext ? 'medium' : 'large'}
           >
             Next
           </Button>
@@ -1310,8 +1332,9 @@ export default function VisitCreate() {
             onClick={handleSubmit}
             disabled={submitting || !canProceed()}
             startIcon={submitting ? <CircularProgress size={20} /> : <SubmitIcon />}
+            size={isMobileContext ? 'medium' : 'large'}
           >
-            {submitting ? 'Creating Visit...' : 'Submit Visit'}
+            {submitting ? 'Creating...' : 'Submit Visit'}
           </Button>
         )}
       </Paper>
