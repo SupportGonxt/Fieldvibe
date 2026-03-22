@@ -1947,7 +1947,7 @@ api.get('/visits/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  const visit = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, co.name as company_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN companies co ON v.company_id = co.id WHERE v.id = ? AND v.tenant_id = ?").bind(id, tenantId).first();
+  const visit = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, co.name as company_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN field_companies co ON v.company_id = co.id WHERE v.id = ? AND v.tenant_id = ?").bind(id, tenantId).first();
   if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
   const [responses, photos, individuals] = await Promise.all([
     db.prepare('SELECT vr.* FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE vr.visit_id = ? AND v.tenant_id = ? LIMIT 500').bind(id, tenantId).all(),
@@ -3972,7 +3972,7 @@ api.post('/field-operations/visits/:id/check-in', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const { location } = await c.req.json();
-  await db.prepare("UPDATE visits SET status = 'in_progress', check_in_time = CURRENT_TIMESTAMP, check_in_lat = ?, check_in_lng = ? WHERE id = ? AND tenant_id = ?").bind(location?.lat || 0, location?.lng || 0, id, tenantId).run();
+  await db.prepare("UPDATE visits SET status = 'in_progress', check_in_time = CURRENT_TIMESTAMP, latitude = ?, longitude = ? WHERE id = ? AND tenant_id = ?").bind(location?.lat || 0, location?.lng || 0, id, tenantId).run();
   return c.json({ success: true, message: 'Checked in successfully' });
 });
 
@@ -3981,7 +3981,7 @@ api.post('/field-operations/visits/:id/check-out', authMiddleware, async (c) => 
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const { location, notes } = await c.req.json();
-  await db.prepare("UPDATE visits SET status = 'completed', check_out_time = CURRENT_TIMESTAMP, check_out_lat = ?, check_out_lng = ?, notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?").bind(location?.lat || 0, location?.lng || 0, notes || null, id, tenantId).run();
+  await db.prepare("UPDATE visits SET status = 'completed', check_out_time = CURRENT_TIMESTAMP, notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?").bind(notes || null, id, tenantId).run();
   return c.json({ success: true, message: 'Checked out successfully' });
 });
 
@@ -4131,7 +4131,7 @@ api.post('/inventory/adjustments/create', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, movement_type, quantity, reference_number, notes, created_by, created_at) VALUES (?, ?, ?, ?, 'adjustment', ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.warehouse_id, body.quantity, body.reference_number || 'ADJ-' + Date.now(), body.notes || '', userId).run();
+  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, movement_type, quantity, reference_id, reference_type, notes, created_by, created_at) VALUES (?, ?, ?, ?, 'adjustment', ?, ?, 'adjustment', ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.warehouse_id, body.quantity, body.reference_id || body.reference_number || 'ADJ-' + Date.now(), body.notes || '', userId).run();
   if (body.quantity > 0) {
     await db.prepare('UPDATE stock_levels SET quantity = quantity + ? WHERE tenant_id = ? AND product_id = ? AND warehouse_id = ?').bind(body.quantity, tenantId, body.product_id, body.warehouse_id).run();
   } else {
@@ -4146,7 +4146,7 @@ api.post('/inventory/transfers/create', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, to_warehouse_id, movement_type, quantity, reference_number, notes, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'transfer', ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.from_warehouse_id, body.to_warehouse_id, body.quantity, 'TRF-' + Date.now(), body.notes || '', userId).run();
+  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, movement_type, quantity, reference_id, reference_type, notes, created_by, created_at) VALUES (?, ?, ?, ?, 'transfer', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.from_warehouse_id, body.quantity, 'TRF-' + Date.now(), 'transfer_to_' + (body.to_warehouse_id || ''), body.notes || '', userId).run();
   await db.prepare('UPDATE stock_levels SET quantity = quantity - ? WHERE tenant_id = ? AND product_id = ? AND warehouse_id = ?').bind(body.quantity, tenantId, body.product_id, body.from_warehouse_id).run();
   const existing = await db.prepare('SELECT id FROM stock_levels WHERE tenant_id = ? AND product_id = ? AND warehouse_id = ?').bind(tenantId, body.product_id, body.to_warehouse_id).first();
   if (existing) {
@@ -4163,7 +4163,7 @@ api.post('/inventory/stock-counts/create', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, movement_type, quantity, reference_number, notes, created_by, created_at) VALUES (?, ?, ?, ?, 'count', ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.warehouse_id, body.counted_quantity, 'CNT-' + Date.now(), body.notes || '', userId).run();
+  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, movement_type, quantity, reference_id, notes, created_by, created_at) VALUES (?, ?, ?, ?, 'count', ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.warehouse_id, body.counted_quantity, 'CNT-' + Date.now(), body.notes || '', userId).run();
   await db.prepare('UPDATE stock_levels SET quantity = ? WHERE tenant_id = ? AND product_id = ? AND warehouse_id = ?').bind(body.counted_quantity, tenantId, body.product_id, body.warehouse_id).run();
   return c.json({ id, message: 'Stock count recorded' }, 201);
 });
@@ -4335,7 +4335,7 @@ api.post('/inventory/warehouses', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare('INSERT INTO warehouses (id, tenant_id, name, location, is_active) VALUES (?, ?, ?, ?, 1)').bind(id, tenantId, body.name, body.location || '').run();
+  await db.prepare('INSERT INTO warehouses (id, tenant_id, name, address, status) VALUES (?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.location || body.address || '', 'active').run();
   return c.json({ id, message: 'Warehouse created' }, 201);
 });
 
@@ -4508,7 +4508,7 @@ api.post('/commissions/pay', authMiddleware, requireRole('admin', 'manager'), as
   const { commission_ids } = await c.req.json();
   if (!commission_ids || !Array.isArray(commission_ids)) return c.json({ success: false, message: 'commission_ids required' }, 400);
   for (const cid of commission_ids) {
-    await db.prepare("UPDATE commission_earnings SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?").bind(cid, tenantId).run();
+    await db.prepare("UPDATE commission_earnings SET status = 'paid', approved_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?").bind(cid, tenantId).run();
   }
   return c.json({ message: 'Commissions marked as paid', count: commission_ids.length });
 });
@@ -4561,7 +4561,7 @@ api.get('/surveys/:id', authMiddleware, async (c) => {
   const survey = await db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!survey) return c.json({ success: false, message: 'Survey not found' }, 404);
   try { survey.questions = JSON.parse(survey.questions); } catch(e) {}
-  const responses = await db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(id, tenantId).all();
+  const responses = await db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE visit_type = ? AND tenant_id = ?').bind(id, tenantId).all();
   return c.json({ ...survey, title: survey.name, survey_type: survey.visit_type || 'adhoc', response_count: responses.results?.[0]?.count || 0 });
 });
 
@@ -4753,11 +4753,11 @@ api.post('/quotations/:id/convert', authMiddleware, async (c) => {
   if (quotation.status === 'converted') return c.json({ success: false, message: 'Quotation already converted' }, 400);
   const orderId = crypto.randomUUID();
   const orderNumber = 'SO-' + Date.now().toString(36).toUpperCase();
-  await db.prepare("INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, subtotal, tax_amount, discount_amount, total_amount, notes, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, datetime('now'))").bind(orderId, tenantId, orderNumber, quotation.customer_id, quotation.agent_id, quotation.subtotal || 0, quotation.tax_amount || 0, quotation.discount_amount || 0, quotation.total_amount || 0, 'Converted from quotation ' + quotation.quotation_number, userId).run();
+  await db.prepare("INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, subtotal, tax_amount, discount_amount, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'))").bind(orderId, tenantId, orderNumber, quotation.customer_id, quotation.agent_id || userId, quotation.subtotal || 0, quotation.tax_amount || 0, quotation.discount_amount || 0, quotation.total_amount || 0, 'Converted from quotation ' + quotation.quotation_number).run();
   const items = JSON.parse(quotation.items || '[]');
   for (const item of items) {
     const itemId = crypto.randomUUID();
-    await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity || 1, item.unit_price || 0, (item.quantity || 1) * (item.unit_price || 0)).run();
+    await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?)').bind(itemId, orderId, item.product_id, item.quantity || 1, item.unit_price || 0, (item.quantity || 1) * (item.unit_price || 0)).run();
   }
   await db.prepare("UPDATE quotations SET status = 'converted', converted_order_id = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(orderId, id, tenantId).run();
   return c.json({ success: true, data: { order_id: orderId, order_number: orderNumber } });
@@ -5025,7 +5025,7 @@ api.get('/van-inventory', authMiddleware, async (c) => {
   const { van_id } = c.req.query();
   let query = "SELECT vsli.*, p.name as product_name, p.code as product_code FROM van_stock_load_items vsli LEFT JOIN products p ON vsli.product_id = p.id LEFT JOIN van_stock_loads vsl ON vsli.van_stock_load_id = vsl.id WHERE vsl.tenant_id = ? AND vsl.status = 'active'";
   const params = [tenantId];
-  if (van_id) { query += " AND vsl.van_id = ?"; params.push(van_id); }
+  if (van_id) { query += " AND vsl.vehicle_reg = ?"; params.push(van_id); }
   const items = await db.prepare(query).bind(...params).all();
   return c.json({ data: items.results || [] });
 });
@@ -5034,7 +5034,7 @@ api.get('/van-inventory/:vanId/summary', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const vanId = c.req.param('vanId');
-  const summary = await db.prepare("SELECT COUNT(DISTINCT vsli.product_id) as total_products, COALESCE(SUM(vsli.quantity_loaded), 0) as total_items FROM van_stock_load_items vsli JOIN van_stock_loads vsl ON vsli.van_stock_load_id = vsl.id WHERE vsl.tenant_id = ? AND vsl.van_id = ? AND vsl.status = 'active'").bind(tenantId, vanId).first();
+  const summary = await db.prepare("SELECT COUNT(DISTINCT vsli.product_id) as total_products, COALESCE(SUM(vsli.quantity_loaded), 0) as total_items FROM van_stock_load_items vsli JOIN van_stock_loads vsl ON vsli.van_stock_load_id = vsl.id WHERE vsl.tenant_id = ? AND vsl.vehicle_reg = ? AND vsl.status = 'active'").bind(tenantId, vanId).first();
   return c.json({ data: summary || { total_products: 0, total_items: 0 }});
 });
 
@@ -5044,9 +5044,9 @@ api.post('/van-inventory/load', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO van_stock_loads (id, tenant_id, van_id, loaded_by, status, load_date, created_at) VALUES (?, ?, ?, ?, 'active', date('now'), CURRENT_TIMESTAMP)").bind(id, tenantId, body.van_id, userId).run();
+  await db.prepare("INSERT INTO van_stock_loads (id, tenant_id, vehicle_reg, created_by, status, load_date, created_at) VALUES (?, ?, ?, ?, 'active', date('now'), CURRENT_TIMESTAMP)").bind(id, tenantId, body.van_id || body.vehicle_reg || '', userId).run();
   for (const item of (body.items || [])) {
-    await db.prepare("INSERT INTO van_stock_load_items (id, tenant_id, load_id, product_id, quantity) VALUES (?, ?, ?, ?, ?)").bind(uuidv4(), tenantId, id, item.product_id, item.quantity).run();
+    await db.prepare("INSERT INTO van_stock_load_items (id, van_stock_load_id, product_id, quantity_loaded) VALUES (?, ?, ?, ?)").bind(uuidv4(), id, item.product_id, item.quantity || item.quantity_loaded || 0).run();
   }
   return c.json({ id, message: 'Van loaded' }, 201);
 });
@@ -5137,7 +5137,7 @@ api.post('/commissions/:id/pay', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const body = await c.req.json();
-  await db.prepare("UPDATE commission_earnings SET status = 'paid', payment_method = ?, payment_reference = ? WHERE id = ? AND tenant_id = ?").bind(body.payment_method || 'bank_transfer', body.payment_reference || '', id, tenantId).run();
+  await db.prepare("UPDATE commission_earnings SET status = 'paid', approved_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
   return c.json({ success: true, message: 'Commission paid' });
 });
 
@@ -5146,7 +5146,7 @@ api.post('/commissions/:id/reverse', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const body = await c.req.json();
-  await db.prepare("UPDATE commission_earnings SET status = 'reversed', notes = ? WHERE id = ? AND tenant_id = ?").bind(body.reversal_reason || '', id, tenantId).run();
+  await db.prepare("UPDATE commission_earnings SET status = 'reversed' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
   return c.json({ success: true, message: 'Commission reversed' });
 });
 
@@ -6655,7 +6655,7 @@ api.get('/field-ops/survey-insights', authMiddleware, async (c) => {
   ]);
 
   // Responses per survey
-  const responsesPerSurvey = await db.prepare('SELECT vr.survey_template_id, q.name as survey_name, COUNT(*) as response_count FROM visit_responses vr LEFT JOIN questionnaires q ON vr.survey_template_id = q.id WHERE vr.tenant_id = ?' + dateFilter + ' GROUP BY vr.survey_template_id ORDER BY response_count DESC LIMIT 20').bind(...params).all();
+  const responsesPerSurvey = await db.prepare('SELECT vr.visit_type, q.name as survey_name, COUNT(*) as response_count FROM visit_responses vr LEFT JOIN questionnaires q ON vr.visit_type = q.id WHERE vr.tenant_id = ?' + dateFilter + ' GROUP BY vr.visit_type ORDER BY response_count DESC LIMIT 20').bind(...params).all();
 
   // Responses per agent
   const responsesPerAgent = await db.prepare("SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(*) as response_count FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN users u ON v.agent_id = u.id WHERE vr.tenant_id = ?" + dateFilter + ' GROUP BY v.agent_id ORDER BY response_count DESC LIMIT 20').bind(...params).all();
@@ -7154,7 +7154,7 @@ api.post('/cash-reconciliation/sessions', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO van_reconciliations (id, tenant_id, load_id, reconciled_by, status, created_at) VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)").bind(id, tenantId, body.load_id || '', userId).run();
+  await db.prepare("INSERT INTO van_reconciliations (id, tenant_id, van_stock_load_id, status, created_at) VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)").bind(id, tenantId, body.load_id || body.van_stock_load_id || '').run();
   return c.json({ id, message: 'Session created' }, 201);
 });
 
@@ -7222,7 +7222,7 @@ api.post('/cash-reconciliations', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO van_reconciliations (id, tenant_id, load_id, reconciled_by, status, created_at) VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)").bind(id, tenantId, body.load_id || '', userId).run();
+  await db.prepare("INSERT INTO van_reconciliations (id, tenant_id, van_stock_load_id, status, created_at) VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)").bind(id, tenantId, body.load_id || body.van_stock_load_id || '').run();
   return c.json({ id, message: 'Reconciliation created' }, 201);
 });
 
@@ -7291,7 +7291,7 @@ api.post('/trade-marketing/campaigns', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO campaigns (id, tenant_id, name, type, status, start_date, end_date, budget, created_at) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.name, body.type || 'general', body.start_date || '', body.end_date || '', body.budget || 0).run();
+  await db.prepare("INSERT INTO campaigns (id, tenant_id, name, campaign_type, status, start_date, end_date, budget, created_at) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.name, body.type || body.campaign_type || 'general', body.start_date || '', body.end_date || '', body.budget || 0).run();
   return c.json({ id, message: 'Campaign created' }, 201);
 });
 
@@ -7334,7 +7334,7 @@ api.post('/trade-marketing/activations', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO activations (id, tenant_id, name, type, status, created_at) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP)").bind(id, tenantId, body.name || '', body.type || '').run();
+  await db.prepare("INSERT INTO activations (id, tenant_id, name, status, created_at) VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)").bind(id, tenantId, body.name || '').run();
   return c.json({ id, message: 'Activation created' }, 201);
 });
 
@@ -7417,7 +7417,7 @@ api.post('/warehouses/transfers', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, to_warehouse_id, movement_type, quantity, reference_number, notes, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'transfer', ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.from_warehouse_id, body.to_warehouse_id, body.quantity, 'TRF-' + Date.now(), body.notes || '', userId).run();
+  await db.prepare("INSERT INTO stock_movements (id, tenant_id, product_id, warehouse_id, movement_type, quantity, reference_id, reference_type, notes, created_by, created_at) VALUES (?, ?, ?, ?, 'transfer', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(id, tenantId, body.product_id, body.from_warehouse_id, body.quantity, 'TRF-' + Date.now(), 'transfer_to_' + (body.to_warehouse_id || ''), body.notes || '', userId).run();
   return c.json({ id, message: 'Transfer created' }, 201);
 });
 
@@ -8710,7 +8710,7 @@ api.post('/trade-promotions', requireRole('admin', 'manager'), async (c) => {
     return c.json({ success: false, message: `Invalid promotion type. Must be one of: ${validTypes.join(', ')}` }, 400);
   }
 
-  await db.prepare('INSERT INTO trade_promotions (id, tenant_id, name, promotion_type, description, start_date, end_date, budget, spent, status, config, target_products, target_customers, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.promotion_type, body.description || null, body.start_date, body.end_date, body.budget || 0, 0, 'DRAFT', JSON.stringify(body.config || {}), body.target_products ? JSON.stringify(body.target_products) : null, body.target_customers ? JSON.stringify(body.target_customers) : null, userId).run();
+  await db.prepare('INSERT INTO trade_promotions (id, tenant_id, name, promotion_type, description, start_date, end_date, budget, status, config, target_type, target_ids, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.promotion_type, body.description || null, body.start_date, body.end_date, body.budget || 0, 'DRAFT', JSON.stringify(body.config || {}), body.target_type || null, body.target_products ? JSON.stringify(body.target_products) : body.target_ids ? JSON.stringify(body.target_ids) : null, userId).run();
 
   return c.json({ success: true, data: { id }, message: 'Trade promotion created' }, 201);
 });
@@ -8720,7 +8720,7 @@ api.put('/trade-promotions/:id', requireRole('admin', 'manager'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE trade_promotions SET name = COALESCE(?, name), description = COALESCE(?, description), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), budget = COALESCE(?, budget), status = COALESCE(?, status), config = COALESCE(?, config), target_products = COALESCE(?, target_products), target_customers = COALESCE(?, target_customers), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.description || null, body.start_date || null, body.end_date || null, body.budget || null, body.status || null, body.config ? JSON.stringify(body.config) : null, body.target_products ? JSON.stringify(body.target_products) : null, body.target_customers ? JSON.stringify(body.target_customers) : null, id, tenantId).run();
+  await db.prepare('UPDATE trade_promotions SET name = COALESCE(?, name), description = COALESCE(?, description), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), budget = COALESCE(?, budget), status = COALESCE(?, status), config = COALESCE(?, config), target_type = COALESCE(?, target_type), target_ids = COALESCE(?, target_ids), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.description || null, body.start_date || null, body.end_date || null, body.budget || null, body.status || null, body.config ? JSON.stringify(body.config) : null, body.target_type || null, body.target_ids ? JSON.stringify(body.target_ids) : null, id, tenantId).run();
   return c.json({ success: true, message: 'Trade promotion updated' });
 });
 
@@ -8781,13 +8781,13 @@ api.post('/trade-promotions/:id/claims', async (c) => {
   if (!promo) return c.json({ success: false, message: 'Promotion not found' }, 404);
 
   // Check budget
-  if (promo.budget > 0 && (promo.spent + body.claim_amount) > promo.budget) {
-    return c.json({ success: false, message: `Claim exceeds budget. Budget: R${promo.budget}, Spent: R${promo.spent}, Remaining: R${promo.budget - promo.spent}` }, 400);
+  if (promo.budget > 0 && ((promo.actual_spend || 0) + (body.claim_amount || body.amount || 0)) > promo.budget) {
+    return c.json({ success: false, message: `Claim exceeds budget. Budget: R${promo.budget}, Spent: R${(promo.actual_spend || 0)}, Remaining: R${promo.budget - (promo.actual_spend || 0)}` }, 400);
   }
 
   const claimId = uuidv4();
   const claimNumber = 'CLM-' + Date.now().toString(36).toUpperCase();
-  await db.prepare('INSERT INTO trade_promotion_claims (id, promotion_id, customer_id, claim_number, claim_amount, status, supporting_data, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(claimId, id, body.customer_id, claimNumber, body.claim_amount, 'PENDING', body.supporting_data ? JSON.stringify(body.supporting_data) : null, userId).run();
+  await db.prepare('INSERT INTO trade_promotion_claims (id, tenant_id, promotion_id, customer_id, claim_type, amount, status, evidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(claimId, tenantId, id, body.customer_id, body.claim_type || 'general', body.claim_amount || body.amount || 0, 'PENDING', body.supporting_data ? JSON.stringify(body.supporting_data) : body.evidence || null).run();
 
   return c.json({ success: true, data: { id: claimId, claim_number: claimNumber }, message: 'Claim submitted' }, 201);
 });
@@ -8804,10 +8804,10 @@ api.put('/trade-promotion-claims/:id/approve', requireRole('admin', 'manager'), 
   await db.prepare("UPDATE trade_promotion_claims SET status = 'APPROVED', approved_by = ?, approved_at = datetime('now') WHERE id = ?").bind(userId, id).run();
 
   // Update promotion spent
-  await db.prepare('UPDATE trade_promotions SET spent = spent + ? WHERE id = ?').bind(claim.claim_amount, claim.promotion_id).run();
+  await db.prepare('UPDATE trade_promotions SET actual_spend = COALESCE(actual_spend, 0) + ? WHERE id = ?').bind((claim.amount || 0), claim.promotion_id).run();
 
   // Update enrollment achieved value
-  await db.prepare('UPDATE trade_promotion_enrollments SET achieved_value = achieved_value + ? WHERE promotion_id = ? AND customer_id = ?').bind(claim.claim_amount, claim.promotion_id, claim.customer_id).run();
+  await db.prepare('UPDATE trade_promotion_enrollments SET achieved_value = achieved_value + ? WHERE promotion_id = ? AND customer_id = ?').bind((claim.amount || 0), claim.promotion_id, claim.customer_id).run();
 
   return c.json({ success: true, message: 'Claim approved' });
 });
@@ -8817,7 +8817,7 @@ api.put('/trade-promotion-claims/:id/reject', requireRole('admin', 'manager'), a
   const userId = c.get('userId');
   const { id } = c.req.param();
   const { reason } = await c.req.json();
-  await db.prepare("UPDATE trade_promotion_claims SET status = 'REJECTED', approved_by = ?, approved_at = datetime('now'), notes = ? WHERE id = ?").bind(userId, reason || 'Rejected', id).run();
+  await db.prepare("UPDATE trade_promotion_claims SET status = 'REJECTED', approved_by = ?, approved_at = datetime('now') WHERE id = ?").bind(userId, id).run();
   return c.json({ success: true, message: 'Claim rejected' });
 });
 
@@ -8865,19 +8865,19 @@ api.get('/trade-promotions/:id/roi', async (c) => {
   }
 
   const lift = baselineRevenue > 0 ? ((incrementalRevenue - baselineRevenue) / baselineRevenue * 100) : 0;
-  const roi = promo.spent > 0 ? ((incrementalRevenue - baselineRevenue - promo.spent) / promo.spent * 100) : 0;
+  const roi = (promo.actual_spend || 0) > 0 ? ((incrementalRevenue - baselineRevenue - (promo.actual_spend || 0)) / (promo.actual_spend || 0) * 100) : 0;
 
   return c.json({ success: true, data: {
     promotion_id: id,
     budget: promo.budget,
-    spent: promo.spent,
+    spent: (promo.actual_spend || 0),
     enrolled_customers: customerIds.length,
     baseline_revenue: baselineRevenue,
     promo_revenue: incrementalRevenue,
     incremental_revenue: incrementalRevenue - baselineRevenue,
     revenue_lift_pct: Math.round(lift * 100) / 100,
     roi_pct: Math.round(roi * 100) / 100,
-    cost_per_incremental_sale: (incrementalRevenue - baselineRevenue) > 0 ? Math.round(promo.spent / (incrementalRevenue - baselineRevenue) * 100) / 100 : 0
+    cost_per_incremental_sale: (incrementalRevenue - baselineRevenue) > 0 ? Math.round((promo.actual_spend || 0) / (incrementalRevenue - baselineRevenue) * 100) / 100 : 0
   }});
 });
 
@@ -8905,7 +8905,7 @@ api.put('/territories/:id', requireRole('admin', 'manager'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE territories SET name = COALESCE(?, name), boundary = COALESCE(?, boundary), parent_id = COALESCE(?, parent_id), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.boundary_geojson ? JSON.stringify(body.boundary_geojson) : body.boundary || null, body.parent_territory_id || body.parent_id || null, id, tenantId).run();
+  await db.prepare('UPDATE territories SET name = COALESCE(?, name), boundary = COALESCE(?, boundary), parent_id = COALESCE(?, parent_id) WHERE id = ? AND tenant_id = ?').bind(body.name || null, body.boundary_geojson ? JSON.stringify(body.boundary_geojson) : body.boundary || null, body.parent_territory_id || body.parent_id || null, id, tenantId).run();
   return c.json({ success: true, message: 'Territory updated' });
 });
 
@@ -8987,7 +8987,7 @@ api.put('/route-plans/:id/start', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  await db.prepare("UPDATE route_plans SET status = 'IN_PROGRESS', actual_start_time = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
+  await db.prepare("UPDATE route_plans SET status = 'IN_PROGRESS', actual_start = datetime('now') WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
   return c.json({ success: true, message: 'Route started' });
 });
 
@@ -8996,7 +8996,7 @@ api.put('/route-plans/:id/complete', async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const { actual_distance_km } = await c.req.json();
-  await db.prepare("UPDATE route_plans SET status = 'COMPLETED', actual_end_time = datetime('now'), actual_distance_km = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(actual_distance_km || null, id, tenantId).run();
+  await db.prepare("UPDATE route_plans SET status = 'COMPLETED', actual_end = datetime('now'), total_distance_km = ? WHERE id = ? AND tenant_id = ?").bind(actual_distance_km || null, id, tenantId).run();
   return c.json({ success: true, message: 'Route completed' });
 });
 
@@ -9005,7 +9005,7 @@ api.put('/route-plan-stops/:id/checkin', async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   const { gps_latitude, gps_longitude } = await c.req.json();
-  await db.prepare("UPDATE route_plan_stops SET status = 'IN_PROGRESS', actual_arrival = datetime('now'), gps_checkin_lat = ?, gps_checkin_lng = ? WHERE id = ?").bind(gps_latitude || null, gps_longitude || null, id).run();
+  await db.prepare("UPDATE route_plan_stops SET status = 'IN_PROGRESS', actual_arrival = datetime('now') WHERE id = ?").bind(id).run();
   return c.json({ success: true, message: 'Checked in' });
 });
 
@@ -9013,7 +9013,7 @@ api.put('/route-plan-stops/:id/checkout', async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   const { gps_latitude, gps_longitude, notes, outcome } = await c.req.json();
-  await db.prepare("UPDATE route_plan_stops SET status = 'COMPLETED', actual_departure = datetime('now'), gps_checkout_lat = ?, gps_checkout_lng = ?, notes = ?, outcome = ? WHERE id = ?").bind(gps_latitude || null, gps_longitude || null, notes || null, outcome || null, id).run();
+  await db.prepare("UPDATE route_plan_stops SET status = 'COMPLETED', actual_departure = datetime('now'), notes = ? WHERE id = ?").bind(notes || null, id).run();
   return c.json({ success: true, message: 'Checked out' });
 });
 
@@ -9025,7 +9025,7 @@ api.post('/visit-activities', async (c) => {
   const body = await c.req.json();
 
   const id = uuidv4();
-  await db.prepare('INSERT INTO visit_activities (id, tenant_id, visit_id, activity_type, description, data, photo_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.visit_id, body.activity_type, body.description || null, body.data ? JSON.stringify(body.data) : null, body.photo_url || null, userId).run();
+  await db.prepare('INSERT INTO visit_activities (id, tenant_id, visit_id, activity_type, reference_type, reference_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.visit_id, body.activity_type, body.reference_type || null, body.reference_id || null, body.description || body.notes || null).run();
 
   return c.json({ success: true, data: { id }, message: 'Activity recorded' }, 201);
 });
@@ -9050,7 +9050,7 @@ api.post('/competitor-sightings', async (c) => {
   const body = await c.req.json();
 
   const id = uuidv4();
-  await db.prepare('INSERT INTO competitor_sightings (id, tenant_id, visit_id, customer_id, competitor_name, competitor_product, competitor_price, shelf_position, notes, photo_url, reported_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.visit_id || null, body.customer_id || null, body.competitor_name, body.competitor_product || null, body.competitor_price || null, body.shelf_position || null, body.notes || null, body.photo_url || null, userId).run();
+  await db.prepare('INSERT INTO competitor_sightings (id, tenant_id, visit_id, customer_id, agent_id, competitor_brand, competitor_product, observed_price, shelf_position, notes, photos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.visit_id || null, body.customer_id || null, userId, body.competitor_name || body.competitor_brand || null, body.competitor_product || null, body.competitor_price || body.observed_price || null, body.shelf_position || null, body.notes || null, body.photo_url || body.photos || null).run();
 
   return c.json({ success: true, data: { id }, message: 'Competitor sighting recorded' }, 201);
 });
@@ -9722,8 +9722,8 @@ api.get('/tenants/:id/users', requireSuperAdmin, async (c) => {
 api.get('/tenants/:id/modules', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
-  const tenant = await db.prepare('SELECT modules_enabled FROM tenants WHERE id = ?').bind(id).first();
-  const modules = tenant?.modules_enabled ? JSON.parse(tenant.modules_enabled) : {};
+  const tenant = await db.prepare('SELECT features FROM tenants WHERE id = ?').bind(id).first();
+    const modules = tenant?.features ? JSON.parse(tenant.features) : {};
   return c.json({ success: true, data: modules });
 });
 
@@ -9732,7 +9732,7 @@ api.put('/tenants/:id/modules', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE tenants SET modules_enabled = ?, updated_at = datetime("now") WHERE id = ?').bind(JSON.stringify(body.modules || {}), id).run();
+  await db.prepare('UPDATE tenants SET features = ?, updated_at = datetime("now") WHERE id = ?').bind(JSON.stringify(body.modules || {}), id).run();
   return c.json({ success: true, message: 'Modules updated' });
 });
 
@@ -9741,7 +9741,7 @@ api.get('/settings/company', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const tenant = await db.prepare('SELECT * FROM tenants WHERE id = ?').bind(tenantId).first();
-  const settings = tenant?.settings ? JSON.parse(tenant.settings) : {};
+  const settings = tenant?.features ? JSON.parse(tenant.features) : {};
   return c.json({ success: true, data: {
     company_name: tenant?.name || '',
     company_code: tenant?.code || '',
@@ -9758,10 +9758,10 @@ api.put('/settings/company', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  const existing = await db.prepare('SELECT settings FROM tenants WHERE id = ?').bind(tenantId).first();
-  const currentSettings = existing?.settings ? JSON.parse(existing.settings) : {};
-  const newSettings = { ...currentSettings, ...body };
-  await db.prepare('UPDATE tenants SET name = COALESCE(?, name), settings = ?, updated_at = datetime("now") WHERE id = ?').bind(body.company_name || null, JSON.stringify(newSettings), tenantId).run();
+  const existing = await db.prepare('SELECT features FROM tenants WHERE id = ?').bind(tenantId).first();
+    const currentSettings = existing?.features ? JSON.parse(existing.features) : {};
+    const newSettings = { ...currentSettings, ...body };
+    await db.prepare('UPDATE tenants SET name = COALESCE(?, name), features = ?, updated_at = datetime("now") WHERE id = ?').bind(body.company_name || null, JSON.stringify(newSettings), tenantId).run();
   return c.json({ success: true, message: 'Company settings updated' });
 });
 
@@ -9769,8 +9769,8 @@ api.put('/settings/company', requireRole('admin'), async (c) => {
 api.get('/settings/modules', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const tenant = await db.prepare('SELECT modules_enabled FROM tenants WHERE id = ?').bind(tenantId).first();
-  const modules = tenant?.modules_enabled ? JSON.parse(tenant.modules_enabled) : {};
+  const tenant = await db.prepare('SELECT features FROM tenants WHERE id = ?').bind(tenantId).first();
+  const modules = tenant?.features ? JSON.parse(tenant.features) : {};
   return c.json({ success: true, data: modules });
 });
 
@@ -9781,7 +9781,7 @@ api.get('/platform/settings', requireRole('admin'), async (c) => {
   const tenant = await db.prepare('SELECT * FROM tenants WHERE id = ?').bind(tenantId).first();
   return c.json({ success: true, data: {
     tenant: tenant,
-    settings: tenant?.settings ? JSON.parse(tenant.settings) : {},
+    settings: tenant?.features ? JSON.parse(tenant.features) : {},
   }});
 });
 
@@ -9789,7 +9789,7 @@ api.put('/platform/settings', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  await db.prepare('UPDATE tenants SET settings = ?, updated_at = datetime("now") WHERE id = ?').bind(JSON.stringify(body), tenantId).run();
+  await db.prepare('UPDATE tenants SET features = ?, updated_at = datetime("now") WHERE id = ?').bind(JSON.stringify(body), tenantId).run();
   return c.json({ success: true, message: 'Settings updated' });
 });
 
@@ -10092,11 +10092,11 @@ api.post('/import', requireRole('admin'), async (c) => {
       const id = uuidv4();
       if (body.entity === 'customers') {
         if (!row.name) { errors.push({ row: i + 1, error: 'Name required' }); failed++; continue; }
-        await db.prepare('INSERT INTO customers (id, tenant_id, name, email, phone, address, territory, customer_type, credit_limit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, row.name, row.email || null, row.phone || null, row.address || null, row.territory || null, row.customer_type || 'retail', row.credit_limit || 0).run();
+        await db.prepare('INSERT INTO customers (id, tenant_id, name, email, phone, address, category, customer_type, credit_limit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, row.name, row.email || null, row.phone || null, row.address || null, row.territory || row.category || null, row.customer_type || 'retail', row.credit_limit || 0).run();
         imported++;
       } else if (body.entity === 'products') {
         if (!row.name || !row.sku) { errors.push({ row: i + 1, error: 'Name and SKU required' }); failed++; continue; }
-        await db.prepare('INSERT INTO products (id, tenant_id, name, sku, category, price, cost_price, tax_rate, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, row.name, row.sku, row.category || 'general', row.price || 0, row.cost_price || 0, row.tax_rate || 15, row.unit || 'each', 'active').run();
+        await db.prepare('INSERT INTO products (id, tenant_id, name, sku, category_id, price, cost_price, tax_rate, unit_of_measure, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, row.name, row.sku, row.category || row.category_id || null, row.price || 0, row.cost_price || 0, row.tax_rate || 15, row.unit || row.unit_of_measure || 'each', 'active').run();
         imported++;
       }
     } catch (e) {
@@ -10214,7 +10214,7 @@ api.post('/seed/demo', requireRole('admin'), async (c) => {
       const existing = await db.prepare('SELECT id FROM territories WHERE name = ? AND tenant_id = ?').bind(name, tenantId).first();
       if (!existing) {
         const id = uuidv4();
-        await db.prepare('INSERT INTO territories (id, tenant_id, name, description) VALUES (?, ?, ?, ?)').bind(id, tenantId, name, `${name} territory`).run();
+        await db.prepare('INSERT INTO territories (id, tenant_id, name, code) VALUES (?, ?, ?, ?)').bind(id, tenantId, name, name.substring(0, 10).toUpperCase().replace(/\s/g, '-')).run();
       }
     }
 
@@ -10260,16 +10260,16 @@ api.post('/seed/demo', requireRole('admin'), async (c) => {
     const existingTP = await db.prepare('SELECT id FROM trade_promotions WHERE tenant_id = ? LIMIT 1').bind(tenantId).first();
     if (!existingTP) {
       const tpId = uuidv4();
-      await db.prepare("INSERT INTO trade_promotions (id, tenant_id, name, promotion_type, description, start_date, end_date, budget, spent, status, config, created_by) VALUES (?, ?, ?, ?, ?, date('now'), date('now', '+30 days'), ?, ?, ?, ?, ?)").bind(tpId, tenantId, 'Q1 Volume Rebate', 'VOLUME_REBATE', 'Buy more, save more', 50000, 0, 'ACTIVE', JSON.stringify({ tiers: [{ min_qty: 100, rebate_pct: 5 }, { min_qty: 500, rebate_pct: 10 }] }), userId).run();
+      await db.prepare("INSERT INTO trade_promotions (id, tenant_id, name, promotion_type, description, start_date, end_date, budget, status, config, created_by) VALUES (?, ?, ?, ?, ?, date('now'), date('now', '+30 days'), ?, ?, ?, ?)").bind(tpId, tenantId, 'Q1 Volume Rebate', 'VOLUME_REBATE', 'Buy more, save more', 50000, 'ACTIVE', JSON.stringify({ tiers: [{ min_qty: 100, rebate_pct: 5 }, { min_qty: 500, rebate_pct: 10 }] }), userId).run();
     }
 
     // Seed feature flags
     const defaultFlags = ['van_sales', 'trade_promotions', 'anomaly_detection', 'commissions', 'route_planning', 'gps_tracking', 'email_reports', 'api_keys'];
     for (const flag of defaultFlags) {
-      const existing = await db.prepare('SELECT id FROM feature_flags WHERE flag_name = ? AND tenant_id = ?').bind(flag, tenantId).first();
+      const existing = await db.prepare('SELECT id FROM feature_flags WHERE feature_key = ? AND tenant_id = ?').bind(flag, tenantId).first();
       if (!existing) {
         const id = uuidv4();
-        await db.prepare('INSERT INTO feature_flags (id, tenant_id, flag_name, is_enabled, description) VALUES (?, ?, ?, ?, ?)').bind(id, tenantId, flag, 1, `Enable ${flag.replace(/_/g, ' ')}`).run();
+        await db.prepare('INSERT INTO feature_flags (id, tenant_id, feature_key, is_enabled, config) VALUES (?, ?, ?, ?, ?)').bind(id, tenantId, flag, 1, `Enable ${flag.replace(/_/g, ' ')}`).run();
       }
     }
 
@@ -10404,7 +10404,7 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       const now = new Date().toISOString().split('T')[0];
       const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       try {
-        await db.prepare(`INSERT INTO company_sample_boards (id, tenant_id, company_id, name, description, r2_key, valid_from, valid_to, is_active, created_by, created_at, updated_at) VALUES (?, ?, ?, 'GR Welcome Offer Banner', 'Approved Goldrush Welcome Offer Banner - primary sample board for comparison', ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`).bind(
+        await db.prepare(`INSERT INTO company_sample_boards (id, tenant_id, company_id, name, description, r2_key, validity_start, validity_end, is_active, created_by, created_at, updated_at) VALUES (?, ?, ?, 'GR Welcome Offer Banner', 'Approved Goldrush Welcome Offer Banner - primary sample board for comparison', ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`).bind(
           sampleBoardId, tenantId, goldrushId, `sample-boards/${tenantId}/${goldrushId}/${sampleBoardId}.jpg`, now, oneYearLater, userId
         ).run();
       } catch (e) { console.error('Sample board seed error (table may not exist yet):', e); }
@@ -10446,7 +10446,7 @@ api.post('/seed/goldrush-sample-board', authMiddleware, async (c) => {
     const bucket = c.env.UPLOADS;
     if (bucket) {
       await bucket.put(board.r2_key, image.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
-      await db.prepare("UPDATE company_sample_boards SET r2_url = ?, updated_at = datetime('now') WHERE id = ?").bind(board.r2_key, board.id).run();
+      await db.prepare("UPDATE company_sample_boards SET image_url = ?, updated_at = datetime('now') WHERE id = ?").bind(board.r2_key, board.id).run();
     }
 
     return c.json({ success: true, message: 'Sample board image uploaded', data: { board_id: board.id, r2_key: board.r2_key } });
@@ -10484,7 +10484,7 @@ api.get('/survey-insights', authMiddleware, async (c) => {
       try { questions = typeof questionnaire.questions === 'string' ? JSON.parse(questionnaire.questions) : questionnaire.questions; } catch { questions = []; }
 
       // 2. Get all responses for this questionnaire
-      let rWhere = 'WHERE vr.survey_template_id = ? AND vr.tenant_id = ?';
+      let rWhere = 'WHERE vr.visit_type = ? AND vr.tenant_id = ?';
       const rParams = [questionnaire.id, tenantId];
       if (date_from) { rWhere += " AND vr.created_at >= ?"; rParams.push(date_from); }
       if (date_to) { rWhere += " AND vr.created_at <= ?"; rParams.push(date_to); }
@@ -10710,7 +10710,7 @@ api.post('/company-sample-boards', authMiddleware, async (c) => {
       } catch (e) { console.error('R2 upload error for sample board:', e); }
     }
 
-    await db.prepare(`INSERT INTO company_sample_boards (id, tenant_id, company_id, name, description, r2_key, r2_url, valid_from, valid_to, is_active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`).bind(
+    await db.prepare(`INSERT INTO company_sample_boards (id, tenant_id, company_id, name, description, r2_key, image_url, validity_start, validity_end, is_active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))`).bind(
       id, tenantId, companyId, name, description, r2Key, r2Url, validFrom, validTo, userId
     ).run();
 
@@ -10726,7 +10726,7 @@ api.put('/company-sample-boards/:id', authMiddleware, async (c) => {
   const body = await c.req.json();
   const existing = await db.prepare('SELECT id FROM company_sample_boards WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!existing) return c.json({ success: false, message: 'Sample board not found' }, 404);
-  await db.prepare(`UPDATE company_sample_boards SET name = COALESCE(?, name), description = COALESCE(?, description), valid_from = COALESCE(?, valid_from), valid_to = ?, is_active = COALESCE(?, is_active), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`).bind(
+  await db.prepare(`UPDATE company_sample_boards SET name = COALESCE(?, name), description = COALESCE(?, description), validity_start = COALESCE(?, validity_start), validity_end = ?, is_active = COALESCE(?, is_active), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`).bind(
     body.name || null, body.description || null, body.valid_from || null, body.valid_to ?? null, body.is_active ?? null, id, tenantId
   ).run();
   return c.json({ success: true, message: 'Sample board updated' });
@@ -10746,7 +10746,7 @@ api.get('/company-sample-boards/active/:companyId', authMiddleware, async (c) =>
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const companyId = c.req.param('companyId');
-  const boards = await db.prepare("SELECT id, name, description, r2_key, r2_url, valid_from, valid_to FROM company_sample_boards WHERE tenant_id = ? AND company_id = ? AND is_active = 1 AND valid_from <= date('now') AND (valid_to IS NULL OR valid_to >= date('now')) ORDER BY valid_from DESC").bind(tenantId, companyId).all();
+  const boards = await db.prepare("SELECT id, name, description, r2_key, r2_url, valid_from, valid_to FROM company_sample_boards WHERE tenant_id = ? AND company_id = ? AND is_active = 1 AND validity_start <= date('now') AND (validity_end IS NULL OR valid_to >= date('now')) ORDER BY valid_from DESC").bind(tenantId, companyId).all();
   return c.json({ success: true, data: boards.results || [] });
 });
 
@@ -11262,7 +11262,7 @@ api.post('/visits/:id/checkout-enhanced', async (c) => {
   const pendingSurveys = await db.prepare(`
     SELECT st.name FROM survey_templates st
     WHERE st.tenant_id = ? AND st.is_active = 1 AND st.trigger_type LIKE 'mandatory%'
-    AND NOT EXISTS (SELECT 1 FROM visit_responses vr WHERE vr.visit_id = ? AND vr.survey_template_id = st.id)
+    AND NOT EXISTS (SELECT 1 FROM visit_responses vr WHERE vr.visit_id = ? AND vr.visit_type = st.id)
   `).bind(tenantId, id).all();
 
   if (pendingSurveys.results?.length > 0) {
@@ -11523,7 +11523,7 @@ api.get('/admin/settings', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const tenant = await db.prepare('SELECT * FROM tenants WHERE id = ?').bind(tenantId).first();
   let parsedSettings = {};
-  try { if (tenant?.settings) parsedSettings = JSON.parse(tenant.settings); } catch (e) { parsedSettings = {}; }
+  try { if (tenant?.features) parsedSettings = JSON.parse(tenant.features); } catch (e) { parsedSettings = {}; }
   return c.json({ success: true, data: { tenant, settings: parsedSettings } });
 });
 
@@ -12625,8 +12625,8 @@ api.post('/marketing/activations', authMiddleware, async (c) => {
     const tenantId = c.get('tenantId');
     const body = await c.req.json();
     const id = crypto.randomUUID();
-    await db.prepare('INSERT INTO activations (id, tenant_id, name, activation_type, description, status, start_date, end_date, budget, created_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)').bind(
-      id, tenantId, body.name, body.activation_type || 'general', body.description || null, body.status || 'planned', body.start_date || null, body.end_date || null, body.budget || 0
+    await db.prepare('INSERT INTO activations (id, tenant_id, name, campaign_id, status, created_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)').bind(
+          id, tenantId, body.name, body.campaign_id || null, body.status || 'planned'
     ).run();
     return c.json({ success: true, data: { id, ...body } }, 201);
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
@@ -13322,10 +13322,10 @@ api.post('/surveys/:surveyId/activate', authMiddleware, async (c) => {
 api.get('/surveys/:surveyId/analytics', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
   const [totalResponses, survey] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE visit_type = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
     db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first()
   ]);
-  const responses = await db.prepare('SELECT * FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(surveyId, tenantId).all();
+  const responses = await db.prepare('SELECT * FROM visit_responses WHERE visit_type = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(surveyId, tenantId).all();
   let questionStats = [];
   if (survey) {
     try {
@@ -13355,15 +13355,15 @@ api.post('/surveys/:surveyId/duplicate', authMiddleware, async (c) => {
 });
 api.get('/surveys/:surveyId/export', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
-  const responses = await db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id WHERE vr.survey_template_id = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC').bind(surveyId, tenantId).all();
+  const responses = await db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id WHERE vr.visit_type = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC').bind(surveyId, tenantId).all();
   return c.json({ success: true, data: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) });
 });
 api.get('/surveys/:surveyId/insights', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
   const [totalResponses, survey, recentResponses] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE visit_type = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
     db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
-    db.prepare('SELECT * FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 50').bind(surveyId, tenantId).all()
+    db.prepare('SELECT * FROM visit_responses WHERE visit_type = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 50').bind(surveyId, tenantId).all()
   ]);
   let questionInsights = [];
   if (survey) {
@@ -13383,14 +13383,14 @@ api.get('/surveys/:surveyId/report', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
   const [survey, totalResponses, responses] = await Promise.all([
     db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE survey_template_id = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
-    db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id WHERE vr.survey_template_id = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC LIMIT 200').bind(surveyId, tenantId).all()
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE visit_type = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
+    db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id WHERE vr.visit_type = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC LIMIT 200').bind(surveyId, tenantId).all()
   ]);
   return c.json({ success: true, data: { survey_name: survey?.name, total_responses: totalResponses?.count || 0, responses: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) } });
 });
 api.get('/surveys/:surveyId/responses', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
-  const responses = await db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name, u.first_name || " " || u.last_name as agent_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id WHERE vr.survey_template_id = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC LIMIT 500').bind(surveyId, tenantId).all();
+  const responses = await db.prepare('SELECT vr.*, v.customer_id, c.name as customer_name, u.first_name || " " || u.last_name as agent_name FROM visit_responses vr LEFT JOIN visits v ON vr.visit_id = v.id LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id WHERE vr.visit_type = ? AND vr.tenant_id = ? ORDER BY vr.created_at DESC LIMIT 500').bind(surveyId, tenantId).all();
   return c.json({ success: true, data: (responses.results || []).map(r => { try { r.responses = JSON.parse(r.responses); } catch(e) {} return r; }) });
 });
 
@@ -13412,7 +13412,7 @@ api.get('/trade-marketing/metrics', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const [campaigns, activations] = await Promise.all([
-      db.prepare('SELECT COUNT(*) as total, SUM(CASE WHEN status = "active" THEN 1 ELSE 0 END) as active FROM trade_campaigns WHERE tenant_id = ?').bind(tenantId).first().catch(() => ({ total: 0, active: 0 })),
+      db.prepare('SELECT COUNT(*) as total, SUM(CASE WHEN status = "active" THEN 1 ELSE 0 END) as active FROM trade_promotions WHERE tenant_id = ?').bind(tenantId).first().catch(() => ({ total: 0, active: 0 })),
       db.prepare('SELECT COUNT(*) as total FROM activations WHERE tenant_id = ?').bind(tenantId).first().catch(() => ({ total: 0 }))
     ]);
     return c.json({ success: true, data: {
@@ -13735,7 +13735,7 @@ api.post('/visit-surveys/assign', authMiddleware, async (c) => {
   const ids = [];
   for (const s of surveys) {
     const id = uuidv4();
-    await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, survey_template_id, responses, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))').bind(id, tenantId, visit_id, s.survey_id, JSON.stringify([])).run();
+    await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))').bind(id, tenantId, visit_id, s.survey_id, JSON.stringify([])).run();
     ids.push(id);
   }
   return c.json({ success: true, data: { ids }, message: 'Surveys assigned to visit' });
@@ -13920,7 +13920,7 @@ api.get('/surveys/metrics', authMiddleware, async (c) => {
 });
 api.get('/surveys/reports', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId');
-  const surveys = await db.prepare('SELECT q.*, (SELECT COUNT(*) FROM visit_responses vr WHERE vr.survey_template_id = q.id AND vr.tenant_id = q.tenant_id) as response_count FROM questionnaires q WHERE q.tenant_id = ? AND q.is_active = 1 ORDER BY q.created_at DESC').bind(tenantId).all();
+  const surveys = await db.prepare('SELECT q.*, (SELECT COUNT(*) FROM visit_responses vr WHERE vr.visit_type = q.id AND vr.tenant_id = q.tenant_id) as response_count FROM questionnaires q WHERE q.tenant_id = ? AND q.is_active = 1 ORDER BY q.created_at DESC').bind(tenantId).all();
   return c.json({ success: true, data: (surveys.results || []).map(s => ({ id: s.id, name: s.name, title: s.name, type: s.visit_type, response_count: s.response_count, created_at: s.created_at })) });
 });
 api.get('/surveys/stats', authMiddleware, async (c) => {
@@ -13993,10 +13993,10 @@ async function checkOverdueInvoices(db) {
 
 async function checkLowStock(db) {
   try {
-    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.min_stock_level, p.name, s.tenant_id FROM stock_levels s JOIN products p ON s.product_id = p.id WHERE s.quantity <= COALESCE(p.min_stock_level, 10) AND s.quantity > 0").all();
+    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.name, s.tenant_id FROM stock_levels s JOIN products p ON s.product_id = p.id WHERE s.quantity <= 10 AND s.quantity > 0").all();
     for (const item of (lowStock.results || [])) {
       const id = crypto.randomUUID();
-      await db.prepare("INSERT OR IGNORE INTO notifications (id, tenant_id, type, title, message, severity, created_at) VALUES (?, ?, 'low_stock', ?, ?, 'warning', datetime('now'))").bind(id, item.tenant_id, `Low stock: ${item.name}`, `${item.name} has ${item.quantity} units remaining in warehouse ${item.warehouse_id}`).run();
+      await db.prepare("INSERT OR IGNORE INTO notifications (id, tenant_id, type, title, message, is_read, created_at) VALUES (?, ?, 'low_stock', ?, ?, 0, datetime('now'))").bind(id, item.tenant_id, `Low stock: ${item.name}`, `${item.name} has ${item.quantity} units remaining in warehouse ${item.warehouse_id}`).run();
     }
   } catch (e) { console.error('checkLowStock error:', e); }
 }
@@ -14017,9 +14017,9 @@ async function closeCommissionPeriod(db) {
     const lastMonth = new Date();
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     const periodName = lastMonth.toISOString().slice(0, 7);
-    const tenants = await db.prepare("SELECT DISTINCT tenant_id FROM commission_earnings WHERE status = 'approved' AND period = ?").bind(periodName).all();
+    const tenants = await db.prepare("SELECT DISTINCT tenant_id FROM commission_earnings WHERE status = 'approved' AND period_start <= ?").bind(periodName).all();
     for (const t of (tenants.results || [])) {
-      await db.prepare("UPDATE commission_earnings SET status = 'closed' WHERE tenant_id = ? AND status = 'approved' AND period = ?").bind(t.tenant_id, periodName).run();
+      await db.prepare("UPDATE commission_earnings SET status = 'closed' WHERE tenant_id = ? AND status = 'approved' AND period_start <= ?").bind(t.tenant_id, periodName).run();
     }
   } catch (e) { console.error('closeCommissionPeriod error:', e); }
 }
@@ -14044,9 +14044,9 @@ async function generateAgingReport(db) {
 // ==================== DYNAMIC PRICING (SECTION 1) ====================
 async function resolvePrice(db, tenantId, productId, customerId, quantity) {
   if (customerId) {
-    const customer = await db.prepare('SELECT price_list_id FROM customers WHERE id = ? AND tenant_id = ?').bind(customerId, tenantId).first();
-    if (customer && customer.price_list_id) {
-      const pli = await db.prepare('SELECT unit_price FROM price_list_items WHERE price_list_id = ? AND product_id = ? AND min_qty <= ? ORDER BY min_qty DESC LIMIT 1').bind(customer.price_list_id, productId, quantity || 1).first();
+    const customer = await db.prepare('SELECT id, category FROM customers WHERE id = ? AND tenant_id = ?').bind(customerId, tenantId).first();
+    if (customer) {
+      const pli = await db.prepare('SELECT unit_price FROM price_list_items WHERE price_list_id = ? AND product_id = ? AND min_qty <= ? ORDER BY min_qty DESC LIMIT 1').bind(null, productId, quantity || 1).first();
       if (pli) return { price: pli.unit_price, source: 'customer_price_list' };
     }
   }
