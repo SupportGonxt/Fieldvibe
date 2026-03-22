@@ -23,6 +23,8 @@ function lazyWithRetry(importFn: () => Promise<{ default: ComponentType<unknown>
       if (!hasReloaded) {
         sessionStorage.setItem('chunk_reload', '1');
         window.location.reload();
+        // Return a never-resolving promise to keep Suspense spinner visible until reload completes
+        return new Promise(() => {});
       }
       throw error;
     })
