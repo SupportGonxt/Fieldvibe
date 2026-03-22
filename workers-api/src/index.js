@@ -319,6 +319,32 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(),
     ]);
 
+    // Fetch company target rules as fallback if no daily_targets exist
+    let companyTargetRules = [];
+    try {
+      const agentCompanyIds = (companies.results || []).map(c => c.id);
+      if (agentCompanyIds.length > 0) {
+        const ph = agentCompanyIds.map(() => '?').join(',');
+        const ctrResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all();
+        companyTargetRules = ctrResult.results || [];
+      }
+    } catch { /* table may not exist yet */ }
+
+    // Build daily_targets from company_target_rules if no daily_targets exist
+    let dailyTargets = targets.results || [];
+    if (dailyTargets.length === 0 && companyTargetRules.length > 0) {
+      dailyTargets = companyTargetRules.map(ctr => ({
+        company_name: ctr.company_name,
+        company_id: ctr.company_id,
+        target_visits: ctr.target_visits_per_day,
+        target_registrations: ctr.target_registrations_per_day,
+        target_conversions: ctr.target_conversions_per_day,
+        actual_visits: todayVisits?.count || 0,
+        actual_registrations: todayRegs?.count || 0,
+        source: 'company_rule',
+      }));
+    }
+
     return c.json({
       success: true,
       data: {
@@ -328,12 +354,13 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         month_registrations: monthRegs?.count || 0,
         recent_visits: recentVisits.results || [],
         companies: companies.results || [],
-        daily_targets: targets.results || [],
+        daily_targets: dailyTargets,
+        company_target_rules: companyTargetRules,
       }
     });
   } catch (error) {
     console.error('Agent dashboard error:', error);
-    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0, recent_visits: [], companies: [], daily_targets: [] } });
+    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0, recent_visits: [], companies: [], daily_targets: [], company_target_rules: [] } });
   }
 });
 
@@ -5093,6 +5120,130 @@ api.post('/field-ops/daily-targets/bulk', authMiddleware, async (c) => {
   return c.json({ message: `Created targets for ${agent_ids.length} agents` }, 201);
 });
 
+// ==================== FIELD OPERATIONS: COMPANY TARGET RULES ====================
+api.get('/field-ops/company-target-rules', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id } = c.req.query();
+  try {
+    let query = "SELECT ctr.*, fc.name as company_name, fc.code as company_code FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ?";
+    const params = [tenantId];
+    if (company_id) { query += ' AND ctr.company_id = ?'; params.push(company_id); }
+    query += ' ORDER BY fc.name';
+    const rules = await db.prepare(query).bind(...params).all();
+    return c.json({ data: rules.results || [] });
+  } catch {
+    return c.json({ data: [] });
+  }
+});
+
+api.get('/field-ops/company-target-rules/:companyId', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.req.param('companyId');
+  try {
+    const rule = await db.prepare("SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.company_id = ? AND ctr.tenant_id = ?").bind(companyId, tenantId).first();
+    return c.json({ data: rule || null });
+  } catch {
+    return c.json({ data: null });
+  }
+});
+
+api.post('/field-ops/company-target-rules', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  const { company_id } = body;
+  if (!company_id) return c.json({ success: false, message: 'company_id required' }, 400);
+  // Upsert: check if rule already exists for this company
+  const existing = await db.prepare('SELECT id FROM company_target_rules WHERE company_id = ? AND tenant_id = ?').bind(company_id, tenantId).first();
+  if (existing) {
+    await db.prepare('UPDATE company_target_rules SET target_visits_per_day = ?, target_registrations_per_day = ?, target_conversions_per_day = ?, team_lead_own_target_visits = ?, team_lead_own_target_registrations = ?, team_lead_own_target_conversions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(
+      body.target_visits_per_day ?? 20, body.target_registrations_per_day ?? 10, body.target_conversions_per_day ?? 5,
+      body.team_lead_own_target_visits ?? 20, body.team_lead_own_target_registrations ?? 10, body.team_lead_own_target_conversions ?? 5,
+      existing.id, tenantId
+    ).run();
+    return c.json({ success: true, data: { id: existing.id }, message: 'Target rules updated' });
+  }
+  const id = uuidv4();
+  await db.prepare('INSERT INTO company_target_rules (id, tenant_id, company_id, target_visits_per_day, target_registrations_per_day, target_conversions_per_day, team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+    id, tenantId, company_id,
+    body.target_visits_per_day ?? 20, body.target_registrations_per_day ?? 10, body.target_conversions_per_day ?? 5,
+    body.team_lead_own_target_visits ?? 20, body.team_lead_own_target_registrations ?? 10, body.team_lead_own_target_conversions ?? 5,
+    userId
+  ).run();
+  return c.json({ success: true, data: { id }, message: 'Target rules created' }, 201);
+});
+
+api.delete('/field-ops/company-target-rules/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM company_target_rules WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Target rules deleted' });
+});
+
+// ── Commission Eligibility Check ──
+// Returns whether all levels (agent, team_lead, manager) hit targets for a given date
+api.get('/field-ops/commission-eligibility', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { date, company_id, agent_id } = c.req.query();
+  const checkDate = date || new Date().toISOString().slice(0, 10);
+  try {
+    // Get company target rules
+    let rulesQuery = "SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ?";
+    const rulesParams = [tenantId];
+    if (company_id) { rulesQuery += ' AND ctr.company_id = ?'; rulesParams.push(company_id); }
+    const rules = await db.prepare(rulesQuery).bind(...rulesParams).all();
+    const targetRules = rules.results || [];
+    if (targetRules.length === 0) return c.json({ data: { eligible: false, reason: 'No target rules configured', details: [] } });
+
+    const results = [];
+    for (const rule of targetRules) {
+      // Get agents linked to this company
+      let agentsQuery = "SELECT acl.agent_id, u.first_name || ' ' || u.last_name as agent_name, u.role, u.team_lead_id, u.manager_id FROM agent_company_links acl JOIN users u ON acl.agent_id = u.id WHERE acl.company_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND u.is_active = 1";
+      const agentsParams = [rule.company_id, tenantId];
+      if (agent_id) { agentsQuery += ' AND acl.agent_id = ?'; agentsParams.push(agent_id); }
+      const agentsResult = await db.prepare(agentsQuery).bind(...agentsParams).all();
+      const agents = agentsResult.results || [];
+
+      for (const agent of agents) {
+        // Count agent's visits and registrations for the date
+        const [visitCount, regCount, convCount] = await Promise.all([
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date = ?").bind(agent.agent_id, tenantId, checkDate).first(),
+          db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND DATE(created_at) = ?").bind(agent.agent_id, tenantId, checkDate).first(),
+          db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND DATE(created_at) = ? AND converted = 1").bind(agent.agent_id, tenantId, checkDate).first(),
+        ]);
+
+        const agentHit = (visitCount?.count || 0) >= rule.target_visits_per_day &&
+                          (regCount?.count || 0) >= rule.target_registrations_per_day &&
+                          (convCount?.count || 0) >= rule.target_conversions_per_day;
+
+        results.push({
+          company_id: rule.company_id,
+          company_name: rule.company_name,
+          agent_id: agent.agent_id,
+          agent_name: agent.agent_name,
+          role: agent.role,
+          targets: {
+            visits: { target: rule.target_visits_per_day, actual: visitCount?.count || 0, hit: (visitCount?.count || 0) >= rule.target_visits_per_day },
+            registrations: { target: rule.target_registrations_per_day, actual: regCount?.count || 0, hit: (regCount?.count || 0) >= rule.target_registrations_per_day },
+            conversions: { target: rule.target_conversions_per_day, actual: convCount?.count || 0, hit: (convCount?.count || 0) >= rule.target_conversions_per_day },
+          },
+          hit_all: agentHit,
+        });
+      }
+    }
+
+    const allHit = results.length > 0 && results.every(r => r.hit_all);
+    return c.json({ data: { eligible: allHit, date: checkDate, details: results } });
+  } catch (err) {
+    return c.json({ data: { eligible: false, reason: 'Error checking eligibility', error: err.message, details: [] } });
+  }
+});
+
 // ==================== FIELD OPERATIONS: INDIVIDUAL REGISTRATIONS ====================
 api.get('/field-ops/individuals', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -5176,25 +5327,31 @@ api.get('/field-ops/hierarchy', authMiddleware, async (c) => {
     ]);
     // Optional queries - company links may not exist yet, don't let them break hierarchy
     let mcLinks = [];
+    let acLinks = [];
     let companiesList = [];
     try {
-      const [managerCompanyLinks, companies] = await Promise.all([
+      const [managerCompanyLinks, agentCompanyLinks, companies] = await Promise.all([
         db.prepare("SELECT mcl.id, mcl.manager_id, mcl.company_id, fc.name as company_name, fc.code as company_code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.tenant_id = ? AND mcl.is_active = 1").bind(tenantId).all(),
+        db.prepare("SELECT acl.id, acl.agent_id, acl.company_id, fc.name as company_name, fc.code as company_code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.tenant_id = ? AND acl.is_active = 1").bind(tenantId).all(),
         db.prepare("SELECT id, name, code FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all(),
       ]);
       mcLinks = managerCompanyLinks.results || [];
+      acLinks = agentCompanyLinks.results || [];
       companiesList = companies.results || [];
     } catch { /* manager_company_links or field_companies table may not exist yet */ }
+    // Helper to get agent/team_lead company links
+    const getPersonCompanies = (personId) => acLinks.filter(l => l.agent_id === personId).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id }));
     const hierarchy = (managers.results || []).map(m => ({
       ...m,
       companies: mcLinks.filter(l => l.manager_id === m.id).map(l => ({ id: l.company_id, name: l.company_name, code: l.company_code, link_id: l.id })),
       team_leads: (teamLeads.results || []).filter(tl => tl.manager_id === m.id).map(tl => ({
         ...tl,
-        agents: (agents.results || []).filter(a => a.team_lead_id === tl.id)
+        companies: getPersonCompanies(tl.id),
+        agents: (agents.results || []).filter(a => a.team_lead_id === tl.id).map(a => ({ ...a, companies: getPersonCompanies(a.id) }))
       }))
     }));
-    const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id);
-    const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id);
+    const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id).map(tl => ({ ...tl, companies: getPersonCompanies(tl.id) }));
+    const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id).map(a => ({ ...a, companies: getPersonCompanies(a.id) }));
     return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companiesList, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
   } catch {
     return c.json({ hierarchy: [], unassigned_team_leads: [], unassigned_agents: [], all_companies: [], total_managers: 0, total_team_leads: 0, total_agents: 0 });
@@ -6028,6 +6185,16 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`).run();
     results.push('company_custom_questions table created');
+
+    await db.prepare(`CREATE TABLE IF NOT EXISTS company_target_rules (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT NOT NULL,
+      target_visits_per_day INTEGER DEFAULT 20, target_registrations_per_day INTEGER DEFAULT 10,
+      target_conversions_per_day INTEGER DEFAULT 5,
+      team_lead_own_target_visits INTEGER DEFAULT 20, team_lead_own_target_registrations INTEGER DEFAULT 10,
+      team_lead_own_target_conversions INTEGER DEFAULT 5,
+      created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+    results.push('company_target_rules table created');
 
     // Seed default process flows
     await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-store-default', 'default', 'Standard Store Visit', 'Default workflow for store visits: GPS, Details, Survey, Photo, Review', 1)").run();
