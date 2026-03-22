@@ -339,8 +339,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         companies = await db.prepare("SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
       }
     } catch { /* company links table may not exist */ }
-    // Use brand_id as fallback for company_id in visit counting (company_id column may not exist yet)
-    try { targets = await db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.brand_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(); } catch { /* daily_targets table may not exist */ }
+    // Count visits by company_id column (not brand_id which references brands table)
+    try { targets = await db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM individual_registrations ir2 WHERE ir2.agent_id = dt.agent_id AND ir2.company_id = dt.company_id AND DATE(ir2.created_at) = dt.target_date AND ir2.tenant_id = dt.tenant_id) as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all(); } catch { /* daily_targets table may not exist */ }
 
     // Fetch company target rules as fallback if no daily_targets exist
     let companyTargetRules = [];
@@ -5691,7 +5691,7 @@ api.post('/field-ops/monthly-targets/:id/recalculate', authMiddleware, async (c)
     let companyFilter = '';
     const baseParams = [target.agent_id, tenantId, startDate, endDate];
     if (target.company_id) { companyFilter = ' AND company_id = ?'; }
-    const visits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date <= ?" + (target.company_id ? " AND brand_id = ?" : '')).bind(...baseParams, ...(target.company_id ? [target.company_id] : [])).first();
+    const visits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date <= ?" + (target.company_id ? " AND company_id = ?" : '')).bind(...baseParams, ...(target.company_id ? [target.company_id] : [])).first();
     const regs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND created_at >= ? AND created_at <= ?" + (target.company_id ? " AND company_id = ?" : '')).bind(target.agent_id, tenantId, startDate + ' 00:00:00', endDate + ' 23:59:59', ...(target.company_id ? [target.company_id] : [])).first();
     const convs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND converted = 1 AND conversion_date >= ? AND conversion_date <= ?" + (target.company_id ? " AND company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
     await db.prepare('UPDATE monthly_targets SET actual_visits = ?, actual_conversions = ?, actual_registrations = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(visits?.count || 0, convs?.count || 0, regs?.count || 0, id).run();
@@ -6158,11 +6158,11 @@ api.get('/individual-visits-report', authMiddleware, async (c) => {
     LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
     LEFT JOIN visit_responses vr ON vr.visit_id = v.id
     LEFT JOIN users u ON u.id = v.agent_id
-    LEFT JOIN field_companies fc ON fc.id = v.brand_id
+    LEFT JOIN field_companies fc ON fc.id = COALESCE(v.company_id, v.brand_id)
     LEFT JOIN questionnaires q ON q.id = v.questionnaire_id
     WHERE v.tenant_id = ? AND v.visit_type = 'individual'`;
     const params = [tenantId];
-    if (company_id) { query += ' AND v.brand_id = ?'; params.push(company_id); }
+    if (company_id) { query += ' AND (v.company_id = ? OR v.brand_id = ?)'; params.push(company_id, company_id); }
     if (start_date) { query += ' AND v.visit_date >= ?'; params.push(start_date); }
     if (end_date) { query += ' AND v.visit_date <= ?'; params.push(end_date); }
     if (agent_id) { query += ' AND v.agent_id = ?'; params.push(agent_id); }
@@ -6514,7 +6514,8 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
     // 1. Create the visit record (try with company_id column first, fallback without)
     const companyId = body.company_id || null;
-    const brandId = body.brand_id || body.company_id || null;
+    // brand_id has FK to brands table - do NOT put company_id into brand_id
+    const brandId = body.brand_id || null;
     try {
       await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
