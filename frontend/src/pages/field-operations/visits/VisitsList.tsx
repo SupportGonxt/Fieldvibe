@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Edit } from 'lucide-react'
+import { Eye, Edit, X } from 'lucide-react'
 import TransactionList from '../../../components/transactions/TransactionList'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatDate } from '../../../utils/format'
@@ -11,6 +11,7 @@ export default function VisitsList() {
   const [loading, setLoading] = useState(true)
   const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
   const [selectedCompany, setSelectedCompany] = useState('')
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
 
   useEffect(() => {
     loadCompanies()
@@ -47,6 +48,23 @@ export default function VisitsList() {
   }
 
   const columns = [
+    {
+      key: 'thumbnail_url',
+      label: 'Photo',
+      render: (value: string, row: any) => {
+        const photoUrl = value || row.photo_url
+        if (!photoUrl) return <span className="text-gray-400 text-xs">No photo</span>
+        return (
+          <button onClick={() => setExpandedPhoto(photoUrl)} className="block">
+            <img
+              src={photoUrl}
+              alt="Visit photo"
+              className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+            />
+          </button>
+        )
+      }
+    },
     {
       key: 'visit_number',
       label: 'Visit #',
@@ -158,6 +176,25 @@ export default function VisitsList() {
         createPath="/field-operations/visits/create"
         createLabel="Create Visit"
       />
+
+      {/* Photo Expand Modal */}
+      {expandedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setExpandedPhoto(null)}>
+          <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setExpandedPhoto(null)}
+              className="absolute top-0 right-0 m-2 p-1 bg-white dark:bg-gray-800 rounded-full shadow-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={expandedPhoto}
+              alt="Visit photo expanded"
+              className="max-w-full max-h-[85vh] rounded-lg object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1330,12 +1330,12 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  async createCompanyCustomQuestion(data: { company_id: string; question_label: string; question_key: string; field_type?: string; field_options?: string[]; is_required?: boolean; display_order?: number; visit_target_type?: string }) {
+  async createCompanyCustomQuestion(data: { company_id: string; question_label: string; question_key: string; field_type?: string; field_options?: string[]; is_required?: boolean; display_order?: number; visit_target_type?: string; check_duplicate?: boolean; min_length?: number; max_length?: number }) {
     const response = await this.post('/company-custom-questions', data)
     return response.data || response
   }
 
-  async updateCompanyCustomQuestion(id: string, data: { question_label?: string; question_key?: string; field_type?: string; field_options?: string[]; is_required?: boolean; display_order?: number; visit_target_type?: string }) {
+  async updateCompanyCustomQuestion(id: string, data: { question_label?: string; question_key?: string; field_type?: string; field_options?: string[]; is_required?: boolean; display_order?: number; visit_target_type?: string; check_duplicate?: boolean; min_length?: number; max_length?: number }) {
     const response = await this.put(`/company-custom-questions/${id}`, data)
     return response.data || response
   }

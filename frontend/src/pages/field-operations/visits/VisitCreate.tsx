@@ -70,6 +70,9 @@ interface CustomQuestion {
   is_required: number
   display_order: number
   visit_target_type: string
+  check_duplicate?: number
+  min_length?: number
+  max_length?: number
 }
 
 interface Company {
@@ -104,6 +107,24 @@ interface ProcessFlowStep {
   step_order: number
   is_required: number
   config: string
+}
+
+// Built-in flow field keys that are already captured in the standard visit flow
+// Questions with check_duplicate flagged that match these keys will be filtered out
+const BUILT_IN_FLOW_KEYS = new Set([
+  'first_name', 'last_name', 'customer_name', 'individual_name', 'name',
+  'id_number', 'phone', 'phone_number', 'cell_number', 'email',
+  'store_name', 'shop_name', 'business_name', 'address',
+  'gps', 'latitude', 'longitude', 'visit_type', 'photo',
+])
+
+function isDuplicateFlowQuestion(q: CustomQuestion): boolean {
+  if (!q.check_duplicate) return false
+  const normalizedKey = q.question_key.toLowerCase().replace(/[^a-z0-9]/g, '_')
+  for (const builtIn of BUILT_IN_FLOW_KEYS) {
+    if (normalizedKey === builtIn || normalizedKey.includes(builtIn)) return true
+  }
+  return false
 }
 
 // Default fallback steps if backend doesn't return process flow
@@ -344,7 +365,9 @@ export default function VisitCreate() {
     try {
       const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitTargetType || undefined)
       const questions = res?.data || res || []
-      setCustomQuestions(Array.isArray(questions) ? questions : [])
+      const allQuestions = Array.isArray(questions) ? questions : []
+      // Filter out questions flagged as duplicates of built-in flow fields
+      setCustomQuestions(allQuestions.filter((q: CustomQuestion) => !isDuplicateFlowQuestion(q)))
     } catch (err) {
       console.error('Failed to load custom questions:', err)
     }
@@ -1019,6 +1042,9 @@ export default function VisitCreate() {
                       rows={3}
                       value={customQuestionValues[q.question_key] || ''}
                       onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
+                      inputProps={{ minLength: q.min_length || undefined, maxLength: q.max_length || undefined }}
+                      helperText={q.min_length || q.max_length ? `${q.min_length ? `Min ${q.min_length}` : ''}${q.min_length && q.max_length ? ' / ' : ''}${q.max_length ? `Max ${q.max_length}` : ''} characters` : undefined}
+                      error={!!(q.min_length && (customQuestionValues[q.question_key] || '').length > 0 && (customQuestionValues[q.question_key] || '').length < q.min_length)}
                     />
                   ) : (
                     <TextField
@@ -1028,6 +1054,9 @@ export default function VisitCreate() {
                       type={q.field_type === 'number' ? 'number' : 'text'}
                       value={customQuestionValues[q.question_key] || ''}
                       onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
+                      inputProps={{ minLength: q.min_length || undefined, maxLength: q.max_length || undefined }}
+                      helperText={q.min_length || q.max_length ? `${q.min_length ? `Min ${q.min_length}` : ''}${q.min_length && q.max_length ? ' / ' : ''}${q.max_length ? `Max ${q.max_length}` : ''} characters` : undefined}
+                      error={!!(q.min_length && (customQuestionValues[q.question_key] || '').length > 0 && (customQuestionValues[q.question_key] || '').length < q.min_length)}
                     />
                   )}
                 </Grid>

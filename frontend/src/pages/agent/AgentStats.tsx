@@ -50,6 +50,8 @@ interface PerformanceData {
     commission_rate: number
     commission_amount: number
     working_days: number
+    store_visits?: number
+    individual_visits?: number
   }>
   commission_summary: {
     pending: number
@@ -495,6 +497,29 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                       </div>
                     </div>
                   </div>
+                  {/* Store vs Individual breakdown */}
+                  {(t.store_visits != null || t.individual_visits != null) && (t.store_visits || 0) + (t.individual_visits || 0) > 0 && (
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      {(t.store_visits || 0) > 0 && (
+                        <div className="bg-purple-500/10 rounded-lg p-2">
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Store className="w-3 h-3 text-purple-400" />
+                            <span className="text-[10px] text-purple-300 font-medium">Store</span>
+                          </div>
+                          <p className="text-xs text-white font-semibold">{t.store_visits} visits</p>
+                        </div>
+                      )}
+                      {(t.individual_visits || 0) > 0 && (
+                        <div className="bg-cyan-500/10 rounded-lg p-2">
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <User className="w-3 h-3 text-cyan-400" />
+                            <span className="text-[10px] text-cyan-300 font-medium">Individual</span>
+                          </div>
+                          <p className="text-xs text-white font-semibold">{t.individual_visits} visits</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {t.commission_rate > 0 && (
                     <p className="text-[10px] text-gray-500 mt-2">Commission rate: {t.commission_rate}%</p>
                   )}

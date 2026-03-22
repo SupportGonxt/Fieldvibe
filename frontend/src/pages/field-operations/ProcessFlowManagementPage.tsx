@@ -66,6 +66,45 @@ interface CustomQuestion {
   is_required: boolean | number
   display_order: number
   visit_target_type: string
+  check_duplicate?: boolean | number
+  min_length?: number
+  max_length?: number
+}
+
+// ── Built-in flow fields already captured in the standard visit flow ──
+const BUILT_IN_FLOW_FIELDS: Record<string, { label: string; appliesTo: 'individual' | 'store' | 'both' }> = {
+  first_name: { label: 'First Name', appliesTo: 'individual' },
+  last_name: { label: 'Last Name', appliesTo: 'individual' },
+  customer_name: { label: 'Customer Name', appliesTo: 'individual' },
+  individual_name: { label: 'Individual Name', appliesTo: 'individual' },
+  name: { label: 'Name', appliesTo: 'both' },
+  id_number: { label: 'ID Number', appliesTo: 'individual' },
+  phone: { label: 'Phone Number', appliesTo: 'individual' },
+  phone_number: { label: 'Phone Number', appliesTo: 'individual' },
+  cell_number: { label: 'Cell Number', appliesTo: 'individual' },
+  email: { label: 'Email', appliesTo: 'individual' },
+  store_name: { label: 'Store Name', appliesTo: 'store' },
+  shop_name: { label: 'Shop Name', appliesTo: 'store' },
+  business_name: { label: 'Business Name', appliesTo: 'store' },
+  address: { label: 'Address', appliesTo: 'store' },
+  gps: { label: 'GPS Location', appliesTo: 'both' },
+  latitude: { label: 'Latitude', appliesTo: 'both' },
+  longitude: { label: 'Longitude', appliesTo: 'both' },
+  visit_type: { label: 'Visit Type', appliesTo: 'both' },
+  photo: { label: 'Photo', appliesTo: 'store' },
+}
+
+function checkDuplicateFlowField(questionKey: string, questionLabel: string, visitTargetType: string): string | null {
+  const normalizedKey = questionKey.toLowerCase().replace(/[^a-z0-9]/g, '_')
+  const normalizedLabel = questionLabel.toLowerCase().replace(/[^a-z0-9]/g, '_')
+  for (const [key, info] of Object.entries(BUILT_IN_FLOW_FIELDS)) {
+    if (info.appliesTo !== 'both' && visitTargetType !== 'both' && info.appliesTo !== visitTargetType) continue
+    if (normalizedKey === key || normalizedLabel === key ||
+        normalizedKey.includes(key) || normalizedLabel.includes(key)) {
+      return `This question may duplicate the built-in "${info.label}" field already captured in the ${info.appliesTo === 'both' ? 'standard' : info.appliesTo} flow.`
+    }
+  }
+  return null
 }
 
 // ── Available step definitions ──
@@ -680,6 +719,9 @@ function CustomQuestionsTab() {
     is_required: false,
     display_order: 1,
     visit_target_type: 'both',
+    check_duplicate: false,
+    min_length: undefined as number | undefined,
+    max_length: undefined as number | undefined,
   })
 
   const { data: companiesResp } = useQuery({
@@ -705,6 +747,9 @@ function CustomQuestionsTab() {
         ...form,
         field_options: form.field_type === 'select' ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
         is_required: form.is_required,
+        check_duplicate: form.check_duplicate,
+        min_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea') ? (form.min_length ?? null) : null,
+        max_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea') ? (form.max_length ?? null) : null,
       }
       if (editingQuestion) {
         return fieldOperationsService.updateCompanyCustomQuestion(editingQuestion.id, payload)
@@ -731,7 +776,7 @@ function CustomQuestionsTab() {
   function resetForm() {
     setShowCreate(false)
     setEditingQuestion(null)
-    setForm({ company_id: '', question_label: '', question_key: '', field_type: 'text', field_options: '', is_required: false, display_order: 1, visit_target_type: 'both' })
+    setForm({ company_id: '', question_label: '', question_key: '', field_type: 'text', field_options: '', is_required: false, display_order: 1, visit_target_type: 'both', check_duplicate: false, min_length: undefined, max_length: undefined })
   }
 
   function startEdit(q: CustomQuestion) {
@@ -746,6 +791,9 @@ function CustomQuestionsTab() {
       is_required: !!q.is_required,
       display_order: q.display_order,
       visit_target_type: q.visit_target_type,
+      check_duplicate: !!q.check_duplicate,
+      min_length: q.min_length,
+      max_length: q.max_length,
     })
   }
 
@@ -789,9 +837,13 @@ function CustomQuestionsTab() {
 
       {showCreate && (
         <div className="card p-6 border-2 border-blue-200 dark:border-blue-800">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
             {editingQuestion ? 'Edit Custom Question' : 'Create Custom Question'}
           </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Custom questions appear on the visit Details step. Write clear, concise questions that agents can answer quickly in the field.
+            Avoid questions that duplicate data already captured (e.g. name, phone, GPS).
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company *</label>
@@ -817,8 +869,9 @@ function CustomQuestionsTab() {
                   }))
                 }}
                 className="input w-full"
-                placeholder="e.g. How many units were sold?"
+                placeholder="e.g. How many units were sold this week?"
               />
+              <p className="text-xs text-gray-400 mt-1">Write as a clear question the agent will answer during the visit.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Question Key</label>
@@ -829,6 +882,7 @@ function CustomQuestionsTab() {
                 className="input w-full"
                 placeholder="Auto-generated from label"
               />
+              <p className="text-xs text-gray-400 mt-1">Unique identifier used in data exports. Auto-generated from the label.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Field Type</label>
@@ -875,10 +929,56 @@ function CustomQuestionsTab() {
               />
             </div>
           </div>
-          <label className="flex items-center gap-2 mt-4 cursor-pointer">
-            <input type="checkbox" checked={form.is_required} onChange={e => setForm(prev => ({ ...prev, is_required: e.target.checked }))} className="rounded border-gray-300" />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Required field</span>
-          </label>
+          {(form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea') && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Length</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.min_length ?? ''}
+                  onChange={e => setForm(prev => ({ ...prev, min_length: e.target.value ? parseInt(e.target.value) : undefined }))}
+                  className="input w-full"
+                  placeholder="No minimum"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Length</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.max_length ?? ''}
+                  onChange={e => setForm(prev => ({ ...prev, max_length: e.target.value ? parseInt(e.target.value) : undefined }))}
+                  className="input w-full"
+                  placeholder="No maximum"
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 mt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.is_required} onChange={e => setForm(prev => ({ ...prev, is_required: e.target.checked }))} className="rounded border-gray-300" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Required field</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.check_duplicate} onChange={e => setForm(prev => ({ ...prev, check_duplicate: e.target.checked }))} className="rounded border-gray-300" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Check for duplicate (flags if similar question exists in the flow)</span>
+            </label>
+          </div>
+          {/* Duplicate flow field warning */}
+          {form.check_duplicate && form.question_key && (() => {
+            const warning = checkDuplicateFlowField(form.question_key, form.question_label, form.visit_target_type)
+            return warning ? (
+              <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Potential Duplicate Detected</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{warning}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Consider removing this question to avoid asking the same information twice.</p>
+                </div>
+              </div>
+            ) : null
+          })()}
           <div className="flex gap-3 mt-4">
             <button
               onClick={() => saveMutation.mutate()}
@@ -895,63 +995,93 @@ function CustomQuestionsTab() {
         </div>
       )}
 
-      {/* Questions Table */}
-      <div className="card overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Question</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Visit Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Required</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {questions.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                  <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                  <p>No custom questions configured</p>
-                  <p className="text-sm mt-1">Add company-specific questions that appear on the visit Details step</p>
-                </td>
-              </tr>
-            ) : (
-              questions.map(q => (
-                <tr key={q.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{getCompanyName(q.company_id)}</td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{q.question_label}</div>
-                    <div className="text-xs text-gray-400">{q.question_key}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{FIELD_TYPES.find(f => f.value === q.field_type)?.label || q.field_type}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      q.visit_target_type === 'store' ? 'bg-blue-100 text-blue-800' :
-                      q.visit_target_type === 'individual' ? 'bg-purple-100 text-purple-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {q.visit_target_type === 'both' ? 'Both' : q.visit_target_type === 'store' ? 'Store' : 'Individual'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm">{q.is_required ? <span className="text-red-500 font-medium">Yes</span> : 'No'}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <button onClick={() => startEdit(q)} className="text-blue-600 hover:text-blue-800">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => deleteMutation.mutate(q.id)} className="text-red-600 hover:text-red-800">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Question Packs - grouped by company and visit type */}
+      {questions.length === 0 ? (
+        <div className="card p-12 text-center">
+          <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+          <p className="text-gray-500">No custom questions configured</p>
+          <p className="text-sm text-gray-400 mt-1">Add company-specific questions that appear on the visit Details step</p>
+        </div>
+      ) : (
+        (() => {
+          // Group questions into packs: company -> visit_type -> questions[]
+          const packs: Record<string, Record<string, CustomQuestion[]>> = {}
+          for (const q of questions) {
+            const cName = getCompanyName(q.company_id)
+            if (!packs[cName]) packs[cName] = {}
+            const vt = q.visit_target_type || 'both'
+            if (!packs[cName][vt]) packs[cName][vt] = []
+            packs[cName][vt].push(q)
+          }
+          const vtLabel = (vt: string) => vt === 'store' ? 'Store Pack' : vt === 'individual' ? 'Individual Pack' : 'Both (Store & Individual)'
+          const vtBadge = (vt: string) => vt === 'store' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+            : vt === 'individual' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+          return Object.entries(packs).map(([companyName, vtGroups]) => (
+            <div key={companyName} className="card overflow-hidden">
+              <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-gray-500" />
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{companyName}</h3>
+                  <span className="text-xs text-gray-400">({Object.values(vtGroups).flat().length} questions)</span>
+                </div>
+              </div>
+              {Object.entries(vtGroups).map(([vt, qs]) => (
+                <div key={vt}>
+                  <div className="px-6 py-2 bg-gray-25 dark:bg-gray-850 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${vtBadge(vt)}`}>{vtLabel(vt)}</span>
+                    <span className="text-xs text-gray-400">{qs.length} question{qs.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Question</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Required</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Validation</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                      {qs.map(q => (
+                        <tr key={q.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-6 py-3">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{q.question_label}</div>
+                            <div className="text-xs text-gray-400">{q.question_key}</div>
+                            {q.check_duplicate && (
+                              <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                                <AlertCircle className="w-3 h-3" /> Duplicate check
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">{FIELD_TYPES.find(f => f.value === q.field_type)?.label || q.field_type}</td>
+                          <td className="px-6 py-3 text-sm">{q.is_required ? <span className="text-red-500 font-medium">Yes</span> : 'No'}</td>
+                          <td className="px-6 py-3 text-xs text-gray-500">
+                            {q.min_length != null && <span>Min: {q.min_length}</span>}
+                            {q.min_length != null && q.max_length != null && <span> / </span>}
+                            {q.max_length != null && <span>Max: {q.max_length}</span>}
+                            {q.min_length == null && q.max_length == null && <span className="text-gray-400">&mdash;</span>}
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex gap-2">
+                              <button onClick={() => startEdit(q)} className="text-blue-600 hover:text-blue-800">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => deleteMutation.mutate(q.id)} className="text-red-600 hover:text-red-800">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          ))
+        })()
+      )}
     </div>
   )
 

@@ -5,7 +5,7 @@ import { fieldOperationsService } from '../../../services/field-operations.servi
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon } from 'lucide-react'
+import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck } from 'lucide-react'
 
 export default function VisitDetail() {
   const { id } = useParams()
@@ -93,9 +93,13 @@ export default function VisitDetail() {
           {/* Visit Info */}
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Visit Details</h3>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-500 flex items-center gap-1"><Hash className="w-3 h-3" /> Visit ID</span>
+              <span className="text-sm text-white font-mono">{visit.visit_number || visit.id}</span>
+            </div>
             {visit.agent_name && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Agent</span>
+                <span className="text-xs text-gray-500 flex items-center gap-1"><UserCheck className="w-3 h-3" /> Created By</span>
                 <span className="text-sm text-white">{visit.agent_name}</span>
               </div>
             )}
@@ -115,6 +119,24 @@ export default function VisitDetail() {
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Check-out</span>
                 <span className="text-sm text-white">{new Date(visit.check_out_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            )}
+            {visit.check_in_time && visit.check_out_time && (
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-500 flex items-center gap-1"><Timer className="w-3 h-3" /> Duration</span>
+                <span className="text-sm text-white">
+                  {(() => {
+                    const mins = Math.round((new Date(visit.check_out_time).getTime() - new Date(visit.check_in_time).getTime()) / 60000)
+                    if (mins < 60) return `${mins} min`
+                    return `${Math.floor(mins / 60)}h ${mins % 60}m`
+                  })()}
+                </span>
+              </div>
+            )}
+            {!visit.check_out_time && visit.duration && (
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-500 flex items-center gap-1"><Timer className="w-3 h-3" /> Duration</span>
+                <span className="text-sm text-white">{visit.duration} min</span>
               </div>
             )}
             {(visit.latitude || visit.checkin_latitude) && (

@@ -16,6 +16,30 @@ interface TargetSummary {
   actual_registrations: number
 }
 
+interface CompanyTarget {
+  company_id: string
+  company_name: string
+  daily_target_visits: number
+  daily_target_registrations: number
+  daily_actual_visits: number
+  daily_actual_registrations: number
+  store_target_per_month: number
+  store_actual_month: number
+  store_actual_today: number
+  store_actual_week: number
+  individual_target_per_week: number
+  individual_target_per_month: number
+  individual_actual_month: number
+  individual_actual_today: number
+  individual_actual_week: number
+  week_target_visits: number
+  week_actual_visits: number
+  month_target_visits: number
+  month_actual_visits: number
+  month_target_registrations: number
+  month_actual_registrations: number
+}
+
 interface DashboardData {
   today_visits: number
   month_visits: number
@@ -39,7 +63,10 @@ interface DashboardData {
     actual_visits: number
     target_registrations: number
     actual_registrations: number
+    actual_store_visits?: number
+    actual_individual_visits?: number
   }>
+  company_targets?: CompanyTarget[]
   weekly_targets?: TargetSummary
   monthly_targets?: TargetSummary
 }
@@ -337,7 +364,68 @@ export default function AgentDashboard() {
         </div>
       )}
 
-      {data?.daily_targets && data.daily_targets.length > 0 && (
+      {data?.company_targets && data.company_targets.length > 0 ? (
+        <div className="px-5 mb-4">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Targets by Company</h2>
+          <div className="space-y-3">
+            {data.company_targets.map((ct, i) => {
+              const dailyPct = ct.daily_target_visits > 0 ? Math.min(100, Math.round((ct.daily_actual_visits / ct.daily_target_visits) * 100)) : 0
+              return (
+                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-white">{ct.company_name}</span>
+                    <span className={'text-xs font-semibold ' + (dailyPct >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{dailyPct}%</span>
+                  </div>
+                  {/* Daily progress bar */}
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: `${dailyPct}%` }} />
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[10px] text-gray-500">Today: {ct.daily_actual_visits}/{ct.daily_target_visits} visits</span>
+                    <span className="text-[10px] text-gray-500">Regs: {ct.daily_actual_registrations}/{ct.daily_target_registrations}</span>
+                  </div>
+                  {/* Store vs Individual split */}
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {(ct.store_target_per_month > 0 || ct.store_actual_month > 0) && (
+                      <div className="bg-purple-500/10 rounded-lg p-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Store className="w-3 h-3 text-purple-400" />
+                          <span className="text-[10px] text-purple-300 font-medium">Store</span>
+                        </div>
+                        <p className="text-xs text-white">
+                          <span className="font-semibold">{ct.store_actual_today}</span>
+                          <span className="text-gray-500"> today</span>
+                        </p>
+                        {ct.store_target_per_month > 0 && (
+                          <p className="text-[10px] text-gray-500">{ct.store_actual_month}/{ct.store_target_per_month} month</p>
+                        )}
+                      </div>
+                    )}
+                    {(ct.individual_target_per_month > 0 || ct.individual_actual_month > 0) && (
+                      <div className="bg-cyan-500/10 rounded-lg p-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <User className="w-3 h-3 text-cyan-400" />
+                          <span className="text-[10px] text-cyan-300 font-medium">Individual</span>
+                        </div>
+                        <p className="text-xs text-white">
+                          <span className="font-semibold">{ct.individual_actual_today}</span>
+                          <span className="text-gray-500"> today</span>
+                        </p>
+                        {ct.individual_target_per_month > 0 && (
+                          <p className="text-[10px] text-gray-500">{ct.individual_actual_month}/{ct.individual_target_per_month} month</p>
+                        )}
+                        {ct.individual_target_per_week > 0 && (
+                          <p className="text-[10px] text-gray-500">{ct.individual_actual_week}/{ct.individual_target_per_week} week</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : data?.daily_targets && data.daily_targets.length > 0 ? (
         <div className="px-5 mb-4">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Daily Targets</h2>
           <div className="space-y-2">
@@ -347,7 +435,7 @@ export default function AgentDashboard() {
                 <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-white">{t.company_name}</span>
-                    <span className="text-xs text-[#00E87B] font-semibold">{visitPct}%</span>
+                    <span className={'text-xs font-semibold ' + (visitPct >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{visitPct}%</span>
                   </div>
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: `${visitPct}%` }} />
@@ -361,7 +449,7 @@ export default function AgentDashboard() {
             })}
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="px-5 mb-4">
         <div className="flex items-center justify-between mb-2">
