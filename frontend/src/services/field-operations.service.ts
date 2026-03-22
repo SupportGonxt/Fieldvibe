@@ -1235,6 +1235,100 @@ class FieldOperationsService extends ApiService {
     const response = await this.get(`/questionnaires?${params.toString()}`)
     return response.data || response
   }
+
+  // ==================== PROCESS FLOWS ====================
+
+  async getProcessFlows() {
+    const response = await this.get('/process-flows')
+    return response.data || response
+  }
+
+  async getProcessFlow(id: string) {
+    const response = await this.get(`/process-flows/${id}`)
+    return response.data || response
+  }
+
+  async createProcessFlow(data: { name: string; description?: string; is_default?: boolean; steps?: Array<{ step_key: string; step_label: string; step_order?: number; is_required?: boolean; config?: Record<string, unknown> }> }) {
+    const response = await this.post('/process-flows', data)
+    return response.data || response
+  }
+
+  async updateProcessFlow(id: string, data: { name?: string; description?: string; is_active?: boolean; steps?: Array<{ step_key: string; step_label: string; step_order?: number; is_required?: boolean; config?: Record<string, unknown> }> }) {
+    const response = await this.put(`/process-flows/${id}`, data)
+    return response.data || response
+  }
+
+  async deleteProcessFlow(id: string) {
+    const response = await this.delete(`/process-flows/${id}`)
+    return response.data || response
+  }
+
+  // --- Company Process Flow Assignment ---
+  async getCompanyProcessFlows(companyId?: string) {
+    const params = companyId ? `?company_id=${companyId}` : ''
+    const response = await this.get(`/company-process-flows${params}`)
+    return response.data || response
+  }
+
+  async assignProcessFlowToCompany(data: { company_id: string; process_flow_id: string; visit_target_type?: string }) {
+    const response = await this.post('/company-process-flows', data)
+    return response.data || response
+  }
+
+  async unassignProcessFlowFromCompany(id: string) {
+    const response = await this.delete(`/company-process-flows/${id}`)
+    return response.data || response
+  }
+
+  // --- Visit Process Flow (get steps for a visit) ---
+  async getVisitProcessFlow(companyId?: string, visitTargetType?: string) {
+    const params = new URLSearchParams()
+    if (companyId) params.append('company_id', companyId)
+    if (visitTargetType) params.append('visit_target_type', visitTargetType)
+    const response = await this.get(`/visit-process-flow?${params.toString()}`)
+    return response.data || response
+  }
+
+  // ==================== COMPANY CUSTOM QUESTIONS ====================
+
+  async getCompanyCustomQuestions(companyId?: string, visitTargetType?: string) {
+    const params = new URLSearchParams()
+    if (companyId) params.append('company_id', companyId)
+    if (visitTargetType) params.append('visit_target_type', visitTargetType)
+    const response = await this.get(`/company-custom-questions?${params.toString()}`)
+    return response.data || response
+  }
+
+  async createCompanyCustomQuestion(data: { company_id: string; question_label: string; question_key: string; field_type?: string; field_options?: string[]; is_required?: boolean; display_order?: number; visit_target_type?: string }) {
+    const response = await this.post('/company-custom-questions', data)
+    return response.data || response
+  }
+
+  async updateCompanyCustomQuestion(id: string, data: { question_label?: string; question_key?: string; field_type?: string; field_options?: string[]; is_required?: boolean; display_order?: number; visit_target_type?: string }) {
+    const response = await this.put(`/company-custom-questions/${id}`, data)
+    return response.data || response
+  }
+
+  async deleteCompanyCustomQuestion(id: string) {
+    const response = await this.delete(`/company-custom-questions/${id}`)
+    return response.data || response
+  }
+
+  // --- Individual Visit Reporting ---
+  async getIndividualVisitsReport(filter: { company_id?: string; start_date?: string; end_date?: string; agent_id?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/individual-visits-report?${params.toString()}`)
+    return response.data || response
+  }
+
+  // --- Run migration for process flows ---
+  async runProcessFlowsMigration() {
+    const response = await this.post('/migrations/create-process-flows')
+    return response.data || response
+  }
 }
 
 export const fieldOperationsService = new FieldOperationsService()

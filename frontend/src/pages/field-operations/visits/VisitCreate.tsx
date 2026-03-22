@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box, Stepper, Step, StepLabel, Button, Paper, Typography, Alert,
@@ -31,6 +31,18 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+// Extract error message from axios errors or plain Error objects (fixes mobile save bug)
+function extractErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const axiosErr = err as { response?: { data?: { message?: string; error?: string } }; message?: string }
+    if (axiosErr.response?.data?.message) return axiosErr.response.data.message
+    if (axiosErr.response?.data?.error) return axiosErr.response.data.error
+    if (axiosErr.message) return axiosErr.message
+  }
+  if (err instanceof Error) return err.message
+  return 'Failed to create visit'
+}
+
 interface GpsLocation {
   latitude: number
   longitude: number
@@ -46,6 +58,17 @@ interface CustomField {
   is_required: number
   field_options: string | null
   display_order: number
+}
+
+interface CustomQuestion {
+  id: string
+  question_label: string
+  question_key: string
+  field_type: string
+  field_options: string | null
+  is_required: number
+  display_order: number
+  visit_target_type: string
 }
 
 interface Company {
@@ -73,13 +96,31 @@ interface Questionnaire {
   brand_id?: string
 }
 
-const STEPS = [
-  'GPS Check-in',
-  'Visit Type',
-  'Details',
-  'Survey',
-  'Photo Capture',
-  'Review & Submit'
+interface ProcessFlowStep {
+  id: string
+  step_key: string
+  step_label: string
+  step_order: number
+  is_required: number
+  config: string
+}
+
+// Default fallback steps if backend doesn't return process flow
+const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
+  { id: 's1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
+  { id: 's2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
+  { id: 's3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
+  { id: 's4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
+  { id: 's5', step_key: 'photo', step_label: 'Photo Capture', step_order: 5, is_required: 0, config: '{}' },
+  { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
+]
+
+const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
+  { id: 'i1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
+  { id: 'i2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
+  { id: 'i3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
+  { id: 'i4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
+  { id: 'i5', step_key: 'review', step_label: 'Review & Submit', step_order: 5, is_required: 1, config: '{}' },
 ]
 
 export default function VisitCreate() {
@@ -90,7 +131,11 @@ export default function VisitCreate() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Step 1: GPS
+  // Dynamic process flow steps from backend
+  const [processFlowSteps, setProcessFlowSteps] = useState<ProcessFlowStep[]>([])
+  const [, setProcessFlowLoaded] = useState(false)
+
+  // Step: GPS
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
@@ -115,6 +160,8 @@ export default function VisitCreate() {
   const [newStoreName, setNewStoreName] = useState<string>('')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
+  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
+  const [customQuestionValues, setCustomQuestionValues] = useState<Record<string, string>>({})
   const [storeRevisitCheck, setStoreRevisitCheck] = useState<{ can_visit: boolean; message: string; days_since?: number } | null>(null)
   const [duplicateCheck, setDuplicateCheck] = useState<{ has_duplicates: boolean; duplicates: Array<{ field: string; value: string }> } | null>(null)
 
@@ -139,6 +186,56 @@ export default function VisitCreate() {
 
   // Notes
   const [notes, setNotes] = useState('')
+
+  // Load process flow when visit type or company changes
+  useEffect(() => {
+    if (visitTargetType) {
+      loadProcessFlow()
+    }
+  }, [visitTargetType, selectedCompany])
+
+  const loadProcessFlow = async () => {
+    try {
+      const res = await fieldOperationsService.getVisitProcessFlow(
+        selectedCompany || undefined,
+        visitTargetType || undefined
+      )
+      const flowData = res?.data || res
+      if (flowData?.steps && Array.isArray(flowData.steps) && flowData.steps.length > 0) {
+        setProcessFlowSteps(
+          flowData.steps.sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order)
+        )
+      } else {
+        setProcessFlowSteps(
+          visitTargetType === 'store' ? DEFAULT_STORE_STEPS : DEFAULT_INDIVIDUAL_STEPS
+        )
+      }
+      setProcessFlowLoaded(true)
+    } catch {
+      setProcessFlowSteps(
+        visitTargetType === 'store' ? DEFAULT_STORE_STEPS : DEFAULT_INDIVIDUAL_STEPS
+      )
+      setProcessFlowLoaded(true)
+    }
+  }
+
+  // Compute active steps: skip photo step for individual visits, skip empty steps
+  const activeSteps = useMemo(() => {
+    if (processFlowSteps.length === 0) {
+      return [
+        { step_key: 'gps', step_label: 'GPS Check-in', is_required: 1 },
+        { step_key: 'visit_type', step_label: 'Visit Type', is_required: 1 },
+      ] as ProcessFlowStep[]
+    }
+    return processFlowSteps.filter(step => {
+      // Individual visits: no photo step
+      if (step.step_key === 'photo' && visitTargetType === 'individual') return false
+      return true
+    })
+  }, [processFlowSteps, visitTargetType])
+
+  const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
+  const currentStepKey = activeSteps[activeStep]?.step_key || ''
 
   // Load form data on mount
   useEffect(() => {
@@ -187,17 +284,18 @@ export default function VisitCreate() {
     )
   }, [])
 
-  // Auto-capture GPS on step 1
+  // Auto-capture GPS on GPS step
   useEffect(() => {
-    if (activeStep === 0 && !gpsLocation && !gpsLoading) {
+    if (currentStepKey === 'gps' && !gpsLocation && !gpsLoading) {
       captureGps()
     }
-  }, [activeStep, gpsLocation, gpsLoading, captureGps])
+  }, [currentStepKey, gpsLocation, gpsLoading, captureGps])
 
-  // Load custom fields when company changes
+  // Load custom fields AND custom questions when company changes
   useEffect(() => {
     if (selectedCompany) {
       loadCustomFields(selectedCompany)
+      loadCustomQuestions(selectedCompany)
       loadSurveyConfig(selectedCompany)
     }
   }, [selectedCompany, visitTargetType])
@@ -209,6 +307,16 @@ export default function VisitCreate() {
       setCustomFields(Array.isArray(fields) ? fields : [])
     } catch (err) {
       console.error('Failed to load custom fields:', err)
+    }
+  }
+
+  const loadCustomQuestions = async (companyId: string) => {
+    try {
+      const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitTargetType || undefined)
+      const questions = res?.data || res || []
+      setCustomQuestions(Array.isArray(questions) ? questions : [])
+    } catch (err) {
+      console.error('Failed to load custom questions:', err)
     }
   }
 
@@ -236,12 +344,12 @@ export default function VisitCreate() {
     }
   }
 
-  // Load questionnaires
+  // Load questionnaires when entering survey step
   useEffect(() => {
-    if (activeStep === 3) {
+    if (currentStepKey === 'survey') {
       loadQuestionnaires()
     }
-  }, [activeStep])
+  }, [currentStepKey])
 
   const loadQuestionnaires = async () => {
     try {
@@ -355,12 +463,12 @@ export default function VisitCreate() {
     setPhotos(prev => prev.filter((_, i) => i !== index))
   }
 
-  // Step validation
+  // Step validation based on dynamic step key
   const canProceed = (): boolean => {
-    switch (activeStep) {
-      case 0: return !!gpsLocation
-      case 1: return visitTargetType === 'individual' || visitTargetType === 'store'
-      case 2: {
+    switch (currentStepKey) {
+      case 'gps': return !!gpsLocation
+      case 'visit_type': return visitTargetType === 'individual' || visitTargetType === 'store'
+      case 'details': {
         if (visitTargetType === 'individual') {
           if (!individualFirstName || !individualLastName) return false
           if (!individualIdNumber && !individualPhone) return false
@@ -368,31 +476,37 @@ export default function VisitCreate() {
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
           }
+          for (const q of customQuestions) {
+            if (q.is_required && !customQuestionValues[q.question_key]) return false
+          }
           return true
         }
         if (visitTargetType === 'store') {
           if (!selectedCustomer && !newStoreName) return false
           if (selectedCustomer && storeRevisitCheck && !storeRevisitCheck.can_visit) return false
+          for (const q of customQuestions) {
+            if (q.is_required && !customQuestionValues[q.question_key]) return false
+          }
           return true
         }
         return false
       }
-      case 3: {
+      case 'survey': {
         if (surveyRequired && !skipSurvey) {
           if (!selectedQuestionnaire) return false
           return Object.keys(surveyResponses).length > 0
         }
         return true
       }
-      case 4: return photos.length > 0
-      case 5: return true
-      default: return false
+      case 'photo': return true
+      case 'review': return true
+      default: return true
     }
   }
 
   const handleNext = async () => {
     setError(null)
-    if (activeStep === 2) {
+    if (currentStepKey === 'details') {
       if (visitTargetType === 'individual') {
         const result = await checkIndividualDuplicate()
         if (result?.has_duplicates) {
@@ -464,6 +578,11 @@ export default function VisitCreate() {
         payload.survey_responses = surveyResponses
       }
 
+      // Include custom question values for both visit types
+      if (Object.keys(customQuestionValues).length > 0) {
+        payload.custom_question_values = customQuestionValues
+      }
+
       if (photos.length > 0) {
         payload.photos = photos.map(p => ({
           photo_url: p.dataUrl,
@@ -481,7 +600,8 @@ export default function VisitCreate() {
       const isAgentContext = window.location.pathname.startsWith('/agent/')
       navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to create visit'
+      // FIX: Properly extract error messages from axios response objects (fixes mobile save bug)
+      const message = extractErrorMessage(err)
       setError(message)
       toast.error(message)
     } finally {
@@ -784,6 +904,56 @@ export default function VisitCreate() {
             </Grid>
           </>
         )}
+
+        {/* Company-level custom questions (for BOTH individual AND store visits) */}
+        {customQuestions.length > 0 && (
+          <>
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="h6" gutterBottom>Company Questions</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Answer the following questions for this company.
+            </Typography>
+            <Grid container spacing={2}>
+              {customQuestions.map(q => (
+                <Grid item xs={12} sm={6} key={q.id}>
+                  {q.field_type === 'select' && q.field_options ? (
+                    <FormControl fullWidth required={!!q.is_required}>
+                      <InputLabel>{q.question_label}</InputLabel>
+                      <Select
+                        value={customQuestionValues[q.question_key] || ''}
+                        label={q.question_label}
+                        onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
+                      >
+                        {(() => { try { return JSON.parse(q.field_options!) as string[] } catch { return [] } })().map((opt: string) => (
+                          <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : q.field_type === 'textarea' ? (
+                    <TextField
+                      fullWidth
+                      required={!!q.is_required}
+                      label={q.question_label}
+                      multiline
+                      rows={3}
+                      value={customQuestionValues[q.question_key] || ''}
+                      onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
+                    />
+                  ) : (
+                    <TextField
+                      fullWidth
+                      required={!!q.is_required}
+                      label={q.question_label}
+                      type={q.field_type === 'number' ? 'number' : 'text'}
+                      value={customQuestionValues[q.question_key] || ''}
+                      onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
+                    />
+                  )}
+                </Grid>
+              ))}
+            </Grid>
+          </>
+        )}
       </CardContent>
     </Card>
   )
@@ -1010,6 +1180,22 @@ export default function VisitCreate() {
           </Box>
         )}
 
+        {/* Show custom question answers in review */}
+        {Object.keys(customQuestionValues).length > 0 && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" color="text.secondary">Company Questions</Typography>
+              {Object.entries(customQuestionValues).map(([key, value]) => {
+                const cq = customQuestions.find(q => q.question_key === key)
+                return (
+                  <Typography key={key} variant="body2">{cq?.question_label || key}: {value}</Typography>
+                )
+              })}
+            </Box>
+          </>
+        )}
+
         <Divider sx={{ my: 2 }} />
 
         <Box sx={{ mb: 3 }}>
@@ -1023,19 +1209,23 @@ export default function VisitCreate() {
           )}
         </Box>
 
-        <Divider sx={{ my: 2 }} />
-
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary">Photos</Typography>
-          <Typography variant="body2">{photos.length} photo(s) captured</Typography>
-          {photos.length > 0 && (
-            <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-              {photos.map((p, i) => (
-                <img key={i} src={p.dataUrl} alt={`Photo ${i + 1}`} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
-              ))}
+        {/* Only show photos section if photo step exists in flow */}
+        {activeSteps.some(s => s.step_key === 'photo') && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" color="text.secondary">Photos</Typography>
+              <Typography variant="body2">{photos.length} photo(s) captured</Typography>
+              {photos.length > 0 && (
+                <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                  {photos.map((p, i) => (
+                    <img key={i} src={p.dataUrl} alt={`Photo ${i + 1}`} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
+                  ))}
+                </Box>
+              )}
             </Box>
-          )}
-        </Box>
+          </>
+        )}
 
         <TextField
           fullWidth
@@ -1050,14 +1240,15 @@ export default function VisitCreate() {
     </Card>
   )
 
+  // Render step content based on dynamic step key
   const renderStepContent = () => {
-    switch (activeStep) {
-      case 0: return renderGpsStep()
-      case 1: return renderVisitTypeStep()
-      case 2: return renderDetailsStep()
-      case 3: return renderSurveyStep()
-      case 4: return renderPhotoStep()
-      case 5: return renderReviewStep()
+    switch (currentStepKey) {
+      case 'gps': return renderGpsStep()
+      case 'visit_type': return renderVisitTypeStep()
+      case 'details': return renderDetailsStep()
+      case 'survey': return renderSurveyStep()
+      case 'photo': return renderPhotoStep()
+      case 'review': return renderReviewStep()
       default: return null
     }
   }
@@ -1072,7 +1263,7 @@ export default function VisitCreate() {
       </Box>
 
       <Stepper activeStep={activeStep} sx={{ mb: 4 }} alternativeLabel>
-        {STEPS.map((label) => (
+        {stepLabels.map((label) => (
           <Step key={label}>
             <StepLabel>{label}</StepLabel>
           </Step>
@@ -1103,7 +1294,7 @@ export default function VisitCreate() {
           Back
         </Button>
 
-        {activeStep < STEPS.length - 1 ? (
+        {activeStep < activeSteps.length - 1 ? (
           <Button
             variant="contained"
             onClick={handleNext}

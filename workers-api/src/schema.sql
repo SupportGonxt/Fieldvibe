@@ -1926,3 +1926,89 @@ INSERT OR IGNORE INTO target_commission_tiers (id, tenant_id, company_id, tier_n
   ('tct-002', 'default', NULL, 'Silver', 50, 79.99, 10.00, 500, 'visits', 1),
   ('tct-003', 'default', NULL, 'Gold', 80, 99.99, 15.00, 1500, 'visits', 1),
   ('tct-004', 'default', NULL, 'Platinum', 100, NULL, 25.00, 5000, 'visits', 1);
+
+-- ==================== PROCESS FLOWS (Dynamic visit workflow steps) ====================
+
+CREATE TABLE IF NOT EXISTS process_flows (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  is_default INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_process_flows_tenant ON process_flows(tenant_id, is_active);
+
+CREATE TABLE IF NOT EXISTS process_flow_steps (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  process_flow_id TEXT NOT NULL,
+  step_key TEXT NOT NULL,
+  step_label TEXT NOT NULL,
+  step_order INTEGER NOT NULL DEFAULT 0,
+  is_required INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  config TEXT DEFAULT '{}',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (process_flow_id) REFERENCES process_flows(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_process_flow_steps_flow ON process_flow_steps(process_flow_id, step_order);
+
+-- Link process flows to companies
+CREATE TABLE IF NOT EXISTS company_process_flows (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  process_flow_id TEXT NOT NULL,
+  visit_target_type TEXT DEFAULT 'both',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id),
+  FOREIGN KEY (process_flow_id) REFERENCES process_flows(id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_company_process_flows_unique ON company_process_flows(company_id, process_flow_id, visit_target_type);
+
+-- Company-level custom questions (for individual AND store visits)
+CREATE TABLE IF NOT EXISTS company_custom_questions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  question_label TEXT NOT NULL,
+  question_key TEXT NOT NULL,
+  field_type TEXT NOT NULL DEFAULT 'text',
+  field_options TEXT,
+  is_required INTEGER DEFAULT 0,
+  display_order INTEGER DEFAULT 0,
+  visit_target_type TEXT DEFAULT 'both',
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  FOREIGN KEY (company_id) REFERENCES field_companies(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_company_custom_questions_company ON company_custom_questions(company_id, visit_target_type, is_active);
+
+-- Default process flow for store visits
+INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES
+  ('pf-store-default', 'default', 'Standard Store Visit', 'Default workflow for store visits: GPS, Details, Survey, Photo, Review', 1);
+INSERT OR IGNORE INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required) VALUES
+  ('pfs-s1', 'default', 'pf-store-default', 'gps', 'GPS Check-in', 1, 1),
+  ('pfs-s2', 'default', 'pf-store-default', 'visit_type', 'Visit Type', 2, 1),
+  ('pfs-s3', 'default', 'pf-store-default', 'details', 'Details', 3, 1),
+  ('pfs-s4', 'default', 'pf-store-default', 'survey', 'Survey', 4, 0),
+  ('pfs-s5', 'default', 'pf-store-default', 'photo', 'Photo Capture', 5, 0),
+  ('pfs-s6', 'default', 'pf-store-default', 'review', 'Review & Submit', 6, 1);
+
+-- Default process flow for individual visits (no photos)
+INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES
+  ('pf-individual-default', 'default', 'Standard Individual Visit', 'Default workflow for individual visits: GPS, Details, Survey, Review (no photos)', 1);
+INSERT OR IGNORE INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required) VALUES
+  ('pfs-i1', 'default', 'pf-individual-default', 'gps', 'GPS Check-in', 1, 1),
+  ('pfs-i2', 'default', 'pf-individual-default', 'visit_type', 'Visit Type', 2, 1),
+  ('pfs-i3', 'default', 'pf-individual-default', 'details', 'Details', 3, 1),
+  ('pfs-i4', 'default', 'pf-individual-default', 'survey', 'Survey', 4, 0),
+  ('pfs-i5', 'default', 'pf-individual-default', 'review', 'Review & Submit', 5, 1);

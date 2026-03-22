@@ -5738,6 +5738,316 @@ api.delete('/visit-survey-config/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Survey config deleted' });
 });
 
+// ==================== PROCESS FLOWS (Dynamic visit workflow steps) ====================
+
+// GET all process flows
+api.get('/process-flows', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const flows = await db.prepare("SELECT * FROM process_flows WHERE tenant_id IN (?, 'default') AND is_active = 1 ORDER BY name").bind(tenantId).all();
+    return c.json({ data: flows?.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+// GET single process flow with steps
+api.get('/process-flows/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  try {
+    const flow = await db.prepare("SELECT * FROM process_flows WHERE id = ? AND tenant_id IN (?, 'default')").bind(id, tenantId).first();
+    if (!flow) return c.json({ error: 'Process flow not found' }, 404);
+    const steps = await db.prepare("SELECT * FROM process_flow_steps WHERE process_flow_id = ? AND tenant_id IN (?, 'default') AND is_active = 1 ORDER BY step_order").bind(id, tenantId).all();
+    return c.json({ data: { ...flow, steps: steps?.results || [] } });
+  } catch (err) { return c.json({ error: 'Failed to get process flow: ' + (err.message || err) }, 500); }
+});
+
+// CREATE process flow
+api.post('/process-flows', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.name) return c.json({ error: 'name is required' }, 400);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  try {
+    await db.prepare('INSERT INTO process_flows (id, tenant_id, name, description, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(
+      id, tenantId, body.name, body.description || null, body.is_default ? 1 : 0, now, now
+    ).run();
+    if (Array.isArray(body.steps) && body.steps.length > 0) {
+      for (let i = 0; i < body.steps.length; i++) {
+        const step = body.steps[i];
+        const stepId = crypto.randomUUID();
+        await db.prepare('INSERT INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(
+          stepId, tenantId, id, step.step_key, step.step_label || step.step_key, step.step_order || (i + 1), step.is_required ? 1 : 0, JSON.stringify(step.config || {})
+        ).run();
+      }
+    }
+    return c.json({ data: { id, ...body }, message: 'Process flow created' }, 201);
+  } catch (err) { return c.json({ error: 'Failed to create process flow: ' + (err.message || err) }, 500); }
+});
+
+// UPDATE process flow
+api.put('/process-flows/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  try {
+    const sets = []; const vals = [];
+    for (const [k, v] of Object.entries(body)) {
+      if (['name', 'description', 'is_active'].includes(k)) {
+        sets.push(k + ' = ?');
+        vals.push(k === 'is_active' ? (v ? 1 : 0) : v);
+      }
+    }
+    if (sets.length > 0) {
+      sets.push('updated_at = CURRENT_TIMESTAMP');
+      await db.prepare('UPDATE process_flows SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+    }
+    if (Array.isArray(body.steps)) {
+      await db.prepare('DELETE FROM process_flow_steps WHERE process_flow_id = ? AND tenant_id = ?').bind(id, tenantId).run();
+      for (let i = 0; i < body.steps.length; i++) {
+        const step = body.steps[i];
+        const stepId = crypto.randomUUID();
+        await db.prepare('INSERT INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(
+          stepId, tenantId, id, step.step_key, step.step_label || step.step_key, step.step_order || (i + 1), step.is_required ? 1 : 0, JSON.stringify(step.config || {})
+        ).run();
+      }
+    }
+    return c.json({ message: 'Process flow updated' });
+  } catch (err) { return c.json({ error: 'Failed to update process flow: ' + (err.message || err) }, 500); }
+});
+
+// DELETE process flow (soft)
+api.delete('/process-flows/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('UPDATE process_flows SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ message: 'Process flow deactivated' });
+});
+
+// --- Company Process Flow Assignment ---
+api.get('/company-process-flows', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id } = c.req.query();
+  try {
+    let query = "SELECT cpf.*, pf.name as flow_name, pf.description as flow_description FROM company_process_flows cpf LEFT JOIN process_flows pf ON cpf.process_flow_id = pf.id WHERE cpf.tenant_id = ?";
+    const params = [tenantId];
+    if (company_id) { query += ' AND cpf.company_id = ?'; params.push(company_id); }
+    const rows = await db.prepare(query).bind(...params).all();
+    return c.json({ data: rows?.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+api.post('/company-process-flows', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.company_id || !body.process_flow_id) return c.json({ error: 'company_id and process_flow_id are required' }, 400);
+  const id = crypto.randomUUID();
+  try {
+    await db.prepare('INSERT INTO company_process_flows (id, tenant_id, company_id, process_flow_id, visit_target_type) VALUES (?, ?, ?, ?, ?)').bind(
+      id, tenantId, body.company_id, body.process_flow_id, body.visit_target_type || 'both'
+    ).run();
+    return c.json({ data: { id, ...body }, message: 'Process flow assigned to company' }, 201);
+  } catch (err) { return c.json({ error: 'Failed to assign: ' + (err.message || err) }, 500); }
+});
+
+api.delete('/company-process-flows/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM company_process_flows WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ message: 'Process flow unassigned from company' });
+});
+
+// --- Visit Process Flow (get steps for a visit based on company + visit type) ---
+api.get('/visit-process-flow', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, visit_target_type } = c.req.query();
+  try {
+    let flow = null;
+    // 1. Check if company has a specific process flow assigned
+    if (company_id) {
+      const cpf = await db.prepare(
+        "SELECT cpf.process_flow_id FROM company_process_flows cpf WHERE cpf.tenant_id = ? AND cpf.company_id = ? AND (cpf.visit_target_type = ? OR cpf.visit_target_type = 'both') LIMIT 1"
+      ).bind(tenantId, company_id, visit_target_type || 'both').first();
+      if (cpf) {
+        flow = await db.prepare("SELECT * FROM process_flows WHERE id = ? AND is_active = 1").bind(cpf.process_flow_id).first();
+      }
+    }
+    // 2. Fall back to tenant default
+    if (!flow) {
+      flow = await db.prepare("SELECT * FROM process_flows WHERE tenant_id = ? AND is_default = 1 AND is_active = 1 LIMIT 1").bind(tenantId).first();
+    }
+    // 3. Fall back to system default based on visit type
+    if (!flow) {
+      const defaultId = visit_target_type === 'store' ? 'pf-store-default' : 'pf-individual-default';
+      flow = await db.prepare("SELECT * FROM process_flows WHERE id = ? AND is_active = 1").bind(defaultId).first();
+    }
+    if (!flow) return c.json({ data: null, steps: [] });
+    const steps = await db.prepare("SELECT * FROM process_flow_steps WHERE process_flow_id = ? AND is_active = 1 ORDER BY step_order").bind(flow.id).all();
+    return c.json({ data: { ...flow, steps: steps?.results || [] } });
+  } catch (err) { return c.json({ error: 'Failed to get visit process flow: ' + (err.message || err) }, 500); }
+});
+
+// ==================== COMPANY CUSTOM QUESTIONS ====================
+
+api.get('/company-custom-questions', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, visit_target_type } = c.req.query();
+  try {
+    let query = "SELECT * FROM company_custom_questions WHERE tenant_id = ? AND is_active = 1";
+    const params = [tenantId];
+    if (company_id) { query += ' AND company_id = ?'; params.push(company_id); }
+    if (visit_target_type) { query += " AND (visit_target_type = ? OR visit_target_type = 'both')"; params.push(visit_target_type); }
+    query += ' ORDER BY display_order, created_at';
+    const rows = await db.prepare(query).bind(...params).all();
+    return c.json({ data: rows?.results || [] });
+  } catch { return c.json({ data: [] }); }
+});
+
+api.post('/company-custom-questions', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  if (!body.company_id || !body.question_label || !body.question_key) return c.json({ error: 'company_id, question_label, and question_key are required' }, 400);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  try {
+    await db.prepare('INSERT INTO company_custom_questions (id, tenant_id, company_id, question_label, question_key, field_type, field_options, is_required, display_order, visit_target_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+      id, tenantId, body.company_id, body.question_label, body.question_key,
+      body.field_type || 'text', body.field_options ? JSON.stringify(body.field_options) : null,
+      body.is_required ? 1 : 0, body.display_order || 0, body.visit_target_type || 'both', now, now
+    ).run();
+    return c.json({ data: { id, ...body }, message: 'Custom question created' }, 201);
+  } catch (err) { return c.json({ error: 'Failed to create custom question: ' + (err.message || err) }, 500); }
+});
+
+api.put('/company-custom-questions/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  try {
+    await db.prepare('UPDATE company_custom_questions SET question_label = COALESCE(?, question_label), question_key = COALESCE(?, question_key), field_type = COALESCE(?, field_type), field_options = COALESCE(?, field_options), is_required = COALESCE(?, is_required), display_order = COALESCE(?, display_order), visit_target_type = COALESCE(?, visit_target_type), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(
+      body.question_label || null, body.question_key || null, body.field_type || null,
+      body.field_options ? JSON.stringify(body.field_options) : null,
+      body.is_required !== undefined ? (body.is_required ? 1 : 0) : null,
+      body.display_order !== undefined ? body.display_order : null,
+      body.visit_target_type || null, id, tenantId
+    ).run();
+    return c.json({ message: 'Custom question updated' });
+  } catch (err) { return c.json({ error: 'Failed to update custom question: ' + (err.message || err) }, 500); }
+});
+
+api.delete('/company-custom-questions/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('UPDATE company_custom_questions SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ message: 'Custom question deactivated' });
+});
+
+// --- Individual Visit Reporting (includes survey answers + custom fields) ---
+api.get('/individual-visits-report', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { company_id, start_date, end_date, agent_id } = c.req.query();
+  try {
+    let query = `SELECT v.id, v.visit_date, v.check_in_time, v.check_out_time, v.latitude, v.longitude,
+      v.individual_name, v.individual_surname, v.individual_id_number, v.individual_phone,
+      v.notes, v.status, v.questionnaire_id, v.purpose,
+      vi.custom_field_values,
+      vr.responses as survey_responses,
+      u.first_name || ' ' || u.last_name as agent_name,
+      fc.name as company_name,
+      q.name as questionnaire_name
+    FROM visits v
+    LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
+    LEFT JOIN visit_responses vr ON vr.visit_id = v.id
+    LEFT JOIN users u ON u.id = v.agent_id
+    LEFT JOIN field_companies fc ON fc.id = v.brand_id
+    LEFT JOIN questionnaires q ON q.id = v.questionnaire_id
+    WHERE v.tenant_id = ? AND v.visit_type = 'individual'`;
+    const params = [tenantId];
+    if (company_id) { query += ' AND v.brand_id = ?'; params.push(company_id); }
+    if (start_date) { query += ' AND v.visit_date >= ?'; params.push(start_date); }
+    if (end_date) { query += ' AND v.visit_date <= ?'; params.push(end_date); }
+    if (agent_id) { query += ' AND v.agent_id = ?'; params.push(agent_id); }
+    query += ' ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 500';
+    const rows = await db.prepare(query).bind(...params).all();
+    const data = (rows?.results || []).map(r => ({
+      ...r,
+      custom_field_values: r.custom_field_values ? (typeof r.custom_field_values === 'string' ? (() => { try { return JSON.parse(r.custom_field_values) } catch { return {} } })() : r.custom_field_values) : {},
+      survey_responses: r.survey_responses ? (typeof r.survey_responses === 'string' ? (() => { try { return JSON.parse(r.survey_responses) } catch { return {} } })() : r.survey_responses) : {}
+    }));
+    return c.json({ data });
+  } catch (err) { return c.json({ error: 'Failed to get individual visits report: ' + (err.message || err) }, 500); }
+});
+
+// --- Migration: create process_flows + company_custom_questions tables ---
+api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const results = [];
+  try {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS process_flows (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT,
+      is_default INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+    results.push('process_flows table created');
+
+    await db.prepare(`CREATE TABLE IF NOT EXISTS process_flow_steps (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, process_flow_id TEXT NOT NULL,
+      step_key TEXT NOT NULL, step_label TEXT NOT NULL, step_order INTEGER NOT NULL DEFAULT 0,
+      is_required INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, config TEXT DEFAULT '{}',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+    results.push('process_flow_steps table created');
+
+    await db.prepare(`CREATE TABLE IF NOT EXISTS company_process_flows (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT NOT NULL,
+      process_flow_id TEXT NOT NULL, visit_target_type TEXT DEFAULT 'both',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+    results.push('company_process_flows table created');
+
+    await db.prepare(`CREATE TABLE IF NOT EXISTS company_custom_questions (
+      id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT NOT NULL,
+      question_label TEXT NOT NULL, question_key TEXT NOT NULL,
+      field_type TEXT NOT NULL DEFAULT 'text', field_options TEXT,
+      is_required INTEGER DEFAULT 0, display_order INTEGER DEFAULT 0,
+      visit_target_type TEXT DEFAULT 'both', is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+    results.push('company_custom_questions table created');
+
+    // Seed default process flows
+    await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-store-default', 'default', 'Standard Store Visit', 'Default workflow for store visits: GPS, Details, Survey, Photo, Review', 1)").run();
+    await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-individual-default', 'default', 'Standard Individual Visit', 'Default workflow for individual visits: GPS, Details, Survey, Review (no photos)', 1)").run();
+    results.push('Default process flows seeded');
+
+    const storeSteps = [['gps', 'GPS Check-in', 1, 1], ['visit_type', 'Visit Type', 2, 1], ['details', 'Details', 3, 1], ['survey', 'Survey', 4, 0], ['photo', 'Photo Capture', 5, 0], ['review', 'Review & Submit', 6, 1]];
+    for (const [key, label, order, req] of storeSteps) {
+      await db.prepare("INSERT OR IGNORE INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required) VALUES (?, 'default', 'pf-store-default', ?, ?, ?, ?)").bind('pfs-s' + order, key, label, order, req).run();
+    }
+    const indSteps = [['gps', 'GPS Check-in', 1, 1], ['visit_type', 'Visit Type', 2, 1], ['details', 'Details', 3, 1], ['survey', 'Survey', 4, 0], ['review', 'Review & Submit', 5, 1]];
+    for (const [key, label, order, req] of indSteps) {
+      await db.prepare("INSERT OR IGNORE INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required) VALUES (?, 'default', 'pf-individual-default', ?, ?, ?, ?)").bind('pfs-i' + order, key, label, order, req).run();
+    }
+    results.push('Default steps seeded');
+
+    return c.json({ success: true, results });
+  } catch (err) { return c.json({ error: 'Migration failed: ' + (err.message || err), results }, 500); }
+});
+
 // ==================== BRANDS ====================
 api.get('/brands', authMiddleware, async (c) => {
   const db = c.env.DB;
