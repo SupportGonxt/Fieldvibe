@@ -1,16 +1,23 @@
 import { ApiService } from './api.service'
 
+export type SurveyModule = 'field_ops' | 'marketing' | 'promotions' | 'van_sales' | 'inventory' | 'general'
+
 export interface Survey {
   id: string
   tenant_id: string
   title: string
+  name?: string
   description?: string
   type: 'customer_satisfaction' | 'market_research' | 'product_feedback' | 'brand_awareness' | 'custom'
+  module: SurveyModule
+  is_mandatory: boolean
   questions: SurveyQuestion[]
   status: 'draft' | 'active' | 'completed' | 'archived'
+  is_active?: boolean
   start_date?: string
   end_date?: string
   target_audience?: string
+  target_type?: string
   target_responses?: number
   response_rate?: number
   created_by: string

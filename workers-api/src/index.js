@@ -1320,6 +1320,59 @@ api.put('/users/:id', requireRole('admin'), async (c) => {
   return c.json({ success: true, message: 'User updated' });
 });
 
+// Quick-edit user details (email, PIN, phone) from hierarchy page
+api.patch('/users/:id/quick-edit', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  const user = await db.prepare('SELECT id, role, email FROM users WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+
+  const updates = [];
+  const binds = [];
+
+  if (body.email !== undefined) {
+    if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+      return c.json({ success: false, message: 'Invalid email format' }, 400);
+    }
+    updates.push('email = ?');
+    binds.push(body.email || null);
+  }
+
+  if (body.phone !== undefined) {
+    updates.push('phone = ?');
+    binds.push(body.phone || null);
+  }
+
+  if (body.pin !== undefined) {
+    if (!/^\d{4,6}$/.test(body.pin)) {
+      return c.json({ success: false, message: 'PIN must be 4-6 digits' }, 400);
+    }
+    const pinHash = await bcrypt.hash(body.pin, 10);
+    updates.push('pin_hash = ?');
+    binds.push(pinHash);
+  }
+
+  if (updates.length === 0) {
+    return c.json({ success: false, message: 'No fields to update' }, 400);
+  }
+
+  updates.push('updated_at = datetime("now")');
+  binds.push(id, tenantId);
+
+  try {
+    await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`).bind(...binds).run();
+    return c.json({ success: true, message: 'User updated successfully' });
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('UNIQUE constraint failed: users.email')) {
+      return c.json({ success: false, message: 'A user with this email already exists' }, 409);
+    }
+    return c.json({ success: false, message: 'Failed to update user' }, 500);
+  }
+});
+
 api.delete('/users/:id', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -4252,14 +4305,16 @@ api.post('/surveys', authMiddleware, async (c) => {
   const id = uuidv4();
   const name = body.title || body.name;
   if (!name) return c.json({ success: false, message: 'Survey title/name is required' }, 400);
-  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, brand_id, company_id, questions, is_default, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime("now"), datetime("now"))').bind(
+  const isMandatory = body.is_mandatory ? 1 : 0;
+  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, brand_id, company_id, questions, is_default, is_active, is_mandatory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime("now"), datetime("now"))').bind(
     id, tenantId, name, body.module || 'field_ops',
     body.survey_type || body.visit_type || 'adhoc',
     body.target_type || 'both',
     body.brand_id || null, body.company_id || null,
-    JSON.stringify(body.questions || []), body.is_default ? 1 : 0
+    JSON.stringify(body.questions || []), body.is_default ? 1 : 0,
+    isMandatory
   ).run();
-  return c.json({ success: true, data: { id, name, title: name, module: body.module || 'field_ops', target_type: body.target_type || 'both', status: body.status || 'draft' } }, 201);
+  return c.json({ success: true, data: { id, name, title: name, module: body.module || 'field_ops', target_type: body.target_type || 'both', is_mandatory: !!body.is_mandatory, status: body.status || 'draft' } }, 201);
 });
 
 api.put('/surveys/:id', authMiddleware, async (c) => {
@@ -4270,12 +4325,13 @@ api.put('/surveys/:id', authMiddleware, async (c) => {
   const existing = await db.prepare('SELECT id FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!existing) return c.json({ success: false, message: 'Survey not found' }, 404);
   const name = body.title || body.name || null;
-  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = COALESCE(?, brand_id), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
+  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = COALESCE(?, brand_id), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), is_mandatory = COALESCE(?, is_mandatory), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
     name, body.module || null, body.survey_type || body.visit_type || null,
     body.target_type || null,
     body.brand_id || null, body.company_id || null,
     body.questions ? JSON.stringify(body.questions) : null,
     body.status === 'archived' ? 0 : (body.is_active !== undefined ? (body.is_active ? 1 : 0) : null),
+    body.is_mandatory !== undefined ? (body.is_mandatory ? 1 : 0) : null,
     id, tenantId
   ).run();
   return c.json({ success: true, message: 'Survey updated' });

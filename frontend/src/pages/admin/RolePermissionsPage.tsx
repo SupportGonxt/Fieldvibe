@@ -82,6 +82,22 @@ const PERMISSIONS: Permission[] = [
   { id: 'finance.invoices', module: 'Finance', action: 'Manage Invoices', description: 'Manage invoices' },
   { id: 'finance.payments', module: 'Finance', action: 'Manage Payments', description: 'Manage payments' },
   
+  // Surveys
+  { id: 'surveys.view', module: 'Surveys', action: 'View', description: 'View surveys list' },
+  { id: 'surveys.create', module: 'Surveys', action: 'Create', description: 'Create new surveys' },
+  { id: 'surveys.edit', module: 'Surveys', action: 'Edit', description: 'Edit existing surveys' },
+  { id: 'surveys.delete', module: 'Surveys', action: 'Delete', description: 'Delete surveys' },
+  { id: 'surveys.manage_mandatory', module: 'Surveys', action: 'Manage Mandatory', description: 'Set surveys as mandatory per module' },
+
+  // Master Data
+  { id: 'masterdata.view', module: 'Master Data', action: 'View', description: 'View master data records' },
+  { id: 'masterdata.edit', module: 'Master Data', action: 'Edit', description: 'Edit master data records' },
+
+  // Hierarchy
+  { id: 'hierarchy.view', module: 'Hierarchy', action: 'View', description: 'View agent hierarchy' },
+  { id: 'hierarchy.edit', module: 'Hierarchy', action: 'Quick Edit', description: 'Quick-edit email, phone, PIN from hierarchy page' },
+  { id: 'hierarchy.manage', module: 'Hierarchy', action: 'Manage', description: 'Assign/reassign agents in hierarchy' },
+
   // Admin
   { id: 'admin.users', module: 'Admin', action: 'Manage Users', description: 'Manage user accounts' },
   { id: 'admin.roles', module: 'Admin', action: 'Manage Roles', description: 'Manage roles and permissions' },
