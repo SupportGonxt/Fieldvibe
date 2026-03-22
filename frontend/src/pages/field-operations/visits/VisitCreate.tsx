@@ -383,7 +383,7 @@ export default function VisitCreate() {
 
   const loadQuestionnaires = async () => {
     try {
-      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, brand_id: selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
+      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
       const data = res?.data || res || []
       setQuestionnaires(Array.isArray(data) ? data : [])
     } catch (err) {

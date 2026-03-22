@@ -9,16 +9,35 @@ export default function VisitsList() {
   const navigate = useNavigate()
   const [visits, setVisits] = useState([])
   const [loading, setLoading] = useState(true)
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedCompany, setSelectedCompany] = useState('')
+
+  useEffect(() => {
+    loadCompanies()
+  }, [])
 
   useEffect(() => {
     loadVisits()
-  }, [])
+  }, [selectedCompany])
+
+  const loadCompanies = async () => {
+    try {
+      const res = await fieldOperationsService.getCompanies()
+      const data = res?.data || res || []
+      setCompanies(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Failed to load companies:', err)
+    }
+  }
 
   const loadVisits = async () => {
     setLoading(true)
     try {
-      const response = await fieldOperationsService.getVisits()
-      setVisits(Array.isArray(response.data) ? response.data : [])
+      const filter: Record<string, string> = {}
+      if (selectedCompany) filter.company_id = selectedCompany
+      const response = await fieldOperationsService.getVisits(filter)
+      const data = response?.data || response || []
+      setVisits(Array.isArray(data) ? data : Array.isArray(data?.visits) ? data.visits : [])
     } catch (error) {
       console.error('Failed to load visits:', error)
       setVisits([])
@@ -113,14 +132,32 @@ export default function VisitsList() {
   ]
 
   return (
-    <TransactionList
-      title="Field Visits"
-      columns={columns}
-      data={visits}
-      loading={loading}
-      onRefresh={loadVisits}
-      createPath="/field-operations/visits/create"
-      createLabel="Create Visit"
-    />
+    <div>
+      {/* Company Filter */}
+      {companies.length > 1 && (
+        <div className="mb-4 flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Company:</label>
+          <select
+            value={selectedCompany}
+            onChange={(e) => setSelectedCompany(e.target.value)}
+            className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          >
+            <option value="">All Companies</option>
+            {companies.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      <TransactionList
+        title="Field Visits"
+        columns={columns}
+        data={visits}
+        loading={loading}
+        onRefresh={loadVisits}
+        createPath="/field-operations/visits/create"
+        createLabel="Create Visit"
+      />
+    </div>
   )
 }

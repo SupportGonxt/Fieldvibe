@@ -1761,13 +1761,14 @@ api.get('/visits', async (c) => {
   const tenantId = c.get('tenantId');
   const role = c.get('role');
   const userId = c.get('userId');
-  const { limit = 50, page = 1, search, status, agent_id, visit_type, start_date, end_date } = c.req.query();
+  const { limit = 50, page = 1, search, status, agent_id, visit_type, company_id, start_date, end_date } = c.req.query();
   let where = 'WHERE v.tenant_id = ?';
   const params = [tenantId];
   if (role === 'agent') { where += ' AND v.agent_id = ?'; params.push(userId); }
   if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id); }
   if (status) { where += ' AND v.status = ?'; params.push(status); }
   if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
+  if (company_id) { where += ' AND v.company_id = ?'; params.push(company_id); }
   if (start_date) { where += ' AND v.visit_date >= ?'; params.push(start_date); }
   if (end_date) { where += ' AND v.visit_date <= ?'; params.push(end_date); }
   if (search) { where += ' AND (c.name LIKE ? OR v.notes LIKE ?)'; params.push('%' + search + '%', '%' + search + '%'); }
@@ -1906,11 +1907,14 @@ api.post('/visits/:id/check-out', async (c) => {
 api.get('/questionnaires', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const { visit_type, brand_id } = c.req.query();
+  const { visit_type, brand_id, company_id, target_type, module: mod } = c.req.query();
   let where = 'WHERE tenant_id = ? AND is_active = 1';
   const params = [tenantId];
   if (visit_type) { where += ' AND visit_type = ?'; params.push(visit_type); }
   if (brand_id) { where += ' AND (brand_id = ? OR brand_id IS NULL)'; params.push(brand_id); }
+  if (company_id) { where += ' AND (company_id = ? OR company_id IS NULL)'; params.push(company_id); }
+  if (target_type) { where += " AND (target_type = ? OR target_type = 'both')"; params.push(target_type); }
+  if (mod) { where += ' AND module = ?'; params.push(mod); }
   const questionnaires = await db.prepare('SELECT * FROM questionnaires ' + where + ' ORDER BY name LIMIT 500').bind(...params).all();
   const results = (questionnaires.results || []).map(q => {
     try { q.questions = JSON.parse(q.questions); } catch(e) {}
@@ -3803,7 +3807,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const role = c.get('role');
   const userId = c.get('userId');
-  const { page = '1', limit = '20', status, agent_id, date, visit_type } = c.req.query();
+  const { page = '1', limit = '20', status, agent_id, date, visit_type, company_id } = c.req.query();
   const offset = (parseInt(page) - 1) * parseInt(limit);
   let where = 'WHERE v.tenant_id = ?';
   const params = [tenantId];
@@ -3812,6 +3816,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id === 'me' ? userId : agent_id); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
   if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
+  if (company_id) { where += ' AND v.company_id = ?'; params.push(company_id); }
   const total = await db.prepare('SELECT COUNT(*) as count FROM visits v ' + where).bind(...params).first();
   const visits = await db.prepare("SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
   return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });

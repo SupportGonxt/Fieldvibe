@@ -1257,8 +1257,8 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  // Get questionnaires for a visit type/brand
-  async getQuestionnaires(filter: { visit_type?: string; brand_id?: string; target_type?: string; module?: string } = {}) {
+  // Get questionnaires for a visit type/brand/company
+  async getQuestionnaires(filter: { visit_type?: string; brand_id?: string; company_id?: string; target_type?: string; module?: string } = {}) {
     const params = new URLSearchParams()
     Object.entries(filter).forEach(([key, value]) => {
       if (value) params.append(key, String(value))
