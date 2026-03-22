@@ -646,6 +646,7 @@ export default function AgentStats() {
   const [perfData, setPerfData] = useState<PerformanceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'targets' | 'earnings'>('overview')
+  const [showEarnings, setShowEarnings] = useState(false)
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -656,6 +657,14 @@ export default function AgentStats() {
         ])
         if (dashRes?.data?.success && dashRes?.data?.data) setDashData(dashRes.data.data)
         if (perfRes?.data?.success && perfRes?.data?.data) setPerfData(perfRes.data.data)
+        // Check if earnings tab is enabled via web config (settings API)
+        try {
+          const settingsRes = await apiClient.get('/settings').catch(() => null)
+          const settings = settingsRes?.data?.data || settingsRes?.data || {}
+          if (settings.mobile_show_earnings === 'true' || settings.mobile_show_earnings === true) {
+            setShowEarnings(true)
+          }
+        } catch { /* default: hide earnings */ }
       } catch (err) {
         console.error('Stats fetch error:', err)
       } finally {
@@ -708,7 +717,7 @@ export default function AgentStats() {
 
       <div className="px-5 pt-3">
         <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-          {(['overview', 'targets', 'earnings'] as const).map(tab => (
+          {(['overview', 'targets', ...(showEarnings ? ['earnings'] : [])] as Array<'overview' | 'targets' | 'earnings'>).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

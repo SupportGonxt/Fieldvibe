@@ -9,11 +9,20 @@ import {
 import { useAuthStore } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
 
+interface TargetSummary {
+  target_visits: number
+  actual_visits: number
+  target_registrations: number
+  actual_registrations: number
+}
+
 interface DashboardData {
   today_visits: number
   month_visits: number
+  week_visits: number
   today_registrations: number
   month_registrations: number
+  week_registrations: number
   recent_visits: Array<{
     id: string
     visit_date: string
@@ -31,6 +40,8 @@ interface DashboardData {
     target_registrations: number
     actual_registrations: number
   }>
+  weekly_targets?: TargetSummary
+  monthly_targets?: TargetSummary
 }
 
 interface PerfSummary {
@@ -265,6 +276,63 @@ export default function AgentDashboard() {
                 <span className="text-sm text-white whitespace-nowrap">{c.name}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Weekly & Monthly Targets */}
+      {(data?.weekly_targets || data?.monthly_targets) && (
+        <div className="px-5 mb-4">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Week & Month Progress</h2>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            {data?.weekly_targets && data.weekly_targets.target_visits > 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Calendar className="w-3 h-3 text-blue-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Week Visits</span>
+                </div>
+                <p className="text-lg font-bold text-white">{data.weekly_targets.actual_visits}<span className="text-sm text-gray-500">/{data.weekly_targets.target_visits}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((data.weekly_targets.actual_visits / data.weekly_targets.target_visits) * 100))}%` }} />
+                </div>
+              </div>
+            )}
+            {data?.monthly_targets && data.monthly_targets.target_visits > 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Target className="w-3 h-3 text-emerald-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Month Visits</span>
+                </div>
+                <p className="text-lg font-bold text-white">{data.monthly_targets.actual_visits}<span className="text-sm text-gray-500">/{data.monthly_targets.target_visits}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((data.monthly_targets.actual_visits / data.monthly_targets.target_visits) * 100))}%` }} />
+                </div>
+              </div>
+            )}
+            {data?.weekly_targets && data.weekly_targets.target_registrations > 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-3 h-3 text-purple-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Week Regs</span>
+                </div>
+                <p className="text-lg font-bold text-white">{data.weekly_targets.actual_registrations}<span className="text-sm text-gray-500">/{data.weekly_targets.target_registrations}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(100, Math.round((data.weekly_targets.actual_registrations / data.weekly_targets.target_registrations) * 100))}%` }} />
+                </div>
+              </div>
+            )}
+            {data?.monthly_targets && data.monthly_targets.target_registrations > 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-3 h-3 text-amber-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Month Regs</span>
+                </div>
+                <p className="text-lg font-bold text-white">{data.monthly_targets.actual_registrations}<span className="text-sm text-gray-500">/{data.monthly_targets.target_registrations}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, Math.round((data.monthly_targets.actual_registrations / data.monthly_targets.target_registrations) * 100))}%` }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

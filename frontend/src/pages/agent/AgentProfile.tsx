@@ -19,9 +19,22 @@ export default function AgentProfile() {
   const [pinLoading, setPinLoading] = useState(false)
 
   useEffect(() => {
-    // Companies may be stored as extra data on the user object
-    const u = authUser as any
-    if (u?.companies) setCompanies(u.companies)
+    // Fetch companies from backend dashboard endpoint (authUser.companies is never populated)
+    const fetchCompanies = async () => {
+      try {
+        const res = await apiClient.get('/agent/dashboard')
+        const data = res?.data?.data || res?.data || {}
+        const companiesList = data.companies || []
+        if (Array.isArray(companiesList) && companiesList.length > 0) {
+          setCompanies(companiesList)
+        }
+      } catch {
+        // Fallback: try authUser.companies
+        const u = authUser as unknown as Record<string, unknown>
+        if (Array.isArray(u?.companies)) setCompanies(u.companies as Array<{ id: string; name: string }>)
+      }
+    }
+    fetchCompanies()
   }, [authUser])
 
   const handleLogout = () => {

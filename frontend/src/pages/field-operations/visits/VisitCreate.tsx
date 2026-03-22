@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { apiClient } from '../../../services/api.service'
 import {
@@ -133,6 +133,7 @@ export default function VisitCreate() {
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const submitIdRef = useRef<string | null>(null)
 
   // Dynamic process flow steps from backend
   const [processFlowSteps, setProcessFlowSteps] = useState<ProcessFlowStep[]>([])
@@ -233,9 +234,11 @@ export default function VisitCreate() {
     return processFlowSteps.filter(step => {
       // Individual visits: no photo step
       if (step.step_key === 'photo' && visitTargetType === 'individual') return false
+      // Skip survey step if no questionnaires available
+      if (step.step_key === 'survey' && questionnaires.length === 0 && !surveyRequired) return false
       return true
     })
-  }, [processFlowSteps, visitTargetType])
+  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
@@ -420,6 +423,32 @@ export default function VisitCreate() {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
 
+  // Compress image using canvas before storing
+  const compressImage = (dataUrl: string, maxWidth = 1280, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width)
+          width = maxWidth
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL('image/jpeg', quality))
+        } else {
+          resolve(dataUrl)
+        }
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
+    })
+  }
+
   // Capture photo
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -429,7 +458,9 @@ export default function VisitCreate() {
 
     const reader = new FileReader()
     reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string
+      const rawDataUrl = e.target?.result as string
+      // Compress image to reduce bandwidth and storage
+      const dataUrl = await compressImage(rawDataUrl)
       const hash = await generatePhotoHash(dataUrl)
 
       // Check for duplicate on server
@@ -569,14 +600,20 @@ export default function VisitCreate() {
 
   // Final submit
   const handleSubmit = async () => {
+    if (submitting) return // Prevent double-click
     setSubmitting(true)
     setError(null)
     try {
+      // Generate a stable client_visit_id for idempotency (reuse on retry)
+      if (!submitIdRef.current) {
+        submitIdRef.current = crypto.randomUUID()
+      }
       const payload: Record<string, unknown> = {
         visit_target_type: visitTargetType,
         checkin_latitude: gpsLocation?.latitude,
         checkin_longitude: gpsLocation?.longitude,
         company_id: selectedCompany || undefined,
+        client_visit_id: submitIdRef.current,
         notes
       }
 
@@ -805,9 +842,14 @@ export default function VisitCreate() {
                   fullWidth
                   label="Phone Number"
                   value={individualPhone}
-                  onChange={(e) => { setIndividualPhone(e.target.value); setDuplicateCheck(null); }}
-                  helperText="Must be unique - cannot be duplicated"
-                  error={duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9+]/g, '')
+                    setIndividualPhone(val)
+                    setDuplicateCheck(null)
+                  }}
+                  helperText={individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone) ? 'Enter valid SA number: +27XXXXXXXXX or 0XXXXXXXXX' : 'Must be unique - cannot be duplicated'}
+                  error={(individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone)) || duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
+                  placeholder="+27XXXXXXXXX or 0XXXXXXXXX"
                 />
               </Grid>
               <Grid item xs={12}>

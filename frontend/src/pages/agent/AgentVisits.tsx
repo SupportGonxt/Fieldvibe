@@ -33,10 +33,9 @@ export default function AgentVisits() {
     try {
       const res = await apiClient.get('/field-operations/visits?limit=100&agent_id=me')
       const json = res.data
-      if (json.success) {
-        const data = json.data
-        setVisits(Array.isArray(data) ? data : data?.results || data?.visits || [])
-      }
+      // Response format: {data: [...], total: N} (no success field)
+      const data = json.data || json
+      setVisits(Array.isArray(data) ? data : data?.results || data?.visits || [])
     } catch (err) {
       console.error('Fetch visits error:', err)
     } finally {

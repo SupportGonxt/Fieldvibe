@@ -368,22 +368,49 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       }));
     }
 
+    // Weekly targets: count visits/regs for the current week (Mon-Sun)
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() + mondayOffset);
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    let weekVisits = { count: 0 };
+    let weekRegs = { count: 0 };
+    try { weekVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, weekStartStr).first(); } catch { /* */ }
+    try { weekRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, weekStartStr).first(); } catch { /* */ }
+
+    // Compute weekly/monthly target totals from company_target_rules
+    let weekTargetVisits = 0, weekTargetRegs = 0, monthTargetVisits = 0, monthTargetRegs = 0;
+    const workingDaysPerWeek = 5;
+    const workingDaysPerMonth = 22;
+    for (const ctr of companyTargetRules) {
+      weekTargetVisits += (ctr.target_visits_per_day || 0) * workingDaysPerWeek;
+      weekTargetRegs += (ctr.target_registrations_per_day || 0) * workingDaysPerWeek;
+      monthTargetVisits += (ctr.target_visits_per_day || 0) * workingDaysPerMonth;
+      monthTargetRegs += (ctr.target_registrations_per_day || 0) * workingDaysPerMonth;
+    }
+
     return c.json({
       success: true,
       data: {
         today_visits: todayVisits?.count || 0,
         month_visits: monthVisits?.count || 0,
+        week_visits: weekVisits?.count || 0,
         today_registrations: todayRegs?.count || 0,
         month_registrations: monthRegs?.count || 0,
+        week_registrations: weekRegs?.count || 0,
         recent_visits: recentVisits.results || [],
         companies: companies.results || [],
         daily_targets: dailyTargets,
         company_target_rules: companyTargetRules,
+        weekly_targets: { target_visits: weekTargetVisits, actual_visits: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: weekRegs?.count || 0 },
+        monthly_targets: { target_visits: monthTargetVisits, actual_visits: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: monthRegs?.count || 0 },
       }
     });
   } catch (error) {
     console.error('Agent dashboard error:', error);
-    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, today_registrations: 0, month_registrations: 0, recent_visits: [], companies: [], daily_targets: [], company_target_rules: [] } });
+    return c.json({ success: true, data: { today_visits: 0, month_visits: 0, week_visits: 0, today_registrations: 0, month_registrations: 0, week_registrations: 0, recent_visits: [], companies: [], daily_targets: [], company_target_rules: [], weekly_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 }, monthly_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 } } });
   }
 });
 
@@ -650,9 +677,10 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, member.id, currentMonth).first(),
       ]);
       const tv = targets?.target_visits || 0;
-      const av = targets?.actual_visits || 0;
       const tr = targets?.target_registrations || 0;
-      const ar = targets?.actual_registrations || 0;
+      // Use real COUNT from visits table (not monthly_targets.actual_visits which is never updated)
+      const av = monthV?.count || 0;
+      const ar = monthR?.count || 0;
       agentStats.push({
         id: member.id,
         first_name: member.first_name,
@@ -681,11 +709,16 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
     const agentActualRegs = agentStats.reduce((s, a) => s + (a.actual_registrations || 0), 0);
 
     // Include team lead's own targets in team totals
-    const tlOwnTargets = await db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, userId, currentMonth).first();
+    const tlOwnTargets = await db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(target_registrations),0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, userId, currentMonth).first();
+    // Use real COUNT for TL's own actual visits/regs (not monthly_targets.actual_visits which is never updated)
+    const [tlOwnVisitCount, tlOwnRegCount] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, currentMonth + '-01').first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, userId, currentMonth + '-01').first(),
+    ]);
     const tlOwnTV = tlOwnTargets?.target_visits || 0;
-    const tlOwnAV = tlOwnTargets?.actual_visits || 0;
+    const tlOwnAV = tlOwnVisitCount?.count || 0;
     const tlOwnTR = tlOwnTargets?.target_registrations || 0;
-    const tlOwnAR = tlOwnTargets?.actual_registrations || 0;
+    const tlOwnAR = tlOwnRegCount?.count || 0;
     const teamTargetVisits = agentTargetVisits + tlOwnTV;
     const teamActualVisits = agentActualVisits + tlOwnAV;
     const teamTargetRegs = agentTargetRegs + tlOwnTR;
@@ -830,22 +863,27 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         const [vRes, rRes, tRes] = await Promise.all([
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph}) AND visit_date >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
           db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph}) AND created_at >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
-          db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av, COALESCE(SUM(target_registrations),0) as tr, COALESCE(SUM(actual_registrations),0) as ar FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${ph}) AND target_month = ?`).bind(tenantId, ...memberIds, currentMonth).first(),
+          db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(target_registrations),0) as tr FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${ph}) AND target_month = ?`).bind(tenantId, ...memberIds, currentMonth).first(),
         ]);
         teamVisits = vRes?.count || 0;
         teamRegs = rRes?.count || 0;
         teamTargetVisits = tRes?.tv || 0;
-        teamActualVisits = tRes?.av || 0;
+        // Use real COUNT from visits table (not monthly_targets.actual_visits which is never updated)
+        teamActualVisits = teamVisits;
         teamTargetRegs = tRes?.tr || 0;
-        teamActualRegs = tRes?.ar || 0;
+        teamActualRegs = teamRegs;
       }
 
-      // Include team lead's own targets in team totals
-      const tlOwnTgt = await db.prepare("SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(actual_visits),0) as av, COALESCE(SUM(target_registrations),0) as tr, COALESCE(SUM(actual_registrations),0) as ar FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, tl.id, currentMonth).first();
+      // Include team lead's own targets and real visit counts in team totals
+      const [tlOwnTgt, tlOwnVC, tlOwnRC] = await Promise.all([
+        db.prepare("SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(target_registrations),0) as tr FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, tl.id, currentMonth).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, tl.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, tl.id, currentMonth + '-01').first(),
+      ]);
       teamTargetVisits += (tlOwnTgt?.tv || 0);
-      teamActualVisits += (tlOwnTgt?.av || 0);
+      teamActualVisits += (tlOwnVC?.count || 0);
       teamTargetRegs += (tlOwnTgt?.tr || 0);
-      teamActualRegs += (tlOwnTgt?.ar || 0);
+      teamActualRegs += (tlOwnRC?.count || 0);
 
       teamsData.push({
         team_lead_id: tl.id,
@@ -1743,10 +1781,14 @@ api.get('/visits/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  const visit = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id WHERE v.id = ? AND v.tenant_id = ?").bind(id, tenantId).first();
+  const visit = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, co.name as company_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN companies co ON v.company_id = co.id WHERE v.id = ? AND v.tenant_id = ?").bind(id, tenantId).first();
   if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
-  const responses = await db.prepare('SELECT vr.* FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE vr.visit_id = ? AND v.tenant_id = ? LIMIT 500').bind(id, tenantId).all();
-  return c.json({ success: true, data: { ...visit, responses: responses.results || [] } });
+  const [responses, photos, individuals] = await Promise.all([
+    db.prepare('SELECT vr.* FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE vr.visit_id = ? AND v.tenant_id = ? LIMIT 500').bind(id, tenantId).all(),
+    db.prepare('SELECT * FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] })),
+    db.prepare('SELECT vi.*, i.first_name, i.last_name, i.id_number, i.phone, i.email FROM visit_individuals vi LEFT JOIN individuals i ON vi.individual_id = i.id WHERE vi.visit_id = ? AND vi.tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] }))
+  ]);
+  return c.json({ success: true, data: { ...visit, responses: responses.results || [], photos: photos.results || [], individuals: individuals.results || [] } });
 });
 
 api.post('/visits', async (c) => {
@@ -6487,11 +6529,19 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
-  const visitId = crypto.randomUUID();
+  const visitId = body.client_visit_id || crypto.randomUUID();
   const now = new Date().toISOString();
   const visitDate = body.visit_date || now.split('T')[0];
 
   try {
+    // Idempotency: if client sends a client_visit_id, check if visit already exists to prevent duplicates on retry
+    if (body.client_visit_id) {
+      const existingVisit = await db.prepare("SELECT id, status FROM visits WHERE tenant_id = ? AND id = ?").bind(tenantId, body.client_visit_id).first();
+      if (existingVisit) {
+        return c.json({ data: { id: existingVisit.id, status: existingVisit.status, visit_date: visitDate, already_existed: true }, message: 'Visit already exists (duplicate prevented)' }, 200);
+      }
+    }
+
     // 0. If store visit with store_name but no customer_id, auto-create customer
     let customerId = body.customer_id || null;
     if (body.visit_target_type === 'store' && !customerId && body.store_name) {
@@ -6517,7 +6567,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
     try {
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
         body.visit_target_type || 'customer', now,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
@@ -6530,7 +6580,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       ).run();
     } catch {
       // Fallback: company_id column may not exist yet
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
         body.visit_target_type || 'customer', now,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
@@ -6600,7 +6650,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     }
 
     return c.json({
-      data: { id: visitId, individual_id: individualId, status: 'in_progress', visit_date: visitDate },
+      data: { id: visitId, individual_id: individualId, status: 'completed', visit_date: visitDate },
       message: 'Visit created successfully'
     }, 201);
   } catch (err) {
@@ -10145,7 +10195,7 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
 }
 
 // Photo Upload
-api.post('/visit-photos/upload', async (c) => {
+api.post('/visit-photos/upload', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -10161,25 +10211,44 @@ api.post('/visit-photos/upload', async (c) => {
     if (!photo || !visitId) return c.json({ success: false, message: 'photo and visit_id required' }, 400);
 
     const bucket = c.env.UPLOADS;
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     const photoKey = `photos/${tenantId}/${visitId}/${id}.jpg`;
     const thumbKey = `thumbnails/${tenantId}/${visitId}/${id}_thumb.jpg`;
 
-    await bucket.put(photoKey, photo.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
-    if (thumbnail) await bucket.put(thumbKey, thumbnail.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
+    // Upload to R2 if bucket is available
+    if (bucket) {
+      try {
+        await bucket.put(photoKey, photo.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
+        if (thumbnail) await bucket.put(thumbKey, thumbnail.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
+      } catch (uploadErr) {
+        console.error('R2 upload error (continuing with DB record):', uploadErr);
+      }
+    }
 
-    await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, thumbnail_r2_key,
-      original_size_bytes, compressed_size_bytes, gps_latitude, gps_longitude, captured_at, uploaded_by, ai_analysis_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending')`).bind(
-      id, tenantId, visitId, photoType, photoKey, thumbnail ? thumbKey : null,
-      parseInt(formData.get('original_size') || '0'), photo.size,
-      latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, userId
-    ).run();
+    // Insert into visit_photos - try with all columns, fallback to minimal columns
+    try {
+      await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, thumbnail_r2_key,
+        original_size_bytes, compressed_size_bytes, gps_latitude, gps_longitude, captured_at, uploaded_by, ai_analysis_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending')`).bind(
+        id, tenantId, visitId, photoType, photoKey, thumbnail ? thumbKey : null,
+        parseInt(formData.get('original_size') || '0'), photo.size,
+        latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, userId
+      ).run();
+    } catch {
+      // Fallback: minimal columns if some don't exist in the schema yet
+      await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)`).bind(
+        id, tenantId, visitId, photoType, photoKey, null,
+        latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, null, userId
+      ).run();
+    }
 
-    c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, id, photoKey, tenantId, visitId, photoType));
+    if (bucket) {
+      try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, id, photoKey, tenantId, visitId, photoType)); } catch { /* AI analysis optional */ }
+    }
 
     return c.json({ success: true, data: { id, r2_key: photoKey, thumbnail_key: thumbKey } }, 201);
-  } catch (e) { console.error('Photo upload error:', e); return c.json({ success: false, message: 'Upload failed' }, 500); }
+  } catch (e) { console.error('Photo upload error:', e); return c.json({ success: false, message: 'Upload failed: ' + (e.message || e) }, 500); }
 });
 
 // Get visit photos
@@ -12219,7 +12288,23 @@ api.post('/field-operations/beats/:id/reverse', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 api.get('/field-operations/visits/:visitId', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const visitId = c.req.param('visitId');
+    const visit = await db.prepare("SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN field_companies fc ON fc.id = COALESCE(v.company_id, v.brand_id) WHERE v.id = ? AND v.tenant_id = ?").bind(visitId, tenantId).first();
+    if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
+    // Fetch photos for this visit
+    let photos = [];
+    try { const photosRes = await db.prepare("SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).all(); photos = photosRes?.results || []; } catch { /* visit_photos may not exist */ }
+    // Fetch survey responses
+    let surveyResponses = null;
+    try { const sr = await db.prepare("SELECT responses FROM visit_responses WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).first(); if (sr?.responses) surveyResponses = typeof sr.responses === 'string' ? JSON.parse(sr.responses) : sr.responses; } catch { /* ok */ }
+    // Fetch individual link + custom field values
+    let customFieldValues = null;
+    try { const vi = await db.prepare("SELECT custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).first(); if (vi?.custom_field_values) customFieldValues = typeof vi.custom_field_values === 'string' ? JSON.parse(vi.custom_field_values) : vi.custom_field_values; } catch { /* ok */ }
+    return c.json({ success: true, data: { ...visit, photos, survey_responses: surveyResponses, custom_field_values: customFieldValues } });
+  }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
