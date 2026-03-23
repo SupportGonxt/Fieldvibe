@@ -21,6 +21,8 @@ const MobileLoginPage: React.FC = () => {
   const [showNewPin, setShowNewPin] = useState(false)
   const [pinChangeLoading, setPinChangeLoading] = useState(false)
   const [pinChangeError, setPinChangeError] = useState('')
+  // Temporarily hold auth data until PIN change is complete
+  const pendingAuthRef = useRef<{ user: any; tokens: any; accessToken: string } | null>(null)
 
   useEffect(() => {
     const { isAuthenticated, user } = useAuthStore.getState()
@@ -84,36 +86,39 @@ const MobileLoginPage: React.FC = () => {
       if (data.success && data.data) {
         const { user, token, access_token, must_change_pin } = data.data
         const accessToken = token || access_token
-        localStorage.setItem('token', accessToken)
         // Cache companies from login response so VisitCreate can use them as fallback
         const loginCompanies = data.data.companies || []
         if (Array.isArray(loginCompanies) && loginCompanies.length > 0) {
           localStorage.setItem('agent_companies', JSON.stringify(loginCompanies))
         }
-        // Update zustand auth store so ProtectedRoute recognizes the session
-        useAuthStore.setState({
-          user: {
-            id: user.id,
-            email: user.email || '',
-            first_name: user.firstName || '',
-            last_name: user.lastName || '',
-            role: user.role,
-            phone: user.phone,
-            status: user.status || 'active',
-            permissions: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as any,
-          tokens: data.data.tokens || { access_token: accessToken, refresh_token: '', expires_in: 86400, token_type: 'Bearer' },
-          isAuthenticated: true,
-        })
+
+        const authUser = {
+          id: user.id,
+          email: user.email || '',
+          first_name: user.firstName || '',
+          last_name: user.lastName || '',
+          role: user.role,
+          phone: user.phone,
+          status: user.status || 'active',
+          permissions: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any
+        const authTokens = data.data.tokens || { access_token: accessToken, refresh_token: '', expires_in: 86400, token_type: 'Bearer' }
 
         if (must_change_pin) {
-          // Show PIN change screen before allowing access
+          // Store token temporarily so change-pin API call works, but do NOT
+          // set isAuthenticated — this prevents the useEffect redirect from
+          // bypassing the PIN change screen on page refresh.
+          localStorage.setItem('token', accessToken)
+          pendingAuthRef.current = { user: authUser, tokens: authTokens, accessToken }
           setMustChangePin(true)
           return
         }
 
+        // Normal login — commit auth state immediately
+        localStorage.setItem('token', accessToken)
+        useAuthStore.setState({ user: authUser, tokens: authTokens, isAuthenticated: true })
         navigate('/agent/dashboard')
       } else {
         setError(data.message || 'Login failed')
@@ -162,6 +167,15 @@ const MobileLoginPage: React.FC = () => {
 
       const data = await response.json()
       if (data.success) {
+        // PIN changed successfully — now commit the full auth state
+        if (pendingAuthRef.current) {
+          useAuthStore.setState({
+            user: pendingAuthRef.current.user,
+            tokens: pendingAuthRef.current.tokens,
+            isAuthenticated: true,
+          })
+          pendingAuthRef.current = null
+        }
         navigate('/agent/dashboard')
       } else {
         setPinChangeError(data.message || 'Failed to change PIN')
