@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, UserCheck, Star, Shield } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 
 interface AgentStat {
@@ -105,6 +106,7 @@ function progressColor(pct: number): string {
 }
 
 export default function TeamTab() {
+  const navigate = useNavigate()
   const [data, setData] = useState<TeamData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -477,6 +479,14 @@ export default function TeamTab() {
                           <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: '#8B5CF6' }} />
                         </div>
                       </div>
+                      {/* Drill-down button */}
+                      <button
+                        onClick={() => navigate(`/agent/agent-detail/${agent.id}`)}
+                        className="w-full mt-3 py-2 bg-[#00E87B]/10 border border-[#00E87B]/20 rounded-lg text-xs font-semibold text-[#00E87B] flex items-center justify-center gap-1.5"
+                      >
+                        <MapPin className="w-3.5 h-3.5" /> View Visit History
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
                     </div>
                   )}
                 </div>

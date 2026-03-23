@@ -1355,6 +1355,281 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
   }
 });
 
+// ==================== DRILL-DOWN ENDPOINTS (Mobile) ====================
+
+// Team Lead: Get a specific agent's detail + recent visits
+app.get('/api/team-lead/agent/:agentId', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const agentId = c.req.param('agentId');
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+
+    // Verify caller is a team lead
+    const caller = await db.prepare("SELECT role FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
+    if (!caller || caller.role !== 'team_lead') {
+      return c.json({ success: false, message: 'Access denied. Team lead role required.' }, 403);
+    }
+
+    // Verify agent belongs to this team lead
+    const agent = await db.prepare("SELECT id, first_name, last_name, phone, role, status FROM users WHERE id = ? AND tenant_id = ? AND team_lead_id = ? AND is_active = 1").bind(agentId, tenantId, userId).first();
+    if (!agent) {
+      return c.json({ success: false, message: 'Agent not found or not in your team.' }, 404);
+    }
+
+    // Get agent stats
+    const [todayV, monthV, todayR, monthR, targets] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, agentId, today).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, agentId, currentMonth + '-01').first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, agentId, today).first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, agentId, currentMonth + '-01').first(),
+      db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(target_registrations),0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, agentId, currentMonth).first(),
+    ]);
+    let tv = targets?.target_visits || 0;
+    let tr = targets?.target_registrations || 0;
+    if (tv === 0 && tr === 0) {
+      const fb = await getUserMonthlyTargetFromRules(db, tenantId, agentId, currentMonth);
+      tv = fb.target_visits;
+      tr = fb.target_registrations;
+    }
+    const av = monthV?.count || 0;
+    const ar = monthR?.count || 0;
+
+    // Get recent visits (last 50)
+    const recentVisits = await db.prepare(
+      "SELECT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.gps_latitude, v.gps_longitude, c.name as customer_name, ir.first_name as individual_first_name, ir.last_name as individual_last_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN individual_registrations ir ON v.individual_id = ir.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50"
+    ).bind(tenantId, agentId).all();
+
+    return c.json({
+      success: true,
+      data: {
+        agent: {
+          id: agent.id,
+          first_name: agent.first_name,
+          last_name: agent.last_name,
+          phone: agent.phone,
+          role: agent.role,
+        },
+        stats: {
+          today_visits: todayV?.count || 0,
+          month_visits: monthV?.count || 0,
+          today_registrations: todayR?.count || 0,
+          month_registrations: monthR?.count || 0,
+          target_visits: tv,
+          actual_visits: av,
+          target_registrations: tr,
+          actual_registrations: ar,
+          achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
+        },
+        recent_visits: (recentVisits.results || []).map(v => ({
+          id: v.id,
+          visit_date: v.visit_date,
+          visit_type: v.visit_type,
+          visit_target_type: v.visit_target_type,
+          status: v.status,
+          check_in_time: v.check_in_time,
+          check_out_time: v.check_out_time,
+          customer_name: v.customer_name || '',
+          individual_name: v.individual_first_name ? (v.individual_first_name + ' ' + (v.individual_last_name || '')).trim() : '',
+          notes: v.notes || '',
+        })),
+      }
+    });
+  } catch (error) {
+    console.error('Team lead agent detail error:', error);
+    return c.json({ success: false, message: 'Failed to fetch agent details' }, 500);
+  }
+});
+
+// Manager: Get agents in a specific team (by team lead ID)
+app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const teamLeadId = c.req.param('teamLeadId');
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+
+    // Verify caller is a manager or admin
+    const caller = await db.prepare("SELECT role FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
+    if (!caller || !['manager', 'admin', 'super_admin'].includes(caller.role)) {
+      return c.json({ success: false, message: 'Access denied. Manager role required.' }, 403);
+    }
+
+    // Verify team lead exists and is under this manager (or admin sees all)
+    const isAdmin = ['admin', 'super_admin'].includes(caller.role);
+    const tlQuery = isAdmin
+      ? "SELECT id, first_name, last_name, phone, role FROM users WHERE id = ? AND tenant_id = ? AND role = 'team_lead' AND is_active = 1"
+      : "SELECT id, first_name, last_name, phone, role FROM users WHERE id = ? AND tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?";
+    const tlBinds = isAdmin ? [teamLeadId, tenantId] : [teamLeadId, tenantId, userId];
+    const teamLead = await db.prepare(tlQuery).bind(...tlBinds).first();
+    if (!teamLead) {
+      return c.json({ success: false, message: 'Team lead not found or not in your organization.' }, 404);
+    }
+
+    // Get agents under this team lead
+    const teamMembers = await db.prepare("SELECT id, first_name, last_name, phone, role, status FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1 ORDER BY first_name").bind(teamLeadId, tenantId).all();
+
+    // Build per-agent stats
+    const agentStats = [];
+    for (const member of (teamMembers.results || [])) {
+      const [todayV, monthV, todayR, monthR, targets] = await Promise.all([
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, member.id, today).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, member.id, today).first(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(target_registrations),0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, member.id, currentMonth).first(),
+      ]);
+      let tv = targets?.target_visits || 0;
+      let tr = targets?.target_registrations || 0;
+      if (tv === 0 && tr === 0) {
+        const fb = await getUserMonthlyTargetFromRules(db, tenantId, member.id, currentMonth);
+        tv = fb.target_visits;
+        tr = fb.target_registrations;
+      }
+      const av = monthV?.count || 0;
+      const ar = monthR?.count || 0;
+      agentStats.push({
+        id: member.id,
+        first_name: member.first_name,
+        last_name: member.last_name,
+        phone: member.phone,
+        role: member.role,
+        today_visits: todayV?.count || 0,
+        month_visits: monthV?.count || 0,
+        today_registrations: todayR?.count || 0,
+        month_registrations: monthR?.count || 0,
+        target_visits: tv,
+        actual_visits: av,
+        target_registrations: tr,
+        actual_registrations: ar,
+        achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
+      });
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        team_lead: {
+          id: teamLead.id,
+          first_name: teamLead.first_name,
+          last_name: teamLead.last_name,
+        },
+        agents: agentStats,
+      }
+    });
+  } catch (error) {
+    console.error('Manager team agents error:', error);
+    return c.json({ success: false, message: 'Failed to fetch team agents' }, 500);
+  }
+});
+
+// Manager: Get a specific agent's detail + recent visits
+app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const agentId = c.req.param('agentId');
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+
+    // Verify caller is a manager or admin
+    const caller = await db.prepare("SELECT role FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
+    if (!caller || !['manager', 'admin', 'super_admin'].includes(caller.role)) {
+      return c.json({ success: false, message: 'Access denied. Manager role required.' }, 403);
+    }
+
+    // Get agent (verify they belong to this tenant)
+    const agent = await db.prepare("SELECT id, first_name, last_name, phone, role, status, team_lead_id FROM users WHERE id = ? AND tenant_id = ? AND is_active = 1").bind(agentId, tenantId).first();
+    if (!agent) {
+      return c.json({ success: false, message: 'Agent not found.' }, 404);
+    }
+
+    // For non-admin managers, verify agent is under one of their team leads
+    const isAdmin = ['admin', 'super_admin'].includes(caller.role);
+    if (!isAdmin && agent.team_lead_id) {
+      const tl = await db.prepare("SELECT id FROM users WHERE id = ? AND tenant_id = ? AND manager_id = ?").bind(agent.team_lead_id, tenantId, userId).first();
+      if (!tl) {
+        return c.json({ success: false, message: 'Agent not in your organization.' }, 403);
+      }
+    }
+
+    // Get agent stats
+    const [todayV, monthV, todayR, monthR, targets] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, agentId, today).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, agentId, currentMonth + '-01').first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, agentId, today).first(),
+      db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, agentId, currentMonth + '-01').first(),
+      db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(target_registrations),0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, agentId, currentMonth).first(),
+    ]);
+    let tv = targets?.target_visits || 0;
+    let tr = targets?.target_registrations || 0;
+    if (tv === 0 && tr === 0) {
+      const fb = await getUserMonthlyTargetFromRules(db, tenantId, agentId, currentMonth);
+      tv = fb.target_visits;
+      tr = fb.target_registrations;
+    }
+    const av = monthV?.count || 0;
+    const ar = monthR?.count || 0;
+
+    // Get recent visits (last 50)
+    const recentVisits = await db.prepare(
+      "SELECT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.gps_latitude, v.gps_longitude, c.name as customer_name, ir.first_name as individual_first_name, ir.last_name as individual_last_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN individual_registrations ir ON v.individual_id = ir.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50"
+    ).bind(tenantId, agentId).all();
+
+    // Get team lead name if assigned
+    let teamLeadName = null;
+    if (agent.team_lead_id) {
+      const tl = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(agent.team_lead_id, tenantId).first();
+      if (tl) teamLeadName = tl.first_name + ' ' + tl.last_name;
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        agent: {
+          id: agent.id,
+          first_name: agent.first_name,
+          last_name: agent.last_name,
+          phone: agent.phone,
+          role: agent.role,
+          team_lead_name: teamLeadName,
+        },
+        stats: {
+          today_visits: todayV?.count || 0,
+          month_visits: monthV?.count || 0,
+          today_registrations: todayR?.count || 0,
+          month_registrations: monthR?.count || 0,
+          target_visits: tv,
+          actual_visits: av,
+          target_registrations: tr,
+          actual_registrations: ar,
+          achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
+        },
+        recent_visits: (recentVisits.results || []).map(v => ({
+          id: v.id,
+          visit_date: v.visit_date,
+          visit_type: v.visit_type,
+          visit_target_type: v.visit_target_type,
+          status: v.status,
+          check_in_time: v.check_in_time,
+          check_out_time: v.check_out_time,
+          customer_name: v.customer_name || '',
+          individual_name: v.individual_first_name ? (v.individual_first_name + ' ' + (v.individual_last_name || '')).trim() : '',
+          notes: v.notes || '',
+        })),
+      }
+    });
+  } catch (error) {
+    console.error('Manager agent detail error:', error);
+    return c.json({ success: false, message: 'Failed to fetch agent details' }, 500);
+  }
+});
+
 // ==================== AGENT PIN MANAGEMENT ====================
 
 // Manager/Admin: Set or reset PIN for an agent

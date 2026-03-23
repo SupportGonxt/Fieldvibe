@@ -116,16 +116,6 @@ export default function AuthLayout() {
             <Outlet />
           </div>
 
-          {/* Demo credentials hint */}
-          <div className="mt-8 text-center">
-            <div className="inline-flex items-center space-x-2 bg-[#0A1628]/50 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10">
-              <span className="text-slate-400 text-sm">Demo:</span>
-              <code className="text-[#00E87B] text-sm font-mono">admin@demo.com</code>
-              <span className="text-slate-500">/</span>
-              <code className="text-[#00E87B] text-sm font-mono">admin123</code>
-            </div>
-          </div>
-
           {/* GONXT branding */}
           <div className="mt-8 text-center flex items-center justify-center space-x-2">
             <span className="text-slate-500 text-sm">A Product of</span>

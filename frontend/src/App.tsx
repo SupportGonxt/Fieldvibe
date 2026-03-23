@@ -57,6 +57,8 @@ const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinMan
 const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTrainingGuide'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
 const ManagerTeamsTab = lazyWithRetry(() => import('./pages/agent/ManagerTeamsTab'))
+const AgentDetailPage = lazyWithRetry(() => import('./pages/agent/AgentDetailPage'))
+const ManagerTeamDetailPage = lazyWithRetry(() => import('./pages/agent/ManagerTeamDetailPage'))
 const AgentHierarchyPage = lazyWithRetry(() => import('./pages/field-operations/AgentHierarchyPage'))
 const AnalyticsDashboardPage = lazyWithRetry(() => import('./pages/reports/AnalyticsDashboardPage'))
 const AnalyticsPage = lazyWithRetry(() => import('./pages/dashboard/AnalyticsPage'))
@@ -1103,6 +1105,8 @@ function App() {
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
             <Route path="team" element={<PageLoader><TeamTab /></PageLoader>} />
             <Route path="teams" element={<PageLoader><ManagerTeamsTab /></PageLoader>} />
+            <Route path="agent-detail/:agentId" element={<PageLoader><AgentDetailPage /></PageLoader>} />
+            <Route path="team-detail/:teamLeadId" element={<PageLoader><ManagerTeamDetailPage /></PageLoader>} />
             <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
             <Route path="onboarding" element={<PageLoader><AgentOnboarding /></PageLoader>} />
             <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
