@@ -569,9 +569,9 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     if (dailyTargets.length === 0 && companyTargetRules.length > 0) {
       dailyTargets = companyTargetRules.map(ctr => {
         const ca = perCompanyActuals[ctr.company_id] || {};
-        // Use new per-role fields first, fall back to legacy fields
-        const indivPerDay = ctr.individual_target_per_day || ctr.target_visits_per_day || 0;
-        const storePerDay = ctr.store_target_per_day || ctr.target_registrations_per_day || 0;
+        // Use new per-role fields first, fall back to legacy fields (use ?? to preserve explicit 0)
+        const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+        const storePerDay = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
         return {
           company_name: ctr.company_name,
           company_id: ctr.company_id,
@@ -719,11 +719,11 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, r
       // Resolve working calendar for this agent+company
       const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, agentId);
       const wdMonth = countWorkingDaysInMonth(wdConfig, currentMonth);
-      // Use new per-role fields first, fall back to legacy fields
-      const indivPerDay = ctr.individual_target_per_day || ctr.target_visits_per_day || 0;
-      const storePerMonth = ctr.store_target_per_month || ctr.store_target_per_month_agent || ctr.store_target_per_month_tl || 0;
-      const indivPerMonth = ctr.individual_target_per_month || (indivPerDay * wdMonth);
-      const storePerDay = ctr.store_target_per_day || 0;
+      // Use new per-role fields first, fall back to legacy fields (use ?? to preserve explicit 0)
+      const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const storePerMonth = (ctr.store_target_per_month != null ? ctr.store_target_per_month : (ctr.store_target_per_month_agent ?? ctr.store_target_per_month_tl)) ?? 0;
+      const indivPerMonth = ctr.individual_target_per_month != null ? ctr.individual_target_per_month : (indivPerDay * wdMonth);
+      const storePerDay = ctr.store_target_per_day ?? 0;
       const targetConvs = (ctr.target_conversions_per_day || 0) * wdMonth;
       // Get live actuals
       let storeVisits = 0, individualVisits = 0, actualConvs = 0;
