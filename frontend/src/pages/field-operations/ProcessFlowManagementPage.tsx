@@ -715,6 +715,7 @@ function CustomQuestionsTab() {
   const [filterCompany, setFilterCompany] = useState<string>('')
   const [showCreate, setShowCreate] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<CustomQuestion | null>(null)
+  const [keyManuallyEdited, setKeyManuallyEdited] = useState(false)
   const [form, setForm] = useState({
     company_id: '',
     question_label: '',
@@ -781,12 +782,14 @@ function CustomQuestionsTab() {
   function resetForm() {
     setShowCreate(false)
     setEditingQuestion(null)
+    setKeyManuallyEdited(false)
     setForm({ company_id: '', question_label: '', question_key: '', field_type: 'text', field_options: '', is_required: false, display_order: 1, visit_target_type: 'both', check_duplicate: false, min_length: undefined, max_length: undefined })
   }
 
   function startEdit(q: CustomQuestion) {
     setEditingQuestion(q)
     setShowCreate(true)
+    setKeyManuallyEdited(true)
     setForm({
       company_id: q.company_id,
       question_label: q.question_label,
@@ -870,7 +873,7 @@ function CustomQuestionsTab() {
                   setForm(prev => ({
                     ...prev,
                     question_label: label,
-                    question_key: prev.question_key || autoGenerateKey(label),
+                    question_key: keyManuallyEdited ? prev.question_key : autoGenerateKey(label),
                   }))
                 }}
                 className="input w-full"
@@ -883,7 +886,7 @@ function CustomQuestionsTab() {
               <input
                 type="text"
                 value={form.question_key}
-                onChange={e => setForm(prev => ({ ...prev, question_key: e.target.value }))}
+                onChange={e => { setKeyManuallyEdited(true); setForm(prev => ({ ...prev, question_key: e.target.value })) }}
                 className="input w-full"
                 placeholder="Auto-generated from label"
               />
