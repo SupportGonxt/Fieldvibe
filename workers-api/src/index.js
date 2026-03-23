@@ -256,9 +256,14 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
     if (!phone || !pin) return c.json({ success: false, message: 'Phone number and PIN are required' }, 400);
     if (pin.length < 4 || pin.length > 6) return c.json({ success: false, message: 'PIN must be 4-6 digits' }, 400);
     const db = c.env.DB;
+    // Normalize phone number to +27 format (South Africa)
+    let normalizedPhone = phone.replace(/[\s\-]/g, '');
+    if (normalizedPhone.startsWith('0')) normalizedPhone = '+27' + normalizedPhone.substring(1);
+    else if (normalizedPhone.startsWith('27') && !normalizedPhone.startsWith('+27')) normalizedPhone = '+' + normalizedPhone;
+    else if (!normalizedPhone.startsWith('+')) normalizedPhone = '+27' + normalizedPhone;
     // Resolve tenant_id from tenant_code (or X-Tenant-Code header) for multi-tenant scoping
     let tenantFilter = '';
-    let tenantBinds = [phone];
+    let tenantBinds = [normalizedPhone];
     const tCode = tenant_code || c.req.header('X-Tenant-Code');
     if (tCode) {
       const tenant = await db.prepare('SELECT id FROM tenants WHERE code = ?').bind(tCode).first();
