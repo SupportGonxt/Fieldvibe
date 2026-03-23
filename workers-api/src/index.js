@@ -6230,6 +6230,10 @@ api.put('/process-flows/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
   try {
+    // Look up the flow to find its actual tenant_id (could be 'default')
+    const existing = await db.prepare("SELECT tenant_id FROM process_flows WHERE id = ? AND tenant_id IN (?, 'default')").bind(id, tenantId).first();
+    if (!existing) return c.json({ error: 'Process flow not found' }, 404);
+    const flowTenantId = existing.tenant_id;
     const sets = []; const vals = [];
     for (const [k, v] of Object.entries(body)) {
       if (['name', 'description', 'is_active'].includes(k)) {
@@ -6239,15 +6243,16 @@ api.put('/process-flows/:id', authMiddleware, async (c) => {
     }
     if (sets.length > 0) {
       sets.push('updated_at = CURRENT_TIMESTAMP');
-      await db.prepare('UPDATE process_flows SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, tenantId).run();
+      await db.prepare('UPDATE process_flows SET ' + sets.join(', ') + ' WHERE id = ? AND tenant_id = ?').bind(...vals, id, flowTenantId).run();
     }
     if (Array.isArray(body.steps)) {
-      await db.prepare('DELETE FROM process_flow_steps WHERE process_flow_id = ? AND tenant_id = ?').bind(id, tenantId).run();
+      // Delete existing steps for the flow's actual tenant_id, plus any 'default' steps
+      await db.prepare("DELETE FROM process_flow_steps WHERE process_flow_id = ? AND tenant_id IN (?, 'default')").bind(id, tenantId).run();
       for (let i = 0; i < body.steps.length; i++) {
         const step = body.steps[i];
         const stepId = crypto.randomUUID();
         await db.prepare('INSERT INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, step_order, is_required, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(
-          stepId, tenantId, id, step.step_key, step.step_label || step.step_key, step.step_order || (i + 1), step.is_required ? 1 : 0, JSON.stringify(step.config || {})
+          stepId, flowTenantId, id, step.step_key, step.step_label || step.step_key, step.step_order || (i + 1), step.is_required ? 1 : 0, JSON.stringify(step.config || {})
         ).run();
       }
     }
@@ -6260,7 +6265,7 @@ api.delete('/process-flows/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
-  await db.prepare('UPDATE process_flows SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  await db.prepare("UPDATE process_flows SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id IN (?, 'default')").bind(id, tenantId).run();
   return c.json({ message: 'Process flow deactivated' });
 });
 

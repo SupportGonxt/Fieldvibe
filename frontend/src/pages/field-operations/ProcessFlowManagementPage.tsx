@@ -22,7 +22,9 @@ import {
   Database,
   CheckCircle,
   Target,
+  FileText,
 } from 'lucide-react'
+import { surveysService } from '../../services/surveys.service'
 
 // ── Types ──
 
@@ -135,12 +137,13 @@ const FIELD_TYPES = [
 // ── Main Page Component ──
 
 export default function ProcessFlowManagementPage() {
-  const [activeTab, setActiveTab] = useState<'flows' | 'assignments' | 'questions' | 'targets' | 'migration'>('flows')
+  const [activeTab, setActiveTab] = useState<'flows' | 'assignments' | 'questions' | 'surveys' | 'targets' | 'migration'>('flows')
 
   const tabs = [
     { key: 'flows' as const, label: 'Process Flows', icon: Workflow },
     { key: 'assignments' as const, label: 'Company Assignments', icon: Link2 },
     { key: 'questions' as const, label: 'Custom Questions', icon: MessageSquare },
+    { key: 'surveys' as const, label: 'Surveys', icon: FileText },
     { key: 'targets' as const, label: 'Target Rules', icon: Target },
     { key: 'migration' as const, label: 'Database Setup', icon: Database },
   ]
@@ -178,6 +181,7 @@ export default function ProcessFlowManagementPage() {
       {activeTab === 'flows' && <ProcessFlowsTab />}
       {activeTab === 'assignments' && <CompanyAssignmentsTab />}
       {activeTab === 'questions' && <CustomQuestionsTab />}
+      {activeTab === 'surveys' && <SurveysTab />}
       {activeTab === 'targets' && <CompanyTargetRulesTab />}
       {activeTab === 'migration' && <MigrationTab />}
     </div>
@@ -1315,6 +1319,417 @@ function CompanyTargetRulesTab() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════
+// Tab 4b: Surveys (full CRUD + company allocation)
+// ══════════════════════════════════════════════════════════
+
+interface SurveyQuestion {
+  id: string
+  question_text: string
+  question_type: 'text' | 'multiple_choice' | 'rating' | 'yes_no' | 'date'
+  options?: string[]
+  required: boolean
+}
+
+interface SurveyFormData {
+  id: string | null
+  title: string
+  description: string
+  module: string
+  target_type: string
+  company_id: string
+  is_mandatory: boolean
+  questions: SurveyQuestion[]
+}
+
+const EMPTY_SURVEY_FORM: SurveyFormData = {
+  id: null,
+  title: '',
+  description: '',
+  module: 'field_ops',
+  target_type: 'both',
+  company_id: '',
+  is_mandatory: false,
+  questions: [],
+}
+
+const QUESTION_TYPES = [
+  { value: 'text', label: 'Text' },
+  { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'rating', label: 'Rating (1-5)' },
+  { value: 'yes_no', label: 'Yes / No' },
+  { value: 'date', label: 'Date' },
+]
+
+function SurveysTab() {
+  const queryClient = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState<SurveyFormData>({ ...EMPTY_SURVEY_FORM })
+  const [expandedSurvey, setExpandedSurvey] = useState<string | null>(null)
+
+  const { data: companiesResp } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const companies: Array<{ id: string; name: string }> = Array.isArray(companiesResp?.data) ? companiesResp.data : Array.isArray(companiesResp) ? companiesResp : []
+
+  const { data: surveysResp, isLoading, isError } = useQuery({
+    queryKey: ['surveys-list'],
+    queryFn: () => surveysService.getSurveys({}),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const surveys: Array<any> = Array.isArray(surveysResp?.surveys) ? surveysResp.surveys :
+    Array.isArray(surveysResp?.data) ? surveysResp.data :
+    Array.isArray(surveysResp) ? surveysResp : []
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        title: form.title,
+        name: form.title,
+        description: form.description,
+        module: form.module,
+        target_type: form.target_type,
+        company_id: form.company_id || null,
+        is_mandatory: form.is_mandatory,
+        questions: form.questions,
+      }
+      if (form.id) {
+        return surveysService.updateSurvey(form.id, payload as Record<string, unknown>)
+      }
+      return surveysService.createSurvey(payload as Record<string, unknown>)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['surveys-list'] })
+      toast.success(form.id ? 'Survey updated' : 'Survey created')
+      setForm({ ...EMPTY_SURVEY_FORM })
+      setShowForm(false)
+    },
+    onError: () => toast.error('Failed to save survey'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => surveysService.deleteSurvey(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['surveys-list'] })
+      toast.success('Survey deleted')
+    },
+    onError: () => toast.error('Failed to delete survey'),
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function startEdit(survey: any) {
+    const questions = Array.isArray(survey.questions) ? survey.questions : []
+    setForm({
+      id: survey.id,
+      title: survey.title || survey.name || '',
+      description: survey.description || '',
+      module: survey.module || 'field_ops',
+      target_type: survey.target_type || 'both',
+      company_id: survey.company_id || '',
+      is_mandatory: !!survey.is_mandatory,
+      questions: questions.map((q: SurveyQuestion, i: number) => ({
+        id: q.id || crypto.randomUUID(),
+        question_text: q.question_text || '',
+        question_type: q.question_type || 'text',
+        options: q.options || [],
+        required: q.required !== undefined ? q.required : true,
+      })),
+    })
+    setShowForm(true)
+  }
+
+  function addQuestion() {
+    setForm(prev => ({
+      ...prev,
+      questions: [...prev.questions, {
+        id: crypto.randomUUID(),
+        question_text: '',
+        question_type: 'text' as const,
+        options: [],
+        required: true,
+      }],
+    }))
+  }
+
+  function removeQuestion(index: number) {
+    setForm(prev => ({
+      ...prev,
+      questions: prev.questions.filter((_, i) => i !== index),
+    }))
+  }
+
+  function updateQuestion(index: number, updates: Partial<SurveyQuestion>) {
+    setForm(prev => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => i === index ? { ...q, ...updates } : q),
+    }))
+  }
+
+  function resetForm() {
+    setForm({ ...EMPTY_SURVEY_FORM })
+    setShowForm(false)
+  }
+
+  if (isLoading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
+
+  const getCompanyName = (companyId: string) => companies.find(c => c.id === companyId)?.name || 'All Companies'
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-gray-500">{surveys.length} survey(s)</p>
+        <button
+          onClick={() => { resetForm(); setShowForm(true) }}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>New Survey</span>
+        </button>
+      </div>
+
+      {/* Create/Edit Form */}
+      {showForm && (
+        <div className="card p-6 border-2 border-blue-200 dark:border-blue-800">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            {form.id ? 'Edit Survey' : 'Create New Survey'}
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Survey Title *</label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+                className="input w-full"
+                placeholder="e.g. Customer Satisfaction Survey"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <input
+                type="text"
+                value={form.description}
+                onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+                className="input w-full"
+                placeholder="Brief description"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label>
+              <SearchableSelect
+                options={[{ value: '', label: 'All Companies (Global)' }, ...companies.map(c => ({ value: c.id, label: c.name }))]}
+                value={form.company_id}
+                onChange={(val: string) => setForm(prev => ({ ...prev, company_id: val }))}
+                placeholder="Select company..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Type</label>
+              <select
+                value={form.target_type}
+                onChange={e => setForm(prev => ({ ...prev, target_type: e.target.value }))}
+                className="input w-full"
+              >
+                <option value="both">Both (Individual & Store)</option>
+                <option value="individual">Individual Only</option>
+                <option value="store">Store Only</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Module</label>
+              <select
+                value={form.module}
+                onChange={e => setForm(prev => ({ ...prev, module: e.target.value }))}
+                className="input w-full"
+              >
+                <option value="field_ops">Field Ops</option>
+                <option value="marketing">Marketing</option>
+                <option value="promotions">Promotions</option>
+                <option value="van_sales">Van Sales</option>
+                <option value="general">General</option>
+              </select>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 mb-4 cursor-pointer">
+            <input type="checkbox" checked={form.is_mandatory} onChange={e => setForm(prev => ({ ...prev, is_mandatory: e.target.checked }))} className="rounded border-gray-300" />
+            <span className="text-sm text-gray-700 dark:text-gray-300">Mandatory survey (required for visit completion)</span>
+          </label>
+
+          {/* Questions Section */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Questions ({form.questions.length})</h4>
+              <button onClick={addQuestion} className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Add Question
+              </button>
+            </div>
+
+            {form.questions.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                No questions added yet. Click "Add Question" to start building your survey.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {form.questions.map((q, index) => (
+                  <div key={q.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="w-6 h-6 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0 mt-1">
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          value={q.question_text}
+                          onChange={e => updateQuestion(index, { question_text: e.target.value })}
+                          className="input w-full"
+                          placeholder="Enter question text..."
+                        />
+                        <div className="flex items-center gap-3">
+                          <select
+                            value={q.question_type}
+                            onChange={e => updateQuestion(index, { question_type: e.target.value as SurveyQuestion['question_type'] })}
+                            className="input text-sm"
+                          >
+                            {QUESTION_TYPES.map(qt => (
+                              <option key={qt.value} value={qt.value}>{qt.label}</option>
+                            ))}
+                          </select>
+                          <label className="flex items-center gap-1 cursor-pointer text-xs">
+                            <input type="checkbox" checked={q.required} onChange={e => updateQuestion(index, { required: e.target.checked })} className="rounded border-gray-300" />
+                            <span className="text-gray-600 dark:text-gray-400">Required</span>
+                          </label>
+                        </div>
+                        {q.question_type === 'multiple_choice' && (
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Options (comma-separated)</label>
+                            <input
+                              type="text"
+                              value={(q.options || []).join(', ')}
+                              onChange={e => updateQuestion(index, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })}
+                              className="input w-full text-sm"
+                              placeholder="Option 1, Option 2, Option 3"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => removeQuestion(index)} className="p-1 text-red-400 hover:text-red-600 flex-shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={!form.title || saveMutation.isPending}
+              className="btn-primary flex items-center gap-2 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saveMutation.isPending ? 'Saving...' : form.id ? 'Update Survey' : 'Create Survey'}
+            </button>
+            <button onClick={resetForm} className="btn-outline flex items-center gap-2">
+              <X className="w-4 h-4" /> Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Survey List */}
+      {surveys.length === 0 && !showForm && (
+        <div className="card p-12 text-center">
+          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 text-lg font-medium">No surveys configured</p>
+          <p className="text-gray-400 text-sm">Create your first survey to start collecting data during visits</p>
+        </div>
+      )}
+
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {surveys.map((survey: any) => (
+        <div key={survey.id} className="card overflow-hidden">
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                <FileText className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{survey.title || survey.name}</h3>
+                  {survey.is_mandatory ? (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Required</span>
+                  ) : null}
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    survey.target_type === 'individual' ? 'bg-green-100 text-green-800' :
+                    survey.target_type === 'store' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {survey.target_type === 'both' ? 'All Types' : survey.target_type}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                    {getCompanyName(survey.company_id)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500">{survey.description || 'No description'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setExpandedSurvey(expandedSurvey === survey.id ? null : survey.id)} className="p-1 text-gray-400 hover:text-gray-600">
+                {expandedSurvey === survey.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </button>
+              <button onClick={() => startEdit(survey)} className="text-blue-600 hover:text-blue-800 p-1">
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => deleteMutation.mutate(survey.id)} className="text-red-600 hover:text-red-800 p-1">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {expandedSurvey === survey.id && (
+            <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">
+                Questions ({Array.isArray(survey.questions) ? survey.questions.length : 0})
+              </p>
+              {Array.isArray(survey.questions) && survey.questions.length > 0 ? (
+                <div className="space-y-2">
+                  {survey.questions.map((q: SurveyQuestion, idx: number) => (
+                    <div key={q.id || idx} className="flex items-center gap-2 text-sm">
+                      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-purple-500 text-white text-xs">{idx + 1}</span>
+                      <span className="text-gray-800 dark:text-gray-200">{q.question_text}</span>
+                      <span className="text-xs text-gray-400">({q.question_type})</span>
+                      {q.required && <span className="text-red-500 text-xs">*</span>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">No questions configured</p>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {isError && (
+        <div className="card p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+          <p className="text-lg font-medium text-gray-900 dark:text-white">Failed to load surveys</p>
+          <p className="text-gray-500 mt-1">Check that the questionnaires table exists in the database.</p>
+        </div>
+      )}
     </div>
   )
 }
