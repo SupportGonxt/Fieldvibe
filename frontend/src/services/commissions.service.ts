@@ -39,15 +39,22 @@ export interface CommissionRule {
 export interface CommissionStats {
   total_commissions: number
   pending_commissions: number
+  approved_commissions: number
   paid_commissions: number
   total_amount: number
   pending_amount: number
+  approved_amount: number
   paid_amount: number
   top_earners: Array<{
-    user_id: string
-    user_name: string
-    total_earned: number
-    commission_count: number
+    name: string
+    role: string
+    total_commission: number
+    transaction_count: number
+  }>
+  commissions_by_type: Array<{
+    type: string
+    amount: number
+    count: number
   }>
 }
 
@@ -107,9 +114,9 @@ class CommissionsService {
     }
   }
 
-  async getCommissionStats(): Promise<CommissionStats> {
+  async getCommissionStats(dateRange?: { start: string; end: string }): Promise<CommissionStats> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/stats`)
+      const response = await apiClient.get(`${this.baseUrl}/stats`, { params: dateRange })
       return response.data.data
     } catch (error) {
       console.error('Failed to fetch commission stats:', error)
@@ -311,7 +318,7 @@ class CommissionsService {
 }
 
 // Additional interfaces for new endpoints
-export interface CommissionDetail extends Commission {
+export interface CommissionDetail extends Omit<Commission, 'base_amount'> {
   items?: CommissionItem[]
   agent_name?: string
   period_start?: string
