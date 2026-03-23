@@ -1421,7 +1421,7 @@ app.get('/api/team-lead/agent/:agentId', authMiddleware, async (c) => {
 
     // Get recent visits (last 50)
     const recentVisits = await db.prepare(
-      "SELECT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.gps_latitude, v.gps_longitude, c.name as customer_name, ir.first_name as individual_first_name, ir.last_name as individual_last_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN individual_registrations ir ON v.individual_id = ir.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50"
+      "SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.latitude, v.longitude, v.individual_name, v.individual_surname, c.name as customer_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50"
     ).bind(tenantId, agentId).all();
 
     return c.json({
@@ -1449,12 +1449,12 @@ app.get('/api/team-lead/agent/:agentId', authMiddleware, async (c) => {
           id: v.id,
           visit_date: v.visit_date,
           visit_type: v.visit_type,
-          visit_target_type: v.visit_target_type,
+          visit_target_type: v.visit_type,
           status: v.status,
           check_in_time: v.check_in_time,
           check_out_time: v.check_out_time,
           customer_name: v.customer_name || '',
-          individual_name: v.individual_first_name ? (v.individual_first_name + ' ' + (v.individual_last_name || '')).trim() : '',
+          individual_name: v.individual_name ? (v.individual_name + ' ' + (v.individual_surname || '')).trim() : '',
           notes: v.notes || '',
         })),
       }
@@ -1603,7 +1603,7 @@ app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
 
     // Get recent visits (last 50)
     const recentVisits = await db.prepare(
-      "SELECT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.gps_latitude, v.gps_longitude, c.name as customer_name, ir.first_name as individual_first_name, ir.last_name as individual_last_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN individual_registrations ir ON v.individual_id = ir.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50"
+      "SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.latitude, v.longitude, v.individual_name, v.individual_surname, c.name as customer_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50"
     ).bind(tenantId, agentId).all();
 
     // Get team lead name if assigned
@@ -1639,12 +1639,12 @@ app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
           id: v.id,
           visit_date: v.visit_date,
           visit_type: v.visit_type,
-          visit_target_type: v.visit_target_type,
+          visit_target_type: v.visit_type,
           status: v.status,
           check_in_time: v.check_in_time,
           check_out_time: v.check_out_time,
           customer_name: v.customer_name || '',
-          individual_name: v.individual_first_name ? (v.individual_first_name + ' ' + (v.individual_last_name || '')).trim() : '',
+          individual_name: v.individual_name ? (v.individual_name + ' ' + (v.individual_surname || '')).trim() : '',
           notes: v.notes || '',
         })),
       }
@@ -9719,19 +9719,19 @@ api.post('/anomaly-detection/run', requireRole('admin', 'manager'), async (c) =>
   const detected = [];
 
   // 1. GPS Anomalies - visits where agent GPS is far from customer
-  const recentVisits = await db.prepare("SELECT v.*, c.gps_latitude as cust_lat, c.gps_longitude as cust_lng FROM visits v JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.created_at >= datetime('now', '-7 days') AND c.gps_latitude IS NOT NULL AND v.gps_latitude IS NOT NULL").bind(tenantId).all();
+  const recentVisits = await db.prepare("SELECT v.*, c.gps_latitude as cust_lat, c.gps_longitude as cust_lng FROM visits v JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.created_at >= datetime('now', '-7 days') AND c.gps_latitude IS NOT NULL AND v.latitude IS NOT NULL").bind(tenantId).all();
 
   for (const visit of (recentVisits.results || [])) {
     const R = 6371e3;
     const toRad = (d) => d * Math.PI / 180;
-    const dLat = toRad(visit.cust_lat - visit.gps_latitude);
-    const dLng = toRad(visit.cust_lng - visit.gps_longitude);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(visit.gps_latitude)) * Math.cos(toRad(visit.cust_lat)) * Math.sin(dLng / 2) ** 2;
+    const dLat = toRad(visit.cust_lat - visit.latitude);
+    const dLng = toRad(visit.cust_lng - visit.longitude);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(visit.latitude)) * Math.cos(toRad(visit.cust_lat)) * Math.sin(dLng / 2) ** 2;
     const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     if (distance > 500) { // >500m from customer
       const flagId = uuidv4();
-      await db.prepare("INSERT OR IGNORE INTO anomaly_flags (id, tenant_id, user_id, anomaly_type, severity, description, reference_type, reference_id, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(flagId, tenantId, visit.agent_id, 'GPS_MISMATCH', distance > 2000 ? 'HIGH' : 'MEDIUM', `Visit GPS ${Math.round(distance)}m from customer location`, 'VISIT', visit.id, JSON.stringify({ distance_meters: Math.round(distance), visit_lat: visit.gps_latitude, visit_lng: visit.gps_longitude, customer_lat: visit.cust_lat, customer_lng: visit.cust_lng })).run();
+      await db.prepare("INSERT OR IGNORE INTO anomaly_flags (id, tenant_id, user_id, anomaly_type, severity, description, reference_type, reference_id, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(flagId, tenantId, visit.agent_id, 'GPS_MISMATCH', distance > 2000 ? 'HIGH' : 'MEDIUM', `Visit GPS ${Math.round(distance)}m from customer location`, 'VISIT', visit.id, JSON.stringify({ distance_meters: Math.round(distance), visit_lat: visit.latitude, visit_lng: visit.longitude, customer_lat: visit.cust_lat, customer_lng: visit.cust_lng })).run();
       detected.push({ type: 'GPS_MISMATCH', visit_id: visit.id, distance: Math.round(distance) });
     }
   }
