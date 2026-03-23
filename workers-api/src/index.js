@@ -132,6 +132,109 @@ const rateLimiter = (limit, windowMs) => async (c, next) => {
 app.get('/', (c) => c.json({ status: 'ok', service: 'FieldVibe API', version: '2.0.0' }));
 app.get('/health', (c) => c.json({ status: 'healthy', timestamp: new Date().toISOString() }));
 
+// ==================== WORKING CALENDAR HELPERS ====================
+// Resolve the effective working_days_config for a given agent/company (agent override > company config > global default)
+async function resolveWorkingDaysConfig(db, tenantId, companyId, agentId) {
+  try {
+    let config = null;
+    if (agentId) {
+      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId, agentId).first();
+      if (!config && companyId) {
+        config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id = ? ORDER BY created_at DESC LIMIT 1').bind(tenantId, agentId, companyId).first();
+      }
+    }
+    if (!config && companyId) {
+      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND company_id = ? AND agent_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId, companyId).first();
+    }
+    if (!config) {
+      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND company_id IS NULL AND agent_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId).first();
+    }
+    if (!config) {
+      config = { monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 0, sunday: 0, public_holidays: '[]' };
+    }
+    return config;
+  } catch {
+    return { monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 0, sunday: 0, public_holidays: '[]' };
+  }
+}
+
+// Count working days in a given month (YYYY-MM) based on a working_days_config
+function countWorkingDaysInMonth(config, month) {
+  try {
+    const [year, mon] = month.split('-').map(Number);
+    const daysInMonth = new Date(year, mon, 0).getDate();
+    const holidays = JSON.parse(config.public_holidays || '[]');
+    const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    let count = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, mon - 1, d);
+      const dayName = dayMap[date.getDay()];
+      const dateStr = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (config[dayName] && !holidays.includes(dateStr)) count++;
+    }
+    return count;
+  } catch {
+    return 22;
+  }
+}
+
+// Build monthly targets from company_target_rules × working days when monthly_targets table is empty
+async function buildFallbackMonthlyTargets(db, tenantId, agentId, currentMonth, agentCompanyIds) {
+  const fallbackTargets = [];
+  if (!agentCompanyIds || agentCompanyIds.length === 0) return fallbackTargets;
+  try {
+    const ph = agentCompanyIds.map(() => '?').join(',');
+    const ctrResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all();
+    const rules = ctrResult.results || [];
+    for (const ctr of rules) {
+      const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, agentId);
+      const workingDays = countWorkingDaysInMonth(wdConfig, currentMonth);
+      const dailyVisits = ctr.target_visits_per_day || 0;
+      const dailyRegs = ctr.target_registrations_per_day || 0;
+      const dailyConvs = ctr.target_conversions_per_day || 0;
+      fallbackTargets.push({
+        company_id: ctr.company_id,
+        company_name: ctr.company_name,
+        target_visits: dailyVisits * workingDays,
+        target_registrations: dailyRegs * workingDays,
+        target_conversions: dailyConvs * workingDays,
+        actual_visits: 0,
+        actual_registrations: 0,
+        actual_conversions: 0,
+        working_days: workingDays,
+        commission_rate: 0,
+        commission_amount: 0,
+        store_visits: 0,
+        individual_visits: 0,
+        source: 'company_rule',
+      });
+    }
+  } catch { /* */ }
+  return fallbackTargets;
+}
+
+// Build fallback targets for a single user (used in team lead / manager context)
+async function getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth) {
+  let totalTargetVisits = 0;
+  let totalTargetRegs = 0;
+  try {
+    // Get user's companies
+    const companiesResult = await db.prepare("SELECT fc.id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+    const companyIds = (companiesResult.results || []).map(c => c.id);
+    if (companyIds.length > 0) {
+      const ph = companyIds.map(() => '?').join(',');
+      const rules = await db.prepare(`SELECT * FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph})`).bind(tenantId, ...companyIds).all();
+      for (const ctr of (rules.results || [])) {
+        const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, userId);
+        const workingDays = countWorkingDaysInMonth(wdConfig, currentMonth);
+        totalTargetVisits += (ctr.target_visits_per_day || 0) * workingDays;
+        totalTargetRegs += (ctr.target_registrations_per_day || 0) * workingDays;
+      }
+    }
+  } catch { /* */ }
+  return { target_visits: totalTargetVisits, target_registrations: totalTargetRegs };
+}
+
 // ==================== PHONE NORMALIZATION ====================
 function normalizePhone(phone) {
   if (!phone) return null;
@@ -467,11 +570,13 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       weekVisitsByCompany = await db.prepare(`SELECT company_id, visit_type, COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? GROUP BY company_id, visit_type`).bind(tenantId, userId, weekStartStr).all();
     } catch { /* */ }
 
-    // Build per-company weekly/monthly targets with store/individual split
-    const workingDaysPerWeek = 5;
-    const workingDaysPerMonth = 22;
+    // Build per-company weekly/monthly targets with store/individual split using working calendar
     let weekTargetVisits = 0, weekTargetRegs = 0, monthTargetVisits = 0, monthTargetRegs = 0;
-    const companyTargets = companyTargetRules.map(ctr => {
+    const companyTargets = [];
+    for (const ctr of companyTargetRules) {
+      const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, userId);
+      const workingDaysPerMonth = countWorkingDaysInMonth(wdConfig, currentMonth);
+      const workingDaysPerWeek = ctr.working_days_per_week || 5;
       const ca = perCompanyActuals[ctr.company_id] || {};
       const cr = perCompanyRegsLookup[ctr.company_id] || {};
       // Weekly actuals for this company
@@ -489,9 +594,10 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       weekTargetRegs += dayRegTarget * workingDaysPerWeek;
       monthTargetVisits += dayTarget * workingDaysPerMonth;
       monthTargetRegs += dayRegTarget * workingDaysPerMonth;
-      return {
+      companyTargets.push({
         company_id: ctr.company_id,
         company_name: ctr.company_name,
+        working_days_in_month: workingDaysPerMonth,
         // Daily targets
         daily_target_visits: dayTarget,
         daily_target_registrations: dayRegTarget,
@@ -517,8 +623,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         month_actual_visits: ca.month_visits || 0,
         month_target_registrations: dayRegTarget * workingDaysPerMonth,
         month_actual_registrations: cr.month || 0,
-      };
-    });
+      });
+    }
 
     return c.json({
       success: true,
@@ -598,9 +704,19 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
         db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND target_month = ?").bind(tenantId, teamLeadId, tenantId, currentMonth).first(),
         db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, teamLeadId, currentMonth).first(),
       ]);
-      const teamTargetVisits = (agentTargets?.target_visits || 0) + (tlOwnTargets?.target_visits || 0);
+      let teamTargetVisits = (agentTargets?.target_visits || 0) + (tlOwnTargets?.target_visits || 0);
+      let teamTargetRegs = (agentTargets?.target_registrations || 0) + (tlOwnTargets?.target_registrations || 0);
+      // Fall back to company_target_rules if monthly_targets are empty
+      if (teamTargetVisits === 0 && teamTargetRegs === 0) {
+        const teamMemberIds = (teamMembers?.results || []).map(m => m.id);
+        const allTeamUserIds = [teamLeadId, ...teamMemberIds];
+        for (const uid of allTeamUserIds) {
+          const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth);
+          teamTargetVisits += fb.target_visits;
+          teamTargetRegs += fb.target_registrations;
+        }
+      }
       const teamActualVisits = totalTeamVisits; // use live COUNT from visits table
-      const teamTargetRegs = (agentTargets?.target_registrations || 0) + (tlOwnTargets?.target_registrations || 0);
       const teamActualRegs = totalTeamRegs; // use live COUNT from individual_registrations table
       const teamAchievement = teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0;
       teamPerformance = {
@@ -638,6 +754,13 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
             mgrTargetVisits = perfMgrTargets?.tv || 0;
             mgrActualVisits = perfMgrLiveVisits?.count || 0;
           }
+          // Fall back to company_target_rules if monthly_targets are empty for manager scope
+          if (mgrTargetVisits === 0) {
+            for (const uid of perfAllMgrUserIds) {
+              const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth);
+              mgrTargetVisits += fb.target_visits;
+            }
+          }
         }
         managerPerformance = {
           manager_name: managerInfo ? (managerInfo.first_name + ' ' + managerInfo.last_name) : 'Manager',
@@ -671,8 +794,15 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       }
     }
 
+    // Fall back to company_target_rules when monthly_targets is empty
+    let targets = monthlyTargets.results || [];
+    if (targets.length === 0) {
+      // Get agent's assigned companies
+      const agentCompanies = await db.prepare("SELECT fc.id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+      const agentCompanyIds = (agentCompanies.results || []).map(co => co.id);
+      targets = await buildFallbackMonthlyTargets(db, tenantId, userId, currentMonth, agentCompanyIds);
+    }
     // Enrich monthly targets with live visit/reg counts (actual_visits in DB may be stale)
-    const targets = monthlyTargets.results || [];
     const monthStartDate = currentMonth + '-01';
     for (const t of targets) {
       const companyFilter = t.company_id ? ' AND company_id = ?' : '';
@@ -785,9 +915,15 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
         db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
       ]);
-      const tlTV = tlOwnTargets?.target_visits || 0;
+      let tlTV = tlOwnTargets?.target_visits || 0;
+      let tlTR = tlOwnTargets?.target_registrations || 0;
+      // Fall back to company_target_rules if monthly_targets are empty
+      if (tlTV === 0 && tlTR === 0) {
+        const fb = await getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth);
+        tlTV = fb.target_visits;
+        tlTR = fb.target_registrations;
+      }
       const tlAV = tlOwnLiveVisits?.count || 0;
-      const tlTR = tlOwnTargets?.target_registrations || 0;
       const tlAR = tlOwnLiveRegs?.count || 0;
       const tlAch = tlTV > 0 ? Math.round((tlAV / tlTV) * 100) : 0;
       const earlyTiers = tlCommTiers.results || [];
@@ -816,6 +952,13 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
             ]);
             mTV = earlyMgrTargets?.tv || 0;
             mAV = earlyMgrLiveVisits?.count || 0;
+          }
+          // Fall back to company_target_rules if monthly_targets are empty for manager scope
+          if (mTV === 0 && earlyAllMgrUserIds.length > 0) {
+            for (const uid of earlyAllMgrUserIds) {
+              const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth);
+              mTV += fb.target_visits;
+            }
           }
         }
         earlyMgrPerf = { manager_name: mgrInfo ? (mgrInfo.first_name + ' ' + mgrInfo.last_name) : 'Manager', achievement: mTV > 0 ? Math.round((mAV / mTV) * 100) : 0 };
@@ -849,8 +992,14 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
         db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, member.id, currentMonth).first(),
       ]);
-      const tv = targets?.target_visits || 0;
-      const tr = targets?.target_registrations || 0;
+      let tv = targets?.target_visits || 0;
+      let tr = targets?.target_registrations || 0;
+      // Fall back to company_target_rules if monthly_targets are empty
+      if (tv === 0 && tr === 0) {
+        const fb = await getUserMonthlyTargetFromRules(db, tenantId, member.id, currentMonth);
+        tv = fb.target_visits;
+        tr = fb.target_registrations;
+      }
       // Use real COUNT from visits table (not monthly_targets.actual_visits which is never updated)
       const av = monthV?.count || 0;
       const ar = monthR?.count || 0;
@@ -888,9 +1037,15 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
       db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, currentMonth + '-01').first(),
       db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, userId, currentMonth + '-01').first(),
     ]);
-    const tlOwnTV = tlOwnTargets?.target_visits || 0;
+    let tlOwnTV = tlOwnTargets?.target_visits || 0;
+    let tlOwnTR = tlOwnTargets?.target_registrations || 0;
+    // Fall back to company_target_rules if monthly_targets are empty for team lead
+    if (tlOwnTV === 0 && tlOwnTR === 0) {
+      const fb = await getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth);
+      tlOwnTV = fb.target_visits;
+      tlOwnTR = fb.target_registrations;
+    }
     const tlOwnAV = tlOwnVisitCount?.count || 0;
-    const tlOwnTR = tlOwnTargets?.target_registrations || 0;
     const tlOwnAR = tlOwnRegCount?.count || 0;
     const teamTargetVisits = agentTargetVisits + tlOwnTV;
     const teamActualVisits = agentActualVisits + tlOwnAV;
@@ -948,6 +1103,13 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
           ]);
           mgrTV = mgrTargets2?.tv || 0;
           mgrAV = mgrLiveVisits2?.count || 0;
+        }
+        // Fall back to company_target_rules if monthly_targets are empty for manager scope
+        if (mgrTV === 0 && allMgrUserIds2.length > 0) {
+          for (const uid of allMgrUserIds2) {
+            const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth);
+            mgrTV += fb.target_visits;
+          }
         }
       }
       tlManagerPerf = { manager_name: mgrInfo ? (mgrInfo.first_name + ' ' + mgrInfo.last_name) : 'Manager', achievement: mgrTV > 0 ? Math.round((mgrAV / mgrTV) * 100) : 0 };
@@ -1051,6 +1213,14 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         teamActualVisits = teamVisits;
         teamTargetRegs = tRes?.tr || 0;
         teamActualRegs = teamRegs;
+        // Fall back to company_target_rules if monthly_targets are empty for agents
+        if (teamTargetVisits === 0 && teamTargetRegs === 0) {
+          for (const mid of memberIds) {
+            const fb = await getUserMonthlyTargetFromRules(db, tenantId, mid, currentMonth);
+            teamTargetVisits += fb.target_visits;
+            teamTargetRegs += fb.target_registrations;
+          }
+        }
       }
 
       // Include team lead's own targets and real visit counts in team totals
@@ -1059,9 +1229,17 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, tl.id, currentMonth + '-01').first(),
         db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, tl.id, currentMonth + '-01').first(),
       ]);
-      teamTargetVisits += (tlOwnTgt?.tv || 0);
+      let tlOwnTgtTV = tlOwnTgt?.tv || 0;
+      let tlOwnTgtTR = tlOwnTgt?.tr || 0;
+      // Fall back to company_target_rules if monthly_targets are empty for team lead
+      if (tlOwnTgtTV === 0 && tlOwnTgtTR === 0) {
+        const fb = await getUserMonthlyTargetFromRules(db, tenantId, tl.id, currentMonth);
+        tlOwnTgtTV = fb.target_visits;
+        tlOwnTgtTR = fb.target_registrations;
+      }
+      teamTargetVisits += tlOwnTgtTV;
       teamActualVisits += (tlOwnVC?.count || 0);
-      teamTargetRegs += (tlOwnTgt?.tr || 0);
+      teamTargetRegs += tlOwnTgtTR;
       teamActualRegs += (tlOwnRC?.count || 0);
 
       teamsData.push({
@@ -1075,7 +1253,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         target_registrations: teamTargetRegs,
         actual_registrations: teamActualRegs,
         achievement: teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0,
-        team_lead_own: { target_visits: tlOwnTgt?.tv || 0, actual_visits: tlOwnVC?.count || 0, target_registrations: tlOwnTgt?.tr || 0, actual_registrations: tlOwnRC?.count || 0 },
+        team_lead_own: { target_visits: tlOwnTgtTV, actual_visits: tlOwnVC?.count || 0, target_registrations: tlOwnTgtTR, actual_registrations: tlOwnRC?.count || 0 },
       });
     }
 
