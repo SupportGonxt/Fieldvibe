@@ -1070,11 +1070,18 @@ export default function VisitCreate() {
                               key={opt}
                               control={
                                 <Checkbox
-                                  checked={selected.includes(opt)}
+                                  checked={opt === 'Other' ? selected.some(s => s === 'Other' || s.startsWith('Other:')) : selected.includes(opt)}
                                   onChange={(e) => {
-                                    const newSelected = e.target.checked
-                                      ? [...selected, opt]
-                                      : selected.filter(s => s !== opt)
+                                    let newSelected: string[]
+                                    if (opt === 'Other') {
+                                      newSelected = e.target.checked
+                                        ? [...selected.filter(s => s !== 'Other' && !s.startsWith('Other:')), 'Other']
+                                        : selected.filter(s => s !== 'Other' && !s.startsWith('Other:'))
+                                    } else {
+                                      newSelected = e.target.checked
+                                        ? [...selected, opt]
+                                        : selected.filter(s => s !== opt)
+                                    }
                                     setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: newSelected.join(',') }))
                                   }}
                                 />
@@ -1084,6 +1091,28 @@ export default function VisitCreate() {
                           )
                         })}
                       </FormGroup>
+                      {(() => {
+                        const selected: string[] = val ? val.split(',') : []
+                        const hasOther = selected.some(s => s === 'Other' || s.startsWith('Other:'))
+                        if (!hasOther) return null
+                        const otherVal = selected.find(s => s.startsWith('Other:'))?.replace('Other:', '') || ''
+                        return (
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Please specify"
+                            value={otherVal}
+                            onChange={(e) => {
+                              const newVal = e.target.value
+                              const filtered = selected.filter(s => s !== 'Other' && !s.startsWith('Other:'))
+                              filtered.push(newVal ? `Other:${newVal}` : 'Other')
+                              setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: filtered.join(',') }))
+                            }}
+                            sx={{ mt: 1 }}
+                            placeholder="Enter name..."
+                          />
+                        )
+                      })()}
                     </FormControl>
                   ) : q.field_type === 'toggle' ? (
                     <FormControl component="fieldset" fullWidth>
