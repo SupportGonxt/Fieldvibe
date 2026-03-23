@@ -252,6 +252,10 @@ export default function VisitCreate() {
   // Compute active steps: skip photo step for individual visits, skip empty steps
   const activeSteps = useMemo(() => {
     if (processFlowSteps.length === 0) {
+      // Use full default steps when visit type is known (prevents race condition
+      // where user could skip to Submit before process flow API returns)
+      if (visitTargetType === 'store') return DEFAULT_STORE_STEPS
+      if (visitTargetType === 'individual') return DEFAULT_INDIVIDUAL_STEPS
       return [
         { step_key: 'gps', step_label: 'GPS Check-in', is_required: 1 },
         { step_key: 'visit_type', step_label: 'Visit Type', is_required: 1 },
