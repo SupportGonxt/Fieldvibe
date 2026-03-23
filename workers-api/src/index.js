@@ -138,9 +138,11 @@ async function resolveWorkingDaysConfig(db, tenantId, companyId, agentId) {
   try {
     let config = null;
     if (agentId) {
-      config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId, agentId).first();
-      if (!config && companyId) {
+      if (companyId) {
         config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id = ? ORDER BY created_at DESC LIMIT 1').bind(tenantId, agentId, companyId).first();
+      }
+      if (!config) {
+        config = await db.prepare('SELECT * FROM working_days_config WHERE tenant_id = ? AND agent_id = ? AND company_id IS NULL ORDER BY created_at DESC LIMIT 1').bind(tenantId, agentId).first();
       }
     }
     if (!config && companyId) {
@@ -454,6 +456,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const userId = c.get('userId');
     const today = new Date().toISOString().split('T')[0];
     const monthStart = today.substring(0, 7) + '-01';
+    const currentMonth = today.substring(0, 7);
 
     // Query visits, registrations, companies separately to handle missing columns/tables gracefully
     let todayVisits = { count: 0 };
