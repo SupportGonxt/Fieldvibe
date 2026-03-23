@@ -1474,7 +1474,13 @@ export default function VisitCreate() {
               <Typography variant="subtitle2" color="text.secondary">Company Questions</Typography>
               {Object.entries(customQuestionValues).map(([key, value]) => {
                 const cq = customQuestions.find(q => q.question_key === key)
-                return (
+                const isImage = cq?.field_type === 'image' || (typeof value === 'string' && value.startsWith('data:image/'))
+                return isImage ? (
+                  <Box key={key} sx={{ mb: 1 }}>
+                    <Typography variant="body2" fontWeight="medium">{cq?.question_label || key}:</Typography>
+                    <img src={value} alt={cq?.question_label || key} style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 4, marginTop: 4 }} />
+                  </Box>
+                ) : (
                   <Typography key={key} variant="body2">{cq?.question_label || key}: {value}</Typography>
                 )
               })}
