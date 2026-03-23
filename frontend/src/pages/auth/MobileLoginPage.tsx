@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Phone, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+import { Phone, Lock, Eye, EyeOff, Loader2, AlertCircle, User } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { API_CONFIG } from '../../config/api.config'
 
 const MobileLoginPage: React.FC = () => {
   const navigate = useNavigate()
   const [phone, setPhone] = useState('')
+  const [loginMode, setLoginMode] = useState<'phone' | 'name'>('phone')
   const [pin, setPin] = useState('')
   const [showPin, setShowPin] = useState(false)
   const [error, setError] = useState('')
@@ -36,7 +37,11 @@ const MobileLoginPage: React.FC = () => {
   }
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhone(formatPhone(e.target.value))
+    if (loginMode === 'phone') {
+      setPhone(formatPhone(e.target.value))
+    } else {
+      setPhone(e.target.value)
+    }
     setError('')
   }
 
@@ -51,8 +56,8 @@ const MobileLoginPage: React.FC = () => {
     setError('')
     setLoading(true)
 
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid phone number')
+    if (!phone || (loginMode === 'phone' && phone.length < 10) || (loginMode === 'name' && phone.length < 2)) {
+      setError(loginMode === 'phone' ? 'Please enter a valid phone number' : 'Please enter your name')
       setLoading(false)
       triggerShake()
       return
@@ -140,18 +145,40 @@ const MobileLoginPage: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Phone */}
+              {/* Login Mode Toggle */}
+              <div className="flex bg-white/5 rounded-xl border border-white/10 p-1 mb-1">
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode('phone'); setPhone(''); setError(''); }}
+                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${loginMode === 'phone' ? 'bg-[#00E87B]/20 text-[#00E87B] border border-[#00E87B]/30' : 'text-gray-400 hover:text-gray-300'}`}
+                >
+                  Phone Number
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode('name'); setPhone(''); setError(''); }}
+                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${loginMode === 'name' ? 'bg-[#00E87B]/20 text-[#00E87B] border border-[#00E87B]/30' : 'text-gray-400 hover:text-gray-300'}`}
+                >
+                  Name
+                </button>
+              </div>
+
+              {/* Phone / Name */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Phone Number</label>
+                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">{loginMode === 'phone' ? 'Phone Number' : 'Your Name'}</label>
                 <div className="relative">
-                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  {loginMode === 'phone' ? (
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  ) : (
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  )}
                   <input
-                    type="tel"
+                    type={loginMode === 'phone' ? 'tel' : 'text'}
                     value={phone}
                     onChange={handlePhoneChange}
-                    placeholder="+27 82 000 0001"
+                    placeholder={loginMode === 'phone' ? '+27 82 000 0001' : 'Enter your first name'}
                     autoFocus
-                    autoComplete="tel"
+                    autoComplete={loginMode === 'phone' ? 'tel' : 'name'}
                     className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base"
                   />
                 </div>

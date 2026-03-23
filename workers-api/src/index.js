@@ -253,22 +253,31 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
   try {
     const body = await c.req.json();
     const { phone, pin, tenant_code } = body;
-    if (!phone || !pin) return c.json({ success: false, message: 'Phone number and PIN are required' }, 400);
+    if (!phone || !pin) return c.json({ success: false, message: 'Phone number or name and PIN are required' }, 400);
     if (pin.length < 4 || pin.length > 6) return c.json({ success: false, message: 'PIN must be 4-6 digits' }, 400);
     const db = c.env.DB;
     // Resolve tenant_id from tenant_code (or X-Tenant-Code header) for multi-tenant scoping
     let tenantFilter = '';
-    let tenantBinds = [phone];
     const tCode = tenant_code || c.req.header('X-Tenant-Code');
+    let tenantId = null;
     if (tCode) {
       const tenant = await db.prepare('SELECT id FROM tenants WHERE code = ?').bind(tCode).first();
       if (tenant) {
         tenantFilter = ' AND tenant_id = ?';
-        tenantBinds.push(tenant.id);
+        tenantId = tenant.id;
       }
     }
-    // Find agent by phone number (scoped to tenant if provided)
-    const user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep', 'manager')${tenantFilter}`).bind(...tenantBinds).first();
+    // Find agent by phone number first, then fallback to name (case-insensitive)
+    const roleFilter = "AND role IN ('agent', 'team_lead', 'field_agent', 'sales_rep', 'manager')";
+    let user = null;
+    // Try exact phone match first
+    const phoneBinds = tenantId ? [phone, tenantId] : [phone];
+    user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...phoneBinds).first();
+    // If no match, try matching by first_name (case-insensitive) for migrated agents
+    if (!user) {
+      const nameBinds = tenantId ? [phone.toLowerCase(), tenantId] : [phone.toLowerCase()];
+      user = await db.prepare(`SELECT * FROM users WHERE LOWER(first_name) = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...nameBinds).first();
+    }
     if (!user) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
     // Verify PIN (stored as pin_hash, fallback to password_hash for backward compat)
     const pinHash = user.pin_hash || user.password_hash;
