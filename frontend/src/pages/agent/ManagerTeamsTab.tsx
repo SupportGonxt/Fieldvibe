@@ -167,28 +167,28 @@ export default function ManagerTeamsTab() {
               <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-4 h-4 text-blue-400" /></div>
               <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.today_visits || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.org_totals?.today_individual_visits ?? data?.org_totals?.today_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-purple-500/10"><UserCheck className="w-4 h-4 text-purple-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individuals</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.today_registrations || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.org_totals?.today_store_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-400" /></div>
               <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.month_visits || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.org_totals?.month_individual_visits ?? data?.org_totals?.month_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-amber-500/10"><Target className="w-4 h-4 text-amber-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individuals</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.month_registrations || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.org_totals?.month_store_visits ?? 0}</p>
           </div>
         </div>
       </div>
@@ -441,28 +441,28 @@ export default function ManagerTeamsTab() {
                     <div className="px-3 pb-3 pt-0 border-t border-white/5">
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div className="bg-white/5 rounded-lg p-2">
-                                                  <p className="text-[10px] text-gray-500">Month Individual</p>
-                                                  <p className="text-sm font-semibold text-white">{team.month_visits}</p>
-                                                </div>
-                                                <div className="bg-white/5 rounded-lg p-2">
-                                                  <p className="text-[10px] text-gray-500">Month Store</p>
+                          <p className="text-[10px] text-gray-500">Month Individual</p>
+                          <p className="text-sm font-semibold text-white">{team.month_visits}</p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-2">
+                          <p className="text-[10px] text-gray-500">Month Store</p>
                           <p className="text-sm font-semibold text-white">{team.month_registrations}</p>
                         </div>
                       </div>
-                                            {/* Individual target progress */}
-                                            <div className="mt-2">
-                                              <div className="flex justify-between text-[10px] mb-0.5">
-                                                <span className="text-gray-500">Individual Target</span>
+                      {/* Individual target progress */}
+                      <div className="mt-2">
+                        <div className="flex justify-between text-[10px] mb-0.5">
+                          <span className="text-gray-500">Individual Target</span>
                           <span className="text-white">{team.actual_visits}/{team.target_visits} <span className={pctClass(teamVPct)}>({teamVPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: teamVPct + '%', backgroundColor: progressColor(teamVPct) }} />
                         </div>
                       </div>
-                                            {/* Store target progress */}
-                                            <div className="mt-1.5">
-                                              <div className="flex justify-between text-[10px] mb-0.5">
-                                                <span className="text-gray-500">Store Target</span>
+                      {/* Store target progress */}
+                      <div className="mt-1.5">
+                        <div className="flex justify-between text-[10px] mb-0.5">
+                          <span className="text-gray-500">Store Target</span>
                           <span className="text-white">{team.actual_registrations}/{team.target_registrations} <span className={pctClass(teamRPct)}>({teamRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">

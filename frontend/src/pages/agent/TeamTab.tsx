@@ -173,28 +173,28 @@ export default function TeamTab() {
               <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-4 h-4 text-blue-400" /></div>
               <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.today_visits || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.today_individual_visits ?? data?.team_totals?.today_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-purple-500/10"><UserCheck className="w-4 h-4 text-purple-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individuals</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.today_registrations || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.today_store_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-400" /></div>
               <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.month_visits || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.month_individual_visits ?? data?.team_totals?.month_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-amber-500/10"><Target className="w-4 h-4 text-amber-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individuals</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.month_registrations || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.month_store_visits ?? 0}</p>
           </div>
         </div>
       </div>
