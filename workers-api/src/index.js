@@ -232,7 +232,7 @@ app.post('/api/auth/login', rateLimiter(5, 900000), async (c) => {
     if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
     const { email, phone, password } = v.data;
     const db = c.env.DB;
-    const loginField = email || phone;
+    const loginField = email || normalizePhone(phone);
     const user = await db.prepare('SELECT * FROM users WHERE (email = ? OR phone = ?) AND is_active = 1').bind(loginField, loginField).first();
     if (!user) return c.json({ success: false, message: 'Invalid credentials' }, 401);
     const validPassword = await bcrypt.compare(password, user.password_hash);
