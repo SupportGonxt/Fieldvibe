@@ -884,7 +884,6 @@ export default function VisitCreate() {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  required
                   label="First Name *"
                   value={individualFirstName}
                   onChange={(e) => setIndividualFirstName(e.target.value)}
@@ -895,7 +894,6 @@ export default function VisitCreate() {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  required
                   label="Last Name *"
                   value={individualLastName}
                   onChange={(e) => setIndividualLastName(e.target.value)}
