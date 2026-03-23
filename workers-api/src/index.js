@@ -604,7 +604,6 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       const workingDaysPerWeek = ctr.working_days_per_week || 5;
       const ca = perCompanyActuals[ctr.company_id] || {};
       const cr = perCompanyRegsLookup[ctr.company_id] || {};
-      const wd = companyWdCache[ctr.company_id] || { perWeek: 5, perMonth: 22 };
       // Weekly actuals for this company
       let weekStoreVisits = 0, weekIndividualVisits = 0, weekTotalVisits = 0;
       for (const wv of (weekVisitsByCompany.results || [])) {
@@ -641,13 +640,13 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         individual_actual_today: ca.today_individual_visits || 0,
         individual_actual_week: weekIndividualVisits,
         // Weekly totals
-        week_target_visits: dayTarget * wd.perWeek,
+        week_target_visits: dayTarget * workingDaysPerWeek,
         week_actual_visits: weekTotalVisits,
-        week_target_registrations: dayRegTarget * wd.perWeek,
+        week_target_registrations: dayRegTarget * workingDaysPerWeek,
         // Monthly totals
-        month_target_visits: dayTarget * wd.perMonth,
+        month_target_visits: dayTarget * workingDaysPerMonth,
         month_actual_visits: ca.month_visits || 0,
-        month_target_registrations: dayRegTarget * wd.perMonth,
+        month_target_registrations: dayRegTarget * workingDaysPerMonth,
         month_actual_registrations: cr.month || 0,
       });
     }
