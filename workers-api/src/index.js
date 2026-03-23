@@ -274,16 +274,32 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
     const phoneBinds = tenantId ? [phone, tenantId] : [phone];
     user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...phoneBinds).first();
     // If no match, try matching by first_name (case-insensitive) for migrated agents
+    // Uses .all() to handle duplicate first names — verifies PIN against each candidate
+    let pinVerified = false;
     if (!user) {
       const nameBinds = tenantId ? [phone.toLowerCase(), tenantId] : [phone.toLowerCase()];
-      user = await db.prepare(`SELECT * FROM users WHERE LOWER(first_name) = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...nameBinds).first();
+      const candidates = await db.prepare(`SELECT * FROM users WHERE LOWER(first_name) = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...nameBinds).all();
+      for (const candidate of (candidates.results || [])) {
+        const candidatePinHash = candidate.pin_hash || candidate.password_hash;
+        if (candidatePinHash && await bcrypt.compare(pin, candidatePinHash)) {
+          user = candidate;
+          pinVerified = true;
+          break;
+        }
+      }
+      if (!user && (candidates.results || []).length > 0) {
+        return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
+      }
     }
     if (!user) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
     // Verify PIN (stored as pin_hash, fallback to password_hash for backward compat)
-    const pinHash = user.pin_hash || user.password_hash;
-    if (!pinHash) return c.json({ success: false, message: 'PIN not set. Contact your manager to set a PIN.' }, 401);
-    const validPin = await bcrypt.compare(pin, pinHash);
-    if (!validPin) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
+    // Skip if already verified during name-based candidate matching
+    if (!pinVerified) {
+      const pinHash = user.pin_hash || user.password_hash;
+      if (!pinHash) return c.json({ success: false, message: 'PIN not set. Contact your manager to set a PIN.' }, 401);
+      const validPin = await bcrypt.compare(pin, pinHash);
+      if (!validPin) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
+    }
     const jwtSecret = c.env.JWT_SECRET;
     if (!jwtSecret) return c.json({ success: false, message: 'Server configuration error' }, 500);
     const accessToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role }, jwtSecret);
