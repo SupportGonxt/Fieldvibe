@@ -274,11 +274,11 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
     const phoneBinds = tenantId ? [phone, tenantId] : [phone];
     user = await db.prepare(`SELECT * FROM users WHERE phone = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...phoneBinds).first();
     // If no match, try matching by first_name (case-insensitive) for migrated agents
-    // Uses .all() to handle duplicate first names — verifies PIN against each candidate
+    // Requires tenant scoping to prevent cross-tenant auth; caps candidates at 5 to limit bcrypt CPU
     let pinVerified = false;
-    if (!user) {
-      const nameBinds = tenantId ? [phone.toLowerCase(), tenantId] : [phone.toLowerCase()];
-      const candidates = await db.prepare(`SELECT * FROM users WHERE LOWER(first_name) = ? AND is_active = 1 ${roleFilter}${tenantFilter}`).bind(...nameBinds).all();
+    if (!user && tenantId) {
+      const nameBinds = [phone.toLowerCase(), tenantId];
+      const candidates = await db.prepare(`SELECT * FROM users WHERE LOWER(first_name) = ? AND is_active = 1 ${roleFilter} AND tenant_id = ? LIMIT 5`).bind(...nameBinds).all();
       for (const candidate of (candidates.results || [])) {
         const candidatePinHash = candidate.pin_hash || candidate.password_hash;
         if (candidatePinHash && await bcrypt.compare(pin, candidatePinHash)) {

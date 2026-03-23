@@ -70,10 +70,11 @@ const MobileLoginPage: React.FC = () => {
     }
 
     try {
+      const tenantCode = localStorage.getItem('tenantCode') || undefined
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/mobile-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, pin })
+        body: JSON.stringify({ phone, pin, tenant_code: tenantCode })
       })
 
       const data = await response.json()
