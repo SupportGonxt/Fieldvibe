@@ -367,8 +367,16 @@ export default function VisitCreate() {
       const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitTargetType || undefined)
       const questions = res?.data || res || []
       const allQuestions = Array.isArray(questions) ? questions : []
-      // Filter out questions flagged as duplicates of built-in flow fields
-      setCustomQuestions(allQuestions.filter((q: CustomQuestion) => !isDuplicateFlowQuestion(q)))
+      const filtered = allQuestions.filter((q: CustomQuestion) => !isDuplicateFlowQuestion(q))
+      setCustomQuestions(filtered)
+      // Initialize toggle questions to 'No' so the visual state matches the stored value
+      const toggleDefaults: Record<string, string> = {}
+      for (const q of filtered) {
+        if (q.field_type === 'toggle') toggleDefaults[q.question_key] = 'No'
+      }
+      if (Object.keys(toggleDefaults).length > 0) {
+        setCustomQuestionValues(prev => ({ ...toggleDefaults, ...prev }))
+      }
     } catch (err) {
       console.error('Failed to load custom questions:', err)
     }
@@ -1115,12 +1123,14 @@ export default function VisitCreate() {
                           accept="image/*"
                           capture="environment"
                           hidden
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0]
                             if (!file) return
                             const reader = new FileReader()
-                            reader.onload = (ev) => {
-                              setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: ev.target?.result as string }))
+                            reader.onload = async (ev) => {
+                              const rawDataUrl = ev.target?.result as string
+                              const compressed = await compressImage(rawDataUrl)
+                              setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: compressed }))
                             }
                             reader.readAsDataURL(file)
                           }}
