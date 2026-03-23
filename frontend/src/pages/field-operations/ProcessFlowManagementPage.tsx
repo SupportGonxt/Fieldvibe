@@ -71,6 +71,8 @@ interface CustomQuestion {
   check_duplicate?: boolean | number
   min_length?: number
   max_length?: number
+  show_in_reports?: boolean | number
+  enable_ai_analysis?: boolean | number
 }
 
 // ── Built-in flow fields already captured in the standard visit flow ──
@@ -732,6 +734,8 @@ function CustomQuestionsTab() {
     check_duplicate: false,
     min_length: undefined as number | undefined,
     max_length: undefined as number | undefined,
+    show_in_reports: false,
+    enable_ai_analysis: false,
   })
 
   const { data: companiesResp } = useQuery({
@@ -760,6 +764,8 @@ function CustomQuestionsTab() {
         check_duplicate: form.check_duplicate,
         min_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') ? (form.min_length ?? null) : null,
         max_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') ? (form.max_length ?? null) : null,
+        show_in_reports: form.show_in_reports,
+        enable_ai_analysis: form.enable_ai_analysis,
       }
       if (editingQuestion) {
         return fieldOperationsService.updateCompanyCustomQuestion(editingQuestion.id, payload)
@@ -787,7 +793,7 @@ function CustomQuestionsTab() {
     setShowCreate(false)
     setEditingQuestion(null)
     setKeyManuallyEdited(false)
-    setForm({ company_id: '', question_label: '', question_key: '', field_type: 'text', field_options: '', is_required: false, display_order: 1, visit_target_type: 'both', check_duplicate: false, min_length: undefined, max_length: undefined })
+    setForm({ company_id: '', question_label: '', question_key: '', field_type: 'text', field_options: '', is_required: false, display_order: 1, visit_target_type: 'both', check_duplicate: false, min_length: undefined, max_length: undefined, show_in_reports: false, enable_ai_analysis: false })
   }
 
   function startEdit(q: CustomQuestion) {
@@ -806,6 +812,8 @@ function CustomQuestionsTab() {
       check_duplicate: !!q.check_duplicate,
       min_length: q.min_length,
       max_length: q.max_length,
+      show_in_reports: !!q.show_in_reports,
+      enable_ai_analysis: !!q.enable_ai_analysis,
     })
   }
 
@@ -976,6 +984,18 @@ function CustomQuestionsTab() {
               <input type="checkbox" checked={form.check_duplicate} onChange={e => setForm(prev => ({ ...prev, check_duplicate: e.target.checked }))} className="rounded border-gray-300" />
               <span className="text-sm text-gray-700 dark:text-gray-300">Check for duplicate (flags if similar question exists in the flow)</span>
             </label>
+            {form.field_type === 'image' && (
+              <>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!form.show_in_reports} onChange={e => setForm(prev => ({ ...prev, show_in_reports: e.target.checked }))} className="rounded border-gray-300" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Show as thumbnail in reports (photo appears in visit list and report views)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!form.enable_ai_analysis} onChange={e => setForm(prev => ({ ...prev, enable_ai_analysis: e.target.checked }))} className="rounded border-gray-300" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Enable AI analysis (photo is processed for automated insights)</span>
+                </label>
+              </>
+            )}
           </div>
           {/* Duplicate flow field warning */}
           {form.check_duplicate && form.question_key && (() => {
@@ -1063,6 +1083,16 @@ function CustomQuestionsTab() {
                             {q.check_duplicate && (
                               <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
                                 <AlertCircle className="w-3 h-3" /> Duplicate check
+                              </span>
+                            )}
+                            {q.show_in_reports && (
+                              <span className="inline-flex items-center gap-1 mt-1 ml-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                Report thumbnail
+                              </span>
+                            )}
+                            {q.enable_ai_analysis && (
+                              <span className="inline-flex items-center gap-1 mt-1 ml-1 px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                AI analysis
                               </span>
                             )}
                           </td>

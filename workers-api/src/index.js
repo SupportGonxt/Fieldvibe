@@ -1953,8 +1953,36 @@ api.get('/visits', async (c) => {
   const offset = (pageNum - 1) * limitNum;
   const countR = await db.prepare('SELECT COUNT(*) as total FROM visits v LEFT JOIN customers c ON v.customer_id = c.id ' + where).bind(...params).first();
   const total = countR ? countR.total : 0;
-  const visits = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + ' ORDER BY v.created_at DESC LIMIT ? OFFSET ?').bind(...params, limitNum, offset).all();
-  return c.json({ success: true, data: { visits: visits.results || [], pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } } });
+  const visits = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url, vr.responses as _raw_responses FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_responses vr ON vr.visit_id = v.id " + where + ' ORDER BY v.created_at DESC LIMIT ? OFFSET ?').bind(...params, limitNum, offset).all();
+  // Extract image thumbnails from custom question responses where show_in_reports is enabled
+  const visitRows = visits.results || [];
+  const companyIds = [...new Set(visitRows.map(v => v.company_id).filter(Boolean))];
+  let reportImageKeys = {};
+  if (companyIds.length > 0) {
+    const placeholders = companyIds.map(() => '?').join(',');
+    const imgQs = await db.prepare(`SELECT company_id, question_key FROM company_custom_questions WHERE company_id IN (${placeholders}) AND field_type = 'image' AND show_in_reports = 1 AND is_active = 1`).bind(...companyIds).all();
+    for (const q of (imgQs.results || [])) {
+      if (!reportImageKeys[q.company_id]) reportImageKeys[q.company_id] = [];
+      reportImageKeys[q.company_id].push(q.question_key);
+    }
+  }
+  const enrichedVisits = visitRows.map(v => {
+    const row = { ...v };
+    delete row._raw_responses;
+    if (!row.thumbnail_url && !row.photo_url && v._raw_responses && v.company_id && reportImageKeys[v.company_id]) {
+      try {
+        const resp = typeof v._raw_responses === 'string' ? JSON.parse(v._raw_responses) : v._raw_responses;
+        for (const key of reportImageKeys[v.company_id]) {
+          if (resp[key] && typeof resp[key] === 'string' && (resp[key].startsWith('data:image') || resp[key].startsWith('http'))) {
+            row.thumbnail_url = resp[key];
+            break;
+          }
+        }
+      } catch {}
+    }
+    return row;
+  });
+  return c.json({ success: true, data: { visits: enrichedVisits, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } } });
 });
 
 api.get('/visits/stats', async (c) => {
@@ -6389,11 +6417,12 @@ api.post('/company-custom-questions', authMiddleware, async (c) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   try {
-    await db.prepare('INSERT INTO company_custom_questions (id, tenant_id, company_id, question_label, question_key, field_type, field_options, is_required, display_order, visit_target_type, check_duplicate, min_length, max_length, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+    await db.prepare('INSERT INTO company_custom_questions (id, tenant_id, company_id, question_label, question_key, field_type, field_options, is_required, display_order, visit_target_type, check_duplicate, min_length, max_length, show_in_reports, enable_ai_analysis, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
       id, tenantId, body.company_id, body.question_label, body.question_key,
       body.field_type || 'text', body.field_options ? JSON.stringify(body.field_options) : null,
       body.is_required ? 1 : 0, body.display_order || 0, body.visit_target_type || 'both',
-      body.check_duplicate ? 1 : 0, body.min_length || null, body.max_length || null, now, now
+      body.check_duplicate ? 1 : 0, body.min_length || null, body.max_length || null,
+      body.show_in_reports ? 1 : 0, body.enable_ai_analysis ? 1 : 0, now, now
     ).run();
     return c.json({ data: { id, ...body }, message: 'Custom question created' }, 201);
   } catch (err) { return c.json({ error: 'Failed to create custom question: ' + (err.message || err) }, 500); }
@@ -6406,7 +6435,7 @@ api.put('/company-custom-questions/:id', authMiddleware, async (c) => {
   const body = await c.req.json();
   try {
     // Use direct assignment for min_length/max_length so null clears the value (COALESCE would preserve old value)
-    await db.prepare('UPDATE company_custom_questions SET question_label = COALESCE(?, question_label), question_key = COALESCE(?, question_key), field_type = COALESCE(?, field_type), field_options = COALESCE(?, field_options), is_required = COALESCE(?, is_required), display_order = COALESCE(?, display_order), visit_target_type = COALESCE(?, visit_target_type), check_duplicate = COALESCE(?, check_duplicate), min_length = ?, max_length = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(
+    await db.prepare('UPDATE company_custom_questions SET question_label = COALESCE(?, question_label), question_key = COALESCE(?, question_key), field_type = COALESCE(?, field_type), field_options = COALESCE(?, field_options), is_required = COALESCE(?, is_required), display_order = COALESCE(?, display_order), visit_target_type = COALESCE(?, visit_target_type), check_duplicate = COALESCE(?, check_duplicate), min_length = ?, max_length = ?, show_in_reports = COALESCE(?, show_in_reports), enable_ai_analysis = COALESCE(?, enable_ai_analysis), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(
       body.question_label || null, body.question_key || null, body.field_type || null,
       body.field_options ? JSON.stringify(body.field_options) : null,
       body.is_required !== undefined ? (body.is_required ? 1 : 0) : null,
@@ -6415,6 +6444,8 @@ api.put('/company-custom-questions/:id', authMiddleware, async (c) => {
       body.check_duplicate !== undefined ? (body.check_duplicate ? 1 : 0) : null,
       body.min_length !== undefined ? (body.min_length ?? null) : null,
       body.max_length !== undefined ? (body.max_length ?? null) : null,
+      body.show_in_reports !== undefined ? (body.show_in_reports ? 1 : 0) : null,
+      body.enable_ai_analysis !== undefined ? (body.enable_ai_analysis ? 1 : 0) : null,
       id, tenantId
     ).run();
     return c.json({ message: 'Custom question updated' });
@@ -6457,11 +6488,33 @@ api.get('/individual-visits-report', authMiddleware, async (c) => {
     if (agent_id) { query += ' AND v.agent_id = ?'; params.push(agent_id); }
     query += ' ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 500';
     const rows = await db.prepare(query).bind(...params).all();
-    const data = (rows?.results || []).map(r => ({
-      ...r,
-      custom_field_values: r.custom_field_values ? (typeof r.custom_field_values === 'string' ? (() => { try { return JSON.parse(r.custom_field_values) } catch { return {} } })() : r.custom_field_values) : {},
-      survey_responses: r.survey_responses ? (typeof r.survey_responses === 'string' ? (() => { try { return JSON.parse(r.survey_responses) } catch { return {} } })() : r.survey_responses) : {}
-    }));
+    // Get image question keys marked show_in_reports for the relevant companies
+    const reportCompanyIds = [...new Set((rows?.results || []).map(r => r.company_id || r.brand_id).filter(Boolean))];
+    let reportImgKeys = {};
+    if (reportCompanyIds.length > 0) {
+      const ph = reportCompanyIds.map(() => '?').join(',');
+      const imgQs = await db.prepare(`SELECT company_id, question_key, question_label FROM company_custom_questions WHERE company_id IN (${ph}) AND field_type = 'image' AND show_in_reports = 1 AND is_active = 1`).bind(...reportCompanyIds).all();
+      for (const q of (imgQs.results || [])) {
+        if (!reportImgKeys[q.company_id]) reportImgKeys[q.company_id] = [];
+        reportImgKeys[q.company_id].push({ key: q.question_key, label: q.question_label });
+      }
+    }
+    const data = (rows?.results || []).map(r => {
+      const custom_field_values = r.custom_field_values ? (typeof r.custom_field_values === 'string' ? (() => { try { return JSON.parse(r.custom_field_values) } catch { return {} } })() : r.custom_field_values) : {};
+      const survey_responses = r.survey_responses ? (typeof r.survey_responses === 'string' ? (() => { try { return JSON.parse(r.survey_responses) } catch { return {} } })() : r.survey_responses) : {};
+      // Extract photo thumbnails from responses for questions with show_in_reports
+      const cid = r.company_id || r.brand_id;
+      const photo_thumbnails = [];
+      if (cid && reportImgKeys[cid]) {
+        const allResp = { ...custom_field_values, ...survey_responses };
+        for (const { key, label } of reportImgKeys[cid]) {
+          if (allResp[key] && typeof allResp[key] === 'string' && (allResp[key].startsWith('data:image') || allResp[key].startsWith('http'))) {
+            photo_thumbnails.push({ key, label, url: allResp[key] });
+          }
+        }
+      }
+      return { ...r, custom_field_values, survey_responses, photo_thumbnails };
+    });
     return c.json({ data });
   } catch (err) { return c.json({ error: 'Failed to get individual visits report: ' + (err.message || err) }, 500); }
 });
@@ -6500,6 +6553,7 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
       is_required INTEGER DEFAULT 0, display_order INTEGER DEFAULT 0,
       visit_target_type TEXT DEFAULT 'both', is_active INTEGER DEFAULT 1,
       check_duplicate INTEGER DEFAULT 0, min_length INTEGER, max_length INTEGER,
+      show_in_reports INTEGER DEFAULT 0, enable_ai_analysis INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`).run();
     results.push('company_custom_questions table created');
@@ -6540,6 +6594,14 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
       await db.prepare("ALTER TABLE company_custom_questions ADD COLUMN max_length INTEGER").run();
       results.push('company_custom_questions.max_length column added');
     } catch { results.push('company_custom_questions.max_length column already exists'); }
+    try {
+      await db.prepare("ALTER TABLE company_custom_questions ADD COLUMN show_in_reports INTEGER DEFAULT 0").run();
+      results.push('company_custom_questions.show_in_reports column added');
+    } catch { results.push('company_custom_questions.show_in_reports column already exists'); }
+    try {
+      await db.prepare("ALTER TABLE company_custom_questions ADD COLUMN enable_ai_analysis INTEGER DEFAULT 0").run();
+      results.push('company_custom_questions.enable_ai_analysis column added');
+    } catch { results.push('company_custom_questions.enable_ai_analysis column already exists'); }
 
     // Seed default process flows
     await db.prepare("INSERT OR IGNORE INTO process_flows (id, tenant_id, name, description, is_default) VALUES ('pf-store-default', 'default', 'Standard Store Visit', 'Default workflow for store visits: GPS, Details, Survey, Photo, Review', 1)").run();

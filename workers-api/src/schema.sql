@@ -2048,6 +2048,8 @@ CREATE TABLE IF NOT EXISTS company_custom_questions (
   check_duplicate INTEGER DEFAULT 0,
   min_length INTEGER,
   max_length INTEGER,
+  show_in_reports INTEGER DEFAULT 0,
+  enable_ai_analysis INTEGER DEFAULT 0,
   is_active INTEGER DEFAULT 1,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
