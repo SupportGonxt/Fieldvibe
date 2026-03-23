@@ -43,8 +43,6 @@ function isSubPage(pathname: string): boolean {
   if (/^\/agent\/visits\/[^/]+\/edit$/.test(pathname)) return true
   if (pathname === '/agent/onboarding') return true
   if (pathname === '/agent/training') return true
-  if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return true
-  if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return true
   return false
 }
 
@@ -53,8 +51,6 @@ function getBackPath(pathname: string): string {
   if (/^\/agent\/visits\/[^/]+/.test(pathname)) return '/agent/visits'
   if (pathname === '/agent/onboarding') return '/agent/dashboard'
   if (pathname === '/agent/training') return '/agent/dashboard'
-  if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return '/agent/team'
-  if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return '/agent/teams'
   return '/agent/dashboard'
 }
 
@@ -64,8 +60,6 @@ function getSubPageTitle(pathname: string): string {
   if (/^\/agent\/visits\/[^/]+$/.test(pathname)) return 'Visit Details'
   if (pathname === '/agent/onboarding') return 'Getting Started'
   if (pathname === '/agent/training') return 'Training Guide'
-  if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return 'Agent Details'
-  if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return 'Team Details'
   return ''
 }
 

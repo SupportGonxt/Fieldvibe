@@ -392,6 +392,8 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
     if (!pinHash) return c.json({ success: false, message: 'PIN not set. Contact your manager to set a PIN.' }, 401);
     const validPin = await bcrypt.compare(pin, pinHash);
     if (!validPin) return c.json({ success: false, message: 'Invalid phone number or PIN' }, 401);
+    // Check if user is still using the default PIN (12345) — force change on first login
+    const isDefaultPin = pin === '12345';
     const jwtSecret = c.env.JWT_SECRET;
     if (!jwtSecret) return c.json({ success: false, message: 'Server configuration error' }, 500);
     const accessToken = await generateToken({ userId: user.id, tenantId: user.tenant_id, role: user.role }, jwtSecret);
@@ -415,12 +417,32 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
         token: accessToken,
         access_token: accessToken,
         tenant: tenant || {},
-        companies: companies.results || []
+        companies: companies.results || [],
+        must_change_pin: isDefaultPin,
       }
     });
   } catch (error) {
     console.error('Mobile login error:', error);
     return c.json({ success: false, message: 'Login failed' }, 500);
+  }
+});
+
+// ==================== AGENT MY-COMPANIES (lightweight) ====================
+app.get('/api/agent/my-companies', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    let companies = { results: [] };
+    if (role === 'manager') {
+      companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+    } else {
+      companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+    }
+    return c.json({ success: true, data: companies.results || [] });
+  } catch (err) {
+    return c.json({ success: false, data: [], error: err.message || 'Failed to fetch companies' }, 500);
   }
 });
 
@@ -1551,7 +1573,10 @@ app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
 
     // For non-admin managers, verify agent is under one of their team leads
     const isAdmin = ['admin', 'super_admin'].includes(caller.role);
-    if (!isAdmin && agent.team_lead_id) {
+    if (!isAdmin) {
+      if (!agent.team_lead_id) {
+        return c.json({ success: false, message: 'Agent not in your organization.' }, 403);
+      }
       const tl = await db.prepare("SELECT id FROM users WHERE id = ? AND tenant_id = ? AND manager_id = ?").bind(agent.team_lead_id, tenantId, userId).first();
       if (!tl) {
         return c.json({ success: false, message: 'Agent not in your organization.' }, 403);

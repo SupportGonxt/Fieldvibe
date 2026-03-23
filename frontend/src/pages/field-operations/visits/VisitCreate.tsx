@@ -282,16 +282,31 @@ export default function VisitCreate() {
     try {
       let companiesData: Company[] = []
       if (isMobileContext) {
-        // Mobile agents: only show companies they are assigned to
+        // Mobile agents: use lightweight my-companies endpoint
         try {
-          const dashRes = await apiClient.get('/agent/dashboard')
-          const agentCompanies = dashRes?.data?.data?.companies || dashRes?.data?.companies || []
+          const compRes = await apiClient.get('/agent/my-companies')
+          const agentCompanies = compRes?.data?.data || compRes?.data || []
           companiesData = Array.isArray(agentCompanies) ? agentCompanies : []
-        } catch {
-          // Fallback to all companies if dashboard fails
-          const companiesRes = await fieldOperationsService.getCompanies()
-          const allCompanies = companiesRes?.data || companiesRes || []
-          companiesData = Array.isArray(allCompanies) ? allCompanies : []
+        } catch { /* endpoint may not exist yet */ }
+        // Fallback: try dashboard companies
+        if (companiesData.length === 0) {
+          try {
+            const dashRes = await apiClient.get('/agent/dashboard')
+            const dashCompanies = dashRes?.data?.data?.companies || dashRes?.data?.companies || []
+            companiesData = Array.isArray(dashCompanies) ? dashCompanies : []
+          } catch { /* */ }
+        }
+        // Fallback: use companies cached from login response
+        if (companiesData.length === 0) {
+          try {
+            const cached = localStorage.getItem('agent_companies')
+            if (cached) {
+              const parsed = JSON.parse(cached)
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                companiesData = parsed
+              }
+            }
+          } catch { /* ignore parse errors */ }
         }
       } else {
         // Admin: show all companies
