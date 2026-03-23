@@ -1103,7 +1103,7 @@ export default function VisitCreate() {
                             label="Please specify"
                             value={otherVal}
                             onChange={(e) => {
-                              const newVal = e.target.value
+                              const newVal = e.target.value.replace(/,/g, '')
                               const filtered = selected.filter(s => s !== 'Other' && !s.startsWith('Other:'))
                               filtered.push(newVal ? `Other:${newVal}` : 'Other')
                               setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: filtered.join(',') }))
