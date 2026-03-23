@@ -1212,7 +1212,7 @@ function CompanyTargetRulesTab() {
   const [applyingAll, setApplyingAll] = useState(false)
   async function applyToAll() {
     if (companies.length === 0) { toast.error('No companies found'); return; }
-    if (!form.individual_target_per_day && !form.store_target_per_month && !form.individual_target_per_month && !form.store_target_per_day) {
+    if (!isManagerRole && !form.individual_target_per_day && !form.store_target_per_month && !form.individual_target_per_month && !form.store_target_per_day) {
       toast.error('Set at least one target value before applying'); return;
     }
     setApplyingAll(true)

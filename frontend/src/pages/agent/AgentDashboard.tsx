@@ -244,10 +244,10 @@ export default function AgentDashboard() {
 
       <div className="px-5 mb-4">
         <div className="grid grid-cols-2 gap-3">
-          <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={data?.today_visits || 0} color="bg-blue-500" />
-          <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={data?.today_registrations || 0} color="bg-purple-500" />
-          <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={data?.month_visits || 0} color="bg-emerald-500" />
-          <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={data?.month_registrations || 0} color="bg-amber-500" />
+          <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={data?.today_individual_visits ?? data?.today_visits ?? 0} color="bg-blue-500" />
+          <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={data?.today_store_visits ?? 0} color="bg-purple-500" />
+          <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={data?.month_individual_visits ?? data?.month_visits ?? 0} color="bg-emerald-500" />
+          <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={data?.month_store_visits ?? 0} color="bg-amber-500" />
         </div>
       </div>
 

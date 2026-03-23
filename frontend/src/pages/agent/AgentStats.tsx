@@ -332,10 +332,10 @@ function OverviewTab({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <StatCard icon={<MapPin className="w-5 h-5 text-blue-400" />} label="Today Individual" value={dashData?.today_visits || 0} />
-        <StatCard icon={<Store className="w-5 h-5 text-purple-400" />} label="Today Store" value={dashData?.today_registrations || 0} />
-        <StatCard icon={<TrendingUp className="w-5 h-5 text-emerald-400" />} label="Month Individual" value={dashData?.month_visits || 0} />
-        <StatCard icon={<Award className="w-5 h-5 text-amber-400" />} label="Month Store" value={dashData?.month_registrations || 0} />
+        <StatCard icon={<MapPin className="w-5 h-5 text-blue-400" />} label="Today Individual" value={dashData?.today_individual_visits ?? dashData?.today_visits ?? 0} />
+        <StatCard icon={<Store className="w-5 h-5 text-purple-400" />} label="Today Store" value={dashData?.today_store_visits ?? 0} />
+        <StatCard icon={<TrendingUp className="w-5 h-5 text-emerald-400" />} label="Month Individual" value={dashData?.month_individual_visits ?? dashData?.month_visits ?? 0} />
+        <StatCard icon={<Award className="w-5 h-5 text-amber-400" />} label="Month Store" value={dashData?.month_store_visits ?? 0} />
       </div>
 
       {/* Visit breakdown by company and type */}

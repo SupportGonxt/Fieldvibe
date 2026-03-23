@@ -471,6 +471,12 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     try { monthVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
     try { todayRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, userId, today).first(); } catch { /* */ }
     try { monthRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
+    // Type-filtered visit counts for Individual vs Store split
+    let todayIndividualVisits = { count: 0 }, todayStoreVisits = { count: 0 }, monthIndividualVisits = { count: 0 }, monthStoreVisits = { count: 0 };
+    try { todayIndividualVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ? AND LOWER(visit_type) = 'individual'").bind(tenantId, userId, today).first(); } catch { /* */ }
+    try { todayStoreVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ? AND LOWER(visit_type) = 'store'").bind(tenantId, userId, today).first(); } catch { /* */ }
+    try { monthIndividualVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'individual'").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
+    try { monthStoreVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'store'").bind(tenantId, userId, monthStart).first(); } catch { /* */ }
     try { recentVisits = await db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all(); } catch { /* */ }
     // Role-aware company query: managers use manager_company_links, agents/TLs use agent_company_links
     const userRole = c.get('role');
@@ -599,8 +605,11 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const weekStartStr = weekStart.toISOString().split('T')[0];
     let weekVisits = { count: 0 };
     let weekRegs = { count: 0 };
+    let weekIndivVisits = { count: 0 }, weekStoreVisitsTotal = { count: 0 };
     try { weekVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, userId, weekStartStr).first(); } catch { /* */ }
     try { weekRegs = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) >= ?").bind(tenantId, userId, weekStartStr).first(); } catch { /* */ }
+    try { weekIndivVisits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'individual'").bind(tenantId, userId, weekStartStr).first(); } catch { /* */ }
+    try { weekStoreVisitsTotal = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'store'").bind(tenantId, userId, weekStartStr).first(); } catch { /* */ }
 
     // Per-company week visits breakdown
     let weekVisitsByCompany = { results: [] };
@@ -626,8 +635,9 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
           if ((wv.visit_type || '').toLowerCase() === 'individual') weekIndividualVisits += wv.count || 0;
         }
       }
-      const dayTarget = ctr.target_visits_per_day || 0;
-      const dayRegTarget = ctr.target_registrations_per_day || 0;
+      // Use new per-role fields first, fall back to legacy fields
+      const dayTarget = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const dayRegTarget = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
       weekTargetVisits += dayTarget * workingDaysPerWeek;
       weekTargetRegs += dayRegTarget * workingDaysPerWeek;
       monthTargetVisits += dayTarget * workingDaysPerMonth;
@@ -639,16 +649,16 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         // Daily targets
         daily_target_visits: dayTarget,
         daily_target_registrations: dayRegTarget,
-        daily_actual_visits: ca.today_visits || 0,
-        daily_actual_registrations: cr.today || 0,
+        daily_actual_visits: ca.today_individual_visits || 0,
+        daily_actual_registrations: ca.today_store_visits || 0,
         // Store-specific targets
-        store_target_per_month: ctr.store_target_per_month_agent || 0,
+        store_target_per_month: (ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0,
         store_actual_month: ca.month_store_visits || 0,
         store_actual_today: ca.today_store_visits || 0,
         store_actual_week: weekStoreVisits,
         // Individual-specific targets
-        individual_target_per_week: ctr.individual_target_per_week_agent || 0,
-        individual_target_per_month: ctr.individual_target_per_month_agent || 0,
+        individual_target_per_week: ctr.individual_target_per_week_agent ?? 0,
+        individual_target_per_month: (ctr.individual_target_per_month != null ? ctr.individual_target_per_month : ctr.individual_target_per_month_agent) ?? 0,
         individual_actual_month: ca.month_individual_visits || 0,
         individual_actual_today: ca.today_individual_visits || 0,
         individual_actual_week: weekIndividualVisits,
@@ -673,13 +683,20 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         today_registrations: todayRegs?.count || 0,
         month_registrations: monthRegs?.count || 0,
         week_registrations: weekRegs?.count || 0,
+        // Type-filtered counts for Individual vs Store split
+        today_individual_visits: todayIndividualVisits?.count || 0,
+        today_store_visits: todayStoreVisits?.count || 0,
+        month_individual_visits: monthIndividualVisits?.count || 0,
+        month_store_visits: monthStoreVisits?.count || 0,
+        week_individual_visits: weekIndivVisits?.count || 0,
+        week_store_visits: weekStoreVisitsTotal?.count || 0,
         recent_visits: recentVisits.results || [],
         companies: companies.results || [],
         daily_targets: dailyTargets,
         company_target_rules: companyTargetRules,
         company_targets: companyTargets,
-        weekly_targets: { target_visits: weekTargetVisits, actual_visits: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: weekRegs?.count || 0 },
-        monthly_targets: { target_visits: monthTargetVisits, actual_visits: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: monthRegs?.count || 0 },
+        weekly_targets: { target_visits: weekTargetVisits, actual_visits: weekIndivVisits?.count || 0, actual_visits_all: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: weekStoreVisitsTotal?.count || 0, actual_registrations_all: weekRegs?.count || 0 },
+        monthly_targets: { target_visits: monthTargetVisits, actual_visits: monthIndividualVisits?.count || 0, actual_visits_all: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: monthStoreVisits?.count || 0, actual_registrations_all: monthRegs?.count || 0 },
         visit_breakdown: visitBreakdown.results || [],
       }
     });
