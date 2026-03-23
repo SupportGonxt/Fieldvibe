@@ -1953,7 +1953,7 @@ api.get('/visits', async (c) => {
   const offset = (pageNum - 1) * limitNum;
   const countR = await db.prepare('SELECT COUNT(*) as total FROM visits v LEFT JOIN customers c ON v.customer_id = c.id ' + where).bind(...params).first();
   const total = countR ? countR.total : 0;
-  const visits = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url, (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id LIMIT 1) as _raw_responses FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + ' ORDER BY v.created_at DESC LIMIT ? OFFSET ?').bind(...params, limitNum, offset).all();
+  const visits = await db.prepare("SELECT v.*, c.name as customer_name, c.address as customer_address, u.first_name || ' ' || u.last_name as agent_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url, (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id LIMIT 1) as _raw_responses, (SELECT vi.custom_field_values FROM visit_individuals vi WHERE vi.visit_id = v.id LIMIT 1) as _raw_custom_fields FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id " + where + ' ORDER BY v.created_at DESC LIMIT ? OFFSET ?').bind(...params, limitNum, offset).all();
   // Extract image thumbnails from custom question responses where show_in_reports is enabled
   const visitRows = visits.results || [];
   const companyIds = [...new Set(visitRows.map(v => v.company_id).filter(Boolean))];
@@ -1969,9 +1969,12 @@ api.get('/visits', async (c) => {
   const enrichedVisits = visitRows.map(v => {
     const row = { ...v };
     delete row._raw_responses;
-    if (!row.thumbnail_url && !row.photo_url && v._raw_responses && v.company_id && reportImageKeys[v.company_id]) {
+    delete row._raw_custom_fields;
+    if (!row.thumbnail_url && !row.photo_url && v.company_id && reportImageKeys[v.company_id]) {
       try {
-        const resp = typeof v._raw_responses === 'string' ? JSON.parse(v._raw_responses) : v._raw_responses;
+        const resp = {};
+        if (v._raw_custom_fields) { try { Object.assign(resp, typeof v._raw_custom_fields === 'string' ? JSON.parse(v._raw_custom_fields) : v._raw_custom_fields); } catch {} }
+        if (v._raw_responses) { try { Object.assign(resp, typeof v._raw_responses === 'string' ? JSON.parse(v._raw_responses) : v._raw_responses); } catch {} }
         for (const key of reportImageKeys[v.company_id]) {
           if (resp[key] && typeof resp[key] === 'string' && (resp[key].startsWith('data:image') || resp[key].startsWith('http'))) {
             row.thumbnail_url = resp[key];
