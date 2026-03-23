@@ -48,13 +48,16 @@ function isSubPage(pathname: string): boolean {
   return false
 }
 
-function getBackPath(pathname: string): string {
+// Returns a fixed back path, or null to indicate navigate(-1) should be used
+function getBackPath(pathname: string): string | null {
   if (pathname === '/agent/visits/create') return '/agent/visits'
   if (/^\/agent\/visits\/[^/]+/.test(pathname)) return '/agent/visits'
   if (pathname === '/agent/onboarding') return '/agent/dashboard'
   if (pathname === '/agent/training') return '/agent/dashboard'
-  if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return '/agent/team'
-  if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return '/agent/teams'
+  // Drill-down pages: use browser history so managers go back to team-detail
+  // and team leads go back to team tab correctly
+  if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return null
+  if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return null
   return '/agent/dashboard'
 }
 
@@ -82,7 +85,10 @@ export default function AgentLayout() {
       {onSubPage && (
         <div className="sticky top-0 z-40 bg-[#0A1628]/95 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate(getBackPath(location.pathname))}
+            onClick={() => {
+              const backPath = getBackPath(location.pathname)
+              if (backPath) { navigate(backPath) } else { navigate(-1) }
+            }}
             className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-white" />
