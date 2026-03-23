@@ -6463,6 +6463,7 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
       field_type TEXT NOT NULL DEFAULT 'text', field_options TEXT,
       is_required INTEGER DEFAULT 0, display_order INTEGER DEFAULT 0,
       visit_target_type TEXT DEFAULT 'both', is_active INTEGER DEFAULT 1,
+      check_duplicate INTEGER DEFAULT 0, min_length INTEGER, max_length INTEGER,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`).run();
     results.push('company_custom_questions table created');
