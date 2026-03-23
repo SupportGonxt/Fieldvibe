@@ -121,10 +121,15 @@ const AVAILABLE_STEPS = [
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
   { value: 'number', label: 'Number' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone Number' },
   { value: 'select', label: 'Dropdown' },
+  { value: 'radio', label: 'Radio Buttons' },
   { value: 'checkbox', label: 'Checkbox' },
+  { value: 'toggle', label: 'Yes / No Toggle' },
   { value: 'date', label: 'Date' },
   { value: 'textarea', label: 'Long Text' },
+  { value: 'image', label: 'Photo Upload' },
 ]
 
 // ── Main Page Component ──
@@ -745,11 +750,11 @@ function CustomQuestionsTab() {
     mutationFn: async () => {
       const payload = {
         ...form,
-        field_options: form.field_type === 'select' ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
+        field_options: (form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox') ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
         is_required: form.is_required,
         check_duplicate: form.check_duplicate,
-        min_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea') ? (form.min_length ?? null) : null,
-        max_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea') ? (form.max_length ?? null) : null,
+        min_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') ? (form.min_length ?? null) : null,
+        max_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') ? (form.max_length ?? null) : null,
       }
       if (editingQuestion) {
         return fieldOperationsService.updateCompanyCustomQuestion(editingQuestion.id, payload)
@@ -893,7 +898,7 @@ function CustomQuestionsTab() {
                 placeholder="Text"
               />
             </div>
-            {form.field_type === 'select' && (
+            {(form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox') && (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Options (comma-separated)</label>
                 <input
@@ -929,7 +934,7 @@ function CustomQuestionsTab() {
               />
             </div>
           </div>
-          {(form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea') && (
+          {(form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Length</label>
