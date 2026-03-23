@@ -1647,7 +1647,12 @@ api.delete('/users/:id', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  await db.prepare('UPDATE users SET is_active = 0, status = ? WHERE id = ? AND tenant_id = ?').bind('inactive', id, tenantId).run();
+  // Unassign subordinates so they appear as "unassigned" instead of becoming invisible
+  await db.batch([
+    db.prepare('UPDATE users SET manager_id = NULL WHERE manager_id = ? AND tenant_id = ?').bind(id, tenantId),
+    db.prepare('UPDATE users SET team_lead_id = NULL WHERE team_lead_id = ? AND tenant_id = ?').bind(id, tenantId),
+    db.prepare('UPDATE users SET is_active = 0, status = ? WHERE id = ? AND tenant_id = ?').bind('inactive', id, tenantId),
+  ]);
   return c.json({ success: true, message: 'User deactivated' });
 });
 

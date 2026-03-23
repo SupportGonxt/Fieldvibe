@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { apiClient } from '../../services/api.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft, Building2, Plus, Pencil, Check, Mail, Phone, KeyRound } from 'lucide-react'
+import { Users, ChevronDown, ChevronRight, UserPlus, Shield, Crown, User, Link2, Unlink, X, ArrowRightLeft, Building2, Plus, Pencil, Check, Mail, Phone, KeyRound, Trash2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -50,6 +50,9 @@ export default function AgentHierarchyPage() {
   // Quick-edit state
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [editFields, setEditFields] = useState<{ email: string; phone: string; pin: string }>({ email: '', phone: '', pin: '' })
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; role: string } | null>(null)
 
   const { data: hierarchy, isLoading, error } = useQuery({
     queryKey: ['field-ops-hierarchy'],
@@ -108,6 +111,16 @@ export default function AgentHierarchyPage() {
       const message = (err && typeof err === 'object' && 'message' in err) ? (err as { message: string }).message : 'Failed to update details'
       toast.error(message)
     },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (userId: string) => apiClient.delete(`/users/${userId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['field-ops-hierarchy'] })
+      toast.success('Person removed from hierarchy')
+      setDeleteConfirm(null)
+    },
+    onError: () => toast.error('Failed to remove person'),
   })
 
   function startQuickEdit(user: { id: string; email?: string; phone?: string }) {
@@ -391,6 +404,13 @@ export default function AgentHierarchyPage() {
                   )
                 )}
                 <span className="text-sm text-gray-500 ml-2">{manager.team_leads?.length || 0} team leads</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ id: manager.id, name: `${manager.first_name} ${manager.last_name}`, role: 'Manager' }) }}
+                  className="text-gray-400 hover:text-red-500 p-1 rounded flex-shrink-0"
+                  title="Remove manager"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
@@ -467,6 +487,13 @@ export default function AgentHierarchyPage() {
                       >
                         <Unlink className="w-3.5 h-3.5" />
                       </button>
+                      <button
+                        onClick={() => setDeleteConfirm({ id: tl.id, name: `${tl.first_name} ${tl.last_name}`, role: 'Team Lead' })}
+                        className="text-gray-400 hover:text-red-500 p-1 rounded flex-shrink-0"
+                        title="Remove team lead"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
                     {expandedTeamLeads.has(tl.id) && (
@@ -536,6 +563,13 @@ export default function AgentHierarchyPage() {
                               >
                                 <Unlink className="w-3.5 h-3.5" />
                               </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ id: agent.id, name: `${agent.first_name} ${agent.last_name}`, role: 'Agent' })}
+                                className="text-gray-400 hover:text-red-500 p-1 rounded"
+                                title="Remove agent"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                             )}
                           </div>
@@ -583,9 +617,18 @@ export default function AgentHierarchyPage() {
                       <button onClick={() => { setAssigningUser(null); setAssignTarget('') }} className="text-gray-400 text-sm">Cancel</button>
                     </div>
                   ) : (
-                    <button onClick={() => { setAssigningUser(tl.id); setAssignTarget('') }} className="ml-auto text-blue-600 text-sm flex items-center gap-1 flex-shrink-0">
-                      <Link2 className="w-3 h-3" /> Assign to Manager
-                    </button>
+                    <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => { setAssigningUser(tl.id); setAssignTarget('') }} className="text-blue-600 text-sm flex items-center gap-1">
+                        <Link2 className="w-3 h-3" /> Assign to Manager
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm({ id: tl.id, name: `${tl.first_name} ${tl.last_name}`, role: 'Team Lead' })}
+                        className="text-gray-400 hover:text-red-500 p-1 rounded"
+                        title="Remove team lead"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -620,9 +663,18 @@ export default function AgentHierarchyPage() {
                       <button onClick={() => { setAssigningUser(null); setAssignTarget('') }} className="text-gray-400 text-sm">Cancel</button>
                     </div>
                   ) : (
-                    <button onClick={() => { setAssigningUser(agent.id); setAssignTarget('') }} className="ml-auto text-blue-600 text-sm flex items-center gap-1 flex-shrink-0">
-                      <Link2 className="w-3 h-3" /> Assign to Team Lead
-                    </button>
+                    <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => { setAssigningUser(agent.id); setAssignTarget('') }} className="text-blue-600 text-sm flex items-center gap-1">
+                        <Link2 className="w-3 h-3" /> Assign to Team Lead
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm({ id: agent.id, name: `${agent.first_name} ${agent.last_name}`, role: 'Agent' })}
+                        className="text-gray-400 hover:text-red-500 p-1 rounded"
+                        title="Remove agent"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -669,6 +721,37 @@ export default function AgentHierarchyPage() {
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {assignMutation.isPending ? 'Saving...' : 'Reassign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Delete Confirmation Modal ═══ */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-sm w-full shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Remove {deleteConfirm.role}</h3>
+              <button onClick={() => setDeleteConfirm(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Are you sure you want to remove <strong>{deleteConfirm.name}</strong> ({deleteConfirm.role})? They will be deactivated and no longer appear in the hierarchy.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-gray-200 dark:border-white/10">
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(deleteConfirm.id)}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleteMutation.isPending ? 'Removing...' : 'Remove'}
               </button>
             </div>
           </div>
