@@ -582,13 +582,15 @@ export default function CompanyDashboardPage() {
                     <PieChart>
                       <Pie
                         data={[
-                          { name: 'Completed', value: storeData.kpis?.completed_visits || 0 },
-                          { name: 'In Progress', value: Math.max(0, (storeData.kpis?.total_visits || 0) - (storeData.kpis?.completed_visits || 0)) },
+                          { name: 'Completed', value: storeData.kpis?.completed_visits || 0, fill: '#10B981' },
+                          { name: 'In Progress', value: Math.max(0, (storeData.kpis?.total_visits || 0) - (storeData.kpis?.completed_visits || 0)), fill: '#F59E0B' },
                         ].filter(d => d.value > 0)}
                         cx="50%" cy="45%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value"
                       >
-                        <Cell fill="#10B981" />
-                        <Cell fill="#F59E0B" />
+                        {[
+                          { name: 'Completed', value: storeData.kpis?.completed_visits || 0, fill: '#10B981' },
+                          { name: 'In Progress', value: Math.max(0, (storeData.kpis?.total_visits || 0) - (storeData.kpis?.completed_visits || 0)), fill: '#F59E0B' },
+                        ].filter(d => d.value > 0).map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
                       </Pie>
                       <Tooltip formatter={(value: number) => value.toLocaleString()} />
                       <Legend />
