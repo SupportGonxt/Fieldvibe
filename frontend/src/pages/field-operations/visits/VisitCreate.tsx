@@ -216,6 +216,8 @@ export default function VisitCreate() {
 
   // Notes
   const [notes, setNotes] = useState('')
+  // Tracks whether the user attempted to proceed so we can highlight missing required fields
+  const [showValidation, setShowValidation] = useState(false)
 
   // Load process flow when visit type or company changes
   useEffect(() => {
@@ -618,6 +620,12 @@ export default function VisitCreate() {
 
   const handleNext = async () => {
     setError(null)
+    // If the user can't proceed, show validation highlights on required fields
+    if (!canProceed()) {
+      setShowValidation(true)
+      return
+    }
+    setShowValidation(false)
     if (currentStepKey === 'details') {
       if (visitTargetType === 'individual') {
         const result = await checkIndividualDuplicate()
@@ -654,6 +662,7 @@ export default function VisitCreate() {
 
   const handleBack = () => {
     setError(null)
+    setShowValidation(false)
     setActiveStep(prev => prev - 1)
   }
 
@@ -867,50 +876,53 @@ export default function VisitCreate() {
         {visitTargetType === 'individual' && (
           <>
             <Typography variant="h6" gutterBottom>Individual Details</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               ID number and phone must be unique. Duplicates will be blocked.
             </Typography>
+            <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block' }}>* Required fields</Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  required
-                  label="First Name"
+                  label="First Name *"
                   value={individualFirstName}
                   onChange={(e) => setIndividualFirstName(e.target.value)}
+                  error={showValidation && !individualFirstName}
+                  helperText={showValidation && !individualFirstName ? 'First name is required' : undefined}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  required
-                  label="Last Name"
+                  label="Last Name *"
                   value={individualLastName}
                   onChange={(e) => setIndividualLastName(e.target.value)}
+                  error={showValidation && !individualLastName}
+                  helperText={showValidation && !individualLastName ? 'Last name is required' : undefined}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="ID Number"
+                  label={`ID Number ${!individualPhone ? '*' : ''}`}
                   value={individualIdNumber}
                   onChange={(e) => { setIndividualIdNumber(e.target.value); setDuplicateCheck(null); }}
-                  helperText="Must be unique - cannot be duplicated"
-                  error={duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
+                  helperText={showValidation && !individualIdNumber && !individualPhone ? 'ID number or phone is required' : 'Must be unique - cannot be duplicated'}
+                  error={(showValidation && !individualIdNumber && !individualPhone) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Phone Number"
+                  label={`Phone Number ${!individualIdNumber ? '*' : ''}`}
                   value={individualPhone}
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^0-9+]/g, '')
                     setIndividualPhone(val)
                     setDuplicateCheck(null)
                   }}
-                  helperText={individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone) ? 'Enter valid SA number: +27XXXXXXXXX or 0XXXXXXXXX' : 'Must be unique - cannot be duplicated'}
-                  error={(individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone)) || duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
+                  helperText={individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone) ? 'Enter valid SA number: +27XXXXXXXXX or 0XXXXXXXXX' : (showValidation && !individualPhone && !individualIdNumber ? 'ID number or phone is required' : 'Must be unique - cannot be duplicated')}
+                  error={(showValidation && !individualPhone && !individualIdNumber) || (!!individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone)) || duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
                   placeholder="+27XXXXXXXXX or 0XXXXXXXXX"
                 />
               </Grid>
@@ -941,9 +953,10 @@ export default function VisitCreate() {
         {visitTargetType === 'store' && (
           <>
             <Typography variant="h6" gutterBottom>Store / Customer Selection</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               The same store cannot be visited within 30 days.
             </Typography>
+            <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block' }}>* Required fields</Typography>
             <Autocomplete
               freeSolo
               options={customers}
@@ -974,7 +987,7 @@ export default function VisitCreate() {
                 }
               }}
               renderInput={(params) => (
-                <TextField {...params} label="Search existing store or type new name" fullWidth required={!newStoreName} helperText={newStoreName && !selectedCustomer ? `New store "${newStoreName}" will be created` : 'Search by store name or type a new one'} />
+                <TextField {...params} label="Search existing store or type new name *" fullWidth required={!newStoreName} helperText={showValidation && !selectedCustomer && !newStoreName ? 'Please select or type a store name' : (newStoreName && !selectedCustomer ? `New store "${newStoreName}" will be created` : 'Search by store name or type a new one')} error={showValidation && !selectedCustomer && !newStoreName} />
               )}
               sx={{ mb: 2 }}
             />
@@ -1002,37 +1015,44 @@ export default function VisitCreate() {
           <>
             <Divider sx={{ my: 3 }} />
             <Typography variant="h6" gutterBottom>Brand-Specific Fields</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Fields specific to the selected brand/company.
             </Typography>
+            <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block' }}>* Required fields</Typography>
             <Grid container spacing={2}>
-              {customFields.map(field => (
+              {customFields.map(field => {
+                const fieldVal = customFieldValues[field.field_name] || ''
+                return (
                 <Grid item xs={12} sm={6} key={field.id}>
                   {field.field_type === 'select' && field.field_options ? (
-                    <FormControl fullWidth required={!!field.is_required}>
-                      <InputLabel>{field.field_label}</InputLabel>
+                    <FormControl fullWidth required={!!field.is_required} error={showValidation && !!field.is_required && !fieldVal}>
+                      <InputLabel>{field.field_label}{field.is_required ? ' *' : ''}</InputLabel>
                       <Select
-                        value={customFieldValues[field.field_name] || ''}
-                        label={field.field_label}
+                        value={fieldVal}
+                        label={field.field_label + (field.is_required ? ' *' : '')}
                         onChange={(e) => setCustomFieldValues(prev => ({ ...prev, [field.field_name]: e.target.value }))}
                       >
                         {(() => { try { return JSON.parse(field.field_options!) as string[] } catch { return [] } })().map((opt: string) => (
                           <MenuItem key={opt} value={opt}>{opt}</MenuItem>
                         ))}
                       </Select>
+                      {showValidation && !!field.is_required && !fieldVal && <FormHelperText>This field is required</FormHelperText>}
                     </FormControl>
                   ) : (
                     <TextField
                       fullWidth
                       required={!!field.is_required}
-                      label={field.field_label}
+                      label={field.field_label + (field.is_required ? ' *' : '')}
                       type={field.field_type === 'number' ? 'number' : 'text'}
-                      value={customFieldValues[field.field_name] || ''}
+                      value={fieldVal}
                       onChange={(e) => setCustomFieldValues(prev => ({ ...prev, [field.field_name]: e.target.value }))}
+                      error={showValidation && !!field.is_required && !fieldVal}
+                      helperText={showValidation && !!field.is_required && !fieldVal ? 'This field is required' : undefined}
                     />
                   )}
                 </Grid>
-              ))}
+                )
+              })}
             </Grid>
           </>
         )}
@@ -1042,9 +1062,10 @@ export default function VisitCreate() {
           <>
             <Divider sx={{ my: 3 }} />
             <Typography variant="h6" gutterBottom>Company Questions</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Answer the following questions for this company.
             </Typography>
+            <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block' }}>* Required fields</Typography>
             <Grid container spacing={2}>
               {customQuestions.map(q => {
                 const opts: string[] = q.field_options ? (() => { try { return JSON.parse(q.field_options!) as string[] } catch { return [] } })() : []
@@ -1054,21 +1075,22 @@ export default function VisitCreate() {
                 return (
                 <Grid item xs={12} sm={6} key={q.id}>
                   {q.field_type === 'select' && opts.length > 0 ? (
-                    <FormControl fullWidth required={!!q.is_required}>
-                      <InputLabel>{q.question_label}</InputLabel>
+                    <FormControl fullWidth required={!!q.is_required} error={showValidation && !!q.is_required && !val}>
+                      <InputLabel>{q.question_label}{q.is_required ? ' *' : ''}</InputLabel>
                       <Select
                         value={val}
-                        label={q.question_label}
+                        label={q.question_label + (q.is_required ? ' *' : '')}
                         onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
                       >
                         {opts.map((opt: string) => (
                           <MenuItem key={opt} value={opt}>{opt}</MenuItem>
                         ))}
                       </Select>
+                      {showValidation && !!q.is_required && !val && <FormHelperText>This field is required</FormHelperText>}
                     </FormControl>
                   ) : q.field_type === 'radio' && opts.length > 0 ? (
-                    <FormControl component="fieldset" required={!!q.is_required} fullWidth>
-                      <FormLabel component="legend">{q.question_label}</FormLabel>
+                    <FormControl component="fieldset" required={!!q.is_required} fullWidth error={showValidation && !!q.is_required && !val}>
+                      <FormLabel component="legend">{q.question_label}{q.is_required ? ' *' : ''}</FormLabel>
                       <RadioGroup
                         value={val}
                         onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
@@ -1077,10 +1099,11 @@ export default function VisitCreate() {
                           <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
                         ))}
                       </RadioGroup>
+                      {showValidation && !!q.is_required && !val && <FormHelperText>Please select an option</FormHelperText>}
                     </FormControl>
                   ) : q.field_type === 'checkbox' && opts.length > 0 ? (
-                    <FormControl component="fieldset" required={!!q.is_required} fullWidth>
-                      <FormLabel component="legend">{q.question_label}</FormLabel>
+                    <FormControl component="fieldset" required={!!q.is_required} fullWidth error={showValidation && !!q.is_required && !val}>
+                      <FormLabel component="legend">{q.question_label}{q.is_required ? ' *' : ''}</FormLabel>
                       <FormGroup>
                         {opts.map((opt: string) => {
                           const selected: string[] = val ? val.split(',') : []
@@ -1142,7 +1165,7 @@ export default function VisitCreate() {
                             onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.checked ? 'Yes' : 'No' }))}
                           />
                         }
-                        label={q.question_label}
+                        label={q.question_label + (q.is_required ? ' *' : '')}
                       />
                       {val && <FormHelperText>{val}</FormHelperText>}
                     </FormControl>
@@ -1150,15 +1173,16 @@ export default function VisitCreate() {
                     <TextField
                       fullWidth
                       required={!!q.is_required}
-                      label={q.question_label}
+                      label={q.question_label + (q.is_required ? ' *' : '')}
                       type="date"
+                      error={showValidation && !!q.is_required && !val}
                       value={val}
                       onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
                       InputLabelProps={{ shrink: true }}
                     />
                   ) : q.field_type === 'image' ? (
-                    <FormControl fullWidth required={!!q.is_required}>
-                      <FormLabel sx={{ mb: 1 }}>{q.question_label}</FormLabel>
+                    <FormControl fullWidth required={!!q.is_required} error={showValidation && !!q.is_required && !val}>
+                      <FormLabel sx={{ mb: 1 }}>{q.question_label}{q.is_required ? ' *' : ''}</FormLabel>
                       <Button
                         variant="outlined"
                         component="label"
@@ -1194,26 +1218,26 @@ export default function VisitCreate() {
                     <TextField
                       fullWidth
                       required={!!q.is_required}
-                      label={q.question_label}
+                      label={q.question_label + (q.is_required ? ' *' : '')}
                       multiline
                       rows={3}
                       value={val}
                       onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
                       inputProps={{ minLength: q.min_length || undefined, maxLength: q.max_length || undefined }}
-                      helperText={lenHelper}
-                      error={lenError}
+                      helperText={showValidation && !!q.is_required && !val ? 'This field is required' : lenHelper}
+                      error={lenError || (showValidation && !!q.is_required && !val)}
                     />
                   ) : (
                     <TextField
                       fullWidth
                       required={!!q.is_required}
-                      label={q.question_label}
+                      label={q.question_label + (q.is_required ? ' *' : '')}
                       type={q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
                       value={val}
                       onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
                       inputProps={{ minLength: q.min_length || undefined, maxLength: q.max_length || undefined }}
-                      helperText={lenHelper}
-                      error={lenError}
+                      helperText={showValidation && !!q.is_required && !val ? 'This field is required' : lenHelper}
+                      error={lenError || (showValidation && !!q.is_required && !val)}
                     />
                   )}
                 </Grid>
@@ -1667,7 +1691,6 @@ export default function VisitCreate() {
           <Button
             variant="contained"
             onClick={handleNext}
-            disabled={!canProceed()}
             endIcon={<NextIcon />}
             size={isMobileContext ? 'medium' : 'large'}
           >

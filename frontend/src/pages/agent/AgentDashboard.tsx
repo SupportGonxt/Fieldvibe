@@ -7,7 +7,7 @@ import {
   DollarSign, Flame, BarChart3
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
-import { apiClient } from '../../services/api.service'
+import { apiClient, invalidateApiCache } from '../../services/api.service'
 
 interface TargetSummary {
   target_visits: number
@@ -102,8 +102,12 @@ export default function AgentDashboard() {
   }, [])
 
   const fetchDashboard = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
-    else setLoading(true)
+    if (isRefresh) {
+      setRefreshing(true)
+      invalidateApiCache('/agent/')
+    } else {
+      setLoading(true)
+    }
 
     try {
       const [dashRes, perfRes] = await Promise.all([
