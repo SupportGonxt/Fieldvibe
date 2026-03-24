@@ -857,6 +857,34 @@ class FieldOperationsService extends ApiService {
     return this.companyPortalGet(`/field-ops/company-portal/brand-insights?${params.toString()}`)
   }
 
+  async getCompanyPortalStoreAnalytics(filter: { start_date?: string; end_date?: string; page?: number; limit?: number; search?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') params.append(key, String(value))
+    })
+    return this.companyPortalGet(`/field-ops/company-portal/store-analytics?${params.toString()}`)
+  }
+
+  async getCompanyPortalStoreDetail(shopId: string) {
+    return this.companyPortalGet(`/field-ops/company-portal/store-analytics/${shopId}`)
+  }
+
+  async getCompanyPortalVisitRecords(filter: { start_date?: string; end_date?: string; page?: number; limit?: number; search?: string; visit_type?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') params.append(key, String(value))
+    })
+    return this.companyPortalGet(`/field-ops/company-portal/visit-records?${params.toString()}`)
+  }
+
+  async getCompanyPortalHighlights(filter: { start_date?: string; end_date?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    return this.companyPortalGet(`/field-ops/company-portal/highlights?${params.toString()}`)
+  }
+
   async exportCompanyPortalData(type: 'visits' | 'registrations', startDate?: string, endDate?: string) {
     const { default: axios } = await import('axios')
     const { API_CONFIG } = await import('../config/api.config')

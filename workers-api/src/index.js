@@ -12834,6 +12834,134 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
   }
 });
 
+// Company Portal: Store Analytics — company isolated
+app.get('/api/field-ops/company-portal/store-analytics', companyAuthMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.get('companyId');
+  const { start_date, end_date, page, limit: lim, search } = c.req.query();
+  const today = new Date().toISOString().split('T')[0];
+  const startD = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const endD = end_date || today;
+  const pageNum = parseInt(page || '1', 10);
+  const pageSize = parseInt(lim || '20', 10);
+  const offset = (pageNum - 1) * pageSize;
+  try {
+    const searchFilter = search ? ` AND (s.name LIKE '%' || ? || '%' OR s.address LIKE '%' || ? || '%')` : '';
+    const baseWhere = `FROM customers s LEFT JOIN (SELECT v.customer_id, COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed_visits, MAX(v.visit_date) as last_visit FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? GROUP BY v.customer_id) vs ON s.id = vs.customer_id WHERE s.tenant_id = ? AND s.id IN (SELECT DISTINCT v2.customer_id FROM visits v2 JOIN agent_company_links acl2 ON v2.agent_id = acl2.agent_id WHERE acl2.company_id = ? AND v2.tenant_id = ? AND v2.customer_id IS NOT NULL)${searchFilter}`;
+    const baseParams = search
+      ? [companyId, tenantId, startD, endD, tenantId, companyId, tenantId, search, search]
+      : [companyId, tenantId, startD, endD, tenantId, companyId, tenantId];
+    const countResult = await db.prepare(`SELECT COUNT(*) as total ${baseWhere}`).bind(...baseParams).first();
+    const shops = await db.prepare(`SELECT s.id, s.name, s.address, s.latitude, s.longitude, COALESCE(vs.total_visits, 0) as total_visits, COALESCE(vs.completed_visits, 0) as completed_visits, vs.last_visit ${baseWhere} ORDER BY vs.total_visits DESC LIMIT ? OFFSET ?`).bind(...baseParams, pageSize, offset).all();
+    const totalShops = countResult?.total || 0;
+    // Aggregate KPIs across ALL stores (not just current page)
+    const kpiAgg = await db.prepare(`SELECT COALESCE(SUM(vs.total_visits), 0) as total_visits, COALESCE(SUM(vs.completed_visits), 0) as completed_visits ${baseWhere}`).bind(...baseParams).first();
+    const allVisits = kpiAgg?.total_visits || 0;
+    const allCompleted = kpiAgg?.completed_visits || 0;
+    return c.json({
+      shops: shops.results || [],
+      total: totalShops,
+      page: pageNum,
+      limit: pageSize,
+      kpis: { total_shops: totalShops, total_visits: allVisits, completed_visits: allCompleted, avg_visits_per_shop: totalShops > 0 ? Math.round(allVisits / totalShops) : 0 },
+      period: { start: startD, end: endD }
+    });
+  } catch (e) {
+    return c.json({ error: e.message, shops: [], total: 0, kpis: {} }, 500);
+  }
+});
+
+// Company Portal: Store Detail — company isolated
+app.get('/api/field-ops/company-portal/store-analytics/:shopId', companyAuthMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.get('companyId');
+  const shopId = c.req.param('shopId');
+  try {
+    const shop = await db.prepare('SELECT * FROM customers WHERE id = ? AND tenant_id = ?').bind(shopId, tenantId).first();
+    if (!shop) return c.json({ error: 'Shop not found' }, 404);
+    // Verify the shop is associated with this company (has visits from company agents)
+    const companyLink = await db.prepare('SELECT 1 FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ? LIMIT 1').bind(shopId, companyId, tenantId).first();
+    if (!companyLink) return c.json({ error: 'Shop not found' }, 404);
+    const visits = await db.prepare("SELECT v.id, v.visit_date, v.status, v.check_in_time, v.check_out_time, v.visit_type, v.notes, v.photo_url, u.first_name || ' ' || u.last_name as agent_name FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50").bind(shopId, companyId, tenantId).all();
+    const stats = await db.prepare("SELECT COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ?").bind(shopId, companyId, tenantId).first();
+    return c.json({ shop, visits: visits.results || [], stats: { total_visits: stats?.total_visits || 0, completed: stats?.completed || 0 } });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// Company Portal: Visit Records — company isolated, paginated
+app.get('/api/field-ops/company-portal/visit-records', companyAuthMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.get('companyId');
+  const { start_date, end_date, page, limit: lim, search, visit_type } = c.req.query();
+  const today = new Date().toISOString().split('T')[0];
+  const startD = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const endD = end_date || today;
+  const pageNum = parseInt(page || '1', 10);
+  const pageSize = parseInt(lim || '20', 10);
+  const offset = (pageNum - 1) * pageSize;
+  try {
+    let filters = '';
+    let filtersNoType = '';
+    const baseParams = [companyId, tenantId, startD, endD];
+    const paramsNoType = [...baseParams];
+    if (search) { filtersNoType += " AND (u.first_name || ' ' || u.last_name LIKE '%' || ? || '%' OR s.name LIKE '%' || ? || '%')"; paramsNoType.push(search, search); }
+    filters = filtersNoType;
+    const params = [...paramsNoType];
+    if (visit_type) { filters += ' AND v.visit_type = ?'; params.push(visit_type); }
+    const baseJoin = `FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN customers s ON v.customer_id = s.id WHERE acl.company_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ?`;
+    const baseFrom = `${baseJoin}${filters}`;
+    const baseFromNoType = `${baseJoin}${filtersNoType}`;
+    const countResult = await db.prepare(`SELECT COUNT(*) as total ${baseFrom}`).bind(...params).first();
+    const visits = await db.prepare(`SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.photo_url, v.latitude, v.longitude, u.first_name || ' ' || u.last_name as agent_name, s.name as shop_name ${baseFrom} ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT ? OFFSET ?`).bind(...params, pageSize, offset).all();
+    // Type breakdown must exclude visit_type filter so all types are always visible
+    const typeBreakdown = await db.prepare(`SELECT v.visit_type, COUNT(*) as count ${baseFromNoType} GROUP BY v.visit_type`).bind(...paramsNoType).all();
+    return c.json({
+      visits: visits.results || [],
+      total: countResult?.total || 0,
+      page: pageNum,
+      limit: pageSize,
+      type_breakdown: typeBreakdown.results || [],
+      period: { start: startD, end: endD }
+    });
+  } catch (e) {
+    return c.json({ error: e.message, visits: [], total: 0 }, 500);
+  }
+});
+
+// Company Portal: Performance Highlights — company isolated
+app.get('/api/field-ops/company-portal/highlights', companyAuthMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.get('companyId');
+  const { start_date, end_date } = c.req.query();
+  const today = new Date().toISOString().split('T')[0];
+  const startD = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const endD = end_date || today;
+  try {
+    const baseParams = [tenantId, startD, endD, companyId];
+    const peakHour = await db.prepare("SELECT CAST(substr(v.check_in_time, 12, 2) AS INTEGER) as hour, COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? AND v.check_in_time IS NOT NULL GROUP BY hour ORDER BY count DESC LIMIT 1").bind(...baseParams).first();
+    const peakDay = await db.prepare("SELECT CASE CAST(strftime('%w', v.visit_date) AS INTEGER) WHEN 0 THEN 'Sunday' WHEN 1 THEN 'Monday' WHEN 2 THEN 'Tuesday' WHEN 3 THEN 'Wednesday' WHEN 4 THEN 'Thursday' WHEN 5 THEN 'Friday' WHEN 6 THEN 'Saturday' END as day_name, COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY day_name ORDER BY count DESC LIMIT 1").bind(...baseParams).first();
+    const topAgent = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent_name, COUNT(*) as visit_count FROM visits v JOIN users u ON v.agent_id = u.id JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY v.agent_id ORDER BY visit_count DESC LIMIT 1").bind(...baseParams).first();
+    const avgVisitsPerAgent = await db.prepare("SELECT ROUND(AVG(vc), 1) as avg_visits FROM (SELECT COUNT(*) as vc FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY v.agent_id)").bind(...baseParams).first();
+    const totalStores = await db.prepare("SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? AND v.customer_id IS NOT NULL").bind(...baseParams).first();
+    return c.json({
+      peak_hour: peakHour ? { hour: peakHour.hour, count: peakHour.count } : null,
+      peak_day: peakDay ? { day_name: peakDay.day_name, count: peakDay.count } : null,
+      top_agent: topAgent ? { name: topAgent.agent_name, visit_count: topAgent.visit_count } : null,
+      avg_visits_per_agent: avgVisitsPerAgent?.avg_visits || 0,
+      total_stores_visited: totalStores?.count || 0,
+      period: { start: startD, end: endD }
+    });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // Company Portal: Export data (CSV)
 app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c) => {
   const db = c.env.DB;
