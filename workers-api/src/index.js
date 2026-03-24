@@ -181,24 +181,32 @@ function countWorkingDaysInMonth(config, month) {
 }
 
 // Build monthly targets from company_target_rules × working days when monthly_targets table is empty
-async function buildFallbackMonthlyTargets(db, tenantId, agentId, currentMonth, agentCompanyIds) {
+async function buildFallbackMonthlyTargets(db, tenantId, agentId, currentMonth, agentCompanyIds, roleType) {
   const fallbackTargets = [];
   if (!agentCompanyIds || agentCompanyIds.length === 0) return fallbackTargets;
   try {
+    const rt = roleType || 'agent';
     const ph = agentCompanyIds.map(() => '?').join(',');
-    const ctrResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all();
-    const rules = ctrResult.results || [];
+    // Try role-specific rules first, fall back to any rules for backward compat
+    let ctrResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, rt).all();
+    let rules = ctrResult.results || [];
+    if (rules.length === 0) {
+      ctrResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all();
+      rules = ctrResult.results || [];
+    }
     for (const ctr of rules) {
       const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, agentId);
       const workingDays = countWorkingDaysInMonth(wdConfig, currentMonth);
-      const dailyVisits = ctr.target_visits_per_day || 0;
-      const dailyRegs = ctr.target_registrations_per_day || 0;
+      // Use new per-role fields first, fall back to legacy fields
+      const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const indivPerMonth = ctr.individual_target_per_month != null ? ctr.individual_target_per_month : (indivPerDay * workingDays);
+      const storePerMonth = (ctr.store_target_per_month != null ? ctr.store_target_per_month : ((ctr.target_registrations_per_day || 0) * workingDays));
       const dailyConvs = ctr.target_conversions_per_day || 0;
       fallbackTargets.push({
         company_id: ctr.company_id,
         company_name: ctr.company_name,
-        target_visits: dailyVisits * workingDays,
-        target_registrations: dailyRegs * workingDays,
+        target_visits: indivPerMonth,
+        target_registrations: storePerMonth,
         target_conversions: dailyConvs * workingDays,
         actual_visits: 0,
         actual_registrations: 0,
@@ -216,21 +224,32 @@ async function buildFallbackMonthlyTargets(db, tenantId, agentId, currentMonth, 
 }
 
 // Build fallback targets for a single user (used in team lead / manager context)
-async function getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth) {
+async function getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth, roleType) {
   let totalTargetVisits = 0;
   let totalTargetRegs = 0;
   try {
+    const rt = roleType || 'agent';
     // Get user's companies
     const companiesResult = await db.prepare("SELECT fc.id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
     const companyIds = (companiesResult.results || []).map(c => c.id);
     if (companyIds.length > 0) {
       const ph = companyIds.map(() => '?').join(',');
-      const rules = await db.prepare(`SELECT * FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph})`).bind(tenantId, ...companyIds).all();
-      for (const ctr of (rules.results || [])) {
+      // Try role-specific rules first, fall back to any rules for backward compat
+      let rules = await db.prepare(`SELECT * FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph}) AND role_type = ?`).bind(tenantId, ...companyIds, rt).all();
+      let ruleRows = rules.results || [];
+      if (ruleRows.length === 0) {
+        rules = await db.prepare(`SELECT * FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph})`).bind(tenantId, ...companyIds).all();
+        ruleRows = rules.results || [];
+      }
+      for (const ctr of ruleRows) {
         const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, userId);
         const workingDays = countWorkingDaysInMonth(wdConfig, currentMonth);
-        totalTargetVisits += (ctr.target_visits_per_day || 0) * workingDays;
-        totalTargetRegs += (ctr.target_registrations_per_day || 0) * workingDays;
+        // Use new per-role fields first, fall back to legacy fields
+        const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+        const indivPerMonth = ctr.individual_target_per_month != null ? ctr.individual_target_per_month : (indivPerDay * workingDays);
+        const storePerMonth = (ctr.store_target_per_month != null ? ctr.store_target_per_month : ((ctr.target_registrations_per_day || 0) * workingDays));
+        totalTargetVisits += indivPerMonth;
+        totalTargetRegs += storePerMonth;
       }
     }
   } catch { /* */ }
@@ -470,6 +489,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const companySql = userRole === 'manager'
       ? "SELECT fc.id, fc.name, fc.code FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active'"
       : "SELECT fc.id, fc.name, fc.code FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'";
+    // Use role-specific rules: agents get 'agent' rules, team_leads get 'team_lead' rules, managers get 'manager' rules
+    const dashRoleType = userRole === 'manager' ? 'manager' : userRole === 'team_lead' ? 'team_lead' : 'agent';
 
     // All these queries are independent — run them all at once
     const [todayVisits, monthVisits, todayRegs, monthRegs, recentVisits, companies, targets, visitBreakdown, weekVisits, weekRegs, weekVisitsByCompany] = await Promise.all([
@@ -512,10 +533,15 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     if (agentCompanyIds.length > 0) {
       const ph = agentCompanyIds.map(() => '?').join(',');
       const [ctrResult, perCompanyRegsTodayAll] = await Promise.all([
-        db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all().catch(() => ({ results: [] })),
+        db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, dashRoleType).all().catch(() => ({ results: [] })),
         db.prepare(`SELECT company_id, SUM(CASE WHEN DATE(created_at) = ? THEN 1 ELSE 0 END) as today_count, COUNT(*) as month_count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND company_id IN (${ph}) AND DATE(created_at) >= ? GROUP BY company_id`).bind(today, tenantId, userId, ...agentCompanyIds, monthStart).all().catch(() => ({ results: [] })),
       ]);
       companyTargetRules = ctrResult.results || [];
+      // Fallback: get any rules if no role-specific ones found
+      if (companyTargetRules.length === 0) {
+        const fallbackResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all().catch(() => ({ results: [] }));
+        companyTargetRules = fallbackResult.results || [];
+      }
       for (const r of (perCompanyRegsTodayAll.results || [])) {
         perCompanyRegsLookup[r.company_id] = { today: r.today_count || 0, month: r.month_count || 0 };
       }
@@ -526,20 +552,40 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     if (dailyTargets.length === 0 && companyTargetRules.length > 0) {
       dailyTargets = companyTargetRules.map(ctr => {
         const ca = perCompanyActuals[ctr.company_id] || {};
-        const cr = perCompanyRegsLookup[ctr.company_id] || {};
+        // Use new per-role fields first, fall back to legacy fields (use ?? to preserve explicit 0)
+        const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+        const storePerDay = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
         return {
           company_name: ctr.company_name,
           company_id: ctr.company_id,
-          target_visits: ctr.target_visits_per_day,
-          target_registrations: ctr.target_registrations_per_day,
-          target_conversions: ctr.target_conversions_per_day,
-          actual_visits: ca.today_visits || 0,
-          actual_registrations: cr.today || 0,
+          target_visits: indivPerDay,
+          target_registrations: storePerDay,
+          target_conversions: ctr.target_conversions_per_day || 0,
+          actual_visits: ca.today_individual_visits || 0,
+          actual_registrations: ca.today_store_visits || 0,
           actual_store_visits: ca.today_store_visits || 0,
           actual_individual_visits: ca.today_individual_visits || 0,
+          individual_target_per_day: indivPerDay,
+          store_target_per_day: storePerDay,
           source: 'company_rule',
+          role_type: ctr.role_type || 'agent',
         };
       });
+    }
+
+    // Compute aggregate type-filtered counts from per-company actuals
+    let totalTodayIndividual = 0, totalTodayStore = 0, totalMonthIndividual = 0, totalMonthStore = 0;
+    for (const cid in perCompanyActuals) {
+      totalTodayIndividual += perCompanyActuals[cid].today_individual_visits || 0;
+      totalTodayStore += perCompanyActuals[cid].today_store_visits || 0;
+      totalMonthIndividual += perCompanyActuals[cid].month_individual_visits || 0;
+      totalMonthStore += perCompanyActuals[cid].month_store_visits || 0;
+    }
+    // Compute week type-filtered counts from weekVisitsByCompany
+    let totalWeekIndividual = 0, totalWeekStore = 0;
+    for (const wv of (weekVisitsByCompany.results || [])) {
+      if ((wv.visit_type || '').toLowerCase() === 'individual') totalWeekIndividual += wv.count || 0;
+      if ((wv.visit_type || '').toLowerCase() === 'store') totalWeekStore += wv.count || 0;
     }
 
     // Batch 3: Resolve working days configs for all companies in parallel
@@ -566,8 +612,9 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
           if ((wv.visit_type || '').toLowerCase() === 'individual') weekIndividualVisits += wv.count || 0;
         }
       }
-      const dayTarget = ctr.target_visits_per_day || 0;
-      const dayRegTarget = ctr.target_registrations_per_day || 0;
+      // Use new per-role fields first, fall back to legacy fields
+      const dayTarget = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const dayRegTarget = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
       weekTargetVisits += dayTarget * workingDaysPerWeek;
       weekTargetRegs += dayRegTarget * workingDaysPerWeek;
       monthTargetVisits += dayTarget * workingDaysPerMonth;
@@ -579,16 +626,16 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         // Daily targets
         daily_target_visits: dayTarget,
         daily_target_registrations: dayRegTarget,
-        daily_actual_visits: ca.today_visits || 0,
-        daily_actual_registrations: cr.today || 0,
+        daily_actual_visits: ca.today_individual_visits || 0,
+        daily_actual_registrations: ca.today_store_visits || 0,
         // Store-specific targets
-        store_target_per_month: ctr.store_target_per_month_agent || 0,
+        store_target_per_month: (ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0,
         store_actual_month: ca.month_store_visits || 0,
         store_actual_today: ca.today_store_visits || 0,
         store_actual_week: weekStoreVisits,
         // Individual-specific targets
-        individual_target_per_week: ctr.individual_target_per_week_agent || 0,
-        individual_target_per_month: ctr.individual_target_per_month_agent || 0,
+        individual_target_per_week: ctr.individual_target_per_week_agent ?? 0,
+        individual_target_per_month: (ctr.individual_target_per_month != null ? ctr.individual_target_per_month : ctr.individual_target_per_month_agent) ?? 0,
         individual_actual_month: ca.month_individual_visits || 0,
         individual_actual_today: ca.today_individual_visits || 0,
         individual_actual_week: weekIndividualVisits,
@@ -613,13 +660,20 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         today_registrations: todayRegs?.count || 0,
         month_registrations: monthRegs?.count || 0,
         week_registrations: weekRegs?.count || 0,
+        // Type-filtered counts for Individual vs Store split
+        today_individual_visits: totalTodayIndividual,
+        today_store_visits: totalTodayStore,
+        month_individual_visits: totalMonthIndividual,
+        month_store_visits: totalMonthStore,
+        week_individual_visits: totalWeekIndividual,
+        week_store_visits: totalWeekStore,
         recent_visits: recentVisits.results || [],
         companies: companies.results || [],
         daily_targets: dailyTargets,
         company_target_rules: companyTargetRules,
         company_targets: companyTargets,
-        weekly_targets: { target_visits: weekTargetVisits, actual_visits: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: weekRegs?.count || 0 },
-        monthly_targets: { target_visits: monthTargetVisits, actual_visits: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: monthRegs?.count || 0 },
+        weekly_targets: { target_visits: weekTargetVisits, actual_visits: totalWeekIndividual, actual_visits_all: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: totalWeekStore, actual_registrations_all: weekRegs?.count || 0 },
+        monthly_targets: { target_visits: monthTargetVisits, actual_visits: totalMonthIndividual, actual_visits_all: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: totalMonthStore, actual_registrations_all: monthRegs?.count || 0 },
         visit_breakdown: visitBreakdown.results || [],
       }
     });
@@ -630,9 +684,10 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
 });
 
 // Helper: generate monthly targets from company_target_rules when monthly_targets table is empty
-async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate) {
+async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, roleType) {
   try {
     const currentMonth = monthStartDate.substring(0, 7); // e.g. '2026-03'
+    const rt = roleType || 'agent';
     // Get agent's companies
     const agentCompanies = await db.prepare(
       "SELECT fc.id, fc.name FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'"
@@ -640,33 +695,32 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate) {
     const companyIds = (agentCompanies.results || []).map(c => c.id);
     if (companyIds.length === 0) return [];
     const ph = companyIds.map(() => '?').join(',');
-    const rulesResult = await db.prepare(
-      `SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`
-    ).bind(tenantId, ...companyIds).all();
-    const rules = rulesResult.results || [];
+    // Try to get per-role rules first, fall back to any rules for backward compat
+    let rulesResult = await db.prepare(
+      `SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`
+    ).bind(tenantId, ...companyIds, rt).all();
+    let rules = rulesResult.results || [];
+    if (rules.length === 0) {
+      // Fallback: get any rules (legacy rows without role_type or role_type='agent')
+      rulesResult = await db.prepare(
+        `SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`
+      ).bind(tenantId, ...companyIds).all();
+      rules = rulesResult.results || [];
+    }
     if (rules.length === 0) return [];
     const syntheticTargets = [];
     for (const ctr of rules) {
       // Resolve working calendar for this agent+company
       const wdConfig = await resolveWorkingDaysConfig(db, tenantId, ctr.company_id, agentId);
       const wdMonth = countWorkingDaysInMonth(wdConfig, currentMonth);
-      const targetVisits = (ctr.target_visits_per_day || 0) * wdMonth;
-      const targetRegs = (ctr.target_registrations_per_day || 0) * wdMonth;
+      // Use new per-role fields first, fall back to legacy fields (use ?? to preserve explicit 0)
+      const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const storePerMonth = (ctr.store_target_per_month != null ? ctr.store_target_per_month : (ctr.store_target_per_month_agent ?? ctr.store_target_per_month_tl)) ?? 0;
+      const indivPerMonth = ctr.individual_target_per_month != null ? ctr.individual_target_per_month : (indivPerDay * wdMonth);
+      const storePerDay = ctr.store_target_per_day ?? 0;
       const targetConvs = (ctr.target_conversions_per_day || 0) * wdMonth;
       // Get live actuals
-      let actualVisits = 0, actualRegs = 0, actualConvs = 0, storeVisits = 0, individualVisits = 0;
-      try {
-        const lv = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND company_id = ?").bind(agentId, tenantId, monthStartDate, ctr.company_id).first();
-        actualVisits = lv?.count || 0;
-      } catch { /* */ }
-      try {
-        const lr = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND created_at >= ? AND company_id = ?").bind(agentId, tenantId, monthStartDate + ' 00:00:00', ctr.company_id).first();
-        actualRegs = lr?.count || 0;
-      } catch { /* */ }
-      try {
-        const lc = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND converted = 1 AND conversion_date >= ? AND company_id = ?").bind(agentId, tenantId, monthStartDate, ctr.company_id).first();
-        actualConvs = lc?.count || 0;
-      } catch { /* */ }
+      let storeVisits = 0, individualVisits = 0, actualConvs = 0;
       try {
         const tb = await db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND company_id = ? GROUP BY visit_type").bind(agentId, tenantId, monthStartDate, ctr.company_id).all();
         for (const row of (tb.results || [])) {
@@ -674,21 +728,28 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate) {
           if ((row.visit_type || '').toLowerCase() === 'individual') individualVisits = row.count || 0;
         }
       } catch { /* */ }
+      try {
+        const lc = await db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE agent_id = ? AND tenant_id = ? AND converted = 1 AND conversion_date >= ? AND company_id = ?").bind(agentId, tenantId, monthStartDate, ctr.company_id).first();
+        actualConvs = lc?.count || 0;
+      } catch { /* */ }
       syntheticTargets.push({
         company_id: ctr.company_id,
         company_name: ctr.company_name,
-        target_visits: targetVisits,
-        actual_visits: actualVisits,
-        target_registrations: targetRegs,
-        actual_registrations: actualRegs,
+        target_visits: indivPerMonth,
+        actual_visits: individualVisits,
+        target_registrations: storePerMonth,
+        actual_registrations: storeVisits,
         target_conversions: targetConvs,
         actual_conversions: actualConvs,
+        individual_target_per_day: indivPerDay,
+        store_target_per_day: storePerDay,
         commission_amount: 0,
         commission_rate: 0,
         working_days: wdMonth,
         store_visits: storeVisits,
         individual_visits: individualVisits,
         source: 'company_rule',
+        role_type: ctr.role_type || 'agent',
       });
     }
     return syntheticTargets;
@@ -696,10 +757,10 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate) {
 }
 
 // Helper: compute target totals for a set of user IDs from company_target_rules
-async function computeTargetTotalsFromRules(db, tenantId, userIds, monthStartDate) {
+async function computeTargetTotalsFromRules(db, tenantId, userIds, monthStartDate, roleType) {
   let totalTargetVisits = 0, totalActualVisits = 0, totalTargetRegs = 0, totalActualRegs = 0;
   for (const uid of userIds) {
-    const targets = await generateTargetsFromRules(db, tenantId, uid, monthStartDate);
+    const targets = await generateTargetsFromRules(db, tenantId, uid, monthStartDate, roleType);
     totalTargetVisits += targets.reduce((s, t) => s + (t.target_visits || 0), 0);
     totalActualVisits += targets.reduce((s, t) => s + (t.actual_visits || 0), 0);
     totalTargetRegs += targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
@@ -988,7 +1049,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
       let tlTR = tlOwnTargets?.target_registrations || 0;
       // Fall back to company_target_rules if monthly_targets are empty
       if (tlTV === 0 && tlTR === 0) {
-        const fb = await getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth);
+        const fb = await getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth, 'team_lead');
         tlTV = fb.target_visits;
         tlTR = fb.target_registrations;
       }
@@ -997,7 +1058,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
 
       // Fallback: if monthly_targets yields 0 targets, use company_target_rules
       if (tlTV === 0) {
-        const tlRuleTargets = await generateTargetsFromRules(db, tenantId, userId, currentMonth + '-01');
+        const tlRuleTargets = await generateTargetsFromRules(db, tenantId, userId, currentMonth + '-01', 'team_lead');
         tlTV = tlRuleTargets.reduce((s, t) => s + (t.target_visits || 0), 0);
       }
 
@@ -1066,12 +1127,16 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
 
     // Get per-agent stats for current month — all agents in parallel
     const agentStats = await Promise.all((teamMembers.results || []).map(async (member) => {
-      const [todayV, monthV, todayR, monthR, targets] = await Promise.all([
+      const [todayV, monthV, todayR, monthR, targets, todayIndiv, todayStore, monthIndiv, monthStore] = await Promise.all([
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?").bind(tenantId, member.id, today).first(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
         db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, member.id, today).first(),
         db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
         db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, member.id, currentMonth).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ? AND LOWER(visit_type) = 'individual'").bind(tenantId, member.id, today).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ? AND LOWER(visit_type) = 'store'").bind(tenantId, member.id, today).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'individual'").bind(tenantId, member.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'store'").bind(tenantId, member.id, currentMonth + '-01').first(),
       ]);
       let tv = targets?.target_visits || 0;
       let tr = targets?.target_registrations || 0;
@@ -1100,6 +1165,10 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         month_visits: monthV?.count || 0,
         today_registrations: todayR?.count || 0,
         month_registrations: monthR?.count || 0,
+        today_individual_visits: todayIndiv?.count || 0,
+        today_store_visits: todayStore?.count || 0,
+        month_individual_visits: monthIndiv?.count || 0,
+        month_store_visits: monthStore?.count || 0,
         target_visits: tv,
         actual_visits: av,
         target_registrations: tr,
@@ -1113,6 +1182,10 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
     const teamMonthVisits = agentStats.reduce((s, a) => s + a.month_visits, 0);
     const teamTodayRegs = agentStats.reduce((s, a) => s + a.today_registrations, 0);
     const teamMonthRegs = agentStats.reduce((s, a) => s + a.month_registrations, 0);
+    const teamTodayIndividual = agentStats.reduce((s, a) => s + (a.today_individual_visits || 0), 0);
+    const teamTodayStore = agentStats.reduce((s, a) => s + (a.today_store_visits || 0), 0);
+    const teamMonthIndividual = agentStats.reduce((s, a) => s + (a.month_individual_visits || 0), 0);
+    const teamMonthStore = agentStats.reduce((s, a) => s + (a.month_store_visits || 0), 0);
     const agentTargetVisits = agentStats.reduce((s, a) => s + a.target_visits, 0);
     const agentActualVisits = agentStats.reduce((s, a) => s + a.actual_visits, 0);
     const agentTargetRegs = agentStats.reduce((s, a) => s + (a.target_registrations || 0), 0);
@@ -1129,7 +1202,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
     let tlOwnTR = tlOwnTargets?.target_registrations || 0;
     // Fall back to company_target_rules if monthly_targets are empty for team lead
     if (tlOwnTV === 0 && tlOwnTR === 0) {
-      const fb = await getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth);
+      const fb = await getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth, 'team_lead');
       tlOwnTV = fb.target_visits;
       tlOwnTR = fb.target_registrations;
     }
@@ -1138,7 +1211,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
 
     // Fallback: if monthly_targets yields 0 for TL, use company_target_rules
     if (tlOwnTV === 0) {
-      const tlRuleTargets = await generateTargetsFromRules(db, tenantId, userId, currentMonth + '-01');
+      const tlRuleTargets = await generateTargetsFromRules(db, tenantId, userId, currentMonth + '-01', 'team_lead');
       tlOwnTV = tlRuleTargets.reduce((s, t) => s + (t.target_visits || 0), 0);
     }
 
@@ -1227,6 +1300,10 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
           month_visits: teamMonthVisits,
           today_registrations: teamTodayRegs,
           month_registrations: teamMonthRegs,
+          today_individual_visits: teamTodayIndividual,
+          today_store_visits: teamTodayStore,
+          month_individual_visits: teamMonthIndividual,
+          month_store_visits: teamMonthStore,
         },
         team_targets: {
           target_visits: teamTargetVisits,
@@ -1334,7 +1411,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
       let tlOwnTgtTV = tlOwnTgt?.tv || 0;
       let tlOwnTgtTR = tlOwnTgt?.tr || 0;
       if (tlOwnTgtTV === 0 && tlOwnTgtTR === 0) {
-        const fb = await getUserMonthlyTargetFromRules(db, tenantId, tl.id, currentMonth);
+        const fb = await getUserMonthlyTargetFromRules(db, tenantId, tl.id, currentMonth, 'team_lead');
         tlOwnTgtTV = fb.target_visits;
         tlOwnTgtTR = fb.target_registrations;
       }
@@ -1361,6 +1438,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     // Org-wide totals (use teamsData which already includes team lead own targets)
     const allAgentIds = (allAgents.results || []).map(a => a.id);
     let orgTodayVisits = 0, orgMonthVisits = 0, orgTodayRegs = 0, orgMonthRegs = 0;
+    let orgTodayIndividual = 0, orgTodayStoreV = 0, orgMonthIndividual = 0, orgMonthStoreV = 0;
     let orgPending = 0, orgApproved = 0, orgPaid = 0;
 
     // Org targets = sum from all teams (which now include TL own targets)
@@ -1371,7 +1449,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
 
     if (allAgentIds.length > 0) {
       const ph2 = allAgentIds.map(() => '?').join(',');
-      const [tvRes, mvRes, trRes, mrRes, cpRes, caRes, cdRes] = await Promise.all([
+      const [tvRes, mvRes, trRes, mrRes, cpRes, caRes, cdRes, tiRes, tsRes, miRes, msRes] = await Promise.all([
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ?`).bind(tenantId, ...allAgentIds, today).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ?`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph2}) AND DATE(created_at) = ?`).bind(tenantId, ...allAgentIds, today).first(),
@@ -1379,11 +1457,19 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'pending'`).bind(tenantId, ...allAgentIds).first(),
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'approved'`).bind(tenantId, ...allAgentIds).first(),
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'paid'`).bind(tenantId, ...allAgentIds).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ? AND LOWER(visit_type) = 'individual'`).bind(tenantId, ...allAgentIds, today).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ? AND LOWER(visit_type) = 'store'`).bind(tenantId, ...allAgentIds, today).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ? AND LOWER(visit_type) = 'individual'`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ? AND LOWER(visit_type) = 'store'`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
       ]);
       orgTodayVisits = tvRes?.count || 0;
       orgMonthVisits = mvRes?.count || 0;
       orgTodayRegs = trRes?.count || 0;
       orgMonthRegs = mrRes?.count || 0;
+      orgTodayIndividual = tiRes?.count || 0;
+      orgTodayStoreV = tsRes?.count || 0;
+      orgMonthIndividual = miRes?.count || 0;
+      orgMonthStoreV = msRes?.count || 0;
       orgPending = cpRes?.total || 0;
       orgApproved = caRes?.total || 0;
       orgPaid = cdRes?.total || 0;
@@ -1432,6 +1518,10 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
           month_visits: orgMonthVisits,
           today_registrations: orgTodayRegs,
           month_registrations: orgMonthRegs,
+          today_individual_visits: orgTodayIndividual,
+          today_store_visits: orgTodayStoreV,
+          month_individual_visits: orgMonthIndividual,
+          month_store_visits: orgMonthStoreV,
         },
         org_targets: {
           target_visits: orgTargetVisits,
@@ -5995,12 +6085,13 @@ api.post('/field-ops/daily-targets/bulk', authMiddleware, async (c) => {
 api.get('/field-ops/company-target-rules', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const { company_id } = c.req.query();
+  const { company_id, role_type } = c.req.query();
   try {
     let query = "SELECT ctr.*, fc.name as company_name, fc.code as company_code FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ?";
     const params = [tenantId];
     if (company_id) { query += ' AND ctr.company_id = ?'; params.push(company_id); }
-    query += ' ORDER BY fc.name';
+    if (role_type) { query += ' AND ctr.role_type = ?'; params.push(role_type); }
+    query += ' ORDER BY fc.name, ctr.role_type';
     const rules = await db.prepare(query).bind(...params).all();
     return c.json({ data: rules.results || [] });
   } catch {
@@ -6013,10 +6104,11 @@ api.get('/field-ops/company-target-rules/:companyId', authMiddleware, async (c) 
   const tenantId = c.get('tenantId');
   const companyId = c.req.param('companyId');
   try {
-    const rule = await db.prepare("SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.company_id = ? AND ctr.tenant_id = ?").bind(companyId, tenantId).first();
-    return c.json({ data: rule || null });
+    const rules = await db.prepare("SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.company_id = ? AND ctr.tenant_id = ? ORDER BY ctr.role_type").bind(companyId, tenantId).all();
+    // Return all role rules for this company
+    return c.json({ data: rules.results || [] });
   } catch {
-    return c.json({ data: null });
+    return c.json({ data: [] });
   }
 });
 
@@ -6025,23 +6117,50 @@ api.post('/field-ops/company-target-rules', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
-  const { company_id } = body;
+  const { company_id, role_type } = body;
   if (!company_id) return c.json({ success: false, message: 'company_id required' }, 400);
-  // Upsert: check if rule already exists for this company
-  const existing = await db.prepare('SELECT id FROM company_target_rules WHERE company_id = ? AND tenant_id = ?').bind(company_id, tenantId).first();
+  const rt = role_type || 'agent';
+  // Upsert: check if rule already exists for this company + role_type
+  const existing = await db.prepare('SELECT id FROM company_target_rules WHERE company_id = ? AND tenant_id = ? AND role_type = ?').bind(company_id, tenantId, rt).first();
   if (existing) {
-    await db.prepare('UPDATE company_target_rules SET target_visits_per_day = ?, target_registrations_per_day = ?, target_conversions_per_day = ?, team_lead_own_target_visits = ?, team_lead_own_target_registrations = ?, team_lead_own_target_conversions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(
-      body.target_visits_per_day ?? 20, body.target_registrations_per_day ?? 10, body.target_conversions_per_day ?? 5,
-      body.team_lead_own_target_visits ?? 20, body.team_lead_own_target_registrations ?? 10, body.team_lead_own_target_conversions ?? 5,
+    await db.prepare(`UPDATE company_target_rules SET 
+      individual_target_per_day = ?, individual_target_per_month = ?,
+      store_target_per_day = ?, store_target_per_month = ?,
+      target_visits_per_day = ?, target_registrations_per_day = ?, target_conversions_per_day = ?,
+      team_lead_own_target_visits = ?, team_lead_own_target_registrations = ?, team_lead_own_target_conversions = ?,
+      store_target_per_month_tl = ?, store_target_per_month_agent = ?,
+      individual_target_per_week_agent = ?, individual_target_per_month_agent = ?,
+      tl_target_is_agent_sum = ?, mgr_target_is_tl_sum = ?,
+      updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?`).bind(
+      body.individual_target_per_day ?? 0, body.individual_target_per_month ?? 0,
+      body.store_target_per_day ?? 0, body.store_target_per_month ?? 0,
+      body.target_visits_per_day ?? body.individual_target_per_day ?? 0, body.target_registrations_per_day ?? 0, body.target_conversions_per_day ?? 0,
+      body.team_lead_own_target_visits ?? 0, body.team_lead_own_target_registrations ?? 0, body.team_lead_own_target_conversions ?? 0,
+      body.store_target_per_month_tl ?? body.store_target_per_month ?? null, body.store_target_per_month_agent ?? body.store_target_per_month ?? null,
+      body.individual_target_per_week_agent ?? null, body.individual_target_per_month_agent ?? body.individual_target_per_month ?? null,
+      body.tl_target_is_agent_sum ?? 1, body.mgr_target_is_tl_sum ?? 1,
       existing.id, tenantId
     ).run();
     return c.json({ success: true, data: { id: existing.id }, message: 'Target rules updated' });
   }
   const id = uuidv4();
-  await db.prepare('INSERT INTO company_target_rules (id, tenant_id, company_id, target_visits_per_day, target_registrations_per_day, target_conversions_per_day, team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
-    id, tenantId, company_id,
-    body.target_visits_per_day ?? 20, body.target_registrations_per_day ?? 10, body.target_conversions_per_day ?? 5,
-    body.team_lead_own_target_visits ?? 20, body.team_lead_own_target_registrations ?? 10, body.team_lead_own_target_conversions ?? 5,
+  await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id, role_type,
+    individual_target_per_day, individual_target_per_month,
+    store_target_per_day, store_target_per_month,
+    target_visits_per_day, target_registrations_per_day, target_conversions_per_day,
+    team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions,
+    store_target_per_month_tl, store_target_per_month_agent,
+    individual_target_per_week_agent, individual_target_per_month_agent,
+    tl_target_is_agent_sum, mgr_target_is_tl_sum,
+    created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+    id, tenantId, company_id, rt,
+    body.individual_target_per_day ?? 0, body.individual_target_per_month ?? 0,
+    body.store_target_per_day ?? 0, body.store_target_per_month ?? 0,
+    body.target_visits_per_day ?? body.individual_target_per_day ?? 0, body.target_registrations_per_day ?? 0, body.target_conversions_per_day ?? 0,
+    body.team_lead_own_target_visits ?? 0, body.team_lead_own_target_registrations ?? 0, body.team_lead_own_target_conversions ?? 0,
+    body.store_target_per_month_tl ?? body.store_target_per_month ?? null, body.store_target_per_month_agent ?? body.store_target_per_month ?? null,
+    body.individual_target_per_week_agent ?? null, body.individual_target_per_month_agent ?? body.individual_target_per_month ?? null,
+    body.tl_target_is_agent_sum ?? 1, body.mgr_target_is_tl_sum ?? 1,
     userId
   ).run();
   return c.json({ success: true, data: { id }, message: 'Target rules created' }, 201);

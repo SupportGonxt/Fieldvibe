@@ -138,14 +138,14 @@ export default function MonthlyTargetsPage() {
         <div className="card p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30"><Target className="w-5 h-5 text-blue-600" /></div>
           <div>
-            <p className="text-sm text-gray-500">Total Target Visits</p>
+            <p className="text-sm text-gray-500">Target Individual Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-white">{totalTargetVisits}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30"><TrendingUp className="w-5 h-5 text-green-600" /></div>
           <div>
-            <p className="text-sm text-gray-500">Total Actual Visits</p>
+            <p className="text-sm text-gray-500">Actual Individual Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-white">{totalActualVisits}</p>
           </div>
         </div>
@@ -211,7 +211,7 @@ export default function MonthlyTargetsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Visits</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Individual Visits</label>
               <input
                 type="number"
                 value={newTarget.target_visits}
@@ -220,7 +220,7 @@ export default function MonthlyTargetsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Registrations</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Store Visits</label>
               <input
                 type="number"
                 value={newTarget.target_registrations}
@@ -261,8 +261,8 @@ export default function MonthlyTargetsPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Working Days</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Visits (Target/Actual)</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Regs (Target/Actual)</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Individual Visits (Target/Actual)</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Store Visits (Target/Actual)</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Conv (Target/Actual)</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Achievement</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Commission</th>

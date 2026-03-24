@@ -248,10 +248,10 @@ export default function AgentDashboard() {
 
       <div className="px-5 mb-4">
         <div className="grid grid-cols-2 gap-3">
-          <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Visits" value={data?.today_visits || 0} color="bg-blue-500" />
-          <StatCard icon={<Users className="w-5 h-5" />} label="Registrations" value={data?.today_registrations || 0} color="bg-purple-500" />
-          <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Visits" value={data?.month_visits || 0} color="bg-emerald-500" />
-          <StatCard icon={<Target className="w-5 h-5" />} label="Month Regs" value={data?.month_registrations || 0} color="bg-amber-500" />
+          <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={data?.today_individual_visits ?? data?.today_visits ?? 0} color="bg-blue-500" />
+          <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={data?.today_store_visits ?? 0} color="bg-purple-500" />
+          <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={data?.month_individual_visits ?? data?.month_visits ?? 0} color="bg-emerald-500" />
+          <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={data?.month_store_visits ?? 0} color="bg-amber-500" />
         </div>
       </div>
 
@@ -320,7 +320,7 @@ export default function AgentDashboard() {
               <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Calendar className="w-3 h-3 text-blue-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Week Visits</span>
+                  <span className="text-[10px] text-gray-500 uppercase">Week Individual</span>
                 </div>
                 <p className="text-lg font-bold text-white">{data.weekly_targets.actual_visits}<span className="text-sm text-gray-500">/{data.weekly_targets.target_visits}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
@@ -332,7 +332,7 @@ export default function AgentDashboard() {
               <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Target className="w-3 h-3 text-emerald-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Month Visits</span>
+                  <span className="text-[10px] text-gray-500 uppercase">Month Individual</span>
                 </div>
                 <p className="text-lg font-bold text-white">{data.monthly_targets.actual_visits}<span className="text-sm text-gray-500">/{data.monthly_targets.target_visits}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
@@ -344,7 +344,7 @@ export default function AgentDashboard() {
               <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Users className="w-3 h-3 text-purple-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Week Regs</span>
+                  <span className="text-[10px] text-gray-500 uppercase">Week Store</span>
                 </div>
                 <p className="text-lg font-bold text-white">{data.weekly_targets.actual_registrations}<span className="text-sm text-gray-500">/{data.weekly_targets.target_registrations}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
@@ -356,7 +356,7 @@ export default function AgentDashboard() {
               <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Users className="w-3 h-3 text-amber-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Month Regs</span>
+                  <span className="text-[10px] text-gray-500 uppercase">Month Store</span>
                 </div>
                 <p className="text-lg font-bold text-white">{data.monthly_targets.actual_registrations}<span className="text-sm text-gray-500">/{data.monthly_targets.target_registrations}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
@@ -385,8 +385,8 @@ export default function AgentDashboard() {
                     <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: `${dailyPct}%` }} />
                   </div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-[10px] text-gray-500">Today: {ct.daily_actual_visits}/{ct.daily_target_visits} visits</span>
-                    <span className="text-[10px] text-gray-500">Regs: {ct.daily_actual_registrations}/{ct.daily_target_registrations}</span>
+                    <span className="text-[10px] text-gray-500">Individual: {ct.daily_actual_visits}/{ct.daily_target_visits} today</span>
+                    <span className="text-[10px] text-gray-500">Store: {ct.daily_actual_registrations}/{ct.daily_target_registrations}</span>
                   </div>
                   {/* Store vs Individual split */}
                   <div className="grid grid-cols-2 gap-2 mt-1">
@@ -445,8 +445,8 @@ export default function AgentDashboard() {
                     <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: `${visitPct}%` }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
-                    <span className="text-[10px] text-gray-500">Visits: {t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Regs: {t.actual_registrations}/{t.target_registrations}</span>
+                    <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
+                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
                   </div>
                 </div>
               )

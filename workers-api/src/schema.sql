@@ -1512,16 +1512,23 @@ CREATE TABLE IF NOT EXISTS company_target_rules (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   company_id TEXT NOT NULL,
+  -- Role type: 'agent', 'team_lead', 'manager'
+  role_type TEXT NOT NULL DEFAULT 'agent',
+  -- Individual visit targets
+  individual_target_per_day INTEGER DEFAULT 0,
+  individual_target_per_month INTEGER DEFAULT 0,
+  -- Store visit targets
+  store_target_per_day INTEGER DEFAULT 0,
+  store_target_per_month INTEGER DEFAULT 0,
+  -- Legacy fields (kept for backward compatibility)
   target_visits_per_day INTEGER DEFAULT 20,
   target_registrations_per_day INTEGER DEFAULT 10,
   target_conversions_per_day INTEGER DEFAULT 5,
   team_lead_own_target_visits INTEGER DEFAULT 20,
   team_lead_own_target_registrations INTEGER DEFAULT 10,
   team_lead_own_target_conversions INTEGER DEFAULT 5,
-  -- Store visit targets
   store_target_per_month_tl INTEGER,
   store_target_per_month_agent INTEGER,
-  -- Individual visit targets
   individual_target_per_week_agent INTEGER,
   individual_target_per_month_agent INTEGER,
   -- Working days config

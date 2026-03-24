@@ -332,10 +332,10 @@ function OverviewTab({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <StatCard icon={<MapPin className="w-5 h-5 text-blue-400" />} label="Today Visits" value={dashData?.today_visits || 0} />
-        <StatCard icon={<Users className="w-5 h-5 text-purple-400" />} label="Today Regs" value={dashData?.today_registrations || 0} />
-        <StatCard icon={<TrendingUp className="w-5 h-5 text-emerald-400" />} label="Month Visits" value={dashData?.month_visits || 0} />
-        <StatCard icon={<Award className="w-5 h-5 text-amber-400" />} label="Month Regs" value={dashData?.month_registrations || 0} />
+        <StatCard icon={<MapPin className="w-5 h-5 text-blue-400" />} label="Today Individual" value={dashData?.today_individual_visits ?? dashData?.today_visits ?? 0} />
+        <StatCard icon={<Store className="w-5 h-5 text-purple-400" />} label="Today Store" value={dashData?.today_store_visits ?? 0} />
+        <StatCard icon={<TrendingUp className="w-5 h-5 text-emerald-400" />} label="Month Individual" value={dashData?.month_individual_visits ?? dashData?.month_visits ?? 0} />
+        <StatCard icon={<Award className="w-5 h-5 text-amber-400" />} label="Month Store" value={dashData?.month_store_visits ?? 0} />
       </div>
 
       {/* Visit breakdown by company and type */}
@@ -347,8 +347,8 @@ function OverviewTab({
         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Monthly Achievement</h3>
           <div className="space-y-3">
-            <ProgressRow label="Visits" actual={perfData.total_actual_visits} target={perfData.total_target_visits} color="#3B82F6" />
-            <ProgressRow label="Registrations" actual={perfData.total_actual_registrations} target={perfData.total_target_registrations} color="#8B5CF6" />
+            <ProgressRow label="Individual Visits" actual={perfData.total_actual_visits} target={perfData.total_target_visits} color="#3B82F6" />
+            <ProgressRow label="Store Visits" actual={perfData.total_actual_registrations} target={perfData.total_target_registrations} color="#8B5CF6" />
             {perfData.total_target_conversions > 0 && (
               <ProgressRow label="Conversions" actual={perfData.total_actual_conversions} target={perfData.total_target_conversions} color="#10B981" />
             )}
@@ -452,8 +452,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
         </div>
         <div>
           <p className="text-sm font-semibold text-white">Monthly Achievement</p>
-          <p className="text-xs text-gray-500 mt-0.5">{perfData?.total_actual_visits || 0} of {perfData?.total_target_visits || 0} visits</p>
-          <p className="text-xs text-gray-500">{perfData?.total_actual_registrations || 0} of {perfData?.total_target_registrations || 0} registrations</p>
+          <p className="text-xs text-gray-500 mt-0.5">{perfData?.total_actual_visits || 0} of {perfData?.total_target_visits || 0} individual visits</p>
+          <p className="text-xs text-gray-500">{perfData?.total_actual_registrations || 0} of {perfData?.total_target_registrations || 0} store visits</p>
           {ach >= 100 && (
             <p className="text-xs text-[#00E87B] font-semibold mt-1 flex items-center gap-1">
               <Trophy className="w-3 h-3" /> Target exceeded!
@@ -480,7 +480,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                   <div className="space-y-2">
                     <div>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Visits</span>
+                        <span className="text-gray-400">Individual Visits</span>
                         <span className="text-white font-medium">{t.actual_visits}/{t.target_visits} <span className={pctClass(vPct)}>({vPct}%)</span></span>
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
@@ -489,7 +489,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                     </div>
                     <div>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Registrations</span>
+                        <span className="text-gray-400">Store Visits</span>
                         <span className="text-white font-medium">{t.actual_registrations}/{t.target_registrations} <span className={pctClass(rPct)}>({rPct}%)</span></span>
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
@@ -555,8 +555,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                     <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: visitPct + '%' }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
-                    <span className="text-[10px] text-gray-500">Visits: {t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Regs: {t.actual_registrations}/{t.target_registrations}</span>
+                    <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
+                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
                   </div>
                 </div>
               )

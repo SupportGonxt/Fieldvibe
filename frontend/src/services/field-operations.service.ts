@@ -715,7 +715,8 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  async saveCompanyTargetRule(data: { company_id: string; target_visits_per_day?: number; target_registrations_per_day?: number; target_conversions_per_day?: number; team_lead_own_target_visits?: number; team_lead_own_target_registrations?: number; team_lead_own_target_conversions?: number }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async saveCompanyTargetRule(data: Record<string, any>) {
     const response = await this.post('/field-ops/company-target-rules', data)
     return response.data || response
   }

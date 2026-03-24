@@ -171,35 +171,35 @@ export default function TeamTab() {
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-4 h-4 text-blue-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Visits</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.today_visits || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.today_individual_visits ?? data?.team_totals?.today_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-purple-500/10"><UserCheck className="w-4 h-4 text-purple-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individuals</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.today_registrations || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.today_store_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Visits</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.month_visits || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.month_individual_visits ?? data?.team_totals?.month_visits ?? 0}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-amber-500/10"><Target className="w-4 h-4 text-amber-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individuals</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.month_registrations || 0}</p>
+            <p className="text-xl font-bold text-white">{data?.team_totals?.month_store_visits ?? 0}</p>
           </div>
         </div>
       </div>
 
-      {/* Team Targets - Visits + Registrations with progress bars */}
+      {/* Team Targets - Individual + Store Visits with progress bars */}
       <div className="px-5 py-2">
         <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
           <div className="flex items-center gap-4 mb-3">
@@ -224,10 +224,10 @@ export default function TeamTab() {
             </div>
           </div>
 
-          {/* Visits progress */}
-          <div className="mb-2">
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-400">Visits</span>
+                    {/* Individual Visits progress */}
+                    <div className="mb-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-400">Individual Visits</span>
               <span className="text-white font-medium">
                 {data?.team_targets?.actual_visits || 0}/{data?.team_targets?.target_visits || 0}
                 <span className={' ml-1 ' + pctClass(vPct)}>({vPct}%)</span>
@@ -238,10 +238,10 @@ export default function TeamTab() {
             </div>
           </div>
 
-          {/* Registrations progress */}
-          <div className="mb-3">
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-400">Individuals</span>
+                    {/* Store Visits progress */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-400">Store Visits</span>
               <span className="text-white font-medium">
                 {data?.team_targets?.actual_registrations || 0}/{data?.team_targets?.target_registrations || 0}
                 <span className={' ml-1 ' + pctClass(rPct)}>({rPct}%)</span>
@@ -451,28 +451,28 @@ export default function TeamTab() {
                     <div className="px-3 pb-3 pt-0 border-t border-white/5">
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Visits</p>
-                          <p className="text-sm font-semibold text-white">{agent.month_visits}</p>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Individuals</p>
+                                                  <p className="text-[10px] text-gray-500">Month Individual</p>
+                                                  <p className="text-sm font-semibold text-white">{agent.month_visits}</p>
+                                                </div>
+                                                <div className="bg-white/5 rounded-lg p-2">
+                                                  <p className="text-[10px] text-gray-500">Month Store</p>
                           <p className="text-sm font-semibold text-white">{agent.month_registrations}</p>
                         </div>
                       </div>
-                      {/* Visit target progress */}
-                      <div className="mt-2">
-                        <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Visit Target</span>
+                                            {/* Individual target progress */}
+                                            <div className="mt-2">
+                                              <div className="flex justify-between text-[10px] mb-0.5">
+                                                <span className="text-gray-500">Individual Target</span>
                           <span className="text-white">{agent.actual_visits}/{agent.target_visits} <span className={pctClass(agentVPct)}>({agentVPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: agentVPct + '%', backgroundColor: progressColor(agentVPct) }} />
                         </div>
                       </div>
-                      {/* Registration target progress */}
-                      <div className="mt-1.5">
-                        <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Individual Target</span>
+                                            {/* Store target progress */}
+                                            <div className="mt-1.5">
+                                              <div className="flex justify-between text-[10px] mb-0.5">
+                                                <span className="text-gray-500">Store Target</span>
                           <span className="text-white">{agent.actual_registrations}/{agent.target_registrations} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
