@@ -11204,7 +11204,14 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       await db.prepare("INSERT INTO field_companies (id, tenant_id, name, code, status, created_at) VALUES (?, ?, 'Goldrush', 'goldrush', 'active', datetime('now'))").bind(goldrushId, tenantId).run();
     }
 
-    // 2. Shop Visit Questionnaire (16 questions)
+    // 2. Auto-link current agent to Goldrush company (BUG FIX #1)
+    const existingLink = await db.prepare("SELECT id FROM agent_company_links WHERE agent_id = ? AND company_id = ? AND tenant_id = ?").bind(userId, goldrushId, tenantId).first();
+    if (!existingLink) {
+      const linkId = crypto.randomUUID();
+      await db.prepare("INSERT INTO agent_company_links (id, agent_id, company_id, tenant_id, is_active, assigned_at) VALUES (?, ?, ?, ?, 1, datetime('now'))").bind(linkId, userId, goldrushId, tenantId).run();
+    }
+
+    // 3. Shop Visit Questionnaire (16 questions)
     const shopQuestions = [
       { key: 'brand_awareness', label: 'Does the customer know the brand?', type: 'radio', options: ['Yes', 'No'], required: true, order: 1 },
       { key: 'stocks_product', label: 'Does the customer stock the product?', type: 'radio', options: ['Yes', 'No'], required: true, order: 2 },
@@ -11232,7 +11239,7 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       ).run();
     }
 
-    // 3. Individual Visit Questionnaire (15 questions)
+    // 4. Individual Visit Questionnaire (15 questions)
     const individualQuestions = [
       { key: 'gave_brand_info', label: 'Did you give brand information?', type: 'radio', options: ['Yes', 'No'], required: true, order: 1 },
       { key: 'consumer_name', label: 'Consumer Name', type: 'text', required: true, order: 2 },
@@ -11259,41 +11266,50 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       ).run();
     }
 
-    // 4. Goldrush Target Rules
+    // 5. Goldrush Target Rules (BUG FIX #2: Create role-specific rules)
     // Store: 160/month for TL (sum of agents), agents get proportional share
     // Individual: 20/week per agent (Mon-Fri, Sat-Sun catch-up allowed)
     // TL targets = sum of agents, Manager targets = sum of TLs
-    const existingRules = await db.prepare("SELECT id FROM company_target_rules WHERE company_id = ? AND tenant_id = ?").bind(goldrushId, tenantId).first();
-    let targetRuleId;
-    if (!existingRules) {
-      targetRuleId = crypto.randomUUID();
-      try {
-        await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id,
-          target_visits_per_day, target_registrations_per_day, target_conversions_per_day,
-          team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions,
-          store_target_per_month_tl, store_target_per_month_agent,
-          individual_target_per_week_agent, individual_target_per_month_agent,
-          working_days_per_week, working_days, allow_weekend_catchup,
-          tl_target_is_agent_sum, mgr_target_is_tl_sum,
-          created_by, created_at, updated_at)
-          VALUES (?, ?, ?,
-            8, 4, 2,
-            0, 0, 0,
-            160, NULL,
-            20, 80,
-            5, 'mon,tue,wed,thu,fri', 1,
-            1, 1,
-            ?, datetime('now'), datetime('now'))`).bind(targetRuleId, tenantId, goldrushId, userId).run();
-      } catch {
-        // Fallback if new columns don't exist yet
-        targetRuleId = crypto.randomUUID();
-        await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id, target_visits_per_day, target_registrations_per_day, target_conversions_per_day, team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions, created_by) VALUES (?, ?, ?, 8, 4, 2, 0, 0, 0, ?)`).bind(targetRuleId, tenantId, goldrushId, userId).run();
+    const roles = ['agent', 'team_lead', 'manager'];
+    for (const roleType of roles) {
+      const existingRule = await db.prepare("SELECT id FROM company_target_rules WHERE company_id = ? AND tenant_id = ? AND role_type = ?").bind(goldrushId, tenantId, roleType).first();
+      if (!existingRule) {
+        const ruleId = crypto.randomUUID();
+        // Set appropriate targets per role
+        const targets = {
+          agent: { dayVisits: 8, dayRegs: 4, monthStore: 80, weekIndiv: 20 },
+          team_lead: { dayVisits: 0, dayRegs: 0, monthStore: 160, weekIndiv: 0 }, // Sum of agents
+          manager: { dayVisits: 0, dayRegs: 0, monthStore: 0, weekIndiv: 0 } // Sum of TLs
+        };
+        try {
+          await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id, role_type,
+            target_visits_per_day, target_registrations_per_day, target_conversions_per_day,
+            team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions,
+            store_target_per_month_tl, store_target_per_month_agent,
+            individual_target_per_week_agent, individual_target_per_month_agent,
+            working_days_per_week, working_days, allow_weekend_catchup,
+            tl_target_is_agent_sum, mgr_target_is_tl_sum,
+            created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?,
+              ?, ?, ?,
+              0, 0, 0,
+              ?, NULL,
+              ?, ?,
+              5, 'mon,tue,wed,thu,fri', 1,
+              1, 1,
+              ?, datetime('now'), datetime('now'))`)
+            .bind(ruleId, tenantId, goldrushId, roleType,
+              targets[roleType].dayVisits, targets[roleType].dayRegs, 2,
+              targets[roleType].monthStore, targets[roleType].weekIndiv, userId).run();
+        } catch {
+          // Fallback if new columns don't exist yet
+          await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id, role_type, target_visits_per_day, target_registrations_per_day, target_conversions_per_day, team_lead_own_target_visits, team_lead_own_target_registrations, team_lead_own_target_conversions, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)`)
+            .bind(ruleId, tenantId, goldrushId, roleType, targets[roleType].dayVisits, targets[roleType].dayRegs, 2, userId).run();
+        }
       }
-    } else {
-      targetRuleId = existingRules.id;
     }
 
-    // 5. Seed sample board if image was provided via body (optional, can also be uploaded via CRUD)
+    // 6. Seed sample board if image was provided via body (optional, can also be uploaded via CRUD)
     // The seed endpoint creates a placeholder; actual image uploaded via /company-sample-boards POST
     const existingBoard = await db.prepare("SELECT id FROM company_sample_boards WHERE company_id = ? AND tenant_id = ? AND is_active = 1").bind(goldrushId, tenantId).first();
     let sampleBoardId = existingBoard?.id;

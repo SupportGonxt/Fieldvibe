@@ -681,6 +681,10 @@ CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id);
 CREATE INDEX IF NOT EXISTS idx_visits_tenant ON visits(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_visits_agent ON visits(tenant_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_visits_date ON visits(tenant_id, visit_date);
+-- Mobile dashboard performance indexes
+CREATE INDEX IF NOT EXISTS idx_visits_agent_date ON visits(agent_id, tenant_id, visit_date);
+CREATE INDEX IF NOT EXISTS idx_visits_agent_date_type ON visits(agent_id, tenant_id, visit_date, visit_type);
+CREATE INDEX IF NOT EXISTS idx_visits_company_agent_date ON visits(company_id, agent_id, tenant_id, visit_date);
 CREATE INDEX IF NOT EXISTS idx_sales_orders_tenant ON sales_orders(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_sales_orders_agent ON sales_orders(tenant_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_sales_orders_date ON sales_orders(tenant_id, created_at);
@@ -1610,6 +1614,9 @@ CREATE INDEX IF NOT EXISTS idx_daily_targets_agent ON daily_targets(tenant_id, a
 CREATE INDEX IF NOT EXISTS idx_daily_targets_company ON daily_targets(company_id, target_date);
 CREATE INDEX IF NOT EXISTS idx_individual_registrations_agent ON individual_registrations(tenant_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_individual_registrations_company ON individual_registrations(company_id);
+-- Mobile dashboard performance indexes
+CREATE INDEX IF NOT EXISTS idx_individual_registrations_agent_date ON individual_registrations(agent_id, tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_individual_registrations_agent_company_date ON individual_registrations(agent_id, company_id, tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_company_logins_company ON company_logins(company_id);
 CREATE INDEX IF NOT EXISTS idx_company_logins_email ON company_logins(email);
 

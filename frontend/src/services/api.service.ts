@@ -10,8 +10,10 @@ const API_TIMEOUT = API_CONFIG.TIMEOUT
 
 // Lightweight in-memory cache for GET requests (avoids refetching on tab navigation)
 const responseCache = new Map<string, { data: AxiosResponse; timestamp: number }>()
-const CACHE_TTL_MS = 30_000 // 30 seconds
-const CACHEABLE_PATHS = ['/agent/dashboard', '/agent/performance', '/team-lead/dashboard', '/manager/dashboard']
+const pendingRequests = new Map<string, Promise<AxiosResponse>>() // Request deduplication
+const CACHE_TTL_MS = 120_000 // 2 minutes (was 30s - optimized for mobile)
+const STALE_TTL_MS = 300_000 // 5 minutes stale-while-revalidate for mobile
+const CACHEABLE_PATHS = ['/agent/dashboard', '/agent/performance', '/team-lead/dashboard', '/manager/dashboard', '/mobile/']
 
 export function invalidateApiCache(pathPrefix?: string) {
   if (pathPrefix) {
@@ -77,9 +79,9 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Stale-while-revalidate cache for mobile dashboard endpoints
+// Stale-while-revalidate cache + request deduplication for mobile dashboard endpoints
 // Returns stale data instantly while refreshing in background; fresh within TTL returns immediately
-const STALE_TTL_MS = 120_000 // serve stale data up to 2 minutes old while revalidating
+// Deduplicates concurrent identical requests to avoid redundant network calls
 const originalGet = apiClient.get.bind(apiClient)
 apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
   const isCacheable = CACHEABLE_PATHS.some(p => url.includes(p))
@@ -100,13 +102,28 @@ apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
         return Promise.resolve(cached.data)
       }
     }
+    // Check for pending request (deduplication)
+    const pending = pendingRequests.get(url)
+    if (pending) {
+      return pending
+    }
   }
-  return originalGet(url, config).then((res: AxiosResponse) => {
+  // Create new request with deduplication
+  const requestPromise = originalGet(url, config).then((res: AxiosResponse) => {
     if (isCacheable) {
       responseCache.set(url, { data: res, timestamp: Date.now() })
     }
+    pendingRequests.delete(url) // Clean up pending request
     return res
+  }).catch((err) => {
+    pendingRequests.delete(url) // Clean up on error too
+    throw err
   })
+  
+  if (isCacheable) {
+    pendingRequests.set(url, requestPromise)
+  }
+  return requestPromise
 } as typeof apiClient.get
 
 // Response interceptor for error handling with retry logic

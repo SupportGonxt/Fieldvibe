@@ -4,6 +4,7 @@ import {
   DollarSign, Flame, Zap, Trophy, Clock, Shield, Star, UserCheck, Store, User
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { toast } from 'react-hot-toast'
 
 interface VisitBreakdownItem {
   company_id: string
@@ -794,6 +795,12 @@ export default function AgentStats() {
             setShowEarnings(true)
           }
         } catch { /* default: hide earnings */ }
+        
+        // BUG FIX #3: Show warning if no targets found
+        if ((!dashRes?.data?.data?.daily_targets?.length && !perfRes?.data?.data?.monthly_targets?.length) || 
+            (!dashRes?.data?.data?.company_target_rules?.length && !perfRes?.data?.data?.monthly_targets?.length)) {
+          toast.error('No targets found. Please contact your manager to assign you to a company.')
+        }
       } catch (err) {
         console.error('Stats fetch error:', err)
       } finally {
