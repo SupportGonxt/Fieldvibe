@@ -142,19 +142,31 @@ export default function AgentDetailPage() {
       <div className="px-5 pt-4">
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <p className="text-[10px] text-gray-500 uppercase">Today Visits</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <MapPin className="w-3 h-3 text-blue-400" />
+              <p className="text-[10px] text-gray-500 uppercase">Today Individual</p>
+            </div>
             <p className="text-xl font-bold text-white">{stats.today_visits}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <p className="text-[10px] text-gray-500 uppercase">Today Regs</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Store className="w-3 h-3 text-purple-400" />
+              <p className="text-[10px] text-gray-500 uppercase">Today Store</p>
+            </div>
             <p className="text-xl font-bold text-white">{stats.today_registrations}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <p className="text-[10px] text-gray-500 uppercase">Month Visits</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <MapPin className="w-3 h-3 text-emerald-400" />
+              <p className="text-[10px] text-gray-500 uppercase">Month Individual</p>
+            </div>
             <p className="text-xl font-bold text-white">{stats.month_visits}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <p className="text-[10px] text-gray-500 uppercase">Month Regs</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Store className="w-3 h-3 text-amber-400" />
+              <p className="text-[10px] text-gray-500 uppercase">Month Store</p>
+            </div>
             <p className="text-xl font-bold text-white">{stats.month_registrations}</p>
           </div>
         </div>
@@ -167,7 +179,7 @@ export default function AgentDetailPage() {
           <div className="space-y-3">
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-400">Visits</span>
+                <span className="text-gray-400">Individual Visits</span>
                 <span className="text-white font-medium">{stats.actual_visits}/{stats.target_visits} <span className={pctClass(vPct)}>({vPct}%)</span></span>
               </div>
               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
@@ -176,7 +188,7 @@ export default function AgentDetailPage() {
             </div>
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-400">Registrations</span>
+                <span className="text-gray-400">Store Visits</span>
                 <span className="text-white font-medium">{stats.actual_registrations}/{stats.target_registrations} <span className={pctClass(rPct)}>({rPct}%)</span></span>
               </div>
               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">

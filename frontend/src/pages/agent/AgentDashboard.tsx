@@ -47,6 +47,12 @@ interface DashboardData {
   today_registrations: number
   month_registrations: number
   week_registrations: number
+  today_individual_visits?: number
+  today_store_visits?: number
+  month_individual_visits?: number
+  month_store_visits?: number
+  week_individual_visits?: number
+  week_store_visits?: number
   recent_visits: Array<{
     id: string
     visit_date: string
@@ -337,18 +343,6 @@ export default function AgentDashboard() {
                 <p className="text-lg font-bold text-white">{data.monthly_targets.actual_visits}<span className="text-sm text-gray-500">/{data.monthly_targets.target_visits}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((data.monthly_targets.actual_visits / data.monthly_targets.target_visits) * 100))}%` }} />
-                </div>
-              </div>
-            )}
-            {data?.weekly_targets && data.weekly_targets.target_registrations > 0 && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Users className="w-3 h-3 text-purple-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Week Store</span>
-                </div>
-                <p className="text-lg font-bold text-white">{data.weekly_targets.actual_registrations}<span className="text-sm text-gray-500">/{data.weekly_targets.target_registrations}</span></p>
-                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
-                  <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(100, Math.round((data.weekly_targets.actual_registrations / data.weekly_targets.target_registrations) * 100))}%` }} />
                 </div>
               </div>
             )}

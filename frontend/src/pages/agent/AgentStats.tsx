@@ -19,6 +19,12 @@ interface DashboardData {
   month_visits: number
   today_registrations: number
   month_registrations: number
+  today_individual_visits?: number
+  today_store_visits?: number
+  month_individual_visits?: number
+  month_store_visits?: number
+  week_individual_visits?: number
+  week_store_visits?: number
   daily_targets: Array<{
     company_name: string
     target_visits: number
@@ -71,6 +77,8 @@ interface PerformanceData {
     rule_name: string
   }>
   weekly_visits: Array<{ visit_date: string; count: number }>
+  weekly_individual_visits?: Array<{ visit_date: string; count: number }>
+  daily_individual_target?: number
   streak: number
   commission_rules: Array<{
     id: string
@@ -308,19 +316,22 @@ function OverviewTab({
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">This Week</h3>
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">This Week <span className="text-[9px] text-gray-600 normal-case">(Individual Visits)</span></h3>
         <div className="flex items-end justify-between gap-1 h-20">
           {weekDays.map(date => {
-            const found = perfData?.weekly_visits?.find(w => w.visit_date === date)
+            const found = (perfData?.weekly_individual_visits || perfData?.weekly_visits)?.find(w => w.visit_date === date)
             const count = found?.count || 0
+            const dailyTarget = perfData?.daily_individual_target || 0
+            const isUnderTarget = dailyTarget > 0 && count < dailyTarget
+            const isAtOrOverTarget = dailyTarget > 0 && count >= dailyTarget
             const height = weeklyMax > 0 ? (count / weeklyMax) * 100 : 0
             const isToday = date === todayStr
             return (
               <div key={date} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-[9px] text-gray-500">{count || ''}</span>
+                <span className={'text-[9px] font-medium ' + (count === 0 ? 'text-gray-600' : isAtOrOverTarget ? 'text-[#00E87B]' : isUnderTarget ? 'text-red-400' : 'text-gray-400')}>{count || ''}</span>
                 <div className="w-full rounded-t-md" style={{
                   height: Math.max(height, 4) + '%',
-                  background: getBarBg(isToday, count),
+                  background: isAtOrOverTarget ? '#00E87B' : isUnderTarget ? '#EF4444' : getBarBg(isToday, count),
                 }} />
                 <span className={'text-[9px] ' + (isToday ? 'text-[#00E87B] font-semibold' : 'text-gray-600')}>
                   {new Date(date + 'T12:00:00').toLocaleDateString('en-ZA', { weekday: 'narrow' })}
@@ -329,6 +340,9 @@ function OverviewTab({
             )
           })}
         </div>
+        {(perfData?.daily_individual_target || 0) > 0 && (
+          <p className="text-[9px] text-gray-600 mt-2 text-center">Daily target: {perfData?.daily_individual_target} individual visits</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -810,7 +824,7 @@ export default function AgentStats() {
     return d.toISOString().split('T')[0]
   })
   const weeklyMax = Math.max(1, ...weekDays.map(date => {
-    const found = perfData?.weekly_visits?.find(w => w.visit_date === date)
+    const found = (perfData?.weekly_individual_visits || perfData?.weekly_visits)?.find(w => w.visit_date === date)
     return found?.count || 0
   }))
 

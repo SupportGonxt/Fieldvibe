@@ -53,6 +53,10 @@ interface ManagerData {
     month_visits: number
     today_registrations: number
     month_registrations: number
+    today_individual_visits?: number
+    today_store_visits?: number
+    month_individual_visits?: number
+    month_store_visits?: number
   }
   org_targets: {
     target_visits: number
@@ -218,10 +222,10 @@ export default function ManagerTeamsTab() {
             </div>
           </div>
 
-                    {/* Individual Visits progress */}
-                    <div className="mb-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Individual Visits</span>
+          {/* Individual Visits progress */}
+          <div className="mb-2">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-gray-400">Individual Visits</span>
               <span className="text-white font-medium">
                 {data?.org_targets?.actual_visits || 0}/{data?.org_targets?.target_visits || 0}
                 <span className={' ml-1 ' + pctClass(vPct)}>({vPct}%)</span>
@@ -232,10 +236,10 @@ export default function ManagerTeamsTab() {
             </div>
           </div>
 
-                    {/* Store Visits progress */}
-                    <div className="mb-3">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Store Visits</span>
+          {/* Store Visits progress */}
+          <div className="mb-3">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-gray-400">Store Visits</span>
               <span className="text-white font-medium">
                 {data?.org_targets?.actual_registrations || 0}/{data?.org_targets?.target_registrations || 0}
                 <span className={' ml-1 ' + pctClass(rPct)}>({rPct}%)</span>

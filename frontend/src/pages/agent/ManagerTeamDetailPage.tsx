@@ -145,7 +145,7 @@ export default function ManagerTeamDetailPage() {
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
-                      <p className="text-[10px] text-gray-500">{agent.today_visits} visits &middot; {agent.today_registrations} regs today</p>
+                      <p className="text-[10px] text-gray-500">{agent.today_visits} individual &middot; {agent.today_registrations} store today</p>
                     </div>
                     <div className="text-right mr-1">
                       <span className={`text-xs font-bold ${pctClass(agent.achievement)}`}>
@@ -158,18 +158,18 @@ export default function ManagerTeamDetailPage() {
                     <div className="px-3 pb-3 pt-0 border-t border-white/5">
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Visits</p>
+                          <p className="text-[10px] text-gray-500">Month Individual</p>
                           <p className="text-sm font-semibold text-white">{agent.month_visits}</p>
                         </div>
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Regs</p>
+                          <p className="text-[10px] text-gray-500">Month Store</p>
                           <p className="text-sm font-semibold text-white">{agent.month_registrations}</p>
                         </div>
                       </div>
                       {/* Visit target progress */}
                       <div className="mt-2">
                         <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Visit Target</span>
+                          <span className="text-gray-500">Individual Target</span>
                           <span className="text-white">{agent.actual_visits}/{agent.target_visits} <span className={pctClass(agentVPct)}>({agentVPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -179,7 +179,7 @@ export default function ManagerTeamDetailPage() {
                       {/* Registration target progress */}
                       <div className="mt-1.5">
                         <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Reg Target</span>
+                          <span className="text-gray-500">Store Target</span>
                           <span className="text-white">{agent.actual_registrations}/{agent.target_registrations} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">

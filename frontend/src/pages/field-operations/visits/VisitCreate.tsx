@@ -321,9 +321,23 @@ export default function VisitCreate() {
       if (companiesData.length === 1) {
         setSelectedCompany(companiesData[0].id)
       }
-      const customersRes = await fieldOperationsService.getCustomers()
-      const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
-      setCustomers(Array.isArray(customersData) ? customersData : [])
+      // Load customers/stores: use store-search endpoint on mobile for better results (includes visit history)
+      if (isMobileContext) {
+        try {
+          const storeRes = await apiClient.get('/agent/store-search?limit=200')
+          const storeData = storeRes?.data?.data || storeRes?.data || []
+          setCustomers(Array.isArray(storeData) ? storeData : [])
+        } catch {
+          // Fallback to generic customers endpoint
+          const customersRes = await fieldOperationsService.getCustomers()
+          const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
+          setCustomers(Array.isArray(customersData) ? customersData : [])
+        }
+      } else {
+        const customersRes = await fieldOperationsService.getCustomers()
+        const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
+        setCustomers(Array.isArray(customersData) ? customersData : [])
+      }
     } catch (err) {
       console.error('Failed to load form data:', err)
     }
