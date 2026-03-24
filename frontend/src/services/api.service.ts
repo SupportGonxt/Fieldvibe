@@ -8,6 +8,21 @@ import { shouldRetry, getRetryDelay } from '../utils/api-retry'
 const API_BASE_URL = API_CONFIG.BASE_URL
 const API_TIMEOUT = API_CONFIG.TIMEOUT
 
+// Lightweight in-memory cache for GET requests (avoids refetching on tab navigation)
+const responseCache = new Map<string, { data: AxiosResponse; timestamp: number }>()
+const CACHE_TTL_MS = 30_000 // 30 seconds
+const CACHEABLE_PATHS = ['/agent/dashboard', '/agent/performance', '/team-lead/dashboard', '/manager/dashboard']
+
+export function invalidateApiCache(pathPrefix?: string) {
+  if (pathPrefix) {
+    for (const key of responseCache.keys()) {
+      if (key.startsWith(pathPrefix)) responseCache.delete(key)
+    }
+  } else {
+    responseCache.clear()
+  }
+}
+
 // Create axios instance with baseURL
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -61,6 +76,24 @@ apiClient.interceptors.request.use(
     return Promise.reject(error)
   }
 )
+
+// Cache interceptor: return cached GET responses for mobile dashboard endpoints
+const originalGet = apiClient.get.bind(apiClient)
+apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
+  const isCacheable = CACHEABLE_PATHS.some(p => url.includes(p))
+  if (isCacheable) {
+    const cached = responseCache.get(url)
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return Promise.resolve(cached.data)
+    }
+  }
+  return originalGet(url, config).then((res: AxiosResponse) => {
+    if (isCacheable) {
+      responseCache.set(url, { data: res, timestamp: Date.now() })
+    }
+    return res
+  })
+} as typeof apiClient.get
 
 // Response interceptor for error handling with retry logic
 apiClient.interceptors.response.use(
