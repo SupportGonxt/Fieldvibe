@@ -93,7 +93,8 @@ apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
       }
       if (age < STALE_TTL_MS) {
         // Stale — return cached data immediately, revalidate in background
-        originalGet(url, config).then((res: AxiosResponse) => {
+        // Mark as background so interceptor skips logout/redirect on 401/403
+        originalGet(url, { ...config, _backgroundRevalidation: true } as any).then((res: AxiosResponse) => {
           responseCache.set(url, { data: res, timestamp: Date.now() })
         }).catch(() => { /* background refresh failed, keep stale */ })
         return Promise.resolve(cached.data)
@@ -115,6 +116,11 @@ apiClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as any
+
+    // Skip auth error handling for background SWR revalidation requests
+    if (originalRequest._backgroundRevalidation) {
+      return Promise.reject(error)
+    }
 
     // Handle 401 Unauthorized
     if (error.response?.status === 401 && !originalRequest._retry) {
