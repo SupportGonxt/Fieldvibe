@@ -77,14 +77,27 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Cache interceptor: return cached GET responses for mobile dashboard endpoints
+// Stale-while-revalidate cache for mobile dashboard endpoints
+// Returns stale data instantly while refreshing in background; fresh within TTL returns immediately
+const STALE_TTL_MS = 120_000 // serve stale data up to 2 minutes old while revalidating
 const originalGet = apiClient.get.bind(apiClient)
 apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
   const isCacheable = CACHEABLE_PATHS.some(p => url.includes(p))
   if (isCacheable) {
     const cached = responseCache.get(url)
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      return Promise.resolve(cached.data)
+    if (cached) {
+      const age = Date.now() - cached.timestamp
+      if (age < CACHE_TTL_MS) {
+        // Fresh — return immediately, no revalidation needed
+        return Promise.resolve(cached.data)
+      }
+      if (age < STALE_TTL_MS) {
+        // Stale — return cached data immediately, revalidate in background
+        originalGet(url, config).then((res: AxiosResponse) => {
+          responseCache.set(url, { data: res, timestamp: Date.now() })
+        }).catch(() => { /* background refresh failed, keep stale */ })
+        return Promise.resolve(cached.data)
+      }
     }
   }
   return originalGet(url, config).then((res: AxiosResponse) => {
