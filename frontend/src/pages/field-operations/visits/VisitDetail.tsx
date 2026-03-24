@@ -305,19 +305,32 @@ export default function VisitDetail() {
     )
   }
 
-  // Desktop view: use TransactionDetail component
+  // Desktop view: compute duration from check-in/check-out times
+  const durationStr = (() => {
+    if (visit.check_in_time && visit.check_out_time) {
+      const mins = Math.round((new Date(visit.check_out_time).getTime() - new Date(visit.check_in_time).getTime()) / 60000)
+      if (mins < 60) return `${mins} min`
+      return `${Math.floor(mins / 60)}h ${mins % 60}m`
+    }
+    return undefined
+  })()
+
+  const photos = visit.photos || []
+  const responses = visit.responses || []
+
   const fields = [
-    { label: 'Visit Number', value: visit.visit_number },
+    { label: 'Visit ID', value: visit.visit_number || visit.id },
     { label: 'Visit Date', value: formatDate(visit.visit_date) },
-    { label: 'Agent', value: visit.agent_name },
+    { label: 'Created By', value: visit.agent_name },
     { label: 'Customer', value: visit.customer_name },
     { label: 'Company', value: visit.company_name },
     { label: 'Visit Type', value: visit.visit_type },
-    { label: 'Duration', value: visit.duration ? `${visit.duration} minutes` : undefined },
+    { label: 'Check-in', value: visit.check_in_time ? new Date(visit.check_in_time).toLocaleTimeString() : undefined },
+    { label: 'Check-out', value: visit.check_out_time ? new Date(visit.check_out_time).toLocaleTimeString() : undefined },
+    { label: 'Duration', value: durationStr },
     { label: 'Status', value: visit.status },
     { label: 'GPS Location', value: visit.gps_location || (visit.latitude ? `${visit.latitude}, ${visit.longitude}` : undefined) },
     { label: 'Notes', value: visit.notes },
-    { label: 'Created By', value: visit.created_by },
     { label: 'Created At', value: formatDate(visit.created_at) }
   ]
 
@@ -329,14 +342,82 @@ export default function VisitDetail() {
   }[visit.status] as 'green' | 'yellow' | 'red' | 'gray'
 
   return (
-    <TransactionDetail
-      title={`Visit ${visit.visit_number || id}`}
-      fields={fields}
-      auditTrail={visit.audit_trail || []}
-      editPath={visit.status !== 'completed' ? `/field-operations/visits/${id}/edit` : undefined}
-      backPath="/field-operations/visits"
-      status={visit.status}
-      statusColor={statusColor}
-    />
+    <div>
+      <TransactionDetail
+        title={`Visit ${visit.visit_number || id}`}
+        fields={fields}
+        auditTrail={visit.audit_trail || []}
+        editPath={visit.status !== 'completed' ? `/field-operations/visits/${id}/edit` : undefined}
+        backPath="/field-operations/visits"
+        status={visit.status}
+        statusColor={statusColor}
+      />
+
+      {/* Photos Section */}
+      {photos.length > 0 && (
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Camera className="w-5 h-5" /> Photos ({photos.length})
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {photos.map((photo: any, idx: number) => (
+              <div key={idx} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="aspect-square">
+                  <img
+                    src={photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : '')}
+                    alt={`Photo ${idx + 1}`}
+                    className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                  />
+                </div>
+                {(photo.ai_share_of_voice != null || photo.board_condition) && (
+                  <div className="p-2 space-y-1 bg-gray-50 dark:bg-gray-700/50">
+                    {photo.ai_share_of_voice != null && (
+                      <div className="flex items-center gap-1">
+                        <BarChart3 className="w-3 h-3 text-cyan-500" />
+                        <span className="text-xs text-gray-500">SOV:</span>
+                        <span className={`text-xs font-semibold ${photo.ai_share_of_voice >= 50 ? 'text-green-500' : photo.ai_share_of_voice >= 25 ? 'text-yellow-500' : 'text-red-500'}`}>
+                          {photo.ai_share_of_voice}%
+                        </span>
+                      </div>
+                    )}
+                    {photo.board_condition && (
+                      <div className="flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3 text-amber-500" />
+                        <span className={`text-xs capitalize ${photo.board_condition === 'good' ? 'text-green-500' : photo.board_condition === 'damaged' || photo.board_condition === 'missing' ? 'text-red-500' : 'text-yellow-500'}`}>
+                          {photo.board_condition}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Survey Responses Section */}
+      {responses.length > 0 && (
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5" /> Survey Responses
+          </h3>
+          {responses.map((resp: any, idx: number) => {
+            let parsed: Record<string, string> = {}
+            try { parsed = typeof resp.responses === 'string' ? JSON.parse(resp.responses) : resp.responses || {} } catch { /* */ }
+            return (
+              <div key={idx} className="space-y-2">
+                {Object.entries(parsed).map(([key, value]) => (
+                  <div key={key} className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

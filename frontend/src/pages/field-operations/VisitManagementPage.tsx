@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
-import { Plus, Edit, Trash2, Calendar, Map, Settings, Store, User } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, Map, Settings, Store, User, X, Camera } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LiveVisitMap from '../../components/maps/LiveVisitMap'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -13,6 +13,7 @@ interface VisitManagementPageProps {
 
 export default function VisitManagementPage({ visitType }: VisitManagementPageProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
   const [filter, setFilter] = useState({ page: 1, limit: 20, status: '' })
   const [showMap, setShowMap] = useState(false)
   const queryClient = useQueryClient()
@@ -165,6 +166,7 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-surface-secondary dark:bg-gray-700">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Photo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Customer / Individual</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Agent</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date/Time</th>
@@ -175,15 +177,28 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {filteredVisits.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                   {activeType === 'store' ? <Store className="h-12 w-12 mx-auto text-gray-400 mb-2" /> :
                    activeType === 'individual' ? <User className="h-12 w-12 mx-auto text-gray-400 mb-2" /> :
                    <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />}
                   <p>No {activeType ? `${activeType} ` : ''}visits found</p>
                 </td></tr>
               ) : (
-                filteredVisits.map((visit: { id: string; customer_name?: string; individual_first_name?: string; individual_last_name?: string; customer_id?: string; agent_id?: string; agent_name?: string; visit_date: string; check_in_time?: string; visit_type?: string; visit_target_type?: string; status: string }) => (
+                filteredVisits.map((visit: { id: string; customer_name?: string; individual_first_name?: string; individual_last_name?: string; customer_id?: string; agent_id?: string; agent_name?: string; visit_date: string; check_in_time?: string; visit_type?: string; visit_target_type?: string; status: string; thumbnail_url?: string; photo_url?: string }) => (
                   <tr key={visit.id} className="hover:bg-surface-secondary dark:hover:bg-gray-700 cursor-pointer" onClick={() => navigate(`/field-operations/visits/${visit.id}`)}>
+                    <td className="px-6 py-4">
+                      {(visit.thumbnail_url || visit.photo_url) ? (
+                        <button onClick={(e) => { e.stopPropagation(); setExpandedPhoto(visit.thumbnail_url || visit.photo_url || null); }} className="block">
+                          <img
+                            src={visit.thumbnail_url || visit.photo_url}
+                            alt="Visit photo"
+                            className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+                          />
+                        </button>
+                      ) : (
+                        <span className="text-gray-400 text-xs flex items-center gap-1"><Camera className="w-3 h-3" /> No photo</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {visit.customer_name || (visit.individual_first_name ? `${visit.individual_first_name} ${visit.individual_last_name || ''}`.trim() : 'N/A')}
@@ -221,6 +236,25 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
         </div>
       )}
     
+      {/* Photo expand modal */}
+      {expandedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setExpandedPhoto(null)}>
+          <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setExpandedPhoto(null)}
+              className="absolute top-0 right-0 m-2 p-1 bg-white dark:bg-gray-800 rounded-full shadow-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={expandedPhoto}
+              alt="Visit photo expanded"
+              className="max-w-full max-h-[85vh] rounded-lg object-contain"
+            />
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={deleteConfirmId !== null}
         onClose={() => setDeleteConfirmId(null)}

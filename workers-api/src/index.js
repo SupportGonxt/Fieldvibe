@@ -13592,8 +13592,10 @@ api.get('/field-ops/reports/checkins', authMiddleware, async (c) => {
     const checkins = await db.prepare(`
       SELECT v.id, v.agent_id, v.customer_id as shop_id, v.visit_date as timestamp,
         v.latitude, v.longitude,
-        v.status, v.notes, v.visit_type
+        v.status, v.notes, v.visit_type, v.visit_type as visit_target_type,
+        u.first_name || ' ' || u.last_name as agent_name
       FROM visits v
+      LEFT JOIN users u ON v.agent_id = u.id
       ${where}
       ORDER BY v.visit_date DESC
       LIMIT ? OFFSET ?

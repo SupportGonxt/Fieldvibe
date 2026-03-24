@@ -7,6 +7,7 @@ import { List, Filter, Eye , AlertTriangle } from 'lucide-react'
 interface Checkin {
   id: string
   agent_id: string
+  agent_name: string
   shop_id: string
   timestamp: string
   latitude: number
@@ -146,7 +147,7 @@ const ReportsCheckinsList: React.FC = () => {
               ) : (data?.checkins || []).map((c) => (
                 <tr key={c.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="py-3 px-4 text-gray-900 dark:text-white text-xs">{c.timestamp ? new Date(c.timestamp).toLocaleString() : '-'}</td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{c.agent_id?.slice(0, 8) || '-'}</td>
+                  <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{c.agent_name || c.agent_id?.slice(0, 8) || '-'}</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       c.visit_target_type === 'store' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
