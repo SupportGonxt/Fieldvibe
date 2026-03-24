@@ -12848,7 +12848,7 @@ app.get('/api/field-ops/company-portal/store-analytics', companyAuthMiddleware, 
   const offset = (pageNum - 1) * pageSize;
   try {
     const searchFilter = search ? ` AND (s.name LIKE '%' || ? || '%' OR s.address LIKE '%' || ? || '%')` : '';
-    const baseWhere = `FROM shops s LEFT JOIN (SELECT v.shop_id, COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed_visits, MAX(v.visit_date) as last_visit FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? GROUP BY v.shop_id) vs ON s.id = vs.shop_id WHERE s.tenant_id = ? AND s.id IN (SELECT DISTINCT v2.shop_id FROM visits v2 JOIN agent_company_links acl2 ON v2.agent_id = acl2.agent_id WHERE acl2.company_id = ? AND v2.tenant_id = ? AND v2.shop_id IS NOT NULL)${searchFilter}`;
+    const baseWhere = `FROM customers s LEFT JOIN (SELECT v.customer_id, COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed_visits, MAX(v.visit_date) as last_visit FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? GROUP BY v.customer_id) vs ON s.id = vs.customer_id WHERE s.tenant_id = ? AND s.id IN (SELECT DISTINCT v2.customer_id FROM visits v2 JOIN agent_company_links acl2 ON v2.agent_id = acl2.agent_id WHERE acl2.company_id = ? AND v2.tenant_id = ? AND v2.customer_id IS NOT NULL)${searchFilter}`;
     const baseParams = search
       ? [companyId, tenantId, startD, endD, tenantId, companyId, tenantId, search, search]
       : [companyId, tenantId, startD, endD, tenantId, companyId, tenantId];
@@ -12879,13 +12879,13 @@ app.get('/api/field-ops/company-portal/store-analytics/:shopId', companyAuthMidd
   const companyId = c.get('companyId');
   const shopId = c.req.param('shopId');
   try {
-    const shop = await db.prepare('SELECT * FROM shops WHERE id = ? AND tenant_id = ?').bind(shopId, tenantId).first();
+    const shop = await db.prepare('SELECT * FROM customers WHERE id = ? AND tenant_id = ?').bind(shopId, tenantId).first();
     if (!shop) return c.json({ error: 'Shop not found' }, 404);
     // Verify the shop is associated with this company (has visits from company agents)
-    const companyLink = await db.prepare('SELECT 1 FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.shop_id = ? AND acl.company_id = ? AND v.tenant_id = ? LIMIT 1').bind(shopId, companyId, tenantId).first();
+    const companyLink = await db.prepare('SELECT 1 FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ? LIMIT 1').bind(shopId, companyId, tenantId).first();
     if (!companyLink) return c.json({ error: 'Shop not found' }, 404);
-    const visits = await db.prepare("SELECT v.id, v.visit_date, v.status, v.check_in_time, v.check_out_time, v.visit_type, v.notes, v.photo_url, u.first_name || ' ' || u.last_name as agent_name FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id WHERE v.shop_id = ? AND acl.company_id = ? AND v.tenant_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50").bind(shopId, companyId, tenantId).all();
-    const stats = await db.prepare("SELECT COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.shop_id = ? AND acl.company_id = ? AND v.tenant_id = ?").bind(shopId, companyId, tenantId).first();
+    const visits = await db.prepare("SELECT v.id, v.visit_date, v.status, v.check_in_time, v.check_out_time, v.visit_type, v.notes, v.photo_url, u.first_name || ' ' || u.last_name as agent_name FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50").bind(shopId, companyId, tenantId).all();
+    const stats = await db.prepare("SELECT COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ?").bind(shopId, companyId, tenantId).first();
     return c.json({ shop, visits: visits.results || [], stats: { total_visits: stats?.total_visits || 0, completed: stats?.completed || 0 } });
   } catch (e) {
     return c.json({ error: e.message }, 500);
@@ -12913,7 +12913,7 @@ app.get('/api/field-ops/company-portal/visit-records', companyAuthMiddleware, as
     filters = filtersNoType;
     const params = [...paramsNoType];
     if (visit_type) { filters += ' AND v.visit_type = ?'; params.push(visit_type); }
-    const baseJoin = `FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN shops s ON v.shop_id = s.id WHERE acl.company_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ?`;
+    const baseJoin = `FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN customers s ON v.customer_id = s.id WHERE acl.company_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ?`;
     const baseFrom = `${baseJoin}${filters}`;
     const baseFromNoType = `${baseJoin}${filtersNoType}`;
     const countResult = await db.prepare(`SELECT COUNT(*) as total ${baseFrom}`).bind(...params).first();
@@ -12948,7 +12948,7 @@ app.get('/api/field-ops/company-portal/highlights', companyAuthMiddleware, async
     const peakDay = await db.prepare("SELECT CASE CAST(strftime('%w', v.visit_date) AS INTEGER) WHEN 0 THEN 'Sunday' WHEN 1 THEN 'Monday' WHEN 2 THEN 'Tuesday' WHEN 3 THEN 'Wednesday' WHEN 4 THEN 'Thursday' WHEN 5 THEN 'Friday' WHEN 6 THEN 'Saturday' END as day_name, COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY day_name ORDER BY count DESC LIMIT 1").bind(...baseParams).first();
     const topAgent = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent_name, COUNT(*) as visit_count FROM visits v JOIN users u ON v.agent_id = u.id JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY v.agent_id ORDER BY visit_count DESC LIMIT 1").bind(...baseParams).first();
     const avgVisitsPerAgent = await db.prepare("SELECT ROUND(AVG(vc), 1) as avg_visits FROM (SELECT COUNT(*) as vc FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY v.agent_id)").bind(...baseParams).first();
-    const totalStores = await db.prepare("SELECT COUNT(DISTINCT v.shop_id) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? AND v.shop_id IS NOT NULL").bind(...baseParams).first();
+    const totalStores = await db.prepare("SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? AND v.customer_id IS NOT NULL").bind(...baseParams).first();
     return c.json({
       peak_hour: peakHour ? { hour: peakHour.hour, count: peakHour.count } : null,
       peak_day: peakDay ? { day_name: peakDay.day_name, count: peakDay.count } : null,
