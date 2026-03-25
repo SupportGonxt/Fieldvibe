@@ -781,33 +781,35 @@ export default function AgentStats() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [dashRes, perfRes] = await Promise.all([
-          apiClient.get('/agent/dashboard').catch(() => null),
-          apiClient.get('/agent/performance').catch(() => null),
-        ])
-        if (dashRes?.data?.success && dashRes?.data?.data) setDashData(dashRes.data.data)
-        if (perfRes?.data?.success && perfRes?.data?.data) setPerfData(perfRes.data.data)
-        // Check if earnings tab is enabled via web config (settings API)
-        try {
-          const settingsRes = await apiClient.get('/settings').catch(() => null)
+        // Load critical dashboard data first
+        const dashRes = await apiClient.get('/agent/dashboard').catch(() => null)
+        if (dashRes?.data?.success && dashRes?.data?.data) {
+          setDashData(dashRes.data.data)
+          // Show warning if no targets found
+          if ((!dashRes.data.data.daily_targets?.length && !dashRes.data.data.company_targets?.length) ||
+              (!dashRes.data.data.company_target_rules?.length && !dashRes.data.data.monthly_targets?.target_visits)) {
+            toast.error('No targets found. Please contact your manager to assign you to a company.')
+          }
+        }
+        // Load performance data separately (non-blocking)
+        apiClient.get('/agent/performance').then(perfRes => {
+          if (perfRes?.data?.success && perfRes?.data?.data) {
+            setPerfData(perfRes.data.data)
+          }
+        }).catch(() => { /* ignore perf errors */ })
+        // Load settings separately (non-blocking, only needed for earnings tab)
+        apiClient.get('/settings').then(settingsRes => {
           const settings = settingsRes?.data?.data || settingsRes?.data || {}
           if (settings.mobile_show_earnings === 'true' || settings.mobile_show_earnings === true) {
             setShowEarnings(true)
           }
-        } catch { /* default: hide earnings */ }
-        
-        // BUG FIX #3: Show warning if no targets found
-        if ((!dashRes?.data?.data?.daily_targets?.length && !perfRes?.data?.data?.monthly_targets?.length) || 
-            (!dashRes?.data?.data?.company_target_rules?.length && !perfRes?.data?.data?.monthly_targets?.length)) {
-          toast.error('No targets found. Please contact your manager to assign you to a company.')
-        }
+        }).catch(() => { /* default: hide earnings */ })
       } catch (err) {
         console.error('Stats fetch error:', err)
       } finally {
         setLoading(false)
       }
     }
-    fetchAll()
   }, [])
 
   if (loading) {

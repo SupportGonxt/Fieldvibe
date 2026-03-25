@@ -132,10 +132,8 @@ export default function AgentDashboard() {
     }
 
     try {
-      const [dashRes, perfRes] = await Promise.all([
-        apiClient.get('/agent/dashboard'),
-        apiClient.get('/agent/performance').catch(() => null),
-      ])
+      // Load dashboard first (critical data)
+      const dashRes = await apiClient.get('/agent/dashboard')
       const json = dashRes.data
       if (json.success && json.data) {
         setData(json.data)
@@ -145,9 +143,12 @@ export default function AgentDashboard() {
           toast.error('No targets found. Please contact your manager to assign you to a company.')
         }
       }
-      if (perfRes?.data?.success && perfRes?.data?.data) {
-        setPerfSummary(perfRes.data.data)
-      }
+      // Load performance data separately (non-critical, can be lazy-loaded)
+      apiClient.get('/agent/performance').then(perfRes => {
+        if (perfRes?.data?.success && perfRes?.data?.data) {
+          setPerfSummary(perfRes.data.data)
+        }
+      }).catch(() => { /* ignore perf errors */ })
     } catch (err) {
       console.error('Dashboard fetch error:', err)
       toast.error('Failed to load dashboard. Please try again.')

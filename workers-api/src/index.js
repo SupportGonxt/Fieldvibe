@@ -672,13 +672,23 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const ctrCompanyIds = companyTargetRules.map(ctr => ctr.company_id);
     const wdConfigMap = await resolveWorkingDaysConfigBatch(db, tenantId, ctrCompanyIds, userId);
 
+    // Cache working days calculation per config to avoid redundant loops
+    const workingDaysCache = new Map();
+    const getWorkingDays = (config, month) => {
+      const cacheKey = `${config.working_days_config_id || JSON.stringify(config)}_${month}`;
+      if (!workingDaysCache.has(cacheKey)) {
+        workingDaysCache.set(cacheKey, countWorkingDaysInMonth(config, month));
+      }
+      return workingDaysCache.get(cacheKey);
+    };
+
     // Build per-company weekly/monthly targets with store/individual split using working calendar
     let weekTargetVisits = 0, weekTargetRegs = 0, monthTargetVisits = 0, monthTargetRegs = 0;
     const companyTargets = [];
     for (let i = 0; i < companyTargetRules.length; i++) {
       const ctr = companyTargetRules[i];
       const wdConfig = wdConfigMap[ctr.company_id] || DEFAULT_WD_CONFIG;
-      const workingDaysPerMonth = countWorkingDaysInMonth(wdConfig, currentMonth);
+      const workingDaysPerMonth = getWorkingDays(wdConfig, currentMonth);
       const workingDaysPerWeek = ctr.working_days_per_week || 5;
       const ca = perCompanyActuals[ctr.company_id] || {};
       const cr = perCompanyRegsLookup[ctr.company_id] || {};
