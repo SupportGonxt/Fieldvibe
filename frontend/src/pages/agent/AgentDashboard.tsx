@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
@@ -111,6 +111,20 @@ export default function AgentDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [online, setOnline] = useState(navigator.onLine)
   const authUser = useAuthStore((s) => s.user)
+
+  // Memoize target calculations to avoid recalculating on every render
+  const targets = useMemo(() => {
+    if (!data) return null
+    const dailyIndivTarget = data.daily_targets?.reduce((s, t) => s + (t.target_visits || 0), 0) || data.company_targets?.reduce((s, t) => s + (t.daily_target_visits || 0), 0) || 0
+    const dailyStoreTarget = data.daily_targets?.reduce((s, t) => s + (t.target_registrations || 0), 0) || data.company_targets?.reduce((s, t) => s + (t.daily_target_registrations || 0), 0) || 0
+    const monthIndivTarget = data.monthly_targets?.target_visits || data.company_targets?.reduce((s, t) => s + (t.month_target_visits || 0), 0) || 0
+    const monthStoreTarget = data.monthly_targets?.target_registrations || data.company_targets?.reduce((s, t) => s + (t.store_target_per_month || 0), 0) || 0
+    const weekIndivTarget = data.weekly_targets?.target_visits || data.company_targets?.reduce((s, t) => s + (t.week_target_visits || 0), 0) || 0
+    const weekIndivActual = data.weekly_targets?.actual_visits || data.week_individual_visits || 0
+    const monthIndivActual = data.monthly_targets?.actual_visits || data.month_individual_visits || 0
+    const monthStoreActual = data.monthly_targets?.actual_registrations || data.month_store_visits || 0
+    return { dailyIndivTarget, dailyStoreTarget, monthIndivTarget, monthStoreTarget, weekIndivTarget, weekIndivActual, monthIndivActual, monthStoreActual }
+  }, [data])
 
   useEffect(() => {
     const handleOnline = () => setOnline(true)
@@ -277,21 +291,15 @@ export default function AgentDashboard() {
 
       <div className="px-5 mb-4">
         <div className="grid grid-cols-2 gap-3">
-          {/* Calculate daily targets from company targets */}
-          {(() => {
-            const dailyIndivTarget = data?.daily_targets?.reduce((s, t) => s + (t.target_visits || 0), 0) || data?.company_targets?.reduce((s, t) => s + (t.daily_target_visits || 0), 0) || 0
-            const dailyStoreTarget = data?.daily_targets?.reduce((s, t) => s + (t.target_registrations || 0), 0) || data?.company_targets?.reduce((s, t) => s + (t.daily_target_registrations || 0), 0) || 0
-            const monthIndivTarget = data?.monthly_targets?.target_visits || data?.company_targets?.reduce((s, t) => s + (t.month_target_visits || 0), 0) || 0
-            const monthStoreTarget = data?.monthly_targets?.target_registrations || data?.company_targets?.reduce((s, t) => s + (t.store_target_per_month || 0), 0) || 0
-            return (
-              <>
-                <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={data?.today_individual_visits ?? data?.today_visits ?? 0} target={dailyIndivTarget > 0 ? dailyIndivTarget : undefined} color="bg-blue-500" />
-                <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={data?.today_store_visits ?? 0} target={dailyStoreTarget > 0 ? dailyStoreTarget : undefined} color="bg-purple-500" />
-                <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={data?.month_individual_visits ?? data?.month_visits ?? 0} target={monthIndivTarget > 0 ? monthIndivTarget : undefined} color="bg-emerald-500" />
-                <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={data?.month_store_visits ?? 0} target={monthStoreTarget > 0 ? monthStoreTarget : undefined} color="bg-amber-500" />
-              </>
-            )
-          })()}
+          {/* Use memoized target calculations */}
+          {targets && (
+            <>
+              <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={data?.today_individual_visits ?? data?.today_visits ?? 0} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-blue-500" />
+              <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={data?.today_store_visits ?? 0} target={targets.dailyStoreTarget > 0 ? targets.dailyStoreTarget : undefined} color="bg-purple-500" />
+              <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={data?.month_individual_visits ?? data?.month_visits ?? 0} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-emerald-500" />
+              <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={data?.month_store_visits ?? 0} target={targets.monthStoreTarget > 0 ? targets.monthStoreTarget : undefined} color="bg-amber-500" />
+            </>
+          )}
         </div>
       </div>
 
@@ -392,79 +400,67 @@ export default function AgentDashboard() {
       )}
 
       {/* Weekly & Monthly Targets */}
-      {(() => {
-        // Calculate weekly targets from company targets if not in weekly_targets
-        const weekIndivTarget = data?.weekly_targets?.target_visits || data?.company_targets?.reduce((s, t) => s + (t.week_target_visits || 0), 0) || 0
-        const weekIndivActual = data?.weekly_targets?.actual_visits || data?.week_individual_visits || 0
-        const monthIndivTarget = data?.monthly_targets?.target_visits || data?.company_targets?.reduce((s, t) => s + (t.month_target_visits || 0), 0) || 0
-        const monthIndivActual = data?.monthly_targets?.actual_visits || data?.month_individual_visits || 0
-        const monthStoreTarget = data?.monthly_targets?.target_registrations || data?.company_targets?.reduce((s, t) => s + (t.store_target_per_month || 0), 0) || 0
-        const monthStoreActual = data?.monthly_targets?.actual_registrations || data?.month_store_visits || 0
-        
-        if (!weekIndivTarget && !monthIndivTarget && !monthStoreTarget) return null
-        
-        return (
-          <div className="px-5 mb-4">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Week & Month Progress</h2>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              {weekIndivTarget > 0 && (
-                <div className={`border rounded-xl p-3 ${weekIndivActual >= weekIndivTarget ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5 border-white/10'}`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Calendar className="w-3 h-3 text-blue-400" />
-                    <span className="text-[10px] text-gray-500 uppercase">Week Individual</span>
-                  </div>
-                  <p className="text-lg font-bold text-white">{weekIndivActual}<span className="text-sm text-gray-500">/{weekIndivTarget}</span></p>
-                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((weekIndivActual / weekIndivTarget) * 100))}%` }} />
-                  </div>
-                  {weekIndivActual >= weekIndivTarget && (
-                    <p className="text-[8px] text-blue-400 mt-1 font-semibold">✓ Week target met! 🎉</p>
-                  )}
-                  {weekIndivActual < weekIndivTarget && weekIndivTarget - weekIndivActual > 0 && (
-                    <p className="text-[8px] text-amber-400 mt-1">{weekIndivTarget - weekIndivActual} more to go! 💪</p>
-                  )}
+      {targets && targets.weekIndivTarget + targets.monthIndivTarget + targets.monthStoreTarget > 0 && (
+        <div className="px-5 mb-4">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Week & Month Progress</h2>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            {targets.weekIndivTarget > 0 && (
+              <div className={`border rounded-xl p-3 ${targets.weekIndivActual >= targets.weekIndivTarget ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5 border-white/10'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Calendar className="w-3 h-3 text-blue-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Week Individual</span>
                 </div>
-              )}
-              {monthIndivTarget > 0 && (
-                <div className={`border rounded-xl p-3 ${monthIndivActual >= monthIndivTarget ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-white/10'}`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Target className="w-3 h-3 text-emerald-400" />
-                    <span className="text-[10px] text-gray-500 uppercase">Month Individual</span>
-                  </div>
-                  <p className="text-lg font-bold text-white">{monthIndivActual}<span className="text-sm text-gray-500">/{monthIndivTarget}</span></p>
-                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((monthIndivActual / monthIndivTarget) * 100))}%` }} />
-                  </div>
-                  {monthIndivActual >= monthIndivTarget && (
-                    <p className="text-[8px] text-emerald-400 mt-1 font-semibold">✓ Month target met! 🏆</p>
-                  )}
-                  {monthIndivActual < monthIndivTarget && monthIndivTarget - monthIndivActual > 0 && (
-                    <p className="text-[8px] text-amber-400 mt-1">{monthIndivTarget - monthIndivActual} more to go! 💪</p>
-                  )}
+                <p className="text-lg font-bold text-white">{targets.weekIndivActual}<span className="text-sm text-gray-500">/{targets.weekIndivTarget}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((targets.weekIndivActual / targets.weekIndivTarget) * 100))}%` }} />
                 </div>
-              )}
-              {monthStoreTarget > 0 && (
-                <div className={`border rounded-xl p-3 ${monthStoreActual >= monthStoreTarget ? 'bg-amber-500/10 border-amber-500/30' : 'bg-white/5 border-white/10'}`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Users className="w-3 h-3 text-amber-400" />
-                    <span className="text-[10px] text-gray-500 uppercase">Month Store</span>
-                  </div>
-                  <p className="text-lg font-bold text-white">{monthStoreActual}<span className="text-sm text-gray-500">/{monthStoreTarget}</span></p>
-                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, Math.round((monthStoreActual / monthStoreTarget) * 100))}%` }} />
-                  </div>
-                  {monthStoreActual >= monthStoreTarget && (
-                    <p className="text-[8px] text-amber-400 mt-1 font-semibold">✓ Store target met! 🎯</p>
-                  )}
-                  {monthStoreActual < monthStoreTarget && monthStoreTarget - monthStoreActual > 0 && (
-                    <p className="text-[8px] text-amber-400 mt-1">{monthStoreTarget - monthStoreActual} more to go! 💪</p>
-                  )}
+                {targets.weekIndivActual >= targets.weekIndivTarget && (
+                  <p className="text-[8px] text-blue-400 mt-1 font-semibold">✓ Week target met! 🎉</p>
+                )}
+                {targets.weekIndivActual < targets.weekIndivTarget && targets.weekIndivTarget - targets.weekIndivActual > 0 && (
+                  <p className="text-[8px] text-amber-400 mt-1">{targets.weekIndivTarget - targets.weekIndivActual} more to go! 💪</p>
+                )}
+              </div>
+            )}
+            {targets.monthIndivTarget > 0 && (
+              <div className={`border rounded-xl p-3 ${targets.monthIndivActual >= targets.monthIndivTarget ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-white/10'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Target className="w-3 h-3 text-emerald-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Month Individual</span>
                 </div>
-              )}
-            </div>
+                <p className="text-lg font-bold text-white">{targets.monthIndivActual}<span className="text-sm text-gray-500">/{targets.monthIndivTarget}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthIndivActual / targets.monthIndivTarget) * 100))}%` }} />
+                </div>
+                {targets.monthIndivActual >= targets.monthIndivTarget && (
+                  <p className="text-[8px] text-emerald-400 mt-1 font-semibold">✓ Month target met! 🏆</p>
+                )}
+                {targets.monthIndivActual < targets.monthIndivTarget && targets.monthIndivTarget - targets.monthIndivActual > 0 && (
+                  <p className="text-[8px] text-amber-400 mt-1">{targets.monthIndivTarget - targets.monthIndivActual} more to go! 💪</p>
+                )}
+              </div>
+            )}
+            {targets.monthStoreTarget > 0 && (
+              <div className={`border rounded-xl p-3 ${targets.monthStoreActual >= targets.monthStoreTarget ? 'bg-amber-500/10 border-amber-500/30' : 'bg-white/5 border-white/10'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-3 h-3 text-amber-400" />
+                  <span className="text-[10px] text-gray-500 uppercase">Month Store</span>
+                </div>
+                <p className="text-lg font-bold text-white">{targets.monthStoreActual}<span className="text-sm text-gray-500">/{targets.monthStoreTarget}</span></p>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthStoreActual / targets.monthStoreTarget) * 100))}%` }} />
+                </div>
+                {targets.monthStoreActual >= targets.monthStoreTarget && (
+                  <p className="text-[8px] text-amber-400 mt-1 font-semibold">✓ Store target met! 🎯</p>
+                )}
+                {targets.monthStoreActual < targets.monthStoreTarget && targets.monthStoreTarget - targets.monthStoreActual > 0 && (
+                  <p className="text-[8px] text-amber-400 mt-1">{targets.monthStoreTarget - targets.monthStoreActual} more to go! 💪</p>
+                )}
+              </div>
+            )}
           </div>
-        )
-      })()}
+        </div>
+      )}
 
       {data?.company_targets && data.company_targets.length > 0 ? (
         <div className="px-5 mb-4">

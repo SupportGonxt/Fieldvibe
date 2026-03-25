@@ -194,18 +194,35 @@ async function resolveWorkingDaysConfigBatch(db, tenantId, companyIds, agentId) 
 }
 
 // Count working days in a given month (YYYY-MM) based on a working_days_config
+// Optimized: pre-compute day-of-week pattern to avoid Date object creation in loop
 function countWorkingDaysInMonth(config, month) {
   try {
     const [year, mon] = month.split('-').map(Number);
     const daysInMonth = new Date(year, mon, 0).getDate();
     const holidays = JSON.parse(config.public_holidays || '[]');
+    const holidaySet = new Set(holidays); // O(1) lookup vs O(n) array includes
     const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    
+    // Pre-compute which days of week are enabled
+    const enabledDays = new Set([
+      config.monday ? 'monday' : null,
+      config.tuesday ? 'tuesday' : null,
+      config.wednesday ? 'wednesday' : null,
+      config.thursday ? 'thursday' : null,
+      config.friday ? 'friday' : null,
+      config.saturday ? 'saturday' : null,
+      config.sunday ? 'sunday' : null,
+    ].filter(Boolean));
+    
+    // Get first day of month and pre-compute day names
+    const firstDay = new Date(year, mon - 1, 1).getDay();
     let count = 0;
+    
     for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, mon - 1, d);
-      const dayName = dayMap[date.getDay()];
+      const dayIndex = (firstDay + d - 1) % 7;
+      const dayName = dayMap[dayIndex];
       const dateStr = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      if (config[dayName] && !holidays.includes(dateStr)) count++;
+      if (enabledDays.has(dayName) && !holidaySet.has(dateStr)) count++;
     }
     return count;
   } catch {
@@ -675,7 +692,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     // Cache working days calculation per config to avoid redundant loops
     const workingDaysCache = new Map();
     const getWorkingDays = (config, month) => {
-      const cacheKey = `${config.working_days_config_id || JSON.stringify(config)}_${month}`;
+      const cacheKey = `${config.id || 'default'}_${month}`;
       if (!workingDaysCache.has(cacheKey)) {
         workingDaysCache.set(cacheKey, countWorkingDaysInMonth(config, month));
       }
