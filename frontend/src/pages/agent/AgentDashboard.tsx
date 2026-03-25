@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, memo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, memo, Suspense, lazy } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
@@ -9,6 +9,10 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
+
+// Lazy load non-critical sections (code splitting)
+const PerformanceSection = lazy(() => import('./PerformanceSection'))
+const TeamPerformanceSection = lazy(() => import('./TeamPerformanceSection'))
 
 interface TargetSummary {
   target_visits: number
@@ -146,6 +150,15 @@ export default function AgentDashboard() {
       companies: data.companies ?? [],
     }
   }, [data])
+
+  // Memoize recent visits with thumbnail support
+  const recentVisitsWithPhotos = useMemo(() => {
+    if (!dataProps?.recent_visits) return []
+    return dataProps.recent_visits.map(visit => ({
+      ...visit,
+      thumbnail_url: visit.thumbnail_url || visit.r2_url || null,
+    }))
+  }, [dataProps?.recent_visits])
 
   useEffect(() => {
     const handleOnline = () => setOnline(true)
@@ -399,86 +412,43 @@ export default function AgentDashboard() {
         </div>
       </div>
 
+      {/* Performance Section - Lazy loaded for code splitting */}
       {perfSummary && (
-        <div className="px-5 mb-4">
-          <button
-            onClick={() => navigate('/agent/stats')}
-            className="w-full bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 active:bg-white/5 transition-colors"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-[#00E87B]" />
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Performance</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="text-center">
-                <div className="relative w-10 h-10 mx-auto mb-1">
-                  <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
-                    <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                    <circle cx="20" cy="20" r="16" fill="none" stroke="#00E87B" strokeWidth="3" strokeLinecap="round"
-                      strokeDasharray={Math.min(perfSummary.overall_achievement, 100) * 1.005 + ' 100.5'} />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-white">{perfSummary.overall_achievement}%</span>
+        <Suspense fallback={
+          <div className="px-5 mb-4">
+            <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+              <div className="w-24 h-4 bg-gray-800 rounded animate-pulse mb-3" />
+              <div className="grid grid-cols-3 gap-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="text-center">
+                    <div className="w-10 h-10 bg-gray-700 rounded animate-pulse mx-auto mb-1" />
+                    <div className="w-16 h-3 bg-gray-800 rounded animate-pulse" />
                   </div>
-                </div>
-                <p className="text-[9px] text-gray-500">Target</p>
-              </div>
-              <div className="text-center">
-                <DollarSign className="w-5 h-5 text-amber-400 mx-auto mb-0.5" />
-                <p className="text-sm font-bold text-white">R{((perfSummary.commission_summary?.paid || 0) + (perfSummary.commission_summary?.approved || 0) + (perfSummary.commission_summary?.pending || 0)).toLocaleString()}</p>
-                <p className="text-[9px] text-gray-500">Earnings</p>
-              </div>
-              <div className="text-center">
-                <Flame className={'w-5 h-5 mx-auto mb-0.5 ' + (perfSummary.streak > 0 ? 'text-orange-400' : 'text-gray-600')} />
-                <p className="text-sm font-bold text-white">{perfSummary.streak}</p>
-                <p className="text-[9px] text-gray-500">Day Streak</p>
+                ))}
               </div>
             </div>
-          </button>
-        </div>
+          </div>
+        }>
+          <PerformanceSection perfSummary={perfSummary} />
+        </Suspense>
       )}
 
-      {/* Team Performance */}
+      {/* Team Performance - Lazy loaded for code splitting */}
       {perfSummary?.team_performance && (
-        <div className="px-5 mb-4">
-          <div className="bg-gradient-to-r from-indigo-600/20 to-cyan-600/20 border border-indigo-500/30 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Users className="w-4 h-4 text-indigo-400" />
-              <span className="text-xs font-semibold text-indigo-300 uppercase">Team Performance</span>
-            </div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-white">
-                <span className="font-semibold">{perfSummary.team_performance.team_lead_name}</span>
-                <span className="text-gray-400"> • {perfSummary.team_performance.member_count} members</span>
-              </p>
-              <span className={`text-sm font-bold ${perfSummary.team_performance.achievement >= 100 ? 'text-[#00E87B]' : perfSummary.team_performance.achievement >= 75 ? 'text-amber-400' : 'text-red-400'}`}>
-                {perfSummary.team_performance.achievement}%
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="bg-white/5 rounded-lg p-2">
-                <p className="text-[10px] text-gray-500 uppercase">Visits</p>
-                <p className="text-sm font-bold text-white">{perfSummary.team_performance.actual_visits}<span className="text-gray-500">/{perfSummary.team_performance.target_visits}</span></p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-2">
-                <p className="text-[10px] text-gray-500 uppercase">Regs</p>
-                <p className="text-sm font-bold text-white">{perfSummary.team_performance.actual_registrations}<span className="text-gray-500">/{perfSummary.team_performance.target_registrations}</span></p>
+        <Suspense fallback={
+          <div className="px-5 mb-4">
+            <div className="bg-gradient-to-r from-indigo-600/20 to-cyan-600/20 border border-indigo-500/30 rounded-2xl p-4">
+              <div className="w-32 h-4 bg-gray-700 rounded animate-pulse mb-3" />
+              <div className="w-48 h-4 bg-gray-700 rounded animate-pulse mb-3" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="w-full h-12 bg-gray-700 rounded animate-pulse" />
+                <div className="w-full h-12 bg-gray-700 rounded animate-pulse" />
               </div>
             </div>
-            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-3">
-              <div className={`h-full rounded-full transition-all ${perfSummary.team_performance.achievement >= 100 ? 'bg-gradient-to-r from-indigo-500 to-cyan-500' : 'bg-gradient-to-r from-indigo-500 to-cyan-500'}`} style={{ width: `${Math.min(100, perfSummary.team_performance.achievement)}%` }} />
-            </div>
-            {perfSummary.team_performance.achievement >= 100 && (
-              <p className="text-[9px] text-indigo-400 mt-2 font-semibold">✓ Team crushing targets! 🚀</p>
-            )}
-            {perfSummary.team_performance.achievement < 100 && perfSummary.team_performance.achievement >= 75 && (
-              <p className="text-[9px] text-amber-400 mt-2">So close! Keep pushing! 💪</p>
-            )}
           </div>
-        </div>
+        }>
+          <TeamPerformanceSection teamPerformance={perfSummary.team_performance} />
+        </Suspense>
       )}
 
       {data?.companies && data.companies.length > 0 && (
@@ -664,17 +634,24 @@ export default function AgentDashboard() {
             View All <ChevronRight className="w-3 h-3" />
           </button>
         </div>
-        {dataProps?.recent_visits && dataProps.recent_visits.length > 0 ? (
+        {recentVisitsWithPhotos && recentVisitsWithPhotos.length > 0 ? (
           <div className="space-y-2">
-            {dataProps.recent_visits.slice(0, 5).map((visit) => (
+            {recentVisitsWithPhotos.slice(0, 5).map((visit) => (
               <div key={visit.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  visit.status === 'completed' ? 'bg-green-500/10' : visit.status === 'in_progress' ? 'bg-blue-500/10' : 'bg-gray-500/10'
-                }`}>
-                  {visit.status === 'completed' ? (
-                    <CheckCircle className="w-5 h-5 text-green-400" />
+                {/* Photo thumbnail or status icon */}
+                <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-white/10">
+                  {visit.thumbnail_url ? (
+                    <img src={visit.thumbnail_url} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <Clock className="w-5 h-5 text-blue-400" />
+                    <div className={`w-full h-full flex items-center justify-center ${
+                      visit.status === 'completed' ? 'bg-green-500/10' : visit.status === 'in_progress' ? 'bg-blue-500/10' : 'bg-gray-500/10'
+                    }`}>
+                      {visit.status === 'completed' ? (
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-blue-400" />
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
