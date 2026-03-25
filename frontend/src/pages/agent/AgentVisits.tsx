@@ -15,6 +15,7 @@ interface Visit {
   customer_name: string
   individual_name: string
   notes: string
+  thumbnail_url?: string | null
 }
 
 export default function AgentVisits() {
@@ -204,8 +205,15 @@ export default function AgentVisits() {
                 onClick={() => navigate(`/agent/visits/${visit.id}`)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3.5 flex items-center gap-3 active:bg-white/10 transition-colors text-left"
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${statusColor(visit.status)}`}>
-                  {statusIcon(visit.status)}
+                {/* Photo thumbnail or status icon */}
+                <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-white/10">
+                  {visit.thumbnail_url ? (
+                    <img src={visit.thumbnail_url} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center ${statusColor(visit.status)}`}>
+                      {statusIcon(visit.status)}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">
