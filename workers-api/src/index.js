@@ -932,8 +932,8 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       db.prepare("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'paid'").bind(tenantId, userId).first(),
       db.prepare("SELECT ce.id, ce.amount, ce.status, ce.source_type, ce.created_at, cr.name as rule_name FROM commission_earnings ce LEFT JOIN commission_rules cr ON ce.rule_id = cr.id WHERE ce.tenant_id = ? AND ce.earner_id = ? ORDER BY ce.created_at DESC LIMIT 10").bind(tenantId, userId).all(),
       db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= date(?, '-6 days') GROUP BY visit_date ORDER BY visit_date").bind(tenantId, userId, today).all(),
-      // Weekly individual visits (filtered by visit_type = 'individual') for week graphic
-      db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= date(?, '-6 days') AND LOWER(visit_type) = 'individual' GROUP BY visit_date ORDER BY visit_date").bind(tenantId, userId, today).all(),
+      // Weekly individual registrations (use individual_registrations table for accurate counts)
+      db.prepare("SELECT DATE(ir.created_at) as visit_date, COUNT(*) as count FROM individual_registrations ir WHERE ir.tenant_id = ? AND ir.agent_id = ? AND ir.created_at >= date(?, '-6 days') GROUP BY DATE(ir.created_at) ORDER BY visit_date").bind(tenantId, userId, today).all(),
       db.prepare("SELECT DISTINCT visit_date FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date <= ? AND strftime('%w', visit_date) NOT IN ('0', '6') ORDER BY visit_date DESC LIMIT 30").bind(tenantId, userId, today).all(),
       db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
       db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
@@ -1290,9 +1290,10 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, member.id, today).first(),
         db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
         db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(actual_visits),0) as actual_visits, COALESCE(SUM(target_registrations),0) as target_registrations, COALESCE(SUM(actual_registrations),0) as actual_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, member.id, currentMonth).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ? AND LOWER(visit_type) = 'individual'").bind(tenantId, member.id, today).first(),
+        // Use individual_registrations table for accurate individual counts (not visits.visit_type)
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND DATE(created_at) = ?").bind(tenantId, member.id, today).first(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ? AND LOWER(visit_type) = 'store'").bind(tenantId, member.id, today).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'individual'").bind(tenantId, member.id, currentMonth + '-01').first(),
+        db.prepare("SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?").bind(tenantId, member.id, currentMonth + '-01').first(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND LOWER(visit_type) = 'store'").bind(tenantId, member.id, currentMonth + '-01').first(),
       ]);
       let tv = targets?.target_visits || 0;
@@ -1614,9 +1615,10 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'pending'`).bind(tenantId, ...allAgentIds).first(),
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'approved'`).bind(tenantId, ...allAgentIds).first(),
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'paid'`).bind(tenantId, ...allAgentIds).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ? AND LOWER(visit_type) = 'individual'`).bind(tenantId, ...allAgentIds, today).first(),
+        // Use individual_registrations for accurate individual counts
+        db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph2}) AND DATE(created_at) = ?`).bind(tenantId, ...allAgentIds, today).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ? AND LOWER(visit_type) = 'store'`).bind(tenantId, ...allAgentIds, today).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ? AND LOWER(visit_type) = 'individual'`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM individual_registrations WHERE tenant_id = ? AND agent_id IN (${ph2}) AND created_at >= ?`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ? AND LOWER(visit_type) = 'store'`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
       ]);
       orgTodayVisits = tvRes?.count || 0;
@@ -14349,7 +14351,7 @@ api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       SELECT c.id, c.name, c.address, c.latitude, c.longitude,
         COUNT(v.id) as total_checkins,
         SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as approved_checkins,
-        SUM(CASE WHEN v.status = 'completed' AND v.visit_type = 'individual' THEN 1 ELSE 0 END) as conversions,
+        (SELECT COUNT(*) FROM individual_registrations ir WHERE ir.company_id = c.id AND ir.tenant_id = c.tenant_id${dateFilter.replace(/v\./g, 'ir.')}) as conversions,
         MAX(v.visit_date) as last_visit
       FROM customers c
       LEFT JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id${dateFilter}
@@ -14372,7 +14374,7 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     const shop = await db.prepare('SELECT * FROM customers WHERE id = ? AND tenant_id = ?').bind(shopId, tenantId).first();
     const checkins = await db.prepare(`
       SELECT v.id, v.visit_date as timestamp, v.status, v.agent_id,
-        CASE WHEN v.visit_type = 'individual' AND v.status = 'completed' THEN 1 ELSE 0 END as converted,
+        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM individual_registrations ir WHERE ir.visit_id = v.id AND ir.tenant_id = v.tenant_id) as converted,
         v.notes as responses
       FROM visits v
       WHERE v.customer_id = ? AND v.tenant_id = ?
@@ -14382,9 +14384,9 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     const stats = await db.prepare(`
       SELECT COUNT(*) as total_checkins,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
-        SUM(CASE WHEN status = 'completed' AND visit_type = 'individual' THEN 1 ELSE 0 END) as conversions
+        (SELECT COUNT(*) FROM individual_registrations ir WHERE ir.company_id = ? AND ir.tenant_id = ?) as conversions
       FROM visits WHERE customer_id = ? AND tenant_id = ?
-    `).bind(shopId, tenantId).first();
+    `).bind(shopId, tenantId, shopId, tenantId, shopId, tenantId).first();
 
     return c.json({ success: true, shop, checkins: checkins.results || [], stats });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
@@ -14399,32 +14401,32 @@ api.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let dateFilter = '';
     const binds = [tenantId];
-    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
-    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+    if (startDate) { dateFilter += " AND ir.created_at >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND ir.created_at <= ?"; binds.push(endDate); }
 
-    const totalResult = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
+    const totalResult = await db.prepare(`SELECT COUNT(*) as count FROM individual_registrations ir WHERE ir.tenant_id = ?${dateFilter}`).bind(...binds).first();
 
     const customers = await db.prepare(`
-      SELECT v.id as checkin_id, v.visit_date as timestamp,
-        v.latitude, v.longitude,
-        v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
-        c.name as shop_name, v.customer_id as shop_id,
-        v.notes as responses,
-        CASE WHEN v.status = 'completed' AND v.visit_type = 'individual' THEN 1 ELSE 0 END as converted,
-        CASE WHEN v.visit_type = 'store' THEN 1 ELSE 0 END as already_betting
-      FROM visits v
-      LEFT JOIN users u ON v.agent_id = u.id
-      LEFT JOIN customers c ON v.customer_id = c.id
-      WHERE v.tenant_id = ?${dateFilter}
-      ORDER BY v.visit_date DESC
+      SELECT ir.id as checkin_id, ir.created_at as timestamp,
+        ir.gps_latitude as latitude, ir.gps_longitude as longitude,
+        ir.agent_id, u.first_name || ' ' || u.last_name as agent_name,
+        fc.name as shop_name, ir.company_id as shop_id,
+        ir.notes as responses,
+        ir.converted,
+        0 as already_betting
+      FROM individual_registrations ir
+      LEFT JOIN users u ON ir.agent_id = u.id
+      LEFT JOIN field_companies fc ON ir.company_id = fc.id
+      WHERE ir.tenant_id = ?${dateFilter}
+      ORDER BY ir.created_at DESC
       LIMIT ? OFFSET ?
     `).bind(...binds, parseInt(limit), offset).all();
 
     const statsResult = await db.prepare(`
       SELECT COUNT(*) as total_customers,
-        SUM(CASE WHEN status = 'completed' AND visit_type = 'individual' THEN 1 ELSE 0 END) as converted,
-        SUM(CASE WHEN visit_type = 'store' THEN 1 ELSE 0 END) as already_betting
-      FROM visits WHERE tenant_id = ?
+        SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) as converted,
+        0 as already_betting
+      FROM individual_registrations WHERE tenant_id = ?
     `).bind(tenantId).first();
 
     return c.json({ success: true, customers: customers.results || [], total: totalResult?.count || 0, stats: statsResult });
