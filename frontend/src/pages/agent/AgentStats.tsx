@@ -477,8 +477,9 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
         </div>
       </div>
 
-      {const targetsToShow = dashData?.company_targets && dashData.company_targets.length > 0 ? dashData.company_targets : (perfData?.monthly_targets && perfData.monthly_targets.length > 0 ? perfData.monthly_targets : [])}
-      {targetsToShow.length > 0 ? (
+      {(() => {
+        const targetsToShow = dashData?.company_targets && dashData.company_targets.length > 0 ? dashData.company_targets : (perfData?.monthly_targets && perfData.monthly_targets.length > 0 ? perfData.monthly_targets : [])
+        return targetsToShow.length > 0 ? (
         <div>
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Company Targets</h2>
           <div className="space-y-2">
@@ -557,6 +558,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
           <p className="text-sm text-gray-400">No targets set for this month</p>
           <p className="text-xs text-gray-600 mt-1">Contact your manager to set targets</p>
         </div>
+      )}
       )}
 
       {dashData?.daily_targets && dashData.daily_targets.length > 0 && (
