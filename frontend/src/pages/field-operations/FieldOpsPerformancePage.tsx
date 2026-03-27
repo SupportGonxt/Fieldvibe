@@ -12,7 +12,9 @@ import {
   BarChart3,
   UserCheck,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react'
 import {
   BarChart,
@@ -27,22 +29,57 @@ import {
   Cell
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
+import { exportToXLSX, ExportColumn } from '../../utils/export'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']
+
+type TimePeriod = 'day' | 'week' | 'month' | 'custom'
 
 export default function FieldOpsPerformancePage() {
   const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('day')
   const [dateRange, setDateRange] = useState({
     start_date: today,
     end_date: today
   })
 
   const { data: performance, isLoading, error } = useQuery({
-    queryKey: ['field-ops-performance', dateRange],
-    queryFn: () => fieldOperationsService.getPerformance(dateRange),
+    queryKey: ['field-ops-performance', timePeriod, dateRange],
+    queryFn: () => fieldOperationsService.getPerformance({ 
+      period: timePeriod === 'custom' ? undefined : timePeriod,
+      start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
+      end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
+    }),
     staleTime: 1000 * 60 * 2,
   })
+
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (timePeriod !== 'custom') {
+        params.append('period', timePeriod)
+      } else {
+        params.append('start_date', dateRange.start_date)
+        params.append('end_date', dateRange.end_date)
+      }
+      
+      const response = await fieldOperationsService.get(`/field-ops/performance/export?${params.toString()}`)
+      const blob = new Blob([response.data], { type: 'application/vnd.ms-excel' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const periodLabel = timePeriod === 'day' ? 'Day' : timePeriod === 'week' ? 'Week' : timePeriod === 'month' ? 'Month' : 'Custom'
+      a.download = `field-ops-performance-${periodLabel}-${today}.xls`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+      alert('Failed to export report. Please try again.')
+    }
+  }
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
@@ -70,21 +107,82 @@ export default function FieldOpsPerformancePage() {
             {role === 'agent' ? 'Your daily performance' : role === 'team_lead' ? 'Team performance overview' : 'Organization performance overview'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <input
-            type="date"
-            value={dateRange.start_date}
-            onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })}
-            className="input text-sm"
-          />
-          <span className="text-gray-500">to</span>
-          <input
-            type="date"
-            value={dateRange.end_date}
-            onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })}
-            className="input text-sm"
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Time Period Selector */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setTimePeriod('day')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'day' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Day
+            </button>
+            <button
+              onClick={() => setTimePeriod('week')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'week' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Week to Date
+            </button>
+            <button
+              onClick={() => setTimePeriod('month')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'month' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Month to Date
+            </button>
+            <button
+              onClick={() => setTimePeriod('custom')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'custom' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Custom
+            </button>
+          </div>
+
+          {/* Date Range Picker (only for custom) */}
+          {timePeriod === 'custom' && (
+            <>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <input
+                  type="date"
+                  value={dateRange.start_date}
+                  onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })}
+                  className="input text-sm"
+                />
+                <span className="text-gray-500">to</span>
+                <input
+                  type="date"
+                  value={dateRange.end_date}
+                  onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })}
+                  className="input text-sm"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Export Button */}
+          <button
+            onClick={handleExport}
+            className="btn-primary flex items-center gap-2"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export
+          </button>
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { ArrowLeft, User, Target, TrendingUp, Calendar, Building2, ChevronRight, UserCheck, Award } from 'lucide-react'
+import { ArrowLeft, User, Target, TrendingUp, Calendar, Building2, ChevronRight, UserCheck, Award, FileSpreadsheet } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -16,19 +16,53 @@ import {
   Line
 } from 'recharts'
 
+type TimePeriod = 'day' | 'week' | 'month' | 'custom'
+
 export default function PerformanceDrillDownPage() {
   const { userId } = useParams<{ userId: string }>()
   const navigate = useNavigate()
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('day')
   const [dateRange, setDateRange] = useState({
     start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0]
   })
 
   const { data: drillDown, isLoading, isError, error } = useQuery({
-    queryKey: ['field-ops-drill-down', userId, dateRange],
-    queryFn: () => fieldOperationsService.getDrillDown(userId!, dateRange),
+    queryKey: ['field-ops-drill-down', userId, timePeriod, dateRange],
+    queryFn: () => fieldOperationsService.getDrillDown(userId!, { 
+      period: timePeriod === 'custom' ? undefined : timePeriod,
+      start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
+      end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
+    }),
     enabled: !!userId,
   })
+
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (timePeriod !== 'custom') {
+        params.append('period', timePeriod)
+      } else {
+        params.append('start_date', dateRange.start_date)
+        params.append('end_date', dateRange.end_date)
+      }
+      
+      const response = await fieldOperationsService.get(`/field-ops/drill-down/${userId}/export?${params.toString()}`)
+      const blob = new Blob([response.data], { type: 'application/vnd.ms-excel' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const periodLabel = timePeriod === 'day' ? 'Day' : timePeriod === 'week' ? 'Week' : timePeriod === 'month' ? 'Month' : 'Custom'
+      a.download = `drill-down-${userId}-${periodLabel}-${new Date().toISOString().split('T')[0]}.xls`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+      alert('Failed to export report. Please try again.')
+    }
+  }
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
@@ -67,11 +101,11 @@ export default function PerformanceDrillDownPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
           <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {user.first_name} {user.last_name}
           </h1>
@@ -79,11 +113,70 @@ export default function PerformanceDrillDownPage() {
             {(user.role || '').replace('_', ' ')} Performance Drill-Down
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <input type="date" value={dateRange.start_date} onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })} className="input text-sm" />
-          <span className="text-gray-500">to</span>
-          <input type="date" value={dateRange.end_date} onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })} className="input text-sm" />
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Time Period Selector */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setTimePeriod('day')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'day' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Day
+            </button>
+            <button
+              onClick={() => setTimePeriod('week')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'week' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setTimePeriod('month')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'month' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Month
+            </button>
+            <button
+              onClick={() => setTimePeriod('custom')}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === 'custom' 
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Custom
+            </button>
+          </div>
+
+          {/* Date Range Picker (only for custom) */}
+          {timePeriod === 'custom' && (
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              <input type="date" value={dateRange.start_date} onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })} className="input text-sm" />
+              <span className="text-gray-500">to</span>
+              <input type="date" value={dateRange.end_date} onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })} className="input text-sm" />
+            </div>
+          )}
+
+          {/* Export Button */}
+          <button
+            onClick={handleExport}
+            className="btn-primary flex items-center gap-2"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export
+          </button>
         </div>
       </div>
 
