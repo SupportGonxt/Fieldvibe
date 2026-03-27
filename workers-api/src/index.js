@@ -7956,10 +7956,12 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
     startD = today.toISOString().slice(0, 7) + '-01';
     endD = today.toISOString().split('T')[0];
   } else {
-    // Custom date range or default to today
-    startD = start_date || date || today.toISOString().split('T')[0];
-    endD = end_date || date || startD;
+    // Custom date range or default to month-to-date
+    startD = start_date || date || today.toISOString().slice(0, 7) + '-01';
+    endD = end_date || date || today.toISOString().split('T')[0];
   }
+  
+  console.log(`[PERF] Query params: period=${period}, startD=${startD}, endD=${endD}, userId=${userId}, tenantId=${tenantId}, role=${role}`);
   
   try {
     if (role === 'agent' || role === 'field_agent') {
@@ -7974,6 +7976,8 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       const visitCount = visits?.count || 0;
       const regCount = registrations?.count || 0;
       const convCount = conversions?.count || 0;
+      
+      console.log(`[PERF] Agent results: visits=${visitCount}, regs=${regCount}, convs=${convCount}`);
       
       return c.json({
         role: 'agent',

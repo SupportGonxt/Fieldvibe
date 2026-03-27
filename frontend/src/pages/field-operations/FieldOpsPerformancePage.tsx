@@ -38,7 +38,7 @@ type TimePeriod = 'day' | 'week' | 'month' | 'custom'
 export default function FieldOpsPerformancePage() {
   const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('day')
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('month')
   const [dateRange, setDateRange] = useState({
     start_date: today,
     end_date: today
@@ -46,11 +46,17 @@ export default function FieldOpsPerformancePage() {
 
   const { data: performance, isLoading, error } = useQuery({
     queryKey: ['field-ops-performance', timePeriod, dateRange],
-    queryFn: () => fieldOperationsService.getPerformance({ 
-      period: timePeriod === 'custom' ? undefined : timePeriod,
-      start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
-      end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
-    }),
+    queryFn: async () => {
+      const params = { 
+        period: timePeriod === 'custom' ? undefined : timePeriod,
+        start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
+        end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
+      }
+      console.log('[PERF-FRONTEND] Fetching with params:', params)
+      const result = await fieldOperationsService.getPerformance(params)
+      console.log('[PERF-FRONTEND] Received data:', result)
+      return result
+    },
     staleTime: 1000 * 60 * 2,
   })
 
