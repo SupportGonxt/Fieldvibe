@@ -850,7 +850,7 @@ export default function AgentStats() {
   }
 
   const dailyTargetVisits = dashData?.daily_targets?.reduce((s, t) => s + (t.target_visits || 0), 0) || 0
-  const dailyActualVisits = dashData?.daily_targets?.reduce((s, t) => s + (t.daily_actual_visits ?? t.actual_visits || 0), 0) || 0
+  const dailyActualVisits = dashData?.daily_targets?.reduce((s, t) => s + ((t.daily_actual_visits ?? t.actual_visits) || 0), 0) || 0
   const overallPct = perfData?.overall_achievement ?? (dailyTargetVisits > 0 ? Math.round((dailyActualVisits / dailyTargetVisits) * 100) : 0)
 
   const totalEarnings = (perfData?.commission_summary?.paid || 0) + (perfData?.commission_summary?.approved || 0) + (perfData?.commission_summary?.pending || 0)
