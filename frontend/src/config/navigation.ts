@@ -112,6 +112,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Individual Analytics', href: '/field-operations/reports/customers', permission: 'view_field_reports', description: 'Individual interaction analysis', group: 'Reports' },
       { name: 'Check-ins List', href: '/field-operations/reports/checkins', permission: 'view_field_reports', description: 'Paginated check-in records', group: 'Reports' },
       { name: 'Export Reports', href: '/field-operations/reports/export', permission: 'export_data', description: 'Export data to CSV', group: 'Reports' },
+      { name: 'Goldrush Individuals', href: '/field-operations/reports/goldrush-individuals', permission: 'view_field_reports', description: 'Goldrush individual report with questionnaire data', group: 'Reports' },
     ],
   },
   {

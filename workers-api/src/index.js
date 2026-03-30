@@ -14338,6 +14338,99 @@ api.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
+// Goldrush Individual Report - all individual registrations for Goldrush with questionnaire data
+api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+
+    // Find Goldrush company
+    const goldrushCompany = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+    if (!goldrushCompany) {
+      return c.json({ success: true, data: [], total: 0, message: 'Goldrush company not found' });
+    }
+    const goldrushId = goldrushCompany.id;
+
+    let dateFilter = '';
+    const binds = [tenantId, goldrushId];
+    if (startDate) { dateFilter += " AND DATE(ir.created_at) >= ?"; binds.push(startDate); }
+    if (endDate) { dateFilter += " AND DATE(ir.created_at) <= ?"; binds.push(endDate); }
+
+    // Get all individual registrations for Goldrush with agent name and visit responses
+    const result = await db.prepare(`
+      SELECT ir.id, ir.first_name, ir.last_name, ir.id_number, ir.phone, ir.email,
+        ir.product_app_player_id, ir.converted, ir.conversion_date, ir.notes,
+        ir.gps_latitude, ir.gps_longitude, ir.created_at, ir.visit_id,
+        u.first_name || ' ' || u.last_name as agent_name,
+        vr.responses as questionnaire_responses
+      FROM individual_registrations ir
+      LEFT JOIN users u ON ir.agent_id = u.id
+      LEFT JOIN visit_responses vr ON vr.visit_id = ir.visit_id
+      WHERE ir.tenant_id = ? AND ir.company_id = ?${dateFilter}
+      ORDER BY ir.created_at DESC
+      LIMIT 5000
+    `).bind(...binds).all();
+
+    // Parse questionnaire responses to extract goldrush_id and other fields
+    const data = (result.results || []).map(row => {
+      let goldrush_id = '';
+      let consumer_converted = '';
+      let betting_elsewhere = '';
+      let competitor_company = '';
+      let used_goldrush_before = '';
+      let goldrush_comparison = '';
+      let likes_goldrush = '';
+      let platform_suggestions = '';
+      let gave_brand_info = '';
+      try {
+        if (row.questionnaire_responses) {
+          const responses = typeof row.questionnaire_responses === 'string'
+            ? JSON.parse(row.questionnaire_responses)
+            : row.questionnaire_responses;
+          goldrush_id = responses.goldrush_id || '';
+          consumer_converted = responses.consumer_converted || '';
+          betting_elsewhere = responses.betting_elsewhere || '';
+          competitor_company = responses.competitor_company || '';
+          used_goldrush_before = responses.used_goldrush_before || '';
+          goldrush_comparison = responses.goldrush_comparison || '';
+          likes_goldrush = responses.likes_goldrush || '';
+          platform_suggestions = responses.platform_suggestions || '';
+          gave_brand_info = responses.gave_brand_info || '';
+        }
+      } catch (e) { /* ignore parse errors */ }
+
+      return {
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        id_number: row.id_number,
+        phone: row.phone,
+        email: row.email,
+        product_app_player_id: row.product_app_player_id,
+        goldrush_id,
+        converted: row.converted,
+        conversion_date: row.conversion_date,
+        agent_name: row.agent_name,
+        gps_latitude: row.gps_latitude,
+        gps_longitude: row.gps_longitude,
+        created_at: row.created_at,
+        notes: row.notes,
+        gave_brand_info,
+        consumer_converted,
+        betting_elsewhere,
+        competitor_company,
+        used_goldrush_before,
+        goldrush_comparison,
+        likes_goldrush,
+        platform_suggestions,
+      };
+    });
+
+    return c.json({ success: true, data, total: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
 // Shops analytics (customer/store analytics)
 api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
   try {

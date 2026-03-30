@@ -434,6 +434,7 @@ const ReportsShopsAnalytics = lazyWithRetry(() => import('./pages/field-operatio
 const ReportsCustomersAnalytics = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsCustomersAnalytics'))
 const ReportsCheckinsList = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsCheckinsList'))
 const ReportsExport = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsExport'))
+const GoldrushIndividualReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
 function PageLoader({ children }: { children: React.ReactNode }) {
@@ -1082,6 +1083,7 @@ function App() {
             <Route path="field-operations/reports/customers" element={<PageLoader><ReportsCustomersAnalytics /></PageLoader>} />
             <Route path="field-operations/reports/checkins" element={<PageLoader><ReportsCheckinsList /></PageLoader>} />
             <Route path="field-operations/reports/export" element={<PageLoader><ReportsExport /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-individuals" element={<PageLoader><GoldrushIndividualReport /></PageLoader>} />
 
             {/* Mobile More Menu */}
             <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
