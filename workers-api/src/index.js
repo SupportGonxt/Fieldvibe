@@ -14358,15 +14358,15 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     if (endDate) { dateFilter += " AND DATE(ir.created_at) <= ?"; binds.push(endDate); }
 
     // Get all individual registrations for Goldrush with agent name and visit responses
+    // Use correlated subquery for visit_responses to avoid duplicate rows (same pattern as line 2762)
     const result = await db.prepare(`
       SELECT ir.id, ir.first_name, ir.last_name, ir.id_number, ir.phone, ir.email,
         ir.product_app_player_id, ir.converted, ir.conversion_date, ir.notes,
         ir.gps_latitude, ir.gps_longitude, ir.created_at, ir.visit_id,
         u.first_name || ' ' || u.last_name as agent_name,
-        vr.responses as questionnaire_responses
+        (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = ir.visit_id LIMIT 1) as questionnaire_responses
       FROM individual_registrations ir
       LEFT JOIN users u ON ir.agent_id = u.id
-      LEFT JOIN visit_responses vr ON vr.visit_id = ir.visit_id
       WHERE ir.tenant_id = ? AND ir.company_id = ?${dateFilter}
       ORDER BY ir.created_at DESC
       LIMIT 5000
