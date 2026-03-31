@@ -4882,6 +4882,35 @@ api.post('/field-operations/visits/:id/check-out', authMiddleware, async (c) => 
   return c.json({ success: true, message: 'Checked out successfully' });
 });
 
+// PUT /field-operations/visits/:id - update visit (mirrors /visits/:id PUT for field-operations namespace)
+api.put('/field-operations/visits/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  await db.prepare('UPDATE visits SET check_out_time = COALESCE(?, check_out_time), outcome = COALESCE(?, outcome), notes = COALESCE(?, notes), status = COALESCE(?, status), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.check_out_time || null, body.outcome || null, body.notes || null, body.status || null, id, tenantId).run();
+  if (body.responses) {
+    const existing = await db.prepare('SELECT vr.id FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE vr.visit_id = ? AND v.tenant_id = ?').bind(id, tenantId).first();
+    if (existing) {
+      await db.prepare('UPDATE visit_responses SET responses = ? WHERE visit_id = ?').bind(JSON.stringify(body.responses), id).run();
+    } else {
+      const respId = uuidv4();
+      await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, responses) VALUES (?, ?, ?, ?)').bind(respId, tenantId, id, JSON.stringify(body.responses)).run();
+    }
+  }
+  // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
+  if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+    const vi = await db.prepare('SELECT id, custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).first();
+    if (vi) {
+      let existing = {};
+      try { existing = JSON.parse(vi.custom_field_values || '{}'); } catch(e) {}
+      const merged = { ...existing, ...body.custom_field_values };
+      await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ? AND tenant_id = ?').bind(JSON.stringify(merged), vi.id, tenantId).run();
+    }
+  }
+  return c.json({ success: true, message: 'Visit updated' });
+});
+
 api.get('/field-operations/routes', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
