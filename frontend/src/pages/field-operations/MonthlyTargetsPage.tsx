@@ -17,7 +17,7 @@ export default function MonthlyTargetsPage() {
     target_month: currentMonth,
     target_visits: 400,
     target_conversions: 100,
-    target_registrations: 200,
+    target_stores: 200,
     working_days: 22,
   })
 
@@ -223,8 +223,8 @@ export default function MonthlyTargetsPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Store Visits</label>
               <input
                 type="number"
-                value={newTarget.target_registrations}
-                onChange={(e) => setNewTarget({ ...newTarget, target_registrations: parseInt(e.target.value) || 0 })}
+                value={newTarget.target_stores}
+                onChange={(e) => setNewTarget({ ...newTarget, target_stores: parseInt(e.target.value) || 0 })}
                 className="input w-full" min="0"
               />
             </div>
@@ -292,8 +292,8 @@ export default function MonthlyTargetsPage() {
                       <span className="text-gray-400"> / {t.target_visits || 0}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{t.actual_registrations || 0}</span>
-                      <span className="text-gray-400"> / {t.target_registrations || 0}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{t.actual_stores || 0}</span>
+                      <span className="text-gray-400"> / {t.target_stores || 0}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{t.actual_conversions || 0}</span>

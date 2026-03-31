@@ -36,8 +36,8 @@ export default function MobileDashboard() {
   const [statsData, setStatsData] = useState({
     today_visits: 0,
     month_visits: 0,
-    today_registrations: 0,
-    month_registrations: 0,
+    today_stores: 0,
+    month_stores: 0,
     today_individual_visits: 0,
     today_store_visits: 0,
     month_individual_visits: 0,
@@ -167,8 +167,8 @@ export default function MobileDashboard() {
                     // Use weekly target if available, otherwise daily target
                     const targetVisits = target.individual_target_per_week && target.individual_target_per_week > 0 ? target.individual_target_per_week : (target.target_visits ?? target.individual_target_per_day ?? 0)
                     const targetVisitsDaily = target.target_visits ?? target.individual_target_per_day ?? 0
-                    const actualRegs = target.actual_registrations ?? target.actual_store_visits ?? 0
-                    const targetRegs = target.target_registrations ?? target.store_target_per_day ?? 0
+                    const actualRegs = target.actual_stores ?? target.actual_store_visits ?? 0
+                    const targetRegs = target.target_stores ?? target.store_target_per_day ?? 0
                     const vPct = targetVisits > 0 ? Math.min(100, Math.round((actualVisits / targetVisits) * 100)) : 0
                     const rPct = targetRegs > 0 ? Math.min(100, Math.round((actualRegs / targetRegs) * 100)) : 0
                     const hasWeeklyTarget = target.individual_target_per_week && target.individual_target_per_week > 0
@@ -220,8 +220,8 @@ export default function MobileDashboard() {
                   {statsData.monthly_targets.map((target, i) => {
                     const actualVisits = target.actual_visits ?? target.individual_visits ?? 0
                     const targetVisits = target.target_visits ?? 0
-                    const actualRegs = target.actual_registrations ?? target.store_visits ?? 0
-                    const targetRegs = target.target_registrations ?? 0
+                    const actualRegs = target.actual_stores ?? target.store_visits ?? 0
+                    const targetRegs = target.target_stores ?? 0
                     const vPct = targetVisits > 0 ? Math.min(100, Math.round((actualVisits / targetVisits) * 100)) : 0
                     const rPct = targetRegs > 0 ? Math.min(100, Math.round((actualRegs / targetRegs) * 100)) : 0
                     return (

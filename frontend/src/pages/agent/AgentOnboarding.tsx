@@ -43,7 +43,7 @@ const STEPS = [
     color: 'from-purple-500 to-purple-600',
     content: [
       'After logging in, you\'ll see your dashboard with today\'s stats, daily targets, and recent visits.',
-      'The dashboard shows your visit count, registration count, and progress towards daily targets for each company.',
+      'The dashboard shows your visit count, individual count, and progress towards daily targets for each company.',
     ],
     tips: [
       'Pull down to refresh your dashboard data',
@@ -128,13 +128,13 @@ const STEPS = [
     icon: BarChart3,
     color: 'from-pink-500 to-rose-500',
     content: [
-      'Use the Stats tab to see your performance metrics — visits completed, registrations, and target achievement.',
+      'Use the Stats tab to see your performance metrics — visits completed, individuals, and target achievement.',
       'Your manager can see your stats too, so keep your numbers up!',
     ],
     tips: [
       'Check your stats daily to stay on track',
       'The progress ring shows your overall target achievement',
-      'Company breakdowns show visits and registrations per company',
+      'Company breakdowns show visits and individuals per company',
     ],
   },
   {

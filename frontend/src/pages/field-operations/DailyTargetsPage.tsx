@@ -16,7 +16,7 @@ export default function DailyTargetsPage() {
     company_id: '',
     target_visits: 20,
     target_conversions: 5,
-    target_registrations: 10,
+    target_stores: 10,
     target_date: today
   })
 
@@ -43,7 +43,7 @@ export default function DailyTargetsPage() {
       queryClient.invalidateQueries({ queryKey: ['daily-targets'] })
       toast.success('Daily target created')
       setShowCreate(false)
-      setNewTarget({ agent_id: '', company_id: '', target_visits: 20, target_conversions: 5, target_registrations: 10, target_date: today })
+      setNewTarget({ agent_id: '', company_id: '', target_visits: 20, target_conversions: 5, target_stores: 10, target_date: today })
     },
     onError: () => toast.error('Failed to create target'),
   })
@@ -147,11 +147,11 @@ export default function DailyTargetsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Registrations</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Stores</label>
               <input
                 type="number"
-                value={newTarget.target_registrations}
-                onChange={(e) => setNewTarget({ ...newTarget, target_registrations: parseInt(e.target.value) || 0 })}
+                value={newTarget.target_stores}
+                onChange={(e) => setNewTarget({ ...newTarget, target_stores: parseInt(e.target.value) || 0 })}
                 className="input w-full"
                 min="0"
               />
@@ -190,7 +190,7 @@ export default function DailyTargetsPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Visits Target</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Registrations Target</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Stores Target</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Conversions Target</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -218,7 +218,7 @@ export default function DailyTargetsPage() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded text-sm font-medium">
-                      {t.target_registrations}
+                      {t.target_stores}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">

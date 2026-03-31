@@ -16,9 +16,9 @@ interface SettingRow {
 const SETTINGS_SCHEMA: SettingRow[] = [
   { key: 'default_working_days_per_week', label: 'Default Working Days per Week', description: 'How many days per week agents work (Mon-Fri = 5)', type: 'number', default: '5' },
   { key: 'default_target_visits_per_day', label: 'Default Target Visits per Day', description: 'Default daily visit target for new agents', type: 'number', default: '20' },
-  { key: 'default_target_registrations_per_day', label: 'Default Target Registrations per Day', description: 'Default daily registration target', type: 'number', default: '10' },
+  { key: 'default_target_stores_per_day', label: 'Default Target Stores per Day', description: 'Default daily store visit target', type: 'number', default: '10' },
   { key: 'default_target_conversions_per_day', label: 'Default Target Conversions per Day', description: 'Default daily conversion target', type: 'number', default: '5' },
-  { key: 'commission_calculation_method', label: 'Commission Calculation Method', description: 'How commissions are calculated: per_visit, per_registration, per_conversion, tier_based', type: 'text', default: 'tier_based' },
+  { key: 'commission_calculation_method', label: 'Commission Calculation Method', description: 'How commissions are calculated: per_visit, per_store, per_conversion, tier_based', type: 'text', default: 'tier_based' },
   { key: 'auto_recalculate_targets', label: 'Auto-Recalculate Targets', description: 'Automatically recalculate actuals at end of day (true/false)', type: 'boolean', default: 'false' },
   { key: 'require_gps_for_visits', label: 'Require GPS for Visits', description: 'Require GPS location when checking in/out of visits', type: 'boolean', default: 'true' },
   { key: 'max_visit_duration_hours', label: 'Max Visit Duration (hours)', description: 'Maximum allowed visit duration before auto-checkout', type: 'number', default: '4' },

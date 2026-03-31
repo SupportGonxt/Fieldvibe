@@ -17,17 +17,17 @@ const TeamPerformanceSection = lazy(() => import('./TeamPerformanceSection'))
 interface TargetSummary {
   target_visits: number
   actual_visits: number
-  target_registrations: number
-  actual_registrations: number
+  target_stores: number
+  actual_stores: number
 }
 
 interface CompanyTarget {
   company_id: string
   company_name: string
   daily_target_visits: number
-  daily_target_registrations: number
+  daily_target_stores: number
   daily_actual_visits: number
-  daily_actual_registrations: number
+  daily_actual_stores: number
   store_target_per_month: number
   store_actual_month: number
   store_actual_today: number
@@ -41,17 +41,17 @@ interface CompanyTarget {
   week_actual_visits: number
   month_target_visits: number
   month_actual_visits: number
-  month_target_registrations: number
-  month_actual_registrations: number
+  month_target_stores: number
+  month_actual_stores: number
 }
 
 interface DashboardData {
   today_visits: number
   month_visits: number
   week_visits: number
-  today_registrations: number
-  month_registrations: number
-  week_registrations: number
+  today_stores: number
+  month_stores: number
+  week_stores: number
   today_individual_visits?: number
   today_store_visits?: number
   month_individual_visits?: number
@@ -72,8 +72,8 @@ interface DashboardData {
     company_name: string
     target_visits: number
     actual_visits: number
-    target_registrations: number
-    actual_registrations: number
+    target_stores: number
+    actual_stores: number
     actual_store_visits?: number
     actual_individual_visits?: number
   }>
@@ -94,11 +94,11 @@ interface PerfSummary {
     team_lead_name: string
     member_count: number
     total_visits: number
-    total_registrations: number
+    total_individuals: number
     target_visits: number
     actual_visits: number
-    target_registrations: number
-    actual_registrations: number
+    target_stores: number
+    actual_stores: number
     achievement: number
   } | null
   manager_performance?: {
@@ -125,15 +125,15 @@ export default function AgentDashboard() {
     if (!data) return null
     // Company targets are the source of truth - they come from company_target_rules with role-specific filtering
     const companyTargetSum = data.company_targets?.reduce((s, t) => s + (t.daily_target_visits || 0), 0) || 0
-    const companyRegTargetSum = data.company_targets?.reduce((s, t) => s + (t.daily_target_registrations || 0), 0) || 0
+    const companyStoreTargetSum = data.company_targets?.reduce((s, t) => s + (t.daily_target_stores || 0), 0) || 0
     const dailyIndivTarget = companyTargetSum > 0 ? companyTargetSum : (data.daily_targets?.reduce((s, t) => s + (t.target_visits || 0), 0) || 0)
-    const dailyStoreTarget = companyRegTargetSum > 0 ? companyRegTargetSum : (data.daily_targets?.reduce((s, t) => s + (t.target_registrations || 0), 0) || 0)
+    const dailyStoreTarget = companyStoreTargetSum > 0 ? companyStoreTargetSum : (data.daily_targets?.reduce((s, t) => s + (t.target_stores || 0), 0) || 0)
     const monthIndivTarget = data.company_targets?.reduce((s, t) => s + (t.month_target_visits || 0), 0) || data.monthly_targets?.target_visits || 0
-    const monthStoreTarget = data.company_targets?.reduce((s, t) => s + (t.store_target_per_month || 0), 0) || data.monthly_targets?.target_registrations || 0
+    const monthStoreTarget = data.company_targets?.reduce((s, t) => s + (t.store_target_per_month || 0), 0) || data.monthly_targets?.target_stores || 0
     const weekIndivTarget = data.company_targets?.reduce((s, t) => s + (t.week_target_visits || 0), 0) || data.weekly_targets?.target_visits || 0
     const weekIndivActual = data.week_individual_visits || data.weekly_targets?.actual_visits || 0
     const monthIndivActual = data.month_individual_visits || data.monthly_targets?.actual_visits || 0
-    const monthStoreActual = data.month_store_visits || data.monthly_targets?.actual_registrations || 0
+    const monthStoreActual = data.month_store_visits || data.monthly_targets?.actual_stores || 0
     return { dailyIndivTarget, dailyStoreTarget, monthIndivTarget, monthStoreTarget, weekIndivTarget, weekIndivActual, monthIndivActual, monthStoreActual }
   }, [data])
 
@@ -554,7 +554,7 @@ export default function AgentDashboard() {
                   </div>
                   <div className="flex justify-between mb-2">
                     <span className="text-[10px] text-gray-500">Individual: {ct.daily_actual_visits}/{ct.daily_target_visits} today</span>
-                    <span className="text-[10px] text-gray-500">Store: {ct.daily_actual_registrations}/{ct.daily_target_registrations}</span>
+                    <span className="text-[10px] text-gray-500">Store: {ct.daily_actual_stores}/{ct.daily_target_stores}</span>
                   </div>
                   {/* Store vs Individual split */}
                   <div className="grid grid-cols-2 gap-2 mt-1">
@@ -618,7 +618,7 @@ export default function AgentDashboard() {
                   </div>
                   <div className="flex justify-between mt-1.5">
                     <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
+                    <span className="text-[10px] text-gray-500">Store: {t.actual_stores}/{t.target_stores}</span>
                   </div>
                   {!isAchieved && remaining > 0 && (
                     <p className="text-[9px] text-amber-400 mt-1.5 flex items-center gap-1">

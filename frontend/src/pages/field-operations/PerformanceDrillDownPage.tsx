@@ -85,20 +85,20 @@ export default function PerformanceDrillDownPage() {
   }
 
   const user = drillDown.user || {}
-  // Backend returns 'agents' for team_lead drill-down, 'visits'/'registrations'/'daily_visits' for agent
+  // Backend returns 'agents' for team_lead drill-down, 'visits'/'stores'/'daily_visits' for agent
   const subordinates = drillDown.agents || []
   const dailyData = drillDown.daily_visits || []
   // Compute totals from subordinates or visits arrays
   const totalVisits = user.role === 'team_lead'
     ? subordinates.reduce((s: number, a: any) => s + (a.visits || 0), 0)
     : (drillDown.visits || []).length
-  const totalRegistrations = user.role === 'team_lead'
-    ? subordinates.reduce((s: number, a: any) => s + (a.registrations || 0), 0)
-    : (drillDown.registrations || []).length
+  const totalIndividuals = user.role === 'team_lead'
+    ? subordinates.reduce((s: number, a: any) => s + (a.stores || 0), 0)
+    : (drillDown.individuals || []).length
   const totalConversions = user.role === 'team_lead'
     ? subordinates.reduce((s: number, a: any) => s + (a.conversions || 0), 0)
-    : (drillDown.registrations || []).filter((r: any) => r.converted).length
-  const conversionRate = totalRegistrations > 0 ? Math.round((totalConversions / totalRegistrations) * 100) : 0
+    : (drillDown.individuals || []).filter((r: any) => r.converted).length
+  const conversionRate = totalIndividuals > 0 ? Math.round((totalConversions / totalIndividuals) * 100) : 0
 
   return (
     <div className="space-y-6 p-6">
@@ -195,7 +195,7 @@ export default function PerformanceDrillDownPage() {
           <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30"><UserCheck className="w-5 h-5 text-green-600" /></div>
           <div>
             <p className="text-sm text-gray-500">Individuals</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalRegistrations}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalIndividuals}</p>
           </div>
         </div>
         <div className="card p-4 flex items-center gap-3">
@@ -256,7 +256,7 @@ export default function PerformanceDrillDownPage() {
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{sub.agent_name || `${sub.first_name || ''} ${sub.last_name || ''}`}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{(sub.role || sub.email || '').replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.visits || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.registrations || 0}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.stores || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.conversions || 0}</td>
                     <td className="px-4 py-3 text-right">
                       <button
@@ -279,7 +279,7 @@ export default function PerformanceDrillDownPage() {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Target Achievement</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <TargetBar label="Visits" current={totalVisits} target={20} />
-          <TargetBar label="Registrations" current={totalRegistrations} target={10} />
+          <TargetBar label="Individuals" current={totalIndividuals} target={10} />
           <TargetBar label="Conversions" current={totalConversions} target={5} />
         </div>
       </div>

@@ -93,7 +93,7 @@ export default function IndividualRegistrationPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Individual Registrations</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Individual Visitss</h1>
           <p className="text-gray-600 dark:text-gray-400">Register and track individual conversions ({total} total)</p>
         </div>
         <button onClick={() => setShowRegister(!showRegister)} className="btn-primary flex items-center gap-2">
@@ -102,7 +102,7 @@ export default function IndividualRegistrationPage() {
         </button>
       </div>
 
-      {/* Registration Form */}
+      {/* Individual Visit Form */}
       {showRegister && (
         <div className="card p-6 border-2 border-green-200 dark:border-green-800">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Register New Individual</h3>

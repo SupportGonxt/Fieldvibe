@@ -683,7 +683,7 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  async createDailyTarget(data: { agent_id: string; company_id?: string; target_visits?: number; target_conversions?: number; target_registrations?: number; target_date: string }) {
+  async createDailyTarget(data: { agent_id: string; company_id?: string; target_visits?: number; target_conversions?: number; target_stores?: number; target_date: string }) {
     const response = await this.post('/field-ops/daily-targets', data)
     return response.data || response
   }
@@ -698,7 +698,7 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  async bulkCreateDailyTargets(data: { agent_ids: string[]; company_id?: string; target_visits?: number; target_conversions?: number; target_registrations?: number; target_date: string }) {
+  async bulkCreateDailyTargets(data: { agent_ids: string[]; company_id?: string; target_visits?: number; target_conversions?: number; target_stores?: number; target_date: string }) {
     const response = await this.post('/field-ops/daily-targets/bulk', data)
     return response.data || response
   }
@@ -735,7 +735,7 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  // ==================== FIELD OPS: INDIVIDUAL REGISTRATIONS ====================
+  // ==================== FIELD OPS: INDIVIDUALS ====================
   async getIndividuals(filter: { agent_id?: string; company_id?: string; converted?: string; search?: string; page?: number; limit?: number } = {}) {
     const params = new URLSearchParams()
     Object.entries(filter).forEach(([key, value]) => {
@@ -885,7 +885,7 @@ class FieldOperationsService extends ApiService {
     return this.companyPortalGet(`/field-ops/company-portal/highlights?${params.toString()}`)
   }
 
-  async exportCompanyPortalData(type: 'visits' | 'registrations', startDate?: string, endDate?: string) {
+  async exportCompanyPortalData(type: 'visits' | 'stores', startDate?: string, endDate?: string) {
     const { default: axios } = await import('axios')
     const { API_CONFIG } = await import('../config/api.config')
     const token = localStorage.getItem('company_token')
@@ -994,7 +994,7 @@ class FieldOperationsService extends ApiService {
 
   async createMonthlyTarget(data: {
     agent_id: string; company_id?: string; target_month: string;
-    target_visits?: number; target_conversions?: number; target_registrations?: number;
+    target_visits?: number; target_conversions?: number; target_stores?: number;
     working_days?: number; commission_rate?: number
   }) {
     const response = await this.post('/field-ops/monthly-targets', data)

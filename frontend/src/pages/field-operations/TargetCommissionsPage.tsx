@@ -185,7 +185,7 @@ export default function TargetCommissionsPage() {
                 className="input w-full"
               >
                 <option value="visits">Visits</option>
-                <option value="registrations">Registrations</option>
+                <option value="stores">Stores</option>
                 <option value="conversions">Conversions</option>
               </select>
             </div>
