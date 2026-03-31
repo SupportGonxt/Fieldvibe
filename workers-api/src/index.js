@@ -980,7 +980,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
         team_lead_name: teamLeadInfo ? (teamLeadInfo.first_name + ' ' + teamLeadInfo.last_name) : 'Team Lead',
         member_count: memberCount,
         total_visits: totalTeamVisits,
-        total_stores: totalTeamRegs,
+        total_individuals: totalTeamRegs,
         target_visits: teamTargetVisits,
         actual_visits: teamActualVisits,
         target_registrations: teamTargetRegs,
@@ -8583,7 +8583,7 @@ api.get('/field-ops/company-dashboard', authMiddleware, async (c) => {
       db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1").bind(company_id, tenantId).first(),
       db.prepare("SELECT v.*, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' ORDER BY v.created_at DESC LIMIT 10").bind(company_id, tenantId).all()
     ]);
-    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_stores: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_registrations: recentRegs.results || [] });
+    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: recentRegs.results || [] });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -8613,12 +8613,12 @@ api.get('/field-ops/brand-insights', authMiddleware, async (c) => {
     if (company_id) { regFilter = ' AND ir.company_id = ?'; regParams.push(company_id); }
     const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ?" + regFilter.replace(/ir\./g, "v.")).bind(...regParams).first();
     // Conversion by day
-    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as registrations, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ?" + regFilter.replace(/ir\./g, "v.") + " GROUP BY day ORDER BY day").bind(...regParams).all();
+    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ?" + regFilter.replace(/ir\./g, "v.") + " GROUP BY day ORDER BY day").bind(...regParams).all();
     // KPIs
     const totalVisits = (visitsByDay.results || []).reduce((s, d) => s + d.count, 0);
     const totalAgents = (agentPerf.results || []).length;
     return c.json({
-      kpis: { total_visits: totalVisits, active_agents: totalAgents, total_stores: regStats?.total || 0, total_conversions: regStats?.converted || 0, conversion_rate: (regStats?.total || 0) > 0 ? Math.round(((regStats?.converted || 0) / (regStats?.total || 1)) * 100) : 0 },
+      kpis: { total_visits: totalVisits, active_agents: totalAgents, total_individuals: regStats?.total || 0, total_conversions: regStats?.converted || 0, conversion_rate: (regStats?.total || 0) > 0 ? Math.round(((regStats?.converted || 0) / (regStats?.total || 1)) * 100) : 0 },
       visits_by_day: visitsByDay.results || [],
       visits_by_hour: visitsByHour.results || [],
       agent_performance: agentPerf.results || [],
@@ -13536,7 +13536,7 @@ app.get('/api/field-ops/company-portal/dashboard', companyAuthMiddleware, async 
       db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1").bind(companyId, tenantId).first(),
       db.prepare("SELECT v.*, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' ORDER BY v.created_at DESC LIMIT 10").bind(companyId, tenantId).all()
     ]);
-    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_stores: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_registrations: recentRegs.results || [] });
+    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: recentRegs.results || [] });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -13563,7 +13563,7 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
     const regParams = [tenantId, startD, endD, companyId];
     const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ?").bind(...regParams).first();
     // Conversions by day
-    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as registrations, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? GROUP BY day ORDER BY day").bind(...regParams).all();
+    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? GROUP BY day ORDER BY day").bind(...regParams).all();
     // Visits by day of week
     const visitsByDayOfWeek = await db.prepare("SELECT CASE CAST(strftime('%w', v.visit_date) AS INTEGER) WHEN 0 THEN 'Sun' WHEN 1 THEN 'Mon' WHEN 2 THEN 'Tue' WHEN 3 THEN 'Wed' WHEN 4 THEN 'Thu' WHEN 5 THEN 'Fri' WHEN 6 THEN 'Sat' END as day_name, CAST(strftime('%w', v.visit_date) AS INTEGER) as day_num, COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY day_num ORDER BY day_num").bind(...baseParams).all();
     // Daily targets vs actuals
@@ -13574,18 +13574,18 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
     const totalVisits = (visitsByDay.results || []).reduce((s, d) => s + (d.count || 0), 0);
     const totalAgents = (agentPerf.results || []).length;
     return c.json({
-      kpis: { total_visits: totalVisits, active_agents: totalAgents, total_stores: regStats?.total || 0, total_conversions: regStats?.converted || 0, conversion_rate: (regStats?.total || 0) > 0 ? Math.round(((regStats?.converted || 0) / (regStats?.total || 1)) * 100) : 0 },
+      kpis: { total_visits: totalVisits, active_agents: totalAgents, total_individuals: regStats?.total || 0, total_conversions: regStats?.converted || 0, conversion_rate: (regStats?.total || 0) > 0 ? Math.round(((regStats?.converted || 0) / (regStats?.total || 1)) * 100) : 0 },
       visits_by_day: visitsByDay.results || [],
       visits_by_hour: visitsByHour.results || [],
       visits_by_day_of_week: visitsByDayOfWeek.results || [],
       agent_performance: agentPerf.results || [],
       conversions_by_day: convByDay.results || [],
       target_vs_actual: targetVsActual.results || [],
-      recent_registrations: recentRegs.results || [],
+      recent_individuals: recentRegs.results || [],
       period: { start: startD, end: endD }
     });
   } catch (e) {
-    return c.json({ error: e.message, kpis: {}, visits_by_day: [], visits_by_hour: [], visits_by_day_of_week: [], agent_performance: [], conversions_by_day: [], target_vs_actual: [], recent_registrations: [] }, 500);
+    return c.json({ error: e.message, kpis: {}, visits_by_day: [], visits_by_hour: [], visits_by_day_of_week: [], agent_performance: [], conversions_by_day: [], target_vs_actual: [], recent_individuals: [] }, 500);
   }
 });
 

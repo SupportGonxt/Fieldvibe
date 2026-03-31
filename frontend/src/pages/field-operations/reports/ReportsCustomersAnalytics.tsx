@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Users, TrendingUp, MapPin , AlertTriangle } from 'lucide-react'
+import DateRangePresets from '../../../components/ui/DateRangePresets'
 
 interface CustomerRecord {
   checkin_id: string
@@ -57,12 +58,12 @@ const ReportsCustomersAnalytics: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Individual Analytics</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Individual interaction analysis and conversion tracking</p>
         </div>
-        <div className="flex gap-2">
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-        </div>
+        <DateRangePresets
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+        />
       </div>
 
       {/* Stats */}

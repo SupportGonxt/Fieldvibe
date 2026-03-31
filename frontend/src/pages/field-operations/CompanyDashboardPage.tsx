@@ -352,7 +352,7 @@ export default function CompanyDashboardPage() {
                           <YAxis />
                           <Tooltip />
                           <Legend />
-                          <Bar dataKey="stores" fill="#10B981" name="Individuals" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="individuals" fill="#10B981" name="Individuals" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>

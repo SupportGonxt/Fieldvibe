@@ -85,7 +85,7 @@ export default function CompanyLoginsPage() {
               <SearchableSelect
                 options={[
                   { value: '', label: 'Select Company' },
-                  { value: 'c.id', label: '{c.name}' },
+                  ...(Array.isArray(companies) ? companies : []).map((c: any) => ({ value: c.id, label: c.name }))
                 ]}
                 value={form.company_id || null}
               onChange={(val) => setForm(prev => ({...prev, company_id: val}))}
@@ -138,7 +138,7 @@ export default function CompanyLoginsPage() {
         <SearchableSelect
           options={[
             { value: '', label: 'All Companies' },
-            { value: 'c.id', label: '{c.name}' },
+            ...(Array.isArray(companies) ? companies : []).map((c: any) => ({ value: c.id, label: c.name }))
           ]}
           value={filterCompany || null}
           onChange={(val) => setFilterCompany(val || '')}

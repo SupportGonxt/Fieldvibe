@@ -4,6 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { Download, FileSpreadsheet, FileText, BarChart3 } from 'lucide-react'
+import DateRangePresets from '../../../components/ui/DateRangePresets'
 
 const ReportsExport: React.FC = () => {
   const [startDate, setStartDate] = useState('')
@@ -79,12 +80,12 @@ const ReportsExport: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Export</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Export field operations data to CSV for analysis</p>
         </div>
-        <div className="flex gap-2">
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-        </div>
+        <DateRangePresets
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+        />
       </div>
 
       {/* Export Cards */}

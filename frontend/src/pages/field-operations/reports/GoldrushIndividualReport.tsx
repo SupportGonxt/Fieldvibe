@@ -5,6 +5,7 @@ import { fieldOperationsService } from '../../../services/field-operations.servi
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import DateRangePresets from '../../../components/ui/DateRangePresets'
 
 interface GoldrushIndividual {
   id: string
@@ -189,10 +190,12 @@ const GoldrushIndividualReport: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+          <DateRangePresets
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+          />
           <button onClick={exportToExcel} disabled={exporting || filtered.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
             <Download className="h-4 w-4" /> Export Excel

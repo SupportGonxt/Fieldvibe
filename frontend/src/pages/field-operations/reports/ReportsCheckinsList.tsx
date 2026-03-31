@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { List, Filter, Eye , AlertTriangle } from 'lucide-react'
+import DateRangePresets from '../../../components/ui/DateRangePresets'
 
 interface Checkin {
   id: string
@@ -89,11 +90,15 @@ const ReportsCheckinsList: React.FC = () => {
           <Filter className="h-4 w-4 text-gray-400" />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filters</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setPage(1) }}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="Start Date" />
-          <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setPage(1) }}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" placeholder="End Date" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="col-span-full">
+            <DateRangePresets
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={(d) => { setStartDate(d); setPage(1) }}
+              onEndDateChange={(d) => { setEndDate(d); setPage(1) }}
+            />
+          </div>
           <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
             <option value="">All Statuses</option>

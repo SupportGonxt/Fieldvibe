@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { TrendingUp, Award, Activity, Target , AlertTriangle } from 'lucide-react'
+import DateRangePresets from '../../../components/ui/DateRangePresets'
 
 interface AgentPerformance {
   agent_id: string
@@ -18,7 +19,7 @@ const ReportsInsights: React.FC = () => {
 
   const dateParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
 
-  const { data: agentPerf = [], isLoading } = useQuery({
+  const { data: agentPerf = [], isLoading, isError } = useQuery({
     queryKey: ['field-ops-insights-agents', startDate, endDate],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}`)
@@ -66,12 +67,12 @@ const ReportsInsights: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Deep Insights</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Performance highlights, activity patterns, and conversion metrics</p>
         </div>
-        <div className="flex gap-2">
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-        </div>
+        <DateRangePresets
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+        />
       </div>
 
       {/* Summary Metrics */}

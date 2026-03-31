@@ -136,7 +136,7 @@ export default function PerformanceDrillDownPage() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              Week
+              Week to Date
             </button>
             <button
               onClick={() => setTimePeriod('month')}
@@ -146,7 +146,7 @@ export default function PerformanceDrillDownPage() {
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              Month
+              Month to Date
             </button>
             <button
               onClick={() => setTimePeriod('custom')}

@@ -19,6 +19,7 @@ import {
   Legend
 } from 'recharts'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import DateRangePresets from '../../components/ui/DateRangePresets'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6']
 
@@ -84,16 +85,18 @@ export default function BrandInsightsPage() {
           <SearchableSelect
             options={[
               { value: '', label: 'All Companies' },
-              { value: 'c.id', label: '{c.name}' },
+              ...(Array.isArray(companies) ? companies : []).map((c: any) => ({ value: c.id, label: c.name }))
             ]}
             value={selectedCompany || null}
             onChange={(val) => setSelectedCompany(val || '')}
             placeholder="All Companies"
           />
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <input type="date" value={dateRange.start_date} onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })} className="input text-sm" />
-          <span className="text-gray-500">to</span>
-          <input type="date" value={dateRange.end_date} onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })} className="input text-sm" />
+          <DateRangePresets
+            startDate={dateRange.start_date}
+            endDate={dateRange.end_date}
+            onStartDateChange={(d) => setDateRange({ ...dateRange, start_date: d })}
+            onEndDateChange={(d) => setDateRange({ ...dateRange, end_date: d })}
+          />
         </div>
       </div>
 
@@ -146,7 +149,7 @@ export default function BrandInsightsPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="stores" fill="#10B981" name="Individuals" />
+                  <Bar dataKey="individuals" fill="#10B981" name="Individuals" />
                   <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
                 </BarChart>
               </ResponsiveContainer>
