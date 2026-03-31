@@ -29,7 +29,6 @@ import {
   Cell
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
-import { exportToXLSX, ExportColumn } from '../../utils/export'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']
 
@@ -72,12 +71,12 @@ export default function FieldOpsPerformancePage() {
       }
       
       const response = await fieldOperationsService.get(`/field-ops/performance/export?${params.toString()}`)
-      const blob = new Blob([response.data], { type: 'application/vnd.ms-excel' })
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       const periodLabel = timePeriod === 'day' ? 'Day' : timePeriod === 'week' ? 'Week' : timePeriod === 'month' ? 'Month' : 'Custom'
-      a.download = `field-ops-performance-${periodLabel}-${today}.xls`
+      a.download = `field-ops-performance-${periodLabel}-${today}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

@@ -4922,27 +4922,16 @@ api.get('/field-operations/visits/export', authMiddleware, async (c) => {
     v.notes || '-'
   ]);
   
-  const headerRow = headers.map(h => `<th>${h}</th>`).join('');
-  const bodyRows = data.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
-  
-  const html = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8"/>
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>Visits Export</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;} .header{background:#2563EB;color:white;font-size:14pt;font-weight:bold;}</style>
-</head><body>
-<table border="1">
-  <tr><td colspan="${headers.length}" class="header">Visits Export - ${new Date().toLocaleString('en-GB')}</td></tr>
-  <thead><tr>${headerRow}</tr></thead>
-  <tbody>${bodyRows}</tbody>
-</table>
-</body></html>`;
-
-  return c.html(html);
+  // Build CSV with BOM for Excel compatibility
+  const escapeCsv = (val) => { const s = String(val ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csvLines = [
+    headers.map(escapeCsv).join(','),
+    ...data.map(row => row.map(escapeCsv).join(','))
+  ];
+  const BOM = '\uFEFF';
+  return new Response(BOM + csvLines.join('\n'), {
+    headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="visits-export-${new Date().toISOString().slice(0, 10)}.csv"` }
+  });
 });
 
 // ==================== VAN SALES ROUTES ====================
@@ -8305,35 +8294,21 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       }
     }
     
-    // Build Excel-compatible HTML
-    const headerRow = headers.map(h => `<th>${h}</th>`).join('');
-    const bodyRows = data.map(row => {
-      if (row.length === 1 && row[0].startsWith('---')) {
-        return `<tr><td colspan="${headers.length}" style="background:#f0f0f0;font-weight:bold;padding:8px;">${row[0].replace(/---/g, '')}</td></tr>`;
-      }
-      return `<tr>${row.map(cell => `<td>${cell || ''}</td>`).join('')}</tr>`;
-    }).join('');
+    // Build CSV with BOM for Excel compatibility
     const periodLabel = period === 'day' ? 'Day' : period === 'week' ? 'Week to Date' : period === 'month' ? 'Month to Date' : 'Custom Period';
-    
-    const html = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8"/>
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>Performance Report</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;} .header{background:#2563EB;color:white;font-size:14pt;font-weight:bold;}</style>
-</head><body>
-<table border="1">
-  <tr><td colspan="${headers.length}" class="header">Field Operations Performance Report - ${periodLabel} (${startD} to ${endD})</td></tr>
-  <thead><tr>${headerRow}</tr></thead>
-  <tbody>${bodyRows}</tbody>
-</table>
-<p>Generated: ${new Date().toLocaleString('en-GB')}</p>
-</body></html>`;
-
-    return c.html(html);
+    const escapeCsv = (val) => { const s = String(val ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csvLines = [
+      headers.map(escapeCsv).join(','),
+      ...data.map(row => {
+        if (row.length === 0) return '';
+        if (row.length === 1 && String(row[0]).startsWith('---')) return escapeCsv(String(row[0]).replace(/---/g, '').trim());
+        return row.map(escapeCsv).join(',');
+      })
+    ];
+    const BOM = '\uFEFF';
+    return new Response(BOM + csvLines.join('\n'), {
+      headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="field-ops-performance-${periodLabel.replace(/\s/g, '-')}-${startD}-to-${endD}.csv"` }
+    });
   } catch (e) {
     console.error('Performance export error:', e);
     return c.json({ error: e.message }, 500);
@@ -8478,30 +8453,17 @@ api.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
       ]);
     }
     
-    // Build Excel-compatible HTML
-    const headerRow = headers.map(h => `<th>${h}</th>`).join('');
-    const bodyRows = data.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+    // Build CSV with BOM for Excel compatibility
     const periodLabel = period === 'day' ? 'Day' : period === 'week' ? 'Week to Date' : period === 'month' ? 'Month to Date' : 'Custom Period';
-    
-    const html = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8"/>
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>Drill-Down Report</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;} .header{background:#2563EB;color:white;font-size:14pt;font-weight:bold;}</style>
-</head><body>
-<table border="1">
-  <tr><td colspan="${headers.length}" class="header">Performance Drill-Down: ${user.first_name} ${user.last_name} - ${periodLabel} (${startD} to ${endD})</td></tr>
-  <thead><tr>${headerRow}</tr></thead>
-  <tbody>${bodyRows}</tbody>
-</table>
-<p>Generated: ${new Date().toLocaleString('en-GB')}</p>
-</body></html>`;
-
-    return c.html(html);
+    const escapeCsv = (val) => { const s = String(val ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csvLines = [
+      headers.map(escapeCsv).join(','),
+      ...data.map(row => row.map(escapeCsv).join(','))
+    ];
+    const BOM = '\uFEFF';
+    return new Response(BOM + csvLines.join('\n'), {
+      headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="drill-down-${user.first_name}-${user.last_name}-${periodLabel.replace(/\s/g, '-')}-${startD}-to-${endD}.csv"` }
+    });
   } catch (e) {
     console.error('Drill-down export error:', e);
     return c.json({ error: e.message }, 500);

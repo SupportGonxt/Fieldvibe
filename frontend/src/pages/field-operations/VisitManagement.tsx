@@ -208,11 +208,11 @@ const VisitManagement: React.FC = () => {
       if (dateTo) params.append('date_to', dateTo)
       
       const response = await apiClient.get(`/field-operations/visits/export?${params.toString()}`)
-      const blob = new Blob([response.data], { type: 'application/vnd.ms-excel' })
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `visits-export-${new Date().toISOString().split('T')[0]}.xls`
+      a.download = `visits-export-${new Date().toISOString().split('T')[0]}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

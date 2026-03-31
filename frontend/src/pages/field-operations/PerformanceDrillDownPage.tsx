@@ -50,12 +50,12 @@ export default function PerformanceDrillDownPage() {
       }
       
       const response = await fieldOperationsService.get(`/field-ops/drill-down/${userId}/export?${params.toString()}`)
-      const blob = new Blob([response.data], { type: 'application/vnd.ms-excel' })
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       const periodLabel = timePeriod === 'day' ? 'Day' : timePeriod === 'week' ? 'Week' : timePeriod === 'month' ? 'Month' : 'Custom'
-      a.download = `drill-down-${userId}-${periodLabel}-${new Date().toISOString().split('T')[0]}.xls`
+      a.download = `drill-down-${userId}-${periodLabel}-${new Date().toISOString().split('T')[0]}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
