@@ -7889,9 +7889,11 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       }
 
       // Link visit to individual with custom field values
+      // Merge custom_question_values (e.g. goldrush_id) into custom_field_values so they are stored together
+      const mergedCustomFields = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
       const viId = crypto.randomUUID();
       await db.prepare('INSERT INTO visit_individuals (id, tenant_id, visit_id, individual_id, custom_field_values) VALUES (?, ?, ?, ?, ?)').bind(
-        viId, tenantId, visitId, individualId, JSON.stringify(body.custom_field_values || {})
+        viId, tenantId, visitId, individualId, JSON.stringify(mergedCustomFields)
       ).run();
 
       // CRITICAL: Create individual_registrations record for reporting
