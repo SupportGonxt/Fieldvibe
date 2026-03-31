@@ -11,12 +11,12 @@ interface AgentStat {
   role: string
   today_visits: number
   month_visits: number
-  today_registrations: number
-  month_registrations: number
+  today_stores: number
+  month_stores: number
   target_visits: number
   actual_visits: number
-  target_registrations: number
-  actual_registrations: number
+  target_stores: number
+  actual_stores: number
   achievement: number
 }
 
@@ -133,7 +133,7 @@ export default function ManagerTeamDetailPage() {
             {agents.map((agent) => {
               const isExpanded = expandedAgent === agent.id
               const agentVPct = agent.target_visits > 0 ? Math.min(100, Math.round((agent.actual_visits / agent.target_visits) * 100)) : 0
-              const agentRPct = agent.target_registrations > 0 ? Math.min(100, Math.round((agent.actual_registrations / agent.target_registrations) * 100)) : 0
+              const agentRPct = agent.target_stores > 0 ? Math.min(100, Math.round((agent.actual_stores / agent.target_stores) * 100)) : 0
               return (
                 <div key={agent.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                   <button
@@ -145,7 +145,7 @@ export default function ManagerTeamDetailPage() {
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
-                      <p className="text-[10px] text-gray-500">{agent.today_visits} individual &middot; {agent.today_registrations} store today</p>
+                      <p className="text-[10px] text-gray-500">{agent.today_visits} individual &middot; {agent.today_stores} store today</p>
                     </div>
                     <div className="text-right mr-1">
                       <span className={`text-xs font-bold ${pctClass(agent.achievement)}`}>
@@ -163,7 +163,7 @@ export default function ManagerTeamDetailPage() {
                         </div>
                         <div className="bg-white/5 rounded-lg p-2">
                           <p className="text-[10px] text-gray-500">Month Store</p>
-                          <p className="text-sm font-semibold text-white">{agent.month_registrations}</p>
+                          <p className="text-sm font-semibold text-white">{agent.month_stores}</p>
                         </div>
                       </div>
                       {/* Visit target progress */}
@@ -176,11 +176,11 @@ export default function ManagerTeamDetailPage() {
                           <div className="h-full rounded-full" style={{ width: agentVPct + '%', backgroundColor: progressColor(agentVPct) }} />
                         </div>
                       </div>
-                      {/* Registration target progress */}
+                      {/* Store target progress */}
                       <div className="mt-1.5">
                         <div className="flex justify-between text-[10px] mb-0.5">
                           <span className="text-gray-500">Store Target</span>
-                          <span className="text-white">{agent.actual_registrations}/{agent.target_registrations} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
+                          <span className="text-white">{agent.actual_stores}/{agent.target_stores} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: '#8B5CF6' }} />

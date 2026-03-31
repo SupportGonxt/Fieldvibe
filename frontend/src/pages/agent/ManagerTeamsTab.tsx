@@ -8,17 +8,17 @@ interface TeamStat {
   team_lead_name: string
   agent_count: number
   month_visits: number
-  month_registrations: number
+  month_stores: number
   target_visits: number
   actual_visits: number
-  target_registrations: number
-  actual_registrations: number
+  target_stores: number
+  actual_stores: number
   achievement: number
   team_lead_own?: {
     target_visits: number
     actual_visits: number
-    target_registrations: number
-    actual_registrations: number
+    target_stores: number
+    actual_stores: number
   }
 }
 
@@ -51,8 +51,8 @@ interface ManagerData {
   org_totals: {
     today_visits: number
     month_visits: number
-    today_registrations: number
-    month_registrations: number
+    today_stores: number
+    month_stores: number
     today_individual_visits?: number
     today_store_visits?: number
     month_individual_visits?: number
@@ -61,8 +61,8 @@ interface ManagerData {
   org_targets: {
     target_visits: number
     actual_visits: number
-    target_registrations: number
-    actual_registrations: number
+    target_stores: number
+    actual_stores: number
     achievement: number
   }
   org_commission: {
@@ -143,7 +143,7 @@ export default function ManagerTeamsTab() {
   const achievement = data?.org_targets?.achievement || 0
   const totalEarnings = (data?.org_commission?.pending || 0) + (data?.org_commission?.approved || 0) + (data?.org_commission?.paid || 0)
   const vPct = (data?.org_targets?.target_visits || 0) > 0 ? Math.min(100, Math.round(((data?.org_targets?.actual_visits || 0) / (data?.org_targets?.target_visits || 1)) * 100)) : 0
-  const rPct = (data?.org_targets?.target_registrations || 0) > 0 ? Math.min(100, Math.round(((data?.org_targets?.actual_registrations || 0) / (data?.org_targets?.target_registrations || 1)) * 100)) : 0
+  const rPct = (data?.org_targets?.target_stores || 0) > 0 ? Math.min(100, Math.round(((data?.org_targets?.actual_stores || 0) / (data?.org_targets?.target_stores || 1)) * 100)) : 0
   const rules = data?.commission_rules || []
   const tiers = data?.commission_tiers || []
   const currentTier = data?.current_org_tier
@@ -241,7 +241,7 @@ export default function ManagerTeamsTab() {
             <div className="flex justify-between text-xs mb-1">
               <span className="text-gray-400">Store Visits</span>
               <span className="text-white font-medium">
-                {data?.org_targets?.actual_registrations || 0}/{data?.org_targets?.target_registrations || 0}
+                {data?.org_targets?.actual_stores || 0}/{data?.org_targets?.target_stores || 0}
                 <span className={' ml-1 ' + pctClass(rPct)}>({rPct}%)</span>
               </span>
             </div>
@@ -420,7 +420,7 @@ export default function ManagerTeamsTab() {
             {(data?.teams || []).map((team) => {
               const isExpanded = expandedTeam === team.team_lead_id
               const teamVPct = (team.target_visits || 0) > 0 ? Math.min(100, Math.round((team.actual_visits / team.target_visits) * 100)) : 0
-              const teamRPct = (team.target_registrations || 0) > 0 ? Math.min(100, Math.round((team.actual_registrations / team.target_registrations) * 100)) : 0
+              const teamRPct = (team.target_stores || 0) > 0 ? Math.min(100, Math.round((team.actual_stores / team.target_stores) * 100)) : 0
               return (
                 <div key={team.team_lead_id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                   <button
@@ -450,7 +450,7 @@ export default function ManagerTeamsTab() {
                         </div>
                         <div className="bg-white/5 rounded-lg p-2">
                           <p className="text-[10px] text-gray-500">Month Store</p>
-                          <p className="text-sm font-semibold text-white">{team.month_registrations}</p>
+                          <p className="text-sm font-semibold text-white">{team.month_stores}</p>
                         </div>
                       </div>
                       {/* Individual target progress */}
@@ -467,7 +467,7 @@ export default function ManagerTeamsTab() {
                       <div className="mt-1.5">
                         <div className="flex justify-between text-[10px] mb-0.5">
                           <span className="text-gray-500">Store Target</span>
-                          <span className="text-white">{team.actual_registrations}/{team.target_registrations} <span className={pctClass(teamRPct)}>({teamRPct}%)</span></span>
+                          <span className="text-white">{team.actual_stores}/{team.target_stores} <span className={pctClass(teamRPct)}>({teamRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: teamRPct + '%', backgroundColor: '#8B5CF6' }} />

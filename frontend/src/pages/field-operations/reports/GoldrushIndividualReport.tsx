@@ -185,7 +185,7 @@ const GoldrushIndividualReport: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Goldrush Individual Report</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Individual registrations and questionnaire data for Goldrush
+            Individual visits and questionnaire data for Goldrush
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

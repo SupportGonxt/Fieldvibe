@@ -93,7 +93,7 @@ export const navigation: NavigationItem[] = [
       { name: 'All Visits', href: '/field-operations/visits', permission: null, description: 'Manage all visits', group: 'Visits & Activity' },
       { name: 'Store Visits', href: '/field-operations/visits/stores', permission: null, description: 'Store & business visits', group: 'Visits & Activity' },
       { name: 'Individual Visits', href: '/field-operations/visits/individuals', permission: null, description: 'Individual person visits', group: 'Visits & Activity' },
-      { name: 'Individuals', href: '/field-operations/individuals', permission: null, description: 'Individual registrations', group: 'Visits & Activity' },
+      { name: 'Individuals', href: '/field-operations/individuals', permission: null, description: 'Individual visits', group: 'Visits & Activity' },
       { name: 'Board Placements', href: '/field-operations/boards', permission: null, description: 'Track board placements', group: 'Visits & Activity' },
       { name: 'Product Distribution', href: '/field-operations/products', permission: null, description: 'Product distribution tracking', group: 'Visits & Activity' },
 

@@ -100,7 +100,7 @@ export default function BrandInsightsPage() {
       {/* Summary KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Total Visits" value={summary.total_visits || 0} icon={<Target className="w-5 h-5 text-blue-600" />} bg="bg-blue-100 dark:bg-blue-900/30" />
-        <KPICard title="Total Registrations" value={summary.total_registrations || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
+        <KPICard title="Total Individuals" value={summary.total_individuals || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
         <KPICard title="Total Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />
         <KPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />
       </div>
@@ -134,7 +134,7 @@ export default function BrandInsightsPage() {
         {/* Conversions by Day */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrations & Conversions</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
             <PieChartIcon className="w-5 h-5 text-gray-400" />
           </div>
           {conversionsByDay.length > 0 ? (
@@ -146,7 +146,7 @@ export default function BrandInsightsPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="registrations" fill="#10B981" name="Registrations" />
+                  <Bar dataKey="stores" fill="#10B981" name="Individuals" />
                   <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
                 </BarChart>
               </ResponsiveContainer>
@@ -309,7 +309,7 @@ export default function BrandInsightsPage() {
         <div className="text-center py-12">
           <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-lg font-medium">No brand insights data available</p>
-          <p className="text-gray-400 text-sm">Data will appear once agents start registering individuals and making visits</p>
+          <p className="text-gray-400 text-sm">Data will appear once agents start visiting individuals and making store visits</p>
         </div>
       )}
     </div>

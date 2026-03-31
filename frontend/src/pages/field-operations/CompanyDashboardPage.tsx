@@ -26,7 +26,7 @@ export default function CompanyDashboardPage() {
     start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0]
   })
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'stores' | 'visits' | 'registrations'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'stores' | 'visits' | 'stores'>('overview')
   const [storePage, setStorePage] = useState(1)
   const [storeSearch, setStoreSearch] = useState('')
   const [visitPage, setVisitPage] = useState(1)
@@ -47,7 +47,7 @@ export default function CompanyDashboardPage() {
     queryFn: () => isCompanyPortal
       ? fieldOperationsService.getCompanyPortalBrandInsights(dateRange)
       : fieldOperationsService.getBrandInsights({ company_id: companyId, ...dateRange }),
-    enabled: (!!companyId || isCompanyPortal) && (activeTab === 'analytics' || activeTab === 'registrations') && !(isCompanyPortal && !companyToken),
+    enabled: (!!companyId || isCompanyPortal) && (activeTab === 'analytics' || activeTab === 'stores') && !(isCompanyPortal && !companyToken),
   })
 
   const { data: highlights } = useQuery({
@@ -86,7 +86,7 @@ export default function CompanyDashboardPage() {
     navigate('/company-login')
   }
 
-  const handleExport = async (type: 'visits' | 'registrations') => {
+  const handleExport = async (type: 'visits' | 'stores') => {
     try {
       const blob = await fieldOperationsService.exportCompanyPortalData(type, dateRange.start_date, dateRange.end_date)
       const url = URL.createObjectURL(blob)
@@ -129,7 +129,7 @@ export default function CompanyDashboardPage() {
   const topAgents = insights?.agent_performance || []
   const conversionsByDay = insights?.conversions_by_day || []
   const targetVsActual = insights?.target_vs_actual || []
-  const recentRegsInsights = insights?.recent_registrations || []
+  const recentRegsInsights = insights?.recent_individuals || []
 
   return (
     <div className="space-y-6 p-6">
@@ -156,8 +156,8 @@ export default function CompanyDashboardPage() {
             <button onClick={() => handleExport('visits')} className="btn-outline text-sm flex items-center gap-1">
               <Download className="w-4 h-4" /> Visits CSV
             </button>
-            <button onClick={() => handleExport('registrations')} className="btn-outline text-sm flex items-center gap-1">
-              <Download className="w-4 h-4" /> Registrations CSV
+            <button onClick={() => handleExport('stores')} className="btn-outline text-sm flex items-center gap-1">
+              <Download className="w-4 h-4" /> Individuals CSV
             </button>
             <button onClick={handleLogout} className="btn-outline text-sm flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50">
               <LogOut className="w-4 h-4" /> Logout
@@ -174,12 +174,12 @@ export default function CompanyDashboardPage() {
               { key: 'analytics' as const, label: 'Insights', icon: <BarChart3 className="w-4 h-4" /> },
               { key: 'stores' as const, label: 'Store Analytics', icon: <Store className="w-4 h-4" /> },
               { key: 'visits' as const, label: 'Visit Records', icon: <FileText className="w-4 h-4" /> },
-              { key: 'registrations' as const, label: 'Registrations', icon: <UserPlus className="w-4 h-4" /> },
+              { key: 'stores' as const, label: 'Individuals', icon: <UserPlus className="w-4 h-4" /> },
             ]
           : [
               { key: 'overview' as const, label: 'Overview', icon: <Building2 className="w-4 h-4" /> },
               { key: 'analytics' as const, label: 'Deep Analytics', icon: <BarChart3 className="w-4 h-4" /> },
-              { key: 'registrations' as const, label: 'Registrations', icon: <UserPlus className="w-4 h-4" /> },
+              { key: 'stores' as const, label: 'Individuals', icon: <UserPlus className="w-4 h-4" /> },
             ]
         ).map((tab) => (
           <button
@@ -207,11 +207,11 @@ export default function CompanyDashboardPage() {
             <KPICard title="Conversion Rate" value={`${dashboard.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <KPICard title="Total Registrations" value={dashboard.total_registrations || 0} icon={<UserPlus className="w-5 h-5 text-indigo-600" />} bg="bg-indigo-100 dark:bg-indigo-900/30" />
+            <KPICard title="Total Individuals" value={dashboard.total_individuals || 0} icon={<UserPlus className="w-5 h-5 text-indigo-600" />} bg="bg-indigo-100 dark:bg-indigo-900/30" />
             <KPICard title="Total Conversions" value={dashboard.total_conversions || 0} icon={<CheckCircle className="w-5 h-5 text-emerald-600" />} bg="bg-emerald-100 dark:bg-emerald-900/30" />
           </div>
           <div className="card p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Registrations</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Individuals</h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead>
@@ -224,7 +224,7 @@ export default function CompanyDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {(dashboard.recent_registrations || []).map((reg: any) => (
+                  {(dashboard.recent_individuals || []).map((reg: any) => (
                     <tr key={reg.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{reg.first_name} {reg.last_name}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{reg.agent_name || '-'}</td>
@@ -237,8 +237,8 @@ export default function CompanyDashboardPage() {
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-sm">{reg.created_at ? new Date(reg.created_at).toLocaleDateString() : '-'}</td>
                     </tr>
                   ))}
-                  {(dashboard.recent_registrations || []).length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No recent registrations</td></tr>
+                  {(dashboard.recent_individuals || []).length === 0 && (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No recent individuals</td></tr>
                   )}
                 </tbody>
               </table>
@@ -265,7 +265,7 @@ export default function CompanyDashboardPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <KPICard title="Total Visits" value={summary.total_visits || 0} icon={<Target className="w-5 h-5 text-blue-600" />} bg="bg-blue-100 dark:bg-blue-900/30" />
                 <KPICard title="Active Agents" value={summary.active_agents || 0} icon={<Users className="w-5 h-5 text-cyan-600" />} bg="bg-cyan-100 dark:bg-cyan-900/30" />
-                <KPICard title="Registrations" value={summary.total_registrations || 0} icon={<UserPlus className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
+                <KPICard title="Individuals" value={summary.total_individuals || 0} icon={<UserPlus className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
                 <KPICard title="Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />
                 <KPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />
               </div>
@@ -310,7 +310,7 @@ export default function CompanyDashboardPage() {
                 </div>
               )}
 
-              {/* Daily Visit Trends + Registrations & Conversions */}
+              {/* Daily Visit Trends + Individuals & Conversions */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="card p-6">
                   <div className="flex items-center gap-2 mb-4">
@@ -341,7 +341,7 @@ export default function CompanyDashboardPage() {
                 <div className="card p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <PieChartIcon className="w-5 h-5 text-purple-600" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrations & Conversions</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
                   </div>
                   {conversionsByDay.length > 0 ? (
                     <div className="h-64">
@@ -352,7 +352,7 @@ export default function CompanyDashboardPage() {
                           <YAxis />
                           <Tooltip />
                           <Legend />
-                          <Bar dataKey="registrations" fill="#10B981" name="Registrations" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="stores" fill="#10B981" name="Individuals" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -423,7 +423,7 @@ export default function CompanyDashboardPage() {
                         <Pie
                           data={[
                             { name: 'Converted', value: summary.total_conversions || 0 },
-                            { name: 'Pending', value: Math.max(0, (summary.total_registrations || 0) - (summary.total_conversions || 0)) },
+                            { name: 'Pending', value: Math.max(0, (summary.total_individuals || 0) - (summary.total_conversions || 0)) },
                           ].filter(d => d.value > 0)}
                           cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value"
                         >
@@ -852,8 +852,8 @@ export default function CompanyDashboardPage() {
         </>
       )}
 
-      {/* Registrations Tab */}
-      {activeTab === 'registrations' && (
+      {/* Individuals Tab */}
+      {activeTab === 'stores' && (
         <>
           <div className="card p-4 flex flex-wrap items-center gap-3">
             <Calendar className="w-4 h-4 text-gray-500" />
@@ -861,7 +861,7 @@ export default function CompanyDashboardPage() {
             <span className="text-gray-500">to</span>
             <input type="date" value={dateRange.end_date} onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })} className="input text-sm" />
             {isCompanyPortal && (
-              <button onClick={() => handleExport('registrations')} className="btn-outline text-sm flex items-center gap-1 ml-auto">
+              <button onClick={() => handleExport('stores')} className="btn-outline text-sm flex items-center gap-1 ml-auto">
                 <Download className="w-4 h-4" /> Export CSV
               </button>
             )}
@@ -872,7 +872,7 @@ export default function CompanyDashboardPage() {
           ) : (
             <div className="card p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Individual Registrations ({recentRegsInsights.length})
+                Individual Visits ({recentRegsInsights.length})
               </h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -902,7 +902,7 @@ export default function CompanyDashboardPage() {
                       </tr>
                     ))}
                     {recentRegsInsights.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No registrations in selected period</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No individuals in selected period</td></tr>
                     )}
                   </tbody>
                 </table>

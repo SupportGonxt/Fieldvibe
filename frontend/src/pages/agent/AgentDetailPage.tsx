@@ -16,12 +16,12 @@ interface AgentInfo {
 interface AgentStats {
   today_visits: number
   month_visits: number
-  today_registrations: number
-  month_registrations: number
+  today_stores: number
+  month_stores: number
   target_visits: number
   actual_visits: number
-  target_registrations: number
-  actual_registrations: number
+  target_stores: number
+  actual_stores: number
   achievement: number
 }
 
@@ -110,7 +110,7 @@ export default function AgentDetailPage() {
   }
 
   const vPct = stats.target_visits > 0 ? Math.min(100, Math.round((stats.actual_visits / stats.target_visits) * 100)) : 0
-  const rPct = stats.target_registrations > 0 ? Math.min(100, Math.round((stats.actual_registrations / stats.target_registrations) * 100)) : 0
+  const rPct = stats.target_stores > 0 ? Math.min(100, Math.round((stats.actual_stores / stats.target_stores) * 100)) : 0
 
   return (
     <div className="min-h-screen bg-[#06090F] pb-24">
@@ -153,7 +153,7 @@ export default function AgentDetailPage() {
               <Store className="w-3 h-3 text-purple-400" />
               <p className="text-[10px] text-gray-500 uppercase">Today Store</p>
             </div>
-            <p className="text-xl font-bold text-white">{stats.today_registrations}</p>
+            <p className="text-xl font-bold text-white">{stats.today_stores}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3">
             <div className="flex items-center gap-1.5 mb-1">
@@ -167,7 +167,7 @@ export default function AgentDetailPage() {
               <Store className="w-3 h-3 text-amber-400" />
               <p className="text-[10px] text-gray-500 uppercase">Month Store</p>
             </div>
-            <p className="text-xl font-bold text-white">{stats.month_registrations}</p>
+            <p className="text-xl font-bold text-white">{stats.month_stores}</p>
           </div>
         </div>
 
@@ -189,7 +189,7 @@ export default function AgentDetailPage() {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-gray-400">Store Visits</span>
-                <span className="text-white font-medium">{stats.actual_registrations}/{stats.target_registrations} <span className={pctClass(rPct)}>({rPct}%)</span></span>
+                <span className="text-white font-medium">{stats.actual_stores}/{stats.target_stores} <span className={pctClass(rPct)}>({rPct}%)</span></span>
               </div>
               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', backgroundColor: '#8B5CF6' }} />
