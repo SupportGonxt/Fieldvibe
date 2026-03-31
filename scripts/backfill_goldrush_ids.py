@@ -10,10 +10,10 @@ import argparse, json, uuid, time, os, sys
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-CF_ACCOUNT_ID = "08596e523c096f04b56d7ae43f7821f4"
-CF_DB_ID = "1521287d-96be-42b7-b77c-e8c5f67629a6"
-CF_AUTH_EMAIL = os.environ.get("CF_AUTH_EMAIL", "reshigan@vantax.co.za")
-CF_AUTH_KEY = os.environ.get("CF_AUTH_KEY", "")
+CF_ACCOUNT_ID = os.environ["CF_ACCOUNT_ID"]
+CF_DB_ID = os.environ["CF_DB_ID"]
+CF_AUTH_EMAIL = os.environ["CF_AUTH_EMAIL"]
+CF_AUTH_KEY = os.environ["CF_AUTH_KEY"]
 D1_API_URL = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/d1/database/{CF_DB_ID}/query"
 D1_HEADERS = {"X-Auth-Email": CF_AUTH_EMAIL, "X-Auth-Key": CF_AUTH_KEY, "Content-Type": "application/json"}
 TENANT_ID = "default-tenant-001"
