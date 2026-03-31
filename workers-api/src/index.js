@@ -15085,7 +15085,14 @@ api.get('/field-operations/visits/:visitId', authMiddleware, async (c) => {
     try { const sr = await db.prepare("SELECT responses FROM visit_responses WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).first(); if (sr?.responses) surveyResponses = typeof sr.responses === 'string' ? JSON.parse(sr.responses) : sr.responses; } catch { /* ok */ }
     // Fetch individual link + custom field values
     let customFieldValues = null;
-    try { const vi = await db.prepare("SELECT custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).first(); if (vi?.custom_field_values) customFieldValues = typeof vi.custom_field_values === 'string' ? JSON.parse(vi.custom_field_values) : vi.custom_field_values; } catch { /* ok */ }
+    let individuals = [];
+    try {
+      const viRes = await db.prepare("SELECT vi.*, ir.first_name, ir.last_name, ir.phone, ir.id_number FROM visit_individuals vi LEFT JOIN individual_registrations ir ON vi.individual_id = ir.id WHERE vi.visit_id = ? AND vi.tenant_id = ?").bind(visitId, tenantId).all();
+      individuals = viRes?.results || [];
+      if (individuals.length > 0 && individuals[0].custom_field_values) {
+        customFieldValues = typeof individuals[0].custom_field_values === 'string' ? JSON.parse(individuals[0].custom_field_values) : individuals[0].custom_field_values;
+      }
+    } catch { /* ok */ }
     // Extract images from custom question responses (company questions with field_type='image')
     if (visit.company_id && customFieldValues) {
       try {
@@ -15099,7 +15106,7 @@ api.get('/field-operations/visits/:visitId', authMiddleware, async (c) => {
         }
       } catch { /* ok */ }
     }
-    return c.json({ success: true, data: { ...visit, photos, survey_responses: surveyResponses, custom_field_values: customFieldValues } });
+    return c.json({ success: true, data: { ...visit, photos, survey_responses: surveyResponses, custom_field_values: customFieldValues, individuals } });
   }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
