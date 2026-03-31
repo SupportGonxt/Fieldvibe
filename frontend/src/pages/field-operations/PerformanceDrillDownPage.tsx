@@ -93,7 +93,7 @@ export default function PerformanceDrillDownPage() {
     ? subordinates.reduce((s: number, a: any) => s + (a.visits || 0), 0)
     : (drillDown.visits || []).length
   const totalIndividuals = user.role === 'team_lead'
-    ? subordinates.reduce((s: number, a: any) => s + (a.stores || 0), 0)
+    ? subordinates.reduce((s: number, a: any) => s + (a.individuals || a.individual_visits || 0), 0)
     : (drillDown.individuals || []).length
   const totalConversions = user.role === 'team_lead'
     ? subordinates.reduce((s: number, a: any) => s + (a.conversions || 0), 0)
@@ -256,7 +256,7 @@ export default function PerformanceDrillDownPage() {
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{sub.agent_name || `${sub.first_name || ''} ${sub.last_name || ''}`}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{(sub.role || sub.email || '').replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.visits || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.stores || 0}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.individuals || sub.individual_visits || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.conversions || 0}</td>
                     <td className="px-4 py-3 text-right">
                       <button
