@@ -4928,7 +4928,7 @@ api.get('/field-operations/visits/export', authMiddleware, async (c) => {
   const html = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
+<head><meta charset="UTF-8"/>
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
 <x:Name>Visits Export</x:Name>
 <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
@@ -8318,7 +8318,7 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
     const html = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
+<head><meta charset="UTF-8"/>
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
 <x:Name>Performance Report</x:Name>
 <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
@@ -8486,7 +8486,7 @@ api.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
     const html = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
+<head><meta charset="UTF-8"/>
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
 <x:Name>Drill-Down Report</x:Name>
 <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
@@ -14357,13 +14357,16 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     if (startDate) { dateFilter += " AND DATE(ir.created_at) >= ?"; binds.push(startDate); }
     if (endDate) { dateFilter += " AND DATE(ir.created_at) <= ?"; binds.push(endDate); }
 
-    // Get all individual registrations for Goldrush with agent name and visit responses
-    // Use correlated subquery for visit_responses to avoid duplicate rows (same pattern as line 2762)
+    // Get all individual registrations for Goldrush with agent name, custom field values, and survey responses
+    // Custom questions (like goldrush_id) are stored in visit_individuals.custom_field_values
+    // Survey/questionnaire responses are stored in visit_responses.responses
+    // Use correlated subqueries to avoid duplicate rows (same pattern as line 2762)
     const result = await db.prepare(`
       SELECT ir.id, ir.first_name, ir.last_name, ir.id_number, ir.phone, ir.email,
         ir.product_app_player_id, ir.converted, ir.conversion_date, ir.notes,
         ir.gps_latitude, ir.gps_longitude, ir.created_at, ir.visit_id,
         u.first_name || ' ' || u.last_name as agent_name,
+        (SELECT vi.custom_field_values FROM visit_individuals vi WHERE vi.visit_id = ir.visit_id LIMIT 1) as custom_field_values,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = ir.visit_id LIMIT 1) as questionnaire_responses
       FROM individual_registrations ir
       LEFT JOIN users u ON ir.agent_id = u.id
@@ -14372,7 +14375,9 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       LIMIT 5000
     `).bind(...binds).all();
 
-    // Parse questionnaire responses to extract goldrush_id and other fields
+    // Parse both custom field values and questionnaire responses to extract goldrush_id and other fields
+    // Custom questions (goldrush_id, etc.) are keyed by question_key in custom_field_values
+    // Survey responses may also contain relevant data keyed by question UUID or key
     const data = (result.results || []).map(row => {
       let goldrush_id = '';
       let consumer_converted = '';
@@ -14384,20 +14389,31 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       let platform_suggestions = '';
       let gave_brand_info = '';
       try {
+        // Parse custom field values (from visit_individuals - where custom questions like goldrush_id are stored)
+        let customFields = {};
+        if (row.custom_field_values) {
+          customFields = typeof row.custom_field_values === 'string'
+            ? JSON.parse(row.custom_field_values)
+            : row.custom_field_values;
+        }
+        // Parse survey/questionnaire responses (from visit_responses)
+        let surveyResponses = {};
         if (row.questionnaire_responses) {
-          const responses = typeof row.questionnaire_responses === 'string'
+          surveyResponses = typeof row.questionnaire_responses === 'string'
             ? JSON.parse(row.questionnaire_responses)
             : row.questionnaire_responses;
-          goldrush_id = responses.goldrush_id || '';
-          consumer_converted = responses.consumer_converted || '';
-          betting_elsewhere = responses.betting_elsewhere || '';
-          competitor_company = responses.competitor_company || '';
-          used_goldrush_before = responses.used_goldrush_before || '';
-          goldrush_comparison = responses.goldrush_comparison || '';
-          likes_goldrush = responses.likes_goldrush || '';
-          platform_suggestions = responses.platform_suggestions || '';
-          gave_brand_info = responses.gave_brand_info || '';
         }
+        // Merge both sources - custom fields take priority (they contain the question_key-based values)
+        const responses = { ...surveyResponses, ...customFields };
+        goldrush_id = responses.goldrush_id || '';
+        consumer_converted = responses.consumer_converted || '';
+        betting_elsewhere = responses.betting_elsewhere || '';
+        competitor_company = responses.competitor_company || '';
+        used_goldrush_before = responses.used_goldrush_before || '';
+        goldrush_comparison = responses.goldrush_comparison || '';
+        likes_goldrush = responses.likes_goldrush || '';
+        platform_suggestions = responses.platform_suggestions || '';
+        gave_brand_info = responses.gave_brand_info || '';
       } catch (e) { /* ignore parse errors */ }
 
       return {
