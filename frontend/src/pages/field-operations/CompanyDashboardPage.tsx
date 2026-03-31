@@ -26,7 +26,7 @@ export default function CompanyDashboardPage() {
     start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0]
   })
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'stores' | 'visits' | 'stores'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'stores' | 'visits' | 'individuals'>('overview')
   const [storePage, setStorePage] = useState(1)
   const [storeSearch, setStoreSearch] = useState('')
   const [visitPage, setVisitPage] = useState(1)
@@ -47,7 +47,7 @@ export default function CompanyDashboardPage() {
     queryFn: () => isCompanyPortal
       ? fieldOperationsService.getCompanyPortalBrandInsights(dateRange)
       : fieldOperationsService.getBrandInsights({ company_id: companyId, ...dateRange }),
-    enabled: (!!companyId || isCompanyPortal) && (activeTab === 'analytics' || activeTab === 'stores') && !(isCompanyPortal && !companyToken),
+    enabled: (!!companyId || isCompanyPortal) && (activeTab === 'analytics' || activeTab === 'stores' || activeTab === 'individuals') && !(isCompanyPortal && !companyToken),
   })
 
   const { data: highlights } = useQuery({
@@ -174,12 +174,12 @@ export default function CompanyDashboardPage() {
               { key: 'analytics' as const, label: 'Insights', icon: <BarChart3 className="w-4 h-4" /> },
               { key: 'stores' as const, label: 'Store Analytics', icon: <Store className="w-4 h-4" /> },
               { key: 'visits' as const, label: 'Visit Records', icon: <FileText className="w-4 h-4" /> },
-              { key: 'stores' as const, label: 'Individuals', icon: <UserPlus className="w-4 h-4" /> },
+              { key: 'individuals' as const, label: 'Individuals', icon: <UserPlus className="w-4 h-4" /> },
             ]
           : [
               { key: 'overview' as const, label: 'Overview', icon: <Building2 className="w-4 h-4" /> },
               { key: 'analytics' as const, label: 'Deep Analytics', icon: <BarChart3 className="w-4 h-4" /> },
-              { key: 'stores' as const, label: 'Individuals', icon: <UserPlus className="w-4 h-4" /> },
+              { key: 'individuals' as const, label: 'Individuals', icon: <UserPlus className="w-4 h-4" /> },
             ]
         ).map((tab) => (
           <button
@@ -853,7 +853,7 @@ export default function CompanyDashboardPage() {
       )}
 
       {/* Individuals Tab */}
-      {activeTab === 'stores' && (
+      {activeTab === 'individuals' && (
         <>
           <div className="card p-4 flex flex-wrap items-center gap-3">
             <Calendar className="w-4 h-4 text-gray-500" />
