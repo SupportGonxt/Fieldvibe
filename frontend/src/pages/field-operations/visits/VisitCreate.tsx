@@ -157,6 +157,8 @@ export default function VisitCreate() {
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [navigating, setNavigating] = useState(false)
+  const [stepDataLoading, setStepDataLoading] = useState(false)
   const submitIdRef = useRef<string | null>(null)
 
   // Dynamic process flow steps from backend
@@ -433,16 +435,20 @@ export default function VisitCreate() {
 
   const loadCustomFields = async (companyId: string) => {
     try {
+      setStepDataLoading(true)
       const res = await fieldOperationsService.getBrandCustomFields(companyId, visitTargetType || 'individual')
       const fields = res?.data || res || []
       setCustomFields(Array.isArray(fields) ? fields : [])
     } catch (err) {
       console.error('Failed to load custom fields:', err)
+    } finally {
+      setStepDataLoading(false)
     }
   }
 
   const loadCustomQuestions = async (companyId: string, visitType?: string) => {
     try {
+      setStepDataLoading(true)
       const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitType)
       const questions = res?.data || res || []
       const allQuestions = Array.isArray(questions) ? questions : []
@@ -458,6 +464,8 @@ export default function VisitCreate() {
       }
     } catch (err) {
       console.error('Failed to load custom questions:', err)
+    } finally {
+      setStepDataLoading(false)
     }
   }
 
@@ -677,10 +685,13 @@ export default function VisitCreate() {
   }
 
   const handleNext = async () => {
+    if (navigating || stepDataLoading) return // Prevent double-click and clicking while data loads
+    setNavigating(true)
     setError(null)
     // If the user can't proceed, show validation highlights on required fields
     if (!canProceed()) {
       setShowValidation(true)
+      setNavigating(false)
       return
     }
     setShowValidation(false)
@@ -689,6 +700,7 @@ export default function VisitCreate() {
         const result = await checkIndividualDuplicate()
         if (result?.has_duplicates) {
           setError('Duplicate individual detected. ID number and phone must be unique.')
+          setNavigating(false)
           return
         }
       }
@@ -697,6 +709,7 @@ export default function VisitCreate() {
         const result = await checkStoreRevisit(selectedCustomer)
         if (result && !result.can_visit) {
           setError(result.message)
+          setNavigating(false)
           return
         }
         // Enforce GPS radius for store revisits
@@ -710,12 +723,15 @@ export default function VisitCreate() {
           )
           if (distance > radiusMeters) {
             setError(`You are ${Math.round(distance)}m from the store. Must be within ${radiusMeters}m to check in for a revisit.`)
+            setNavigating(false)
             return
           }
         }
       }
     }
     setActiveStep(prev => prev + 1)
+    // Small delay to prevent accidental double-advance
+    setTimeout(() => setNavigating(false), 300)
   }
 
   const handleBack = () => {
@@ -1757,10 +1773,11 @@ export default function VisitCreate() {
           <Button
             variant="contained"
             onClick={handleNext}
-            endIcon={<NextIcon />}
+            disabled={navigating || stepDataLoading}
+            endIcon={navigating || stepDataLoading ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
             size={isMobileContext ? 'medium' : 'large'}
           >
-            Next
+            {stepDataLoading ? 'Loading...' : 'Next'}
           </Button>
         ) : (
           <Button
