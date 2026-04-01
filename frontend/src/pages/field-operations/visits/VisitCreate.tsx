@@ -157,6 +157,9 @@ export default function VisitCreate() {
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [navigating, setNavigating] = useState(false)
+  const stepDataLoadingRef = useRef(0)
+  const [stepDataLoading, setStepDataLoading] = useState(false)
   const submitIdRef = useRef<string | null>(null)
 
   // Dynamic process flow steps from backend
@@ -433,16 +436,26 @@ export default function VisitCreate() {
 
   const loadCustomFields = async (companyId: string) => {
     try {
+      stepDataLoadingRef.current++
+      setStepDataLoading(true)
       const res = await fieldOperationsService.getBrandCustomFields(companyId, visitTargetType || 'individual')
       const fields = res?.data || res || []
       setCustomFields(Array.isArray(fields) ? fields : [])
     } catch (err) {
       console.error('Failed to load custom fields:', err)
+    } finally {
+      stepDataLoadingRef.current--
+      if (stepDataLoadingRef.current <= 0) {
+        stepDataLoadingRef.current = 0
+        setStepDataLoading(false)
+      }
     }
   }
 
   const loadCustomQuestions = async (companyId: string, visitType?: string) => {
     try {
+      stepDataLoadingRef.current++
+      setStepDataLoading(true)
       const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitType)
       const questions = res?.data || res || []
       const allQuestions = Array.isArray(questions) ? questions : []
@@ -458,6 +471,12 @@ export default function VisitCreate() {
       }
     } catch (err) {
       console.error('Failed to load custom questions:', err)
+    } finally {
+      stepDataLoadingRef.current--
+      if (stepDataLoadingRef.current <= 0) {
+        stepDataLoadingRef.current = 0
+        setStepDataLoading(false)
+      }
     }
   }
 
@@ -677,45 +696,55 @@ export default function VisitCreate() {
   }
 
   const handleNext = async () => {
+    if (navigating || stepDataLoading) return // Prevent double-click and clicking while data loads
+    setNavigating(true)
     setError(null)
-    // If the user can't proceed, show validation highlights on required fields
-    if (!canProceed()) {
-      setShowValidation(true)
-      return
-    }
-    setShowValidation(false)
-    if (currentStepKey === 'details') {
-      if (visitTargetType === 'individual') {
-        const result = await checkIndividualDuplicate()
-        if (result?.has_duplicates) {
-          setError('Duplicate individual detected. ID number and phone must be unique.')
-          return
-        }
+    try {
+      // If the user can't proceed, show validation highlights on required fields
+      if (!canProceed()) {
+        setShowValidation(true)
+        return
       }
-      // GPS radius check: only enforced for store revisits, not for new individual visits
-      if (visitTargetType === 'store' && selectedCustomer) {
-        const result = await checkStoreRevisit(selectedCustomer)
-        if (result && !result.can_visit) {
-          setError(result.message)
-          return
-        }
-        // Enforce GPS radius for store revisits
-        const customer = customers.find(c => c.id === selectedCustomer)
-        if (customer?.latitude && customer?.longitude && gpsLocation) {
-          const company = companies.find(c => c.id === selectedCompany)
-          const radiusMeters = company?.revisit_radius_meters || 200
-          const distance = haversineDistance(
-            gpsLocation.latitude, gpsLocation.longitude,
-            customer.latitude, customer.longitude
-          )
-          if (distance > radiusMeters) {
-            setError(`You are ${Math.round(distance)}m from the store. Must be within ${radiusMeters}m to check in for a revisit.`)
+      setShowValidation(false)
+      if (currentStepKey === 'details') {
+        if (visitTargetType === 'individual') {
+          const result = await checkIndividualDuplicate()
+          if (result?.has_duplicates) {
+            setError('Duplicate individual detected. ID number and phone must be unique.')
             return
           }
         }
+        // GPS radius check: only enforced for store revisits, not for new individual visits
+        if (visitTargetType === 'store' && selectedCustomer) {
+          const result = await checkStoreRevisit(selectedCustomer)
+          if (result && !result.can_visit) {
+            setError(result.message)
+            return
+          }
+          // Enforce GPS radius for store revisits
+          const customer = customers.find(c => c.id === selectedCustomer)
+          if (customer?.latitude && customer?.longitude && gpsLocation) {
+            const company = companies.find(c => c.id === selectedCompany)
+            const radiusMeters = company?.revisit_radius_meters || 200
+            const distance = haversineDistance(
+              gpsLocation.latitude, gpsLocation.longitude,
+              customer.latitude, customer.longitude
+            )
+            if (distance > radiusMeters) {
+              setError(`You are ${Math.round(distance)}m from the store. Must be within ${radiusMeters}m to check in for a revisit.`)
+              return
+            }
+          }
+        }
       }
+      setActiveStep(prev => prev + 1)
+    } catch (err) {
+      console.error('handleNext error:', err)
+      setError('Something went wrong. Please try again.')
+    } finally {
+      // Small delay to prevent accidental double-advance after step change
+      setTimeout(() => setNavigating(false), 300)
     }
-    setActiveStep(prev => prev + 1)
   }
 
   const handleBack = () => {
@@ -1757,10 +1786,11 @@ export default function VisitCreate() {
           <Button
             variant="contained"
             onClick={handleNext}
-            endIcon={<NextIcon />}
+            disabled={navigating || stepDataLoading}
+            endIcon={navigating || stepDataLoading ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
             size={isMobileContext ? 'medium' : 'large'}
           >
-            Next
+            {stepDataLoading ? 'Loading...' : 'Next'}
           </Button>
         ) : (
           <Button
