@@ -13,7 +13,7 @@ const responseCache = new Map<string, { data: AxiosResponse; timestamp: number }
 const pendingRequests = new Map<string, Promise<AxiosResponse>>() // Request deduplication
 const CACHE_TTL_MS = 120_000 // 2 minutes (was 30s - optimized for mobile)
 const STALE_TTL_MS = 300_000 // 5 minutes stale-while-revalidate for mobile
-const CACHEABLE_PATHS = ['/agent/dashboard', '/agent/performance', '/agent/my-companies', '/settings', '/team-lead/dashboard', '/manager/dashboard', '/mobile/', '/company-custom-questions', '/visit-process-flow']
+const CACHEABLE_PATHS = ['/agent/dashboard', '/agent/performance', '/team-lead/dashboard', '/manager/dashboard', '/mobile/']
 
 export function invalidateApiCache(pathPrefix?: string) {
   if (pathPrefix) {

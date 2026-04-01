@@ -588,6 +588,9 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = requestedMonth || today.substring(0, 7);
     const monthStart = currentMonth + '-01';
+    // Compute end of month (first day of next month) for upper-bound filtering
+    const [mY, mM] = currentMonth.split('-').map(Number);
+    const nextMonth = mM === 12 ? `${mY + 1}-01-01` : `${mY}-${String(mM + 1).padStart(2, '0')}-01`;
     // For "today" counts, only use actual today if viewing current month
     const todayForCounts = (!requestedMonth || requestedMonth === today.substring(0, 7)) ? today : monthStart;
 
@@ -610,17 +613,17 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const countsQuery = `
       SELECT
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date = ?) as today_visits,
-        (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?) as month_visits,
+        (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? AND visit_date < ?) as month_visits,
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND visit_date = ?) as today_regs,
-        (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ?) as month_regs,
+        (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date < ?) as month_regs,
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ?) as week_visits,
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ?) as week_regs
     `;
     const countsResult = await db.prepare(countsQuery).bind(
       tenantId, userId, todayForCounts,
-      tenantId, userId, monthStart,
+      tenantId, userId, monthStart, nextMonth,
       tenantId, userId, todayForCounts,
-      tenantId, userId, monthStart,
+      tenantId, userId, monthStart, nextMonth,
       tenantId, userId, weekStartStr,
       tenantId, userId, weekStartStr
     ).first().catch(() => ({
@@ -632,7 +635,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all().catch(() => ({ results: [] })),
       db.prepare(companySql).bind(userId, tenantId).all().catch(() => ({ results: [] })),
       db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM visits v3 WHERE v3.agent_id = dt.agent_id AND v3.company_id = dt.company_id AND v3.visit_date = dt.target_date AND v3.tenant_id = dt.tenant_id AND LOWER(v3.visit_type) = 'store') as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all().catch(() => ({ results: [] })),
-      db.prepare(`SELECT COALESCE(v.company_id, 'unassigned') as company_id, COALESCE(fc.name, 'Unassigned') as company_name, COALESCE(v.visit_type, 'unknown') as visit_type, COUNT(*) as count, SUM(CASE WHEN v.visit_date = ? THEN 1 ELSE 0 END) as today_count, SUM(CASE WHEN v.visit_date >= ? THEN 1 ELSE 0 END) as month_count FROM visits v LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND v.agent_id = ? GROUP BY v.company_id, v.visit_type ORDER BY fc.name, v.visit_type`).bind(todayForCounts, monthStart, tenantId, userId).all().catch(() => ({ results: [] })),
+      db.prepare(`SELECT COALESCE(v.company_id, 'unassigned') as company_id, COALESCE(fc.name, 'Unassigned') as company_name, COALESCE(v.visit_type, 'unknown') as visit_type, COUNT(*) as count, SUM(CASE WHEN v.visit_date = ? THEN 1 ELSE 0 END) as today_count, SUM(CASE WHEN v.visit_date >= ? AND v.visit_date < ? THEN 1 ELSE 0 END) as month_count FROM visits v LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND v.agent_id = ? AND v.visit_date >= ? AND v.visit_date < ? GROUP BY v.company_id, v.visit_type ORDER BY fc.name, v.visit_type`).bind(todayForCounts, monthStart, nextMonth, tenantId, userId, monthStart, nextMonth).all().catch(() => ({ results: [] })),
       db.prepare(`SELECT company_id, visit_type, COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? GROUP BY company_id, visit_type`).bind(tenantId, userId, weekStartStr).all().catch(() => ({ results: [] })),
     ]);
     
@@ -671,7 +674,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       const ph = agentCompanyIds.map(() => '?').join(',');
       const [ctrResult, perCompanyRegsTodayAll] = await Promise.all([
         db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, dashRoleType).all().catch(() => ({ results: [] })),
-        db.prepare(`SELECT company_id, SUM(CASE WHEN visit_date = ? THEN 1 ELSE 0 END) as today_count, COUNT(*) as month_count FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND company_id IN (${ph}) AND DATE(created_at) >= ? GROUP BY company_id`).bind(today, tenantId, userId, ...agentCompanyIds, monthStart).all().catch(() => ({ results: [] })),
+        db.prepare(`SELECT company_id, SUM(CASE WHEN visit_date = ? THEN 1 ELSE 0 END) as today_count, COUNT(*) as month_count FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND company_id IN (${ph}) AND visit_date >= ? AND visit_date < ? GROUP BY company_id`).bind(today, tenantId, userId, ...agentCompanyIds, monthStart, nextMonth).all().catch(() => ({ results: [] })),
       ]);
       companyTargetRules = ctrResult.results || [];
       // Fallback: get any rules if no role-specific ones found
@@ -837,6 +840,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
 async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, roleType) {
   try {
     const currentMonth = monthStartDate.substring(0, 7); // e.g. '2026-03'
+    const [gtY, gtM] = currentMonth.split('-').map(Number);
+    const genNextMonth = gtM === 12 ? `${gtY + 1}-01-01` : `${gtY}-${String(gtM + 1).padStart(2, '0')}-01`;
     const rt = roleType || 'agent';
     // Get agent's companies
     const agentCompanies = await db.prepare(
@@ -874,8 +879,8 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, r
       // Get live actuals in parallel
       let storeVisits = 0, individualVisits = 0, actualConvs = 0;
       const [tb, lc] = await Promise.all([
-        db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND company_id = ? GROUP BY visit_type").bind(agentId, tenantId, monthStartDate, ctr.company_id).all().catch(() => ({ results: [] })),
-        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.company_id = ?").bind(agentId, tenantId, monthStartDate, ctr.company_id).first().catch(() => ({ count: 0 })),
+        db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ? AND company_id = ? GROUP BY visit_type").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).all().catch(() => ({ results: [] })),
+        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date < ? AND v.company_id = ?").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).first().catch(() => ({ count: 0 })),
       ]);
       for (const row of (tb.results || [])) {
         if ((row.visit_type || '').toLowerCase() === 'store') storeVisits = row.count || 0;
@@ -969,11 +974,13 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
     let teamPerformance = null;
     let managerPerformance = null;
     const perfMonthStart = currentMonth + '-01';
+    const [pY, pM] = currentMonth.split('-').map(Number);
+    const perfNextMonth = pM === 12 ? `${pY + 1}-01-01` : `${pY}-${String(pM + 1).padStart(2, '0')}-01`;
     if (teamLeadId) {
       const [teamMembers, teamVisits, teamRegs, teamLeadInfo] = await Promise.all([
         db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(teamLeadId, tenantId).all(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ?").bind(tenantId, teamLeadId, tenantId, perfMonthStart).all(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ?").bind(tenantId, teamLeadId, tenantId, perfMonthStart).all(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ? AND visit_date < ?").bind(tenantId, teamLeadId, tenantId, perfMonthStart, perfNextMonth).all(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1) AND visit_date >= ? AND visit_date < ?").bind(tenantId, teamLeadId, tenantId, perfMonthStart, perfNextMonth).all(),
         db.prepare("SELECT id, first_name, last_name, manager_id FROM users WHERE id = ? AND tenant_id = ?").bind(teamLeadId, tenantId).first(),
       ]);
       const memberCount = teamMembers?.results?.length || 0;
@@ -1030,7 +1037,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
             const perfAllPh = perfAllMgrUserIds.map(() => '?').join(',');
             const [perfMgrTargets, perfMgrLiveVisits] = await Promise.all([
               db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${perfAllPh}) AND target_month = ?`).bind(tenantId, ...perfAllMgrUserIds, currentMonth).first(),
-              db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${perfAllPh}) AND visit_date >= ?`).bind(tenantId, ...perfAllMgrUserIds, perfMonthStart).first(),
+              db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${perfAllPh}) AND visit_date >= ? AND visit_date < ?`).bind(tenantId, ...perfAllMgrUserIds, perfMonthStart, perfNextMonth).first(),
             ]);
             mgrTargetVisits = perfMgrTargets?.tv || 0;
             mgrActualVisits = perfMgrLiveVisits?.count || 0;
@@ -1103,10 +1110,10 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
         const companyBinds = t.company_id ? [t.company_id] : [];
         try {
           const [liveVisits, liveRegs, liveConvs, typeBreakdown] = await Promise.all([
-            db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ?" + companyFilter).bind(userId, tenantId, monthStartDate, ...companyBinds).first().catch(() => ({ count: 0 })),
-            db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ?" + companyFilter).bind(userId, tenantId, monthStartDate, ...companyBinds).first().catch(() => ({ count: 0 })),
-            db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 AND v.visit_date >= ?" + (companyFilter ? " AND v.company_id = ?" : "")).bind(userId, tenantId, monthStartDate, ...companyBinds).first().catch(() => ({ count: 0 })),
-            db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ?" + companyFilter + " GROUP BY visit_type").bind(userId, tenantId, monthStartDate, ...companyBinds).all().catch(() => ({ results: [] })),
+            db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ?" + companyFilter).bind(userId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
+            db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date < ?" + companyFilter).bind(userId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
+            db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 AND v.visit_date >= ? AND v.visit_date < ?" + (companyFilter ? " AND v.company_id = ?" : "")).bind(userId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
+            db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ?" + companyFilter + " GROUP BY visit_type").bind(userId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).all().catch(() => ({ results: [] })),
           ]);
           let storeVisits = 0, individualVisits = 0;
           for (const row of (typeBreakdown.results || [])) {
