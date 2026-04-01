@@ -13,11 +13,12 @@ const responseCache = new Map<string, { data: AxiosResponse; timestamp: number }
 const pendingRequests = new Map<string, Promise<AxiosResponse>>() // Request deduplication
 const CACHE_TTL_MS = 120_000 // 2 minutes
 const STALE_TTL_MS = 300_000 // 5 minutes stale-while-revalidate
-// Endpoints that benefit from SWR caching (slow-changing data)
+// Exact-start paths that benefit from SWR caching (slow-changing data)
+// Matching uses startsWith to avoid overly broad substring matches
 const CACHEABLE_PATHS = [
   '/agent/dashboard', '/agent/performance', '/agent/my-companies',
   '/team-lead/dashboard', '/manager/dashboard', '/mobile/',
-  '/settings', '/visit-process-flow',
+  '/visit-process-flow',
   '/field-operations/companies', '/field-operations/questionnaires',
 ]
 
@@ -93,7 +94,7 @@ apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
   // Skip caching/dedup for requests with abort signals (page-scoped fetches that should be independent)
   const hasSignal = !!(config as any)?.signal
   const cacheKey = url + (config?.params ? '?' + new URLSearchParams(config.params).toString() : '')
-  const isCacheable = CACHEABLE_PATHS.some(p => url.includes(p))
+  const isCacheable = CACHEABLE_PATHS.some(p => url.startsWith(p))
 
   if (isCacheable) {
     const cached = responseCache.get(cacheKey)

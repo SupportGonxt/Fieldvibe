@@ -303,6 +303,7 @@ export default function VisitCreate() {
   const loadFormData = async () => {
     try {
       let companiesData: Company[] = []
+      let storesLoadedFromInit = false
       if (isMobileContext) {
         // Try combined visit-init endpoint first (single round-trip for all visit data)
         try {
@@ -312,6 +313,7 @@ export default function VisitCreate() {
           // If stores came back, set customers immediately
           if (Array.isArray(initData.stores) && initData.stores.length > 0) {
             setCustomers(initData.stores)
+            storesLoadedFromInit = true
           }
         } catch { /* visit-init not available, fall back */ }
         // Fallback: try my-companies
@@ -364,7 +366,7 @@ export default function VisitCreate() {
         setSelectedCompany(autoSelectedCompanyId)
       }
       // Load customers/stores if not already loaded from visit-init
-      if (customers.length === 0) {
+      if (!storesLoadedFromInit) {
         if (isMobileContext) {
           try {
             const storeRes = await apiClient.get('/agent/store-search?limit=200')
