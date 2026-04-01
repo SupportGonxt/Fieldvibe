@@ -356,7 +356,7 @@ export default function VisitCreate() {
         loadCustomFields(autoSelectedCompanyId)
         loadCustomQuestions(autoSelectedCompanyId)
         loadSurveyConfig(autoSelectedCompanyId)
-        loadQuestionnaires()
+        loadQuestionnaires(autoSelectedCompanyId)
       }
       // Load customers/stores: use store-search endpoint on mobile for better results (includes visit history)
       if (isMobileContext) {
@@ -485,9 +485,9 @@ export default function VisitCreate() {
     }
   }, [currentStepKey])
 
-  const loadQuestionnaires = async () => {
+  const loadQuestionnaires = async (companyIdOverride?: string) => {
     try {
-      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
+      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
       const data = res?.data || res || []
       setQuestionnaires(Array.isArray(data) ? data : [])
     } catch (err) {
