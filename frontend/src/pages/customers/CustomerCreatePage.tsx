@@ -21,7 +21,7 @@ export default function CustomerCreatePage() {
       placeholder: 'e.g., ABC Store'
     },
     {
-      name: 'customer_type',
+      name: 'type',
       label: 'Customer Type',
       type: 'select' as const,
       required: true,

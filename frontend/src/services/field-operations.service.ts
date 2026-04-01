@@ -897,7 +897,7 @@ class FieldOperationsService extends ApiService {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       responseType: 'blob',
     })
-    return response.data?.data || response.data
+    return response.data
   }
 
   // ==================== FIELD OPS: BRAND INSIGHTS ====================

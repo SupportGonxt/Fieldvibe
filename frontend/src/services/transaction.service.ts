@@ -336,7 +336,7 @@ class TransactionService {
         params: { ...filter, format },
         responseType: 'blob'
       })
-      return response.data?.data || response.data
+      return response.data
     } catch (error) {
       console.error('Failed to export transactions:', error)
       throw error
