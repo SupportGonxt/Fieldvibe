@@ -519,7 +519,7 @@ app.get('/api/agent/my-companies', authMiddleware, async (c) => {
       companies = await db.prepare("SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
       if (!companies.results || companies.results.length === 0) {
         // Fallback: get companies from team members under this team lead
-        companies = await db.prepare("SELECT DISTINCT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM users u JOIN agent_company_links acl ON acl.agent_id = u.id JOIN field_companies fc ON acl.company_id = fc.id WHERE u.team_lead_id = ? AND u.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all();
+        companies = await db.prepare("SELECT DISTINCT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM users u JOIN agent_company_links acl ON acl.agent_id = u.id JOIN field_companies fc ON acl.company_id = fc.id WHERE u.team_lead_id = ? AND u.tenant_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId, tenantId).all();
       }
     } else if (role === 'admin' || role === 'super_admin') {
       // Admins: return all active companies so they can test mobile views
