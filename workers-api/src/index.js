@@ -8349,7 +8349,7 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       }
       
     } else {
-      headers = ['Team Lead', 'Agents', 'Visits', 'Individuals', 'Conversions', 'Conversion Rate'];
+      headers = ['Team Lead', 'Agents', 'Visits', 'Individuals', 'Store Visits', 'Conversions', 'Conversion Rate'];
       const allTeamLeads = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1").bind(tenantId).all();
       const allAgents = await db.prepare("SELECT id, first_name, last_name, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1").bind(tenantId).all();
       
@@ -8362,6 +8362,7 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       
       const vMap = Object.fromEntries((allVisits.results || []).map(r => [r.agent_id, r.count]));
       const iMap = Object.fromEntries((allIndivVisits.results || []).map(r => [r.agent_id, r.count]));
+      const sMap = Object.fromEntries((allStoreVisits.results || []).map(r => [r.agent_id, r.count]));
       const cMap = Object.fromEntries((allConvs.results || []).map(r => [r.agent_id, r.count]));
       
       data = (allTeamLeads.results || []).map(tl => {
@@ -8369,27 +8370,30 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
         const allIds = [tl.id, ...teamAgts.map(a => a.id)];
         const tVisits = allIds.reduce((s, id) => s + (vMap[id] || 0), 0);
         const tIndivs = allIds.reduce((s, id) => s + (iMap[id] || 0), 0);
+        const tStores = allIds.reduce((s, id) => s + (sMap[id] || 0), 0);
         const tConvs = allIds.reduce((s, id) => s + (cMap[id] || 0), 0);
         const convRate = tIndivs > 0 ? Math.round((tConvs / tIndivs) * 100) + '%' : '0%';
-        return [tl.first_name + ' ' + tl.last_name, teamAgts.length, tVisits, tIndivs, tConvs, convRate, '', '', '', ''];
+        return [tl.first_name + ' ' + tl.last_name, teamAgts.length, tVisits, tIndivs, tStores, tConvs, convRate, '', '', '', '', ''];
       });
       
       // Add drilldown: team breakdown with agent details
       data.push([]); // Empty row
       data.push(['--- Team Breakdown with Agent Details ---']);
-      headers = ['Team Lead', 'Agents', 'Visits', 'Individuals', 'Conversions', 'Conversion Rate', 'Agent Name', 'Agent Visits', 'Agent Individuals', 'Agent Convs'];
+      headers = ['Team Lead', 'Agents', 'Visits', 'Individuals', 'Store Visits', 'Conversions', 'Conversion Rate', 'Agent Name', 'Agent Visits', 'Agent Individuals', 'Agent Store Visits', 'Agent Convs'];
       for (const tl of (allTeamLeads.results || [])) {
         const teamAgts = (allAgents.results || []).filter(a => a.team_lead_id === tl.id);
         const allIds = [tl.id, ...teamAgts.map(a => a.id)];
         const tVisits = allIds.reduce((s, id) => s + (vMap[id] || 0), 0);
         const tIndivs = allIds.reduce((s, id) => s + (iMap[id] || 0), 0);
+        const tStores = allIds.reduce((s, id) => s + (sMap[id] || 0), 0);
         const tConvs = allIds.reduce((s, id) => s + (cMap[id] || 0), 0);
         for (const agent of teamAgts) {
           const aVisits = vMap[agent.id] || 0;
           const aIndivs = iMap[agent.id] || 0;
+          const aStores = sMap[agent.id] || 0;
           const aConvs = cMap[agent.id] || 0;
           const aConvRate = aIndivs > 0 ? Math.round((aConvs / aIndivs) * 100) + '%' : '0%';
-          data.push([tl.first_name + ' ' + tl.last_name, teamAgts.length, tVisits, tIndivs, tConvs, aConvRate, agent.first_name + ' ' + agent.last_name, aVisits, aIndivs, aConvs]);
+          data.push([tl.first_name + ' ' + tl.last_name, teamAgts.length, tVisits, tIndivs, tStores, tConvs, aConvRate, agent.first_name + ' ' + agent.last_name, aVisits, aIndivs, aStores, aConvs]);
         }
       }
     }
@@ -8415,10 +8419,64 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
   }
 });
 
-// ==================== FIELD OPERATIONS: MULTI-SHEET EXCEL EXPORT ====================
+// ==================== TINY ZIP UTILITY FOR XLSX GENERATION ====================
+function tinyZip(files) {
+  const crc32Table = (() => {
+    const tbl = [];
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      tbl[n] = c;
+    }
+    return tbl;
+  })();
+  function crc32(arr) {
+    let crc = -1;
+    for (let i = 0; i < arr.length; i++) crc = (crc >>> 8) ^ crc32Table[(crc ^ arr[i]) & 0xFF];
+    return (crc ^ (-1)) >>> 0;
+  }
+  function putU32(arr, off, ...vals) { const dv = new DataView(arr.buffer); vals.forEach((v, i) => dv.setUint32(off + i * 4, v, true)); }
+  function putU16(arr, off, ...vals) { const dv = new DataView(arr.buffer); vals.forEach((v, i) => dv.setUint16(off + i * 2, v, true)); }
+  const te = new TextEncoder();
+  const records = [];
+  let offset = 0, cdSz = 0;
+  files.forEach(file => {
+    const fname = te.encode(file.name);
+    const data = typeof file.data === 'string' ? te.encode(file.data) : file.data;
+    const chk = crc32(data);
+    const fh = new Uint8Array(30 + fname.length);
+    putU32(fh, 0, 0x04034b50); putU32(fh, 14, chk, data.length, data.length); putU16(fh, 26, fname.length);
+    fh.set(fname, 30);
+    file._header = fh; file._data = data; file._offset = offset;
+    records.push(fh); records.push(data);
+    const cdr = new Uint8Array(46 + fname.length);
+    putU32(cdr, 0, 0x02014b50); putU32(cdr, 16, chk, data.length, data.length); putU16(cdr, 28, fname.length); putU32(cdr, 42, offset);
+    cdr.set(fname, 46);
+    file._cdr = cdr;
+    cdSz += cdr.length;
+    offset += fh.length + data.length;
+  });
+  files.forEach(f => records.push(f._cdr));
+  const eocd = new Uint8Array(22);
+  putU32(eocd, 0, 0x06054b50); putU16(eocd, 8, files.length, files.length); putU32(eocd, 12, cdSz, offset);
+  records.push(eocd);
+  let totalLen = 0;
+  records.forEach(r => totalLen += r.length);
+  const out = new Uint8Array(totalLen);
+  let pos = 0;
+  records.forEach(r => { out.set(r, pos); pos += r.length; });
+  return out;
+}
+
+// ==================== FIELD OPERATIONS: MULTI-SHEET EXCEL EXPORT (.xlsx) ====================
 api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
+  const role = c.get('role');
+  // Only managers and admins can export the full org-wide multi-sheet report
+  if (role !== 'manager' && role !== 'admin' && role !== 'super_admin') {
+    return c.json({ error: 'Only managers can export the multi-sheet performance report' }, 403);
+  }
   const { period, start_date, end_date } = c.req.query();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   let startD, endD;
@@ -8427,10 +8485,8 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
   else if (period === 'month') { startD = today.toISOString().slice(0, 7) + '-01'; endD = today.toISOString().split('T')[0]; }
   else { startD = start_date || today.toISOString().split('T')[0]; endD = end_date || startD; }
   try {
-    const escXml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const numCell = (v) => `<Cell><Data ss:Type="Number">${v}</Data></Cell>`;
-    const strCell = (v) => `<Cell><Data ss:Type="String">${escXml(v)}</Data></Cell>`;
-    // Fetch all managers
+    const escXml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    // Fetch all managers, team leads, agents
     const allManagers = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1").bind(tenantId).all();
     const allTeamLeads = await db.prepare("SELECT id, first_name, last_name, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1").bind(tenantId).all();
     const allAgents = await db.prepare("SELECT id, first_name, last_name, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1").bind(tenantId).all();
@@ -8468,60 +8524,115 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
     const allIds = [...(allManagers.results||[]).map(m=>m.id), ...(allTeamLeads.results||[]).map(t=>t.id), ...(allAgents.results||[]).map(a=>a.id)];
     const grand = sumIds(allIds);
     const periodLabel = period === 'day' ? 'Today' : period === 'week' ? 'Week to Date' : period === 'month' ? 'Month to Date' : `${startD} to ${endD}`;
-    // ===== Build SpreadsheetML XML =====
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n';
-    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
-    xml += '<Styles><Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#4472C4" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>';
-    xml += '<Style ss:ID="total"><Font ss:Bold="1"/><Interior ss:Color="#D9E2F3" ss:Pattern="Solid"/></Style>';
-    xml += '<Style ss:ID="default"/></Styles>\n';
+
+    // ===== Build OOXML .xlsx (ZIP of XML parts) =====
+    // Helper: build a sheet XML from rows array. Each row is array of {v, t} where t='s'|'n'|'b' (string/number/bold-string)
+    const buildSheetXml = (rows) => {
+      let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+      xml += '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+      xml += '<sheetData>';
+      rows.forEach((row, ri) => {
+        xml += `<row r="${ri+1}">`;
+        row.forEach((cell, ci) => {
+          const colLetter = String.fromCharCode(65 + ci);
+          const ref = `${colLetter}${ri+1}`;
+          if (cell.t === 'n') {
+            const sIdx = cell.bold ? '2' : '0';
+            xml += `<c r="${ref}" s="${sIdx}"><v>${cell.v}</v></c>`;
+          } else {
+            const sIdx = cell.bold ? '1' : '0';
+            xml += `<c r="${ref}" t="inlineStr" s="${sIdx}"><is><t>${escXml(String(cell.v))}</t></is></c>`;
+          }
+        });
+        xml += '</row>';
+      });
+      xml += '</sheetData></worksheet>';
+      return xml;
+    };
+
+    const str = (v, bold) => ({ v, t: 's', bold: !!bold });
+    const num = (v, bold) => ({ v, t: 'n', bold: !!bold });
+
     // --- Sheet 1: Manager Summary ---
-    xml += '<Worksheet ss:Name="Manager Summary"><Table>\n';
-    xml += `<Row>${strCell('Performance Report - ' + periodLabel)}</Row><Row></Row>\n`;
-    xml += `<Row ss:StyleID="header">${strCell('Manager')}${strCell('Team Leads')}${strCell('Agents')}${strCell('Total Visits')}${strCell('Individual')}${strCell('Store')}${strCell('Conversions')}${strCell('Conv. Rate')}</Row>\n`;
+    const s1Rows = [];
+    s1Rows.push([str('Performance Report - ' + periodLabel, true)]);
+    s1Rows.push([]);
+    s1Rows.push([str('Manager', true), str('Team Leads', true), str('Agents', true), str('Total Visits', true), str('Individual', true), str('Store', true), str('Conversions', true), str('Conv. Rate', true)]);
     for (const m of managers) {
-      xml += `<Row>${strCell(m.name)}${numCell(m.totalTLs)}${numCell(m.totalAgents)}${numCell(m.visits)}${numCell(m.individual)}${numCell(m.store)}${numCell(m.conversions)}${strCell(m.convRate)}</Row>\n`;
+      s1Rows.push([str(m.name), num(m.totalTLs), num(m.totalAgents), num(m.visits), num(m.individual), num(m.store), num(m.conversions), str(m.convRate)]);
     }
-    xml += `<Row ss:StyleID="total">${strCell('TOTAL')}${numCell((allTeamLeads.results||[]).length)}${numCell((allAgents.results||[]).length)}${numCell(grand.visits)}${numCell(grand.individual)}${numCell(grand.store)}${numCell(grand.conversions)}${strCell(grand.convRate)}</Row>\n`;
-    xml += '</Table></Worksheet>\n';
+    s1Rows.push([str('TOTAL', true), num((allTeamLeads.results||[]).length, true), num((allAgents.results||[]).length, true), num(grand.visits, true), num(grand.individual, true), num(grand.store, true), num(grand.conversions, true), str(grand.convRate, true)]);
+
     // --- Sheet 2: Manager + Team Leader Breakdown ---
-    xml += '<Worksheet ss:Name="Manager - Team Leaders"><Table>\n';
-    xml += `<Row>${strCell('Manager / Team Leader Breakdown - ' + periodLabel)}</Row><Row></Row>\n`;
-    xml += `<Row ss:StyleID="header">${strCell('Manager')}${strCell('Team Leader')}${strCell('Agents')}${strCell('Visits')}${strCell('Individual')}${strCell('Store')}${strCell('Conversions')}${strCell('Conv. Rate')}</Row>\n`;
+    const s2Rows = [];
+    s2Rows.push([str('Manager / Team Leader Breakdown - ' + periodLabel, true)]);
+    s2Rows.push([]);
+    s2Rows.push([str('Manager', true), str('Team Leader', true), str('Agents', true), str('Visits', true), str('Individual', true), str('Store', true), str('Conversions', true), str('Conv. Rate', true)]);
     for (const m of managers) {
-      xml += `<Row ss:StyleID="total">${strCell(m.name)}${strCell('(Total)')}${numCell(m.totalAgents)}${numCell(m.visits)}${numCell(m.individual)}${numCell(m.store)}${numCell(m.conversions)}${strCell(m.convRate)}</Row>\n`;
+      s2Rows.push([str(m.name, true), str('(Total)', true), num(m.totalAgents, true), num(m.visits, true), num(m.individual, true), num(m.store, true), num(m.conversions, true), str(m.convRate, true)]);
       for (const tl of m.teamLeads) {
-        xml += `<Row>${strCell('')}${strCell(tl.name)}${numCell(tl.agents.length)}${numCell(tl.visits)}${numCell(tl.individual)}${numCell(tl.store)}${numCell(tl.conversions)}${strCell(tl.convRate)}</Row>\n`;
+        s2Rows.push([str(''), str(tl.name), num(tl.agents.length), num(tl.visits), num(tl.individual), num(tl.store), num(tl.conversions), str(tl.convRate)]);
       }
       if (m.directAgents.length > 0) {
         const daTotal = sumIds(m.directAgents.map(a => a.id));
-        xml += `<Row>${strCell('')}${strCell('(Unassigned Agents)')}${numCell(m.directAgents.length)}${numCell(daTotal.visits)}${numCell(daTotal.individual)}${numCell(daTotal.store)}${numCell(daTotal.conversions)}${strCell(daTotal.convRate)}</Row>\n`;
+        s2Rows.push([str(''), str('(Unassigned Agents)'), num(m.directAgents.length), num(daTotal.visits), num(daTotal.individual), num(daTotal.store), num(daTotal.conversions), str(daTotal.convRate)]);
       }
     }
-    xml += '</Table></Worksheet>\n';
+
     // --- Sheet 3: Team Leader + Agent Breakdown ---
-    xml += '<Worksheet ss:Name="Team Leader - Agents"><Table>\n';
-    xml += `<Row>${strCell('Team Leader / Agent Breakdown - ' + periodLabel)}</Row><Row></Row>\n`;
-    xml += `<Row ss:StyleID="header">${strCell('Team Leader')}${strCell('Agent')}${strCell('Visits')}${strCell('Individual')}${strCell('Store')}${strCell('Conversions')}${strCell('Conv. Rate')}</Row>\n`;
+    const s3Rows = [];
+    s3Rows.push([str('Team Leader / Agent Breakdown - ' + periodLabel, true)]);
+    s3Rows.push([]);
+    s3Rows.push([str('Team Leader', true), str('Agent', true), str('Visits', true), str('Individual', true), str('Store', true), str('Conversions', true), str('Conv. Rate', true)]);
     for (const m of managers) {
       for (const tl of m.teamLeads) {
-        xml += `<Row ss:StyleID="total">${strCell(tl.name)}${strCell('(Total)')}${numCell(tl.visits)}${numCell(tl.individual)}${numCell(tl.store)}${numCell(tl.conversions)}${strCell(tl.convRate)}</Row>\n`;
+        s3Rows.push([str(tl.name, true), str('(Total)', true), num(tl.visits, true), num(tl.individual, true), num(tl.store, true), num(tl.conversions, true), str(tl.convRate, true)]);
         for (const agent of tl.agents) {
-          xml += `<Row>${strCell('')}${strCell(agent.name)}${numCell(agent.visits)}${numCell(agent.individual)}${numCell(agent.store)}${numCell(agent.conversions)}${strCell(agent.convRate)}</Row>\n`;
+          s3Rows.push([str(''), str(agent.name), num(agent.visits), num(agent.individual), num(agent.store), num(agent.conversions), str(agent.convRate)]);
         }
       }
       if (m.directAgents.length > 0) {
         const daTotal = sumIds(m.directAgents.map(a => a.id));
-        xml += `<Row ss:StyleID="total">${strCell('Unassigned (' + m.name + ')')}${strCell('(Total)')}${numCell(daTotal.visits)}${numCell(daTotal.individual)}${numCell(daTotal.store)}${numCell(daTotal.conversions)}${strCell(daTotal.convRate)}</Row>\n`;
+        s3Rows.push([str('Unassigned (' + m.name + ')', true), str('(Total)', true), num(daTotal.visits, true), num(daTotal.individual, true), num(daTotal.store, true), num(daTotal.conversions, true), str(daTotal.convRate, true)]);
         for (const agent of m.directAgents) {
-          xml += `<Row>${strCell('')}${strCell(agent.name)}${numCell(agent.visits)}${numCell(agent.individual)}${numCell(agent.store)}${numCell(agent.conversions)}${strCell(agent.convRate)}</Row>\n`;
+          s3Rows.push([str(''), str(agent.name), num(agent.visits), num(agent.individual), num(agent.store), num(agent.conversions), str(agent.convRate)]);
         }
       }
     }
-    xml += '</Table></Worksheet>\n';
-    xml += '</Workbook>';
-    const filename = `performance-report-${periodLabel.replace(/\s/g, '-')}-${startD}-to-${endD}.xls`;
-    return new Response(xml, {
-      headers: { 'Content-Type': 'application/vnd.ms-excel', 'Content-Disposition': `attachment; filename="${filename}"` }
+
+    // Build OOXML parts
+    const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+
+    const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+
+    const workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+
+    const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Manager Summary" sheetId="1" r:id="rId1"/><sheet name="Manager - Team Leaders" sheetId="2" r:id="rId2"/><sheet name="Team Leader - Agents" sheetId="3" r:id="rId3"/></sheets></workbook>';
+
+    const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>';
+
+    const sheet1Xml = buildSheetXml(s1Rows);
+    const sheet2Xml = buildSheetXml(s2Rows);
+    const sheet3Xml = buildSheetXml(s3Rows);
+
+    // Create ZIP
+    const zipData = tinyZip([
+      { name: '[Content_Types].xml', data: contentTypes },
+      { name: '_rels/.rels', data: rels },
+      { name: 'xl/_rels/workbook.xml.rels', data: workbookRels },
+      { name: 'xl/workbook.xml', data: workbook },
+      { name: 'xl/styles.xml', data: styles },
+      { name: 'xl/worksheets/sheet1.xml', data: sheet1Xml },
+      { name: 'xl/worksheets/sheet2.xml', data: sheet2Xml },
+      { name: 'xl/worksheets/sheet3.xml', data: sheet3Xml }
+    ]);
+
+    const filename = `performance-report-${periodLabel.replace(/\s/g, '-')}-${startD}-to-${endD}.xlsx`;
+    return new Response(zipData, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`
+      }
     });
   } catch (e) {
     console.error('Multi-sheet export error:', e);

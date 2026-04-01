@@ -72,8 +72,8 @@ export default function FieldOpsPerformancePage() {
       
       const endpoint = format === 'excel' ? '/field-ops/performance/export-excel' : '/field-ops/performance/export'
       const response = await fieldOperationsService.get(`${endpoint}?${params.toString()}`, { responseType: 'blob' })
-      const mimeType = format === 'excel' ? 'application/vnd.ms-excel' : 'text/csv;charset=utf-8'
-      const ext = format === 'excel' ? 'xls' : 'csv'
+      const mimeType = format === 'excel' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv;charset=utf-8'
+      const ext = format === 'excel' ? 'xlsx' : 'csv'
       const blob = new Blob([response.data], { type: mimeType })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
