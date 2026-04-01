@@ -8122,7 +8122,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
         store_visits: storeCount,
         individuals: indivCount,
         conversions: convCount,
-        targets: targets ? { visits: targets.target_visits, conversions: targets.target_conversions, individuals: targets.target_registrations } : { visits: 20, conversions: 5, individuals: 10 },
+        targets: targets ? { visits: targets.target_visits, conversions: targets.target_conversions, individuals: targets.target_registrations, stores: targets.target_registrations } : { visits: 20, conversions: 5, individuals: 10, stores: 5 },
         visit_progress: targets ? Math.round(((visitCount) / (targets.target_visits || 1)) * 100) : 0,
         conversion_rate: indivCount > 0 ? Math.round((convCount / indivCount) * 100) : 0
       });

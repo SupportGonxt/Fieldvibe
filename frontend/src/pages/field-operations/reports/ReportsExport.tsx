@@ -32,8 +32,12 @@ const ReportsExport: React.FC = () => {
   const { data: agentPerf = [] } = useQuery({
     queryKey: ['export-agent-perf', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const dParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${dParams}${companyParam}`)
+      const parts = []
+      if (startDate) parts.push(`startDate=${startDate}`)
+      if (endDate) parts.push(`endDate=${endDate}`)
+      if (selectedCompany) parts.push(`company_id=${selectedCompany}`)
+      const qs = parts.length > 0 ? `?${parts.join('&')}` : ''
+      const res = await apiClient.get(`/field-ops/reports/agent-performance${qs}`)
       return res.data?.data || []
     },
   })
@@ -41,8 +45,12 @@ const ReportsExport: React.FC = () => {
   const { data: conversionStats } = useQuery({
     queryKey: ['export-conversions', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const dParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dParams}${companyParam}`)
+      const parts = []
+      if (startDate) parts.push(`startDate=${startDate}`)
+      if (endDate) parts.push(`endDate=${endDate}`)
+      if (selectedCompany) parts.push(`company_id=${selectedCompany}`)
+      const qs = parts.length > 0 ? `?${parts.join('&')}` : ''
+      const res = await apiClient.get(`/field-ops/reports/conversion-stats${qs}`)
       return res.data?.data || {}
     },
   })
