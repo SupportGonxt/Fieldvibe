@@ -86,7 +86,7 @@ class ReportsService {
       const response = await apiClient.get(`${this.baseUrl}/${reportId}/download`, {
         responseType: 'blob'
       })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to download report:', error)
       throw error

@@ -221,27 +221,27 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/agents?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getFieldAgent(id: string) {
     const response = await this.get(`${this.baseUrl}/agents/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createFieldAgent(agent: Partial<FieldAgent>) {
     const response = await this.post(`${this.baseUrl}/agents`, agent)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateFieldAgent(id: string, agent: Partial<FieldAgent>) {
     const response = await this.put(`${this.baseUrl}/agents/${id}`, agent)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteFieldAgent(id: string) {
     const response = await this.delete(`${this.baseUrl}/agents/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getAgentPerformance(agentId: string, startDate?: string, endDate?: string) {
@@ -250,17 +250,17 @@ class FieldOperationsService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/stats?agent_id=${agentId}&${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getAgentLocation(agentId: string) {
     const response = await this.get(`${this.baseUrl}/live-locations?agent_id=${agentId}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateAgentLocation(agentId: string, location: Location) {
     const response = await this.post(`${this.baseUrl}/agents/${agentId}/location`, location)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getAgentLocationHistory(agentId: string, startDate?: string, endDate?: string) {
@@ -269,7 +269,7 @@ class FieldOperationsService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/live-locations?agent_id=${agentId}&${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Task Management
@@ -282,37 +282,37 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`/visits?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getFieldTask(id: string) {
     const response = await this.get(`/visits/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createFieldTask(task: Partial<FieldTask>) {
     const response = await this.post(`/visits`, task)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateFieldTask(id: string, task: Partial<FieldTask>) {
     const response = await this.put(`/visits/${id}`, task)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteFieldTask(id: string) {
     const response = await this.delete(`/visits/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async assignTask(taskId: string, agentId: string) {
     const response = await this.put(`/visits/${taskId}`, { agent_id: agentId })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async startTask(taskId: string) {
     const response = await this.post(`${this.baseUrl}/visits/${taskId}/check-in`, { location: { latitude: 0, longitude: 0, timestamp: new Date().toISOString() } })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async completeTask(taskId: string, notes?: string, attachments?: File[]) {
@@ -329,12 +329,12 @@ class FieldOperationsService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async cancelTask(taskId: string, reason?: string) {
     const response = await this.put(`/visits/${taskId}`, { status: 'cancelled', notes: reason })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit Management
@@ -347,27 +347,27 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/visits?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getFieldVisit(id: string) {
     const response = await this.get(`${this.baseUrl}/visits/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createFieldVisit(visit: Partial<FieldVisit>) {
     const response = await this.post(`${this.baseUrl}/visits`, visit)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateFieldVisit(id: string, visit: Partial<FieldVisit>) {
     const response = await this.put(`${this.baseUrl}/visits/${id}`, visit)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async checkInVisit(visitId: string, location: Location) {
     const response = await this.post(`${this.baseUrl}/visits/${visitId}/check-in`, { location })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async checkOutVisit(visitId: string, location: Location, outcomes: VisitOutcome[], notes?: string, photos?: File[]) {
@@ -386,12 +386,12 @@ class FieldOperationsService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async cancelVisit(visitId: string, reason?: string) {
     const response = await this.put(`/visits/${visitId}`, { status: 'cancelled', notes: reason })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Team Management
@@ -402,7 +402,7 @@ class FieldOperationsService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getTeamStats(teamId?: string) {
@@ -410,33 +410,33 @@ class FieldOperationsService extends ApiService {
     if (teamId) params.append('team_id', teamId)
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Territory Management
   async getTerritories() {
     const response = await this.get(`/territories`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getTerritory(id: string) {
     const response = await this.get(`/territories/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createTerritory(territory: Partial<Territory>) {
     const response = await this.post(`/territories`, territory)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateTerritory(id: string, territory: Partial<Territory>) {
     const response = await this.put(`/territories/${id}`, territory)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteTerritory(id: string) {
     const response = await this.delete(`/territories/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Analytics & Reporting
@@ -446,7 +446,7 @@ class FieldOperationsService extends ApiService {
     if (dateRange?.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPerformanceAnalytics(filter: any = {}) {
@@ -458,7 +458,7 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getProductivityAnalytics(filter: any = {}) {
@@ -470,7 +470,7 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async exportFieldOperationsReport(format: 'pdf' | 'excel' = 'pdf', filter: any = {}) {
@@ -500,22 +500,22 @@ class FieldOperationsService extends ApiService {
   // Real-time Operations
   async getLiveAgentLocations() {
     const response = await this.get(`${this.baseUrl}/live-locations`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getActiveVisits() {
     const response = await this.get(`${this.baseUrl}/visits?status=in_progress`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPendingTasks() {
     const response = await this.get(`/visits?status=planned`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getRealtimeMetrics() {
     const response = await this.get(`${this.baseUrl}/stats`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Bulk Operations
@@ -524,7 +524,7 @@ class FieldOperationsService extends ApiService {
       task_ids: taskIds,
       agent_id: agentId
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkUpdateTaskStatus(taskIds: string[], status: string) {
@@ -532,7 +532,7 @@ class FieldOperationsService extends ApiService {
       task_ids: taskIds,
       status
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Additional methods for missing functionality
@@ -542,7 +542,7 @@ class FieldOperationsService extends ApiService {
     if (dateRange.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getFieldOperationsTrends(dateRange: any) {
@@ -551,12 +551,12 @@ class FieldOperationsService extends ApiService {
     if (dateRange.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`/dashboard/revenue-trends?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getRouteOptimization(agentId: string, date: string) {
     const response = await this.get(`${this.baseUrl}/routes?agent_id=${agentId}&date=${date}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getFieldInsights(filter: any = {}) {
@@ -568,7 +568,7 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getOperationalMetrics(filter: any = {}) {
@@ -580,7 +580,7 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Board Placements
@@ -593,32 +593,32 @@ class FieldOperationsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/beats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getBoardPlacement(id: string) {
     const response = await this.get(`${this.baseUrl}/beats/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createBoardPlacement(data: any) {
     const response = await this.post(`${this.baseUrl}/beats`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateBoardPlacement(id: string, data: any) {
     const response = await this.put(`${this.baseUrl}/beats/${id}`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async reverseBoardPlacement(id: string | number) {
     const response = await this.post(`${this.baseUrl}/beats/${id}/reverse`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteBoardPlacement(id: string) {
     const response = await this.delete(`${this.baseUrl}/beats/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Dashboard
@@ -628,7 +628,7 @@ class FieldOperationsService extends ApiService {
     if (dateRange?.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`/dashboard/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // ==================== FIELD OPS: COMPANIES ====================
@@ -897,7 +897,7 @@ class FieldOperationsService extends ApiService {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       responseType: 'blob',
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // ==================== FIELD OPS: BRAND INSIGHTS ====================
@@ -1060,91 +1060,91 @@ class FieldOperationsService extends ApiService {
   // Alias for getFieldAgents (called by VisitCreate, ProductDistributionCreate)
   async getAgents() {
     const response = await this.get(`${this.baseUrl}/agents`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Get customers list (called by VisitCreate, ProductDistributionCreate)
   async getCustomers() {
     const response = await this.get('/customers')
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Get products list (called by ProductDistributionCreate)
   async getProducts() {
     const response = await this.get('/products')
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Get board types (called by BoardPlacementCreate)
   async getBoardTypes() {
     const response = await this.get('/boards')
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit CRUD (called by VisitCreate, VisitEdit, VisitManagementPage)
   async createVisit(data: any) {
     const response = await this.post(`${this.baseUrl}/visits`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getVisit(id: number | string) {
     const response = await this.get(`${this.baseUrl}/visits/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateVisit(id: number | string, data: any) {
     const response = await this.put(`${this.baseUrl}/visits/${id}`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteVisit(id: string) {
     const response = await this.delete(`${this.baseUrl}/visits/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit history (called by VisitHistoryPage)
   async getVisitHistory(filter: Record<string, string> = {}) {
     const params = new URLSearchParams(filter)
     const response = await this.get(`${this.baseUrl}/visits?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Agent stats (called by FieldAgentDashboardPage)
   async getAgentStats() {
     const response = await this.get(`${this.baseUrl}/stats`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Commission methods (called by CommissionLedgerList, CommissionLedgerDetail)
   async getCommissions() {
     const response = await this.get('/field-commissions')
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getCommission(id: number | string) {
     const response = await this.get(`/field-commissions/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Product distribution methods (called by ProductDistributionsList, ProductDistributionDetail, ProductDistributionCreate)
   async getProductDistributions() {
     const response = await this.get('/product-distributions')
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getProductDistribution(id: number | string) {
     const response = await this.get(`/product-distributions/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createProductDistribution(data: any) {
     const response = await this.post('/product-distributions', data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async reverseProductDistribution(id: number | string) {
     const response = await this.post(`/product-distributions/${id}/reverse`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // ==================== VISIT WORKFLOW ====================

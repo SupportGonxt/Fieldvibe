@@ -100,7 +100,7 @@ class GPSTrackingService extends ApiService {
     customer_id?: string
   }) {
     const response = await this.post(`${this.baseUrl}/location`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Get agent's current location

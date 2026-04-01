@@ -21,14 +21,15 @@ export default function CustomerCreatePage() {
       placeholder: 'e.g., ABC Store'
     },
     {
-      name: 'type',
+      name: 'customer_type',
       label: 'Customer Type',
       type: 'select' as const,
       required: true,
       options: [
         { value: 'retail', label: 'Retail' },
         { value: 'wholesale', label: 'Wholesale' },
-        { value: 'distributor', label: 'Distributor' }
+        { value: 'distributor', label: 'Distributor' },
+        { value: 'store', label: 'Store' }
       ]
     },
     {

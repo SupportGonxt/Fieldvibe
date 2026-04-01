@@ -57,7 +57,7 @@ class AuthService {
 
   async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
     const response = await apiClient.post('/auth/refresh', {
-      refreshToken: refreshToken,
+      refresh_token: refreshToken,
     })
     
     const apiData = response.data.data || response.data

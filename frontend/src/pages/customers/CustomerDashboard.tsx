@@ -114,7 +114,7 @@ export default function CustomerDashboard() {
     try {
       setLoading(true)
       setError(null)
-      const response = await api.get('/dashboard/customers')
+      const response = await api.get('/customers/dashboard')
       if (response.data.success) {
         setMetrics(response.data.data)
       } else {

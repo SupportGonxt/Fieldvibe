@@ -115,37 +115,37 @@ class CampaignsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getCampaign(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createCampaign(campaign: Partial<Campaign>) {
     const response = await this.post(this.baseUrl, campaign)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateCampaign(id: string, campaign: Partial<Campaign>) {
     const response = await this.put(`${this.baseUrl}/${id}`, campaign)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteCampaign(id: string) {
     const response = await this.delete(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getCampaignStats() {
     const response = await this.get(`${this.baseUrl}/stats`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getCampaignAnalytics(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}/analytics`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getCampaignExecutions(campaignId: string, filter: any = {}) {
@@ -157,17 +157,17 @@ class CampaignsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/${campaignId}/executions?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createCampaignExecution(campaignId: string, execution: Partial<CampaignExecution>) {
     const response = await this.post(`${this.baseUrl}/${campaignId}/executions`, execution)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateCampaignExecution(campaignId: string, executionId: string, execution: Partial<CampaignExecution>) {
     const response = await this.put(`${this.baseUrl}/${campaignId}/executions/${executionId}`, execution)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async uploadCampaignMaterial(campaignId: string, file: File, type: string) {
@@ -180,37 +180,37 @@ class CampaignsService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteCampaignMaterial(campaignId: string, materialId: string) {
     const response = await this.delete(`${this.baseUrl}/${campaignId}/materials/${materialId}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async startCampaign(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/start`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async pauseCampaign(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/pause`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async completeCampaign(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/complete`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async cancelCampaign(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/cancel`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async duplicateCampaign(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/duplicate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async exportCampaignReport(id: string, format: 'pdf' | 'excel' = 'pdf') {

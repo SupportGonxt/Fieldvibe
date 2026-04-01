@@ -105,7 +105,7 @@ class CurrencySystemService extends ApiService {
     is_base_currency?: boolean
   }) {
     const response = await this.post(`${this.baseUrl}/currencies`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Update currency exchange rate
@@ -114,7 +114,7 @@ class CurrencySystemService extends ApiService {
     source?: string
   }) {
     const response = await this.put(`${this.baseUrl}/currencies/${currencyId}/exchange-rate`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Get location-currency mappings
@@ -136,7 +136,7 @@ class CurrencySystemService extends ApiService {
     is_default?: boolean
   }) {
     const response = await this.post(`${this.baseUrl}/location-currencies`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Detect currency based on location

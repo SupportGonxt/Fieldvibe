@@ -180,27 +180,27 @@ class KYCService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCSubmission(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createKYCSubmission(submission: Partial<KYCSubmission>) {
     const response = await this.post(this.baseUrl, submission)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateKYCSubmission(id: string, submission: Partial<KYCSubmission>) {
     const response = await this.put(`${this.baseUrl}/${id}`, submission)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteKYCSubmission(id: string) {
     const response = await this.delete(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async uploadKYCDocument(submissionId: string, file: File, documentType: string) {
@@ -213,12 +213,12 @@ class KYCService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteKYCDocument(submissionId: string, documentId: string) {
     const response = await this.delete(`${this.baseUrl}/${submissionId}/documents/${documentId}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async verifyKYCDocument(submissionId: string, documentId: string, verified: boolean, reason?: string) {
@@ -226,17 +226,17 @@ class KYCService extends ApiService {
       verified,
       reason
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async approveKYCSubmission(id: string, notes?: string) {
     const response = await this.post(`${this.baseUrl}/${id}/approve`, { notes })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async rejectKYCSubmission(id: string, reason: string, notes?: string) {
     const response = await this.post(`${this.baseUrl}/${id}/reject`, { reason, notes })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async requestKYCUpdate(id: string, requiredUpdates: string[], notes?: string) {
@@ -244,44 +244,44 @@ class KYCService extends ApiService {
       required_updates: requiredUpdates,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
 
 
   async runCreditCheck(submissionId: string) {
     const response = await this.post(`${this.baseUrl}/${submissionId}/credit-check`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async verifyReferences(submissionId: string) {
     const response = await this.post(`${this.baseUrl}/${submissionId}/verify-references`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCTemplates() {
     const response = await this.get(`${this.baseUrl}/templates`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createKYCTemplate(template: Partial<KYCTemplate>) {
     const response = await this.post(`${this.baseUrl}/templates`, template)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateKYCTemplate(id: string, template: Partial<KYCTemplate>) {
     const response = await this.put(`${this.baseUrl}/templates/${id}`, template)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteKYCTemplate(id: string) {
     const response = await this.delete(`${this.baseUrl}/templates/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async setDefaultKYCTemplate(id: string) {
     const response = await this.post(`${this.baseUrl}/templates/${id}/set-default`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async exportKYCReport(format: 'pdf' | 'excel' = 'pdf', filter: KYCFilter = {}) {
@@ -310,7 +310,7 @@ class KYCService extends ApiService {
 
   async getCustomerKYCHistory(customerId: string) {
     const response = await this.get(`${this.baseUrl}/customer/${customerId}/history`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getAgentKYCSubmissions(agentId: string, filter: KYCFilter = {}) {
@@ -322,7 +322,7 @@ class KYCService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/agent/${agentId}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkApproveKYC(submissionIds: string[], notes?: string) {
@@ -330,7 +330,7 @@ class KYCService extends ApiService {
       submission_ids: submissionIds,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkRejectKYC(submissionIds: string[], reason: string, notes?: string) {
@@ -339,7 +339,7 @@ class KYCService extends ApiService {
       reason,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Additional missing methods
@@ -349,7 +349,7 @@ class KYCService extends ApiService {
     if (dateRange?.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCAnalytics(dateRange?: any) {
@@ -358,7 +358,7 @@ class KYCService extends ApiService {
     if (dateRange?.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/analytics?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCTrends(dateRange?: any) {
@@ -367,7 +367,7 @@ class KYCService extends ApiService {
     if (dateRange?.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/trends?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCReports(filter: any = {}) {
@@ -379,12 +379,12 @@ class KYCService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/reports?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCAgents() {
     const response = await this.get(`${this.baseUrl}/agents`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // KYC Cases - New lifecycle methods matching backend
@@ -396,12 +396,12 @@ class KYCService extends ApiService {
       }
     })
     const response = await this.get(`${this.casesUrl}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCCase(id: string) {
     const response = await this.get(`${this.casesUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createKYCCase(data: {
@@ -417,12 +417,12 @@ class KYCService extends ApiService {
     notes?: string
   }) {
     const response = await this.post(this.casesUrl, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateKYCCase(id: string, data: any) {
     const response = await this.put(`${this.casesUrl}/${id}`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async uploadKYCCaseDocument(id: string, data: {
@@ -432,32 +432,32 @@ class KYCService extends ApiService {
     expiry_date?: string
   }) {
     const response = await this.post(`${this.casesUrl}/${id}/documents`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async startKYCReview(id: string) {
     const response = await this.post(`${this.casesUrl}/${id}/start-review`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async requestKYCDocuments(id: string, data: { documents_requested: string; notes?: string }) {
     const response = await this.post(`${this.casesUrl}/${id}/request-documents`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async approveKYCCase(id: string, notes?: string) {
     const response = await this.post(`${this.casesUrl}/${id}/approve`, { notes })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async rejectKYCCase(id: string, reason: string, notes?: string) {
     const response = await this.post(`${this.casesUrl}/${id}/reject`, { rejection_reason: reason, notes })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getKYCCaseStats() {
     const response = await this.get(`${this.baseUrl}/stats`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Alias for getKYCSubmissions (called by CustomerKYC tab)

@@ -210,7 +210,7 @@ class ComprehensiveTransactionsService extends ApiService {
     notes?: string
   }) {
     const response = await this.put(`${this.baseUrl}/transactions/${transactionId}/complete`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Process a refund for a transaction
@@ -222,7 +222,7 @@ class ComprehensiveTransactionsService extends ApiService {
   // Reverse a transaction
   async reverseTransaction(transactionId: string, reason: string) {
     const response = await this.put(`${this.baseUrl}/transactions/${transactionId}/reverse`, { reason })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Get comprehensive transactions dashboard data

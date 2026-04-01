@@ -29,17 +29,17 @@ export const brandService = {
 
   async getBrand(id: string): Promise<Brand> {
     const response = await apiClient.get(`/brands/${id}`)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async createBrand(data: BrandFormData): Promise<Brand> {
     const response = await apiClient.post('/brands', data)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async updateBrand(id: string, data: BrandFormData): Promise<Brand> {
     const response = await apiClient.put(`/brands/${id}`, data)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async deleteBrand(id: string): Promise<void> {
@@ -48,21 +48,21 @@ export const brandService = {
 
   async getBrandSurveys(brandId: string): Promise<any[]> {
     const response = await apiClient.get(`/brands/${brandId}/surveys`)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async getBrandActivations(brandId: string): Promise<any[]> {
     const response = await apiClient.get(`/brands/${brandId}/activations`)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async getBrandBoards(brandId: string): Promise<any[]> {
     const response = await apiClient.get(`/brands/${brandId}/boards`)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async getBrandProducts(brandId: string): Promise<any[]> {
     const response = await apiClient.get(`/brands/${brandId}/products`)
-    return response.data
+    return response.data?.data || response.data
   },
 }

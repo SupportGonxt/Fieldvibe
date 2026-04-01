@@ -63,9 +63,23 @@ const SalesDashboard = () => {
   const fetchSalesMetrics = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/dashboard/sales')
-      if (response.data.success) {
-        setMetrics(response.data.data)
+      const response = await api.get('/sales-orders/dashboard')
+      const raw = response.data?.data || response.data
+      if (raw) {
+        setMetrics({
+          totalSales: raw.totalSales || raw.total_revenue || raw.month_revenue || 0,
+          salesChange: raw.salesChange || 0,
+          totalOrders: raw.totalOrders || raw.total_orders || raw.month_orders || 0,
+          ordersChange: raw.ordersChange || 0,
+          averageOrderValue: raw.averageOrderValue || (raw.total_revenue && raw.total_orders ? raw.total_revenue / raw.total_orders : 0),
+          aovChange: raw.aovChange || 0,
+          conversionRate: raw.conversionRate || 0,
+          salesTarget: raw.salesTarget || 0,
+          salesAchieved: raw.salesAchieved || raw.total_revenue || 0,
+          targetProgress: raw.targetProgress || 0,
+          pendingOrders: raw.pendingOrders || raw.pending_orders || 0,
+          fulfilledOrders: raw.fulfilledOrders || raw.fulfilled_orders || 0,
+        })
       } else {
         setUsingFallback(true)
       }

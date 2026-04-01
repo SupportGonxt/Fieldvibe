@@ -196,7 +196,7 @@ Respond with JSON containing:
       const response = await apiClient.get(`${this.baseUrl}/field-agents/${agentId}/insights`, {
         params: { time_range: timeRange }
       })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch agent insights:', error)
       throw new Error('Failed to load agent performance insights')
@@ -242,7 +242,7 @@ Respond with JSON containing:
     
     try {
       const response = await apiClient.get(`${this.baseUrl}/customers/${customerId}/insights`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch customer insights:', error)
       throw new Error('Failed to load customer behavior insights')
@@ -256,7 +256,7 @@ Respond with JSON containing:
     
     try {
       const response = await apiClient.get(`${this.baseUrl}/customers/${customerId}/fraud-check`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Customer fraud check failed:', error)
       throw new Error('Customer fraud check failed')
@@ -273,7 +273,7 @@ Respond with JSON containing:
       const response = await apiClient.get(`${this.baseUrl}/orders/insights`, {
         params: { time_range: timeRange }
       })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch order insights:', error)
       throw new Error('Failed to load order pattern insights')
@@ -287,7 +287,7 @@ Respond with JSON containing:
     
     try {
       const response = await apiClient.get(`${this.baseUrl}/orders/${orderId}/fraud-check`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Order fraud check failed:', error)
       throw new Error('Order fraud check failed')
@@ -302,7 +302,7 @@ Respond with JSON containing:
     
     try {
       const response = await apiClient.get(`${this.baseUrl}/products/${productId}/insights`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch product insights:', error)
       throw new Error('Failed to load product performance insights')
@@ -317,7 +317,7 @@ Respond with JSON containing:
     
     try {
       const response = await apiClient.get(`${this.baseUrl}/comprehensive-analysis`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Comprehensive analysis failed:', error)
       throw new Error('Failed to load comprehensive AI analysis')
@@ -357,7 +357,7 @@ Respond with JSON containing:
   async getAIConfig(): Promise<LocalAIConfig> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/config`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch AI config:', error)
       // Return default config instead of throwing
@@ -384,7 +384,7 @@ Respond with JSON containing:
     
     try {
       const response = await apiClient.put(`${this.baseUrl}/config`, config)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to update AI config:', error)
       throw new Error('Failed to update AI configuration')

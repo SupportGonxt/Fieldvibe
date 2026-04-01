@@ -195,27 +195,27 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/vans?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVan(id: string) {
     const response = await this.get(`${this.baseUrl}/vans/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVan(van: Partial<Van>) {
     const response = await this.post(`${this.baseUrl}/vans`, van)
-    return response.data
+    return response.data.data || response.data
   }
 
   async updateVan(id: string, van: Partial<Van>) {
     const response = await this.put(`${this.baseUrl}/vans/${id}`, van)
-    return response.data
+    return response.data.data || response.data
   }
 
   async deleteVan(id: string) {
     const response = await this.delete(`${this.baseUrl}/vans/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Route Management
@@ -228,63 +228,63 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/routes?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanRoute(id: string) {
     const response = await this.get(`${this.baseUrl}/routes/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVanRoute(route: Partial<VanRoute>) {
     const response = await this.post(`${this.baseUrl}/routes`, route)
-    return response.data
+    return response.data.data || response.data
   }
 
   async updateVanRoute(id: string, route: Partial<VanRoute>) {
     const response = await this.put(`${this.baseUrl}/routes/${id}`, route)
-    return response.data
+    return response.data.data || response.data
   }
 
   async deleteVanRoute(id: string) {
     const response = await this.delete(`${this.baseUrl}/routes/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async startVanRoute(id: string) {
     const response = await this.post(`${this.baseUrl}/routes/${id}/start`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async completeVanRoute(id: string) {
     const response = await this.post(`${this.baseUrl}/routes/${id}/complete`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async optimizeRoute(routeId: string) {
     const response = await this.post(`${this.baseUrl}/routes/${routeId}/optimize`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Inventory Management
   async getVanInventory(vanId: string) {
     const response = await this.get(`${this.baseUrl}/vans/${vanId}/inventory`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async updateVanInventory(vanId: string, inventory: VanInventory[]) {
     const response = await this.put(`${this.baseUrl}/vans/${vanId}/inventory`, { inventory })
-    return response.data
+    return response.data.data || response.data
   }
 
   async loadVanInventory(vanId: string, items: { product_id: string; quantity: number }[]) {
     const response = await this.post(`${this.baseUrl}/vans/${vanId}/load`, { items })
-    return response.data
+    return response.data.data || response.data
   }
 
   async unloadVanInventory(vanId: string, items: { product_id: string; quantity: number }[]) {
     const response = await this.post(`${this.baseUrl}/vans/${vanId}/unload`, { items })
-    return response.data
+    return response.data.data || response.data
   }
 
   // Sales Management
@@ -297,22 +297,22 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanSale(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVanSale(sale: Partial<VanSale>) {
     const response = await this.post(`${this.baseUrl}/create`, sale)
-    return response.data
+    return response.data.data || response.data
   }
 
   async updateVanSale(id: string, sale: Partial<VanSale>) {
     const response = await this.put(`${this.baseUrl}/${id}`, sale)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Van Loads - use authoritative endpoints with inventory movements
@@ -324,17 +324,17 @@ class VanSalesService extends ApiService {
       }
     })
     const response = await this.get(`${this.baseUrl}/van-loads?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVanLoad(data: any) {
     const response = await this.post(`${this.baseUrl}/van-loads/create`, data)
-    return response.data
+    return response.data.data || response.data
   }
 
   async transitionVanLoad(id: string, new_status: string, notes?: string) {
     const response = await this.post(`${this.baseUrl}/van-loads/${id}/transition`, { new_status, notes })
-    return response.data
+    return response.data.data || response.data
   }
 
   // Van Sales Returns - use authoritative endpoints with inventory movements
@@ -346,19 +346,19 @@ class VanSalesService extends ApiService {
       }
     })
     const response = await this.get(`${this.baseUrl}/returns?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVanSalesReturn(data: any) {
     const response = await this.post(`${this.baseUrl}/returns/create`, data)
-    return response.data
+    return response.data.data || response.data
   }
 
 
 
   async processVanSalePayment(saleId: string, paymentData: any) {
     const response = await this.post(`${this.baseUrl}/sales/${saleId}/payment`, paymentData)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Expense Management
@@ -371,28 +371,28 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/vans/${vanId}/expenses?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVanExpense(expense: Partial<VanExpense>) {
     const response = await this.post(`${this.baseUrl}/expenses`, expense)
-    return response.data
+    return response.data.data || response.data
   }
 
   async updateVanExpense(id: string, expense: Partial<VanExpense>) {
     const response = await this.put(`${this.baseUrl}/expenses/${id}`, expense)
-    return response.data
+    return response.data.data || response.data
   }
 
   async deleteVanExpense(id: string) {
     const response = await this.delete(`${this.baseUrl}/expenses/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Performance & Analytics
   async getVanStats() {
     const response = await this.get(`${this.baseUrl}/stats`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanPerformance(vanId: string, startDate?: string, endDate?: string) {
@@ -401,7 +401,7 @@ class VanSalesService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/vans/${vanId}/performance?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanAnalytics(filter: any = {}) {
@@ -413,18 +413,18 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/analytics?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Tracking & Location
   async getVanLocation(vanId: string) {
     const response = await this.get(`${this.baseUrl}/vans/${vanId}/location`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async updateVanLocation(vanId: string, location: Location) {
     const response = await this.post(`${this.baseUrl}/vans/${vanId}/location`, location)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanLocationHistory(vanId: string, startDate?: string, endDate?: string) {
@@ -433,7 +433,7 @@ class VanSalesService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/vans/${vanId}/location-history?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Reports
@@ -497,7 +497,7 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/metrics?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanSalesReports(type: string, filter: VanSaleFilter = {}) {
@@ -510,7 +510,7 @@ class VanSalesService extends ApiService {
     params.append('type', type)
 
     const response = await this.get(`${this.baseUrl}/reports?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanSalesInsights(filter: VanSaleFilter = {}) {
@@ -522,7 +522,7 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/insights?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Additional missing methods
@@ -532,7 +532,7 @@ class VanSalesService extends ApiService {
     if (dateRange?.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanSalesAnalytics(filter: any = {}) {
@@ -544,7 +544,7 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/analytics?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanSalesTrends(dateRange: any) {
@@ -553,7 +553,7 @@ class VanSalesService extends ApiService {
     if (dateRange.end_date) params.append('end_date', dateRange.end_date)
 
     const response = await this.get(`${this.baseUrl}/trends?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanSalesData(filter: any = {}) {
@@ -565,17 +565,17 @@ class VanSalesService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async deleteVanSale(id: string) {
     const response = await this.delete(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async bulkUpdateVanSales(ids: string[], updates: any) {
     const response = await this.put(`${this.baseUrl}/bulk`, { ids, updates })
-    return response.data
+    return response.data.data || response.data
   }
 
   async importVanSalesData(file: File) {
@@ -587,7 +587,7 @@ class VanSalesService extends ApiService {
         'Content-Type': 'multipart/form-data'
       }
     })
-    return response.data
+    return response.data.data || response.data
   }
 
   // Route aliases (called by VanRoutesPage, RouteDetail, etc.)
@@ -609,12 +609,12 @@ class VanSalesService extends ApiService {
 
   async getRouteStops(routeId: string) {
     const response = await this.get(`${this.baseUrl}/routes/${routeId}/stops`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getRouteExceptions(routeId: string) {
     const response = await this.get(`${this.baseUrl}/routes/${routeId}/exceptions`)
-    return response.data
+    return response.data.data || response.data
   }
 
   // Order aliases (called by VanOrderCreate, VanOrderDetail, etc.)
@@ -626,17 +626,17 @@ class VanSalesService extends ApiService {
       }
     })
     const response = await this.get(`${this.baseUrl}/orders?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getOrder(id: string) {
     const response = await this.get(`${this.baseUrl}/orders/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createOrder(data: any) {
     const response = await this.post(`${this.baseUrl}/orders/create`, data)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createVanOrder(data: any) {
@@ -645,12 +645,12 @@ class VanSalesService extends ApiService {
 
   async updateOrder(id: string, data: any) {
     const response = await this.put(`${this.baseUrl}/orders/${id}`, data)
-    return response.data
+    return response.data.data || response.data
   }
 
   async reverseOrder(id: string) {
     const response = await this.post(`${this.baseUrl}/orders/${id}/reverse`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanOrders(filter: any = {}) {
@@ -664,7 +664,7 @@ class VanSalesService extends ApiService {
 
   async getReturn(id: string) {
     const response = await this.get(`${this.baseUrl}/returns/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createReturn(data: any) {
@@ -674,28 +674,28 @@ class VanSalesService extends ApiService {
   // Customer & product lookups (called by VanOrderCreate, etc.)
   async getCustomers() {
     const response = await this.get('/customers')
-    return response.data
+    return response.data.data || response.data
   }
 
   async getProducts() {
     const response = await this.get('/products')
-    return response.data
+    return response.data.data || response.data
   }
 
   // Van load detail methods (called by VanLoadDetail, VanLoadConfirm, etc.)
   async getVanLoad(id: string) {
     const response = await this.get(`${this.baseUrl}/van-loads/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanLoadItems(loadId: string) {
     const response = await this.get(`${this.baseUrl}/van-loads/${loadId}/items`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async confirmVanLoad(id: string, data?: any) {
     const response = await this.post(`${this.baseUrl}/van-loads/${id}/transition`, { new_status: 'confirmed', ...data })
-    return response.data
+    return response.data.data || response.data
   }
 
   // Cash reconciliation (called by CashReconciliation pages)
@@ -707,22 +707,22 @@ class VanSalesService extends ApiService {
       }
     })
     const response = await this.get(`${this.baseUrl}/cash-reconciliation?${params.toString()}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getCashReconciliation(id: string) {
     const response = await this.get(`${this.baseUrl}/cash-reconciliation/${id}`)
-    return response.data
+    return response.data.data || response.data
   }
 
   async createCashReconciliation(data: any) {
     const response = await this.post(`${this.baseUrl}/cash-reconciliation`, data)
-    return response.data
+    return response.data.data || response.data
   }
 
   async getVanCashCollection(vanId: string) {
     const response = await this.get(`${this.baseUrl}/vans/${vanId}/cash-collection`)
-    return response.data
+    return response.data.data || response.data
   }
 }
 

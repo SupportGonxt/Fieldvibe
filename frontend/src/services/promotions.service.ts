@@ -107,42 +107,42 @@ class PromotionsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPromotion(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createPromotion(promotion: Omit<Promotion, 'id' | 'created_at' | 'updated_at' | 'usage_count' | 'spent'>) {
     const response = await this.post(this.baseUrl, promotion)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updatePromotion(id: string, promotion: Partial<Promotion>) {
     const response = await this.put(`${this.baseUrl}/${id}`, promotion)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deletePromotion(id: string) {
     const response = await this.delete(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async activatePromotion(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/activate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deactivatePromotion(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/deactivate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async pausePromotion(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/pause`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPromotionStats(filter: PromotionFilter = {}) {
@@ -154,7 +154,7 @@ class PromotionsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPromotionAnalytics(id: string, filter: { start_date?: string; end_date?: string } = {}) {
@@ -166,7 +166,7 @@ class PromotionsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/${id}/analytics?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPromotionTrends(filter: { start_date?: string; end_date?: string } = {}) {
@@ -178,22 +178,22 @@ class PromotionsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/trends?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async duplicatePromotion(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/duplicate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkUpdatePromotions(ids: string[], updates: Partial<Promotion>) {
     const response = await this.put(`${this.baseUrl}/bulk`, { ids, updates })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkDeletePromotions(ids: string[]) {
     const response = await this.delete(`${this.baseUrl}/bulk`, { data: { ids } })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async exportPromotions(format: 'excel' | 'csv' = 'excel', filter: PromotionFilter = {}) {
@@ -229,22 +229,22 @@ class PromotionsService extends ApiService {
         'Content-Type': 'multipart/form-data'
       }
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async validatePromotion(promotion: Partial<Promotion>) {
     const response = await this.post(`${this.baseUrl}/validate`, promotion)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getPromotionTemplates() {
     const response = await this.get(`${this.baseUrl}/templates`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createFromTemplate(templateId: string, customizations: Partial<Promotion>) {
     const response = await this.post(`${this.baseUrl}/templates/${templateId}/create`, customizations)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async exportPromotionReport(format: 'pdf' | 'excel' | 'csv' = 'excel', filter: any = {}) {
@@ -270,7 +270,7 @@ class PromotionsService extends ApiService {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     
-    return response.data
+    return response.data?.data || response.data
   }
 }
 

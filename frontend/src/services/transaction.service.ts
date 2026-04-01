@@ -20,7 +20,7 @@ class TransactionService {
   async getTransactions(filter?: TransactionFilter): Promise<Transaction[]> {
     try {
       const response = await apiClient.get(this.baseUrl, { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch transactions:', error)
       throw error
@@ -30,7 +30,7 @@ class TransactionService {
   async getTransaction(id: string): Promise<Transaction | null> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/${id}`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch transaction:', error)
       return null
@@ -40,7 +40,7 @@ class TransactionService {
   async createTransaction(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>): Promise<Transaction> {
     try {
       const response = await apiClient.post(this.baseUrl, transaction)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to create transaction:', error)
       throw error
@@ -50,7 +50,7 @@ class TransactionService {
   async updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction> {
     try {
       const response = await apiClient.put(`${this.baseUrl}/${id}`, updates)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to update transaction:', error)
       throw error
@@ -78,7 +78,7 @@ class TransactionService {
   async processForwardTransaction(id: string): Promise<Transaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/${id}/process`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to process forward transaction:', error)
       throw error
@@ -88,7 +88,7 @@ class TransactionService {
   async completeForwardTransaction(id: string, completionData?: any): Promise<Transaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/${id}/complete`, completionData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to complete forward transaction:', error)
       throw error
@@ -99,7 +99,7 @@ class TransactionService {
   async createReverseTransaction(reversalRequest: ReversalRequest): Promise<Transaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/${reversalRequest.transaction_id}/reverse`, reversalRequest)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to create reverse transaction:', error)
       throw error
@@ -109,7 +109,7 @@ class TransactionService {
   async processReverseTransaction(id: string): Promise<Transaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/${id}/process-reversal`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to process reverse transaction:', error)
       throw error
@@ -119,7 +119,7 @@ class TransactionService {
   async approveReversal(id: string, approvalNotes?: string): Promise<Transaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/${id}/approve-reversal`, { notes: approvalNotes })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to approve reversal:', error)
       throw error
@@ -129,7 +129,7 @@ class TransactionService {
   async rejectReversal(id: string, rejectionReason: string): Promise<Transaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/${id}/reject-reversal`, { reason: rejectionReason })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to reject reversal:', error)
       throw error
@@ -142,7 +142,7 @@ class TransactionService {
   async createFieldAgentTransaction(transaction: Omit<FieldAgentTransaction, 'id' | 'created_at' | 'updated_at'>): Promise<FieldAgentTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/field-agents`, transaction)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to create field agent transaction:', error)
       throw error
@@ -152,7 +152,7 @@ class TransactionService {
   async getFieldAgentTransactions(agentId: string, filter?: TransactionFilter): Promise<FieldAgentTransaction[]> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/field-agents/${agentId}`, { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch field agent transactions:', error)
       return []
@@ -162,7 +162,7 @@ class TransactionService {
   async recordCommission(agentId: string, commissionData: any): Promise<FieldAgentTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/field-agents/${agentId}/commission`, commissionData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to record commission:', error)
       throw error
@@ -172,7 +172,7 @@ class TransactionService {
   async recordBoardPlacement(agentId: string, placementData: any): Promise<FieldAgentTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/field-agents/${agentId}/board-placement`, placementData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to record board placement:', error)
       throw error
@@ -183,7 +183,7 @@ class TransactionService {
   async createCustomerTransaction(transaction: Omit<CustomerTransaction, 'id' | 'created_at' | 'updated_at'>): Promise<CustomerTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/customers`, transaction)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to create customer transaction:', error)
       throw error
@@ -193,7 +193,7 @@ class TransactionService {
   async getCustomerTransactions(customerId: string, filter?: TransactionFilter): Promise<CustomerTransaction[]> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/customers/${customerId}`, { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch customer transactions:', error)
       return []
@@ -203,7 +203,7 @@ class TransactionService {
   async processPayment(customerId: string, paymentData: any): Promise<CustomerTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/customers/${customerId}/payment`, paymentData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to process payment:', error)
       throw error
@@ -213,7 +213,7 @@ class TransactionService {
   async processRefund(transactionId: string, refundData: any): Promise<CustomerTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/customers/${transactionId}/refund`, refundData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to process refund:', error)
       throw error
@@ -224,7 +224,7 @@ class TransactionService {
   async createOrderTransaction(transaction: Omit<OrderTransaction, 'id' | 'created_at' | 'updated_at'>): Promise<OrderTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/orders`, transaction)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to create order transaction:', error)
       throw error
@@ -234,7 +234,7 @@ class TransactionService {
   async getOrderTransactions(orderId: string, filter?: TransactionFilter): Promise<OrderTransaction[]> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/orders/${orderId}`, { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch order transactions:', error)
       return []
@@ -244,7 +244,7 @@ class TransactionService {
   async processOrderPayment(orderId: string, paymentData: any): Promise<OrderTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/orders/${orderId}/payment`, paymentData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to process order payment:', error)
       throw error
@@ -254,7 +254,7 @@ class TransactionService {
   async cancelOrder(orderId: string, cancellationReason: string): Promise<OrderTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/orders/${orderId}/cancel`, { reason: cancellationReason })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to cancel order:', error)
       throw error
@@ -265,7 +265,7 @@ class TransactionService {
   async createProductTransaction(transaction: Omit<ProductTransaction, 'id' | 'created_at' | 'updated_at'>): Promise<ProductTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/products`, transaction)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to create product transaction:', error)
       throw error
@@ -275,7 +275,7 @@ class TransactionService {
   async getProductTransactions(productId: string, filter?: TransactionFilter): Promise<ProductTransaction[]> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/products/${productId}`, { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch product transactions:', error)
       return []
@@ -285,7 +285,7 @@ class TransactionService {
   async recordStockMovement(productId: string, movementData: any): Promise<ProductTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/products/${productId}/stock-movement`, movementData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to record stock movement:', error)
       throw error
@@ -295,7 +295,7 @@ class TransactionService {
   async adjustInventory(productId: string, adjustmentData: any): Promise<ProductTransaction> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/products/${productId}/adjustment`, adjustmentData)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to adjust inventory:', error)
       throw error
@@ -306,7 +306,7 @@ class TransactionService {
   async getTransactionSummary(filter?: TransactionFilter): Promise<TransactionSummary> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/summary`, { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch transaction summary:', error)
       return {
@@ -323,7 +323,7 @@ class TransactionService {
   async getTransactionAudit(transactionId: string): Promise<TransactionAudit[]> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/${transactionId}/audit`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to fetch transaction audit:', error)
       return []
@@ -336,7 +336,7 @@ class TransactionService {
         params: { ...filter, format },
         responseType: 'blob'
       })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to export transactions:', error)
       throw error
@@ -347,7 +347,7 @@ class TransactionService {
   async batchCreateTransactions(transactions: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>[]): Promise<Transaction[]> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/batch`, { transactions })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to batch create transactions:', error)
       throw error
@@ -357,7 +357,7 @@ class TransactionService {
   async batchUpdateTransactions(updates: { id: string; updates: Partial<Transaction> }[]): Promise<Transaction[]> {
     try {
       const response = await apiClient.put(`${this.baseUrl}/batch`, { updates })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to batch update transactions:', error)
       throw error
@@ -367,7 +367,7 @@ class TransactionService {
   async batchReverseTransactions(reversalRequests: ReversalRequest[]): Promise<Transaction[]> {
     try {
       const response = await apiClient.post(`${this.baseUrl}/batch-reverse`, { reversals: reversalRequests })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Failed to batch reverse transactions:', error)
       throw error

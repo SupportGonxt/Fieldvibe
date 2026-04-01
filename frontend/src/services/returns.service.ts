@@ -4,7 +4,7 @@ export const returnsService = {
   async getReturns(filter?: any) {
     try {
       const response = await apiClient.get('/returns', { params: filter })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Error fetching returns:', error)
       throw error
@@ -14,7 +14,7 @@ export const returnsService = {
   async getReturnById(id: string) {
     try {
       const response = await apiClient.get(`/returns/${id}`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Error fetching return:', error)
       throw error
@@ -24,7 +24,7 @@ export const returnsService = {
   async createReturn(data: any) {
     try {
       const response = await apiClient.post('/returns', data)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Error creating return:', error)
       throw error
@@ -34,7 +34,7 @@ export const returnsService = {
   async approveReturn(id: string) {
     try {
       const response = await apiClient.put(`/returns/${id}/approve`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Error approving return:', error)
       throw error
@@ -44,7 +44,7 @@ export const returnsService = {
   async rejectReturn(id: string, reason: string) {
     try {
       const response = await apiClient.put(`/returns/${id}/reject`, { reason })
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Error rejecting return:', error)
       throw error
@@ -54,7 +54,7 @@ export const returnsService = {
   async generateCreditNote(id: string) {
     try {
       const response = await apiClient.post(`/returns/${id}/credit-note`)
-      return response.data
+      return response.data?.data || response.data
     } catch (error) {
       console.error('Error generating credit note:', error)
       throw error

@@ -203,32 +203,32 @@ class VisitsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getVisit(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createVisit(visit: Partial<Visit>) {
     const response = await this.post(this.baseUrl, visit)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateVisit(id: string, visit: Partial<Visit>) {
     const response = await this.put(`${this.baseUrl}/${id}`, visit)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteVisit(id: string) {
     const response = await this.delete(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async duplicateVisit(id: string, newDate?: string) {
     const response = await this.post(`${this.baseUrl}/${id}/duplicate`, { new_date: newDate })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit Execution
@@ -237,7 +237,7 @@ class VisitsService extends ApiService {
       location,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async checkOutVisit(visitId: string, data: {
@@ -252,7 +252,7 @@ class VisitsService extends ApiService {
     feedback?: string
   }) {
     const response = await this.post(`${this.baseUrl}/${visitId}/check-out`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async cancelVisit(visitId: string, reason: string, notes?: string) {
@@ -260,12 +260,12 @@ class VisitsService extends ApiService {
       reason,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async markNoShow(visitId: string, reason?: string) {
     const response = await this.post(`${this.baseUrl}/${visitId}/no-show`, { reason })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async rescheduleVisit(visitId: string, newDate: string, newTime?: string, reason?: string) {
@@ -274,7 +274,7 @@ class VisitsService extends ApiService {
       new_time: newTime,
       reason
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit Media
@@ -289,12 +289,12 @@ class VisitsService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteVisitPhoto(visitId: string, photoId: string) {
     const response = await this.delete(`${this.baseUrl}/${visitId}/photos/${photoId}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async uploadVisitAttachment(visitId: string, file: File, type: string) {
@@ -307,12 +307,12 @@ class VisitsService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteVisitAttachment(visitId: string, attachmentId: string) {
     const response = await this.delete(`${this.baseUrl}/${visitId}/attachments/${attachmentId}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit Planning
@@ -323,73 +323,73 @@ class VisitsService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/plans?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getVisitPlan(id: string) {
     const response = await this.get(`${this.baseUrl}/plans/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createVisitPlan(plan: Partial<VisitPlan>) {
     const response = await this.post(`${this.baseUrl}/plans`, plan)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateVisitPlan(id: string, plan: Partial<VisitPlan>) {
     const response = await this.put(`${this.baseUrl}/plans/${id}`, plan)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteVisitPlan(id: string) {
     const response = await this.delete(`${this.baseUrl}/plans/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async optimizeVisitRoute(planId: string) {
     const response = await this.post(`${this.baseUrl}/plans/${planId}/optimize`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async approveVisitPlan(planId: string) {
     const response = await this.post(`${this.baseUrl}/plans/${planId}/approve`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async startVisitPlan(planId: string) {
     const response = await this.post(`${this.baseUrl}/plans/${planId}/start`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async completeVisitPlan(planId: string) {
     const response = await this.post(`${this.baseUrl}/plans/${planId}/complete`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Visit Templates
   async getVisitTemplates() {
     const response = await this.get(`${this.baseUrl}/templates`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getVisitTemplate(id: string) {
     const response = await this.get(`${this.baseUrl}/templates/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createVisitTemplate(template: Partial<VisitTemplate>) {
     const response = await this.post(`${this.baseUrl}/templates`, template)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateVisitTemplate(id: string, template: Partial<VisitTemplate>) {
     const response = await this.put(`${this.baseUrl}/templates/${id}`, template)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteVisitTemplate(id: string) {
     const response = await this.delete(`${this.baseUrl}/templates/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createVisitFromTemplate(templateId: string, data: {
@@ -400,7 +400,7 @@ class VisitsService extends ApiService {
     purpose?: string
   }) {
     const response = await this.post(`${this.baseUrl}/templates/${templateId}/create-visit`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Analytics & Reporting
@@ -413,7 +413,7 @@ class VisitsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getVisitAnalytics(filter: any = {}) {
@@ -425,7 +425,7 @@ class VisitsService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/analytics?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getAgentVisitPerformance(agentId: string, startDate?: string, endDate?: string) {
@@ -434,7 +434,7 @@ class VisitsService extends ApiService {
     if (endDate) params.append('end_date', endDate)
 
     const response = await this.get(`${this.baseUrl}/agents/${agentId}/performance?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getCustomerVisitHistory(customerId: string, limit?: number) {
@@ -442,7 +442,7 @@ class VisitsService extends ApiService {
     if (limit) params.append('limit', String(limit))
 
     const response = await this.get(`${this.baseUrl}/customers/${customerId}/history?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Follow-ups
@@ -452,7 +452,7 @@ class VisitsService extends ApiService {
     if (dueDate) params.append('due_date', dueDate)
 
     const response = await this.get(`${this.baseUrl}/follow-ups?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createFollowUpVisit(originalVisitId: string, data: {
@@ -462,12 +462,12 @@ class VisitsService extends ApiService {
     notes?: string
   }) {
     const response = await this.post(`${this.baseUrl}/${originalVisitId}/follow-up`, data)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async markFollowUpComplete(visitId: string) {
     const response = await this.post(`${this.baseUrl}/${visitId}/follow-up-complete`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Bulk Operations
@@ -477,7 +477,7 @@ class VisitsService extends ApiService {
       status,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkRescheduleVisits(visitIds: string[], newDate: string, reason?: string) {
@@ -486,7 +486,7 @@ class VisitsService extends ApiService {
       new_date: newDate,
       reason
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   async bulkCancelVisits(visitIds: string[], reason: string, notes?: string) {
@@ -495,7 +495,7 @@ class VisitsService extends ApiService {
       reason,
       notes
     })
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Export & Import
@@ -532,7 +532,7 @@ class VisitsService extends ApiService {
         'Content-Type': 'multipart/form-data',
       },
     })
-    return response.data
+    return response.data?.data || response.data
   }
 }
 

@@ -6,7 +6,7 @@ export interface Customer {
   tenant_id: string
   name: string
   code: string
-  type: 'retail' | 'wholesale' | 'distributor'
+  type: 'retail' | 'wholesale' | 'distributor' | 'store'
   phone?: string
   email?: string
   address?: string

@@ -30,22 +30,22 @@ export interface PaymentFormData {
 export const paymentService = {
   async getPayments(params?: { order_id?: string; customer_id?: string; status?: string }): Promise<Payment[]> {
     const response = await apiClient.get('/payments', { params })
-    return response.data
+    return response.data?.data || response.data
   },
 
   async getPayment(id: string): Promise<Payment> {
     const response = await apiClient.get(`/payments/${id}`)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async createPayment(data: PaymentFormData): Promise<Payment> {
     const response = await apiClient.post('/payments', data)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async updatePayment(id: string, data: Partial<PaymentFormData>): Promise<Payment> {
     const response = await apiClient.put(`/payments/${id}`, data)
-    return response.data
+    return response.data?.data || response.data
   },
 
   async deletePayment(id: string): Promise<void> {

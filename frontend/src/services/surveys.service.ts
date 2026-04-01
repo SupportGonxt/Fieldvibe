@@ -90,27 +90,27 @@ class SurveysService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurvey(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async createSurvey(survey: Partial<Survey>) {
     const response = await this.post(this.baseUrl, survey)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async updateSurvey(id: string, survey: Partial<Survey>) {
     const response = await this.put(`${this.baseUrl}/${id}`, survey)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deleteSurvey(id: string) {
     const response = await this.delete(`${this.baseUrl}/${id}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurveyResponses(surveyId: string, filter: any = {}) {
@@ -122,7 +122,7 @@ class SurveysService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/${surveyId}/responses?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async submitSurveyResponse(surveyId: string, response: Partial<SurveyResponse>) {
@@ -150,17 +150,17 @@ class SurveysService extends ApiService {
 
   async duplicateSurvey(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/duplicate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async publishSurvey(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/publish`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async archiveSurvey(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/archive`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   // Additional methods for missing functionality
@@ -173,7 +173,7 @@ class SurveysService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/stats?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurveyAnalytics(id: string, filter: any = {}) {
@@ -185,7 +185,7 @@ class SurveysService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/${id}/analytics?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurveyTrends(filter: any = {}) {
@@ -197,12 +197,12 @@ class SurveysService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/trends?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurveyInsights(id: string) {
     const response = await this.get(`${this.baseUrl}/${id}/insights`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurveyMetrics(filter: any = {}) {
@@ -214,7 +214,7 @@ class SurveysService extends ApiService {
     })
 
     const response = await this.get(`${this.baseUrl}/metrics?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async getSurveyReports(type: string, filter: any = {}) {
@@ -227,17 +227,17 @@ class SurveysService extends ApiService {
     params.append('type', type)
 
     const response = await this.get(`${this.baseUrl}/reports?${params.toString()}`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async activateSurvey(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/activate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async deactivateSurvey(id: string) {
     const response = await this.post(`${this.baseUrl}/${id}/deactivate`)
-    return response.data
+    return response.data?.data || response.data
   }
 
   async exportSurveyReport(surveyId: string, format: 'pdf' | 'excel' = 'pdf') {

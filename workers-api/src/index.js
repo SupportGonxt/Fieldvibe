@@ -5855,7 +5855,7 @@ api.get('/analytics/dashboard', authMiddleware, async (c) => {
   let topParams = start_date && end_date ? [tenantId, start_date, end_date, tenantId] : [tenantId, tenantId];
   const topPerformers = await db.prepare(topPerformersQuery).bind(...topParams).all();
 
-  return c.json({
+  return c.json({ success: true, data: {
     stats: {
       total_revenue: totalRevenue?.total || 0,
       total_orders: totalOrders?.count || 0,
@@ -5879,7 +5879,7 @@ api.get('/analytics/dashboard', authMiddleware, async (c) => {
     },
     top_performers: topPerformers.results || [],
     alerts: [],
-  });
+  } });
 });
 
 // /analytics/recent-activity - recent visits/orders activity (used by frontend DashboardPage)
@@ -5895,7 +5895,7 @@ api.get('/analytics/recent-activity', authMiddleware, async (c) => {
   // Merge and sort by created_at
   const allActivities = [...(visits.results || []), ...(orders.results || [])].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, lim);
 
-  return c.json({ activities: allActivities });
+  return c.json({ success: true, data: { activities: allActivities } });
 });
 
 // /analytics/visits - visit analytics with date filtering
@@ -5910,7 +5910,7 @@ api.get('/analytics/visits', authMiddleware, async (c) => {
   if (start_date && end_date) { where += ' AND visit_date >= ? AND visit_date <= ?'; params.push(start_date, end_date); }
   else { where += " AND visit_date >= date('now', '-' || ? || ' days')"; params.push(periodDays); }
   const data = await db.prepare("SELECT visit_date as date, COUNT(*) as total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed, SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending FROM visits " + where + " GROUP BY visit_date ORDER BY visit_date").bind(...params).all();
-  return c.json(data.results || []);
+  return c.json({ success: true, data: data.results || [] });
 });
 
 // /analytics/agents - agent performance analytics
@@ -5918,7 +5918,7 @@ api.get('/analytics/agents', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, COUNT(DISTINCT v.id) as total_visits, COUNT(DISTINCT so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue FROM users u LEFT JOIN visits v ON u.id = v.agent_id AND v.tenant_id = ? LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY total_revenue DESC").bind(tenantId, tenantId, tenantId).all();
-  return c.json(agents.results || []);
+  return c.json({ success: true, data: agents.results || [] });
 });
 
 // /analytics/customers - customer analytics
@@ -5930,7 +5930,7 @@ api.get('/analytics/customers', authMiddleware, async (c) => {
     db.prepare("SELECT COUNT(DISTINCT customer_id) as count FROM sales_orders WHERE tenant_id = ? AND created_at >= date('now', '-30 days')").bind(tenantId).first(),
     db.prepare("SELECT COALESCE(customer_type, 'general') as type, COUNT(*) as count FROM customers WHERE tenant_id = ? GROUP BY customer_type").bind(tenantId).all(),
   ]);
-  return c.json({ total: total?.count || 0, active: active?.count || 0, by_type: byType.results || [] });
+  return c.json({ success: true, data: { total: total?.count || 0, active: active?.count || 0, by_type: byType.results || [] } });
 });
 
 // /analytics/products - product analytics
@@ -5938,7 +5938,7 @@ api.get('/analytics/products', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const topSelling = await db.prepare("SELECT p.id, p.name, COALESCE(SUM(soi.quantity), 0) as quantity_sold, COALESCE(SUM(soi.quantity * soi.unit_price), 0) as revenue FROM products p LEFT JOIN sales_order_items soi ON p.id = soi.product_id LEFT JOIN sales_orders so ON soi.sales_order_id = so.id AND so.tenant_id = ? WHERE p.tenant_id = ? GROUP BY p.id ORDER BY revenue DESC LIMIT 20").bind(tenantId, tenantId).all();
-  return c.json({ top_selling: topSelling.results || [] });
+  return c.json({ success: true, data: { top_selling: topSelling.results || [] } });
 });
 
 // /analytics/campaigns - campaign analytics
@@ -5946,7 +5946,7 @@ api.get('/analytics/campaigns', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const campaigns = await db.prepare("SELECT id, name, status, start_date, end_date, budget FROM campaigns WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 20").bind(tenantId).all();
-  return c.json(campaigns.results || []);
+  return c.json({ success: true, data: campaigns.results || [] });
 });
 
 // /analytics/revenue - revenue analytics
@@ -5959,7 +5959,7 @@ api.get('/analytics/revenue', authMiddleware, async (c) => {
   if (start_date && end_date) { where += " AND created_at >= ? AND created_at <= ? || ' 23:59:59'"; params.push(start_date, end_date); }
   else { where += " AND created_at >= date('now', '-30 days')"; }
   const data = await db.prepare("SELECT date(created_at) as date, COALESCE(SUM(total_amount), 0) as revenue, COUNT(*) as orders, COALESCE(AVG(total_amount), 0) as avg_order_value FROM sales_orders " + where + " GROUP BY date(created_at) ORDER BY date").bind(...params).all();
-  return c.json(data.results || []);
+  return c.json({ success: true, data: data.results || [] });
 });
 
 // /analytics/performance - performance analytics
@@ -5967,7 +5967,7 @@ api.get('/analytics/performance', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.role, COUNT(DISTINCT v.id) as visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed_visits, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON u.id = v.agent_id AND v.tenant_id = ? LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
-  return c.json(agents.results || []);
+  return c.json({ success: true, data: agents.results || [] });
 });
 
 api.get('/analytics/overview', authMiddleware, async (c) => {
@@ -5980,7 +5980,7 @@ api.get('/analytics/overview', authMiddleware, async (c) => {
     db.prepare("SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date LIKE ?").bind(tenantId, thisMonth + '%').first(),
     db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first(),
   ]);
-  return c.json({ month_revenue: revenue?.total || 0, month_orders: orders?.count || 0, month_visits: visits?.count || 0, total_customers: customers?.count || 0 });
+  return c.json({ success: true, data: { month_revenue: revenue?.total || 0, month_orders: orders?.count || 0, month_visits: visits?.count || 0, total_customers: customers?.count || 0 } });
 });
 
 api.get('/analytics/sales', authMiddleware, async (c) => {
@@ -5990,21 +5990,21 @@ api.get('/analytics/sales', authMiddleware, async (c) => {
   // BUG-002: Validate period as integer to prevent SQL injection
   const periodDays = String(Math.max(1, Math.min(365, parseInt(period, 10) || 30)));
   const data = await db.prepare("SELECT date(created_at) as date, COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue FROM sales_orders WHERE tenant_id = ? AND created_at >= date('now', '-' || ? || ' days') GROUP BY date(created_at) ORDER BY date").bind(tenantId, periodDays).all();
-  return c.json(data.results || []);
+  return c.json({ success: true, data: data.results || [] });
 });
 
 api.get('/analytics/field-operations', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare("SELECT visit_date as date, COUNT(*) as total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits WHERE tenant_id = ? AND visit_date >= date('now', '-30 days') GROUP BY visit_date ORDER BY visit_date").bind(tenantId).all();
-  return c.json(data.results || []);
+  return c.json({ success: true, data: data.results || [] });
 });
 
 api.get('/analytics/commissions', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare("SELECT date(created_at) as date, status, COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM commission_earnings WHERE tenant_id = ? AND created_at >= date('now', '-30 days') GROUP BY date(created_at), status ORDER BY date").bind(tenantId).all();
-  return c.json(data.results || []);
+  return c.json({ success: true, data: data.results || [] });
 });
 
 // ==================== SALES REPS ====================
@@ -16491,7 +16491,7 @@ async function checkOverdueInvoices(db) {
 
 async function checkLowStock(db) {
   try {
-    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.name, s.tenant_id FROM stock_levels s JOIN products p ON s.product_id = p.id WHERE s.quantity <= 10 AND s.quantity > 0").all();
+    const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.name, s.tenant_id FROM stock_levels s JOIN products p ON s.product_id = p.id WHERE s.quantity <= COALESCE(s.reorder_level, 10) AND s.quantity > 0").all();
     for (const item of (lowStock.results || [])) {
       const id = crypto.randomUUID();
       await db.prepare("INSERT OR IGNORE INTO notifications (id, tenant_id, type, title, message, is_read, created_at) VALUES (?, ?, 'low_stock', ?, ?, 0, datetime('now'))").bind(id, item.tenant_id, `Low stock: ${item.name}`, `${item.name} has ${item.quantity} units remaining in warehouse ${item.warehouse_id}`).run();

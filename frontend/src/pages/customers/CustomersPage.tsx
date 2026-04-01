@@ -62,7 +62,8 @@ export default function CustomersPage() {
     const typeColors = {
       retail: 'bg-blue-100 text-blue-800',
       wholesale: 'bg-purple-100 text-purple-800',
-      distributor: 'bg-orange-100 text-orange-800'
+      distributor: 'bg-orange-100 text-orange-800',
+      store: 'bg-teal-100 text-teal-800'
     }
     
     return (
@@ -325,6 +326,7 @@ export default function CustomersPage() {
                 { value: 'retail', label: 'Retail' },
                 { value: 'wholesale', label: 'Wholesale' },
                 { value: 'distributor', label: 'Distributor' },
+                { value: 'store', label: 'Store' },
               ]}
               value={filter.type || null}
               onChange={(val) => setFilter({ ...filter, type: val || undefined, page: 1 })}

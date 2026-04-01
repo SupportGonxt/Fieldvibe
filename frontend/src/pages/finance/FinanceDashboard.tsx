@@ -60,9 +60,21 @@ const FinanceDashboard = () => {
   const fetchFinanceMetrics = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/dashboard/finance')
-      if (response.data.success) {
-        setMetrics(response.data.data)
+      const response = await api.get('/finance/stats')
+      const raw = response.data?.data || response.data
+      if (raw) {
+        setMetrics({
+          totalRevenue: raw.totalRevenue || raw.total_revenue || 0,
+          revenueChange: raw.revenueChange || 0,
+          outstandingInvoices: raw.outstandingInvoices || raw.outstanding || raw.total_pending || 0,
+          overduePayments: raw.overduePayments || raw.total_overdue || 0,
+          cashFlow: raw.cashFlow || raw.total_paid || 0,
+          cashFlowChange: raw.cashFlowChange || 0,
+          accountsReceivable: raw.accountsReceivable || raw.total_pending || 0,
+          accountsPayable: raw.accountsPayable || 0,
+          profitMargin: raw.profitMargin || 0,
+          collectionRate: raw.collectionRate || (raw.total_paid && raw.total_revenue ? (raw.total_paid / raw.total_revenue * 100) : 0),
+        })
       } else {
         setUsingFallback(true)
       }
