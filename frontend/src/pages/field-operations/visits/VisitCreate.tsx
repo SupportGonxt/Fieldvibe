@@ -335,18 +335,28 @@ export default function VisitCreate() {
       }
       setCompanies(companiesData)
       // Auto-select company based on process flow assignment for the current visit type
+      let autoSelectedCompanyId = ''
       if (isMobileContext && companiesData.length > 0 && visitTargetType) {
         const matchingCompany = companiesData.find((c: any) =>
           c.process_flow_types && Array.isArray(c.process_flow_types) &&
           (c.process_flow_types.includes(visitTargetType) || c.process_flow_types.includes('both'))
         )
         if (matchingCompany) {
-          setSelectedCompany(matchingCompany.id)
+          autoSelectedCompanyId = matchingCompany.id
         } else if (companiesData.length === 1) {
-          setSelectedCompany(companiesData[0].id)
+          autoSelectedCompanyId = companiesData[0].id
         }
       } else if (companiesData.length === 1) {
-        setSelectedCompany(companiesData[0].id)
+        autoSelectedCompanyId = companiesData[0].id
+      }
+      if (autoSelectedCompanyId) {
+        setSelectedCompany(autoSelectedCompanyId)
+        // Directly load custom questions/fields for the auto-selected company
+        // (don't rely solely on useEffect — React state batching may delay the trigger)
+        loadCustomFields(autoSelectedCompanyId)
+        loadCustomQuestions(autoSelectedCompanyId)
+        loadSurveyConfig(autoSelectedCompanyId)
+        loadQuestionnaires(autoSelectedCompanyId)
       }
       // Load customers/stores: use store-search endpoint on mobile for better results (includes visit history)
       if (isMobileContext) {
@@ -410,7 +420,7 @@ export default function VisitCreate() {
       loadCustomFields(selectedCompany)
       loadCustomQuestions(selectedCompany)
       loadSurveyConfig(selectedCompany)
-      loadQuestionnaires()
+      loadQuestionnaires(selectedCompany)
     }
   }, [selectedCompany, visitTargetType])
 
@@ -475,9 +485,9 @@ export default function VisitCreate() {
     }
   }, [currentStepKey])
 
-  const loadQuestionnaires = async () => {
+  const loadQuestionnaires = async (companyIdOverride?: string) => {
     try {
-      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
+      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
       const data = res?.data || res || []
       setQuestionnaires(Array.isArray(data) ? data : [])
     } catch (err) {
