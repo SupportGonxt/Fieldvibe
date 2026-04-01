@@ -354,7 +354,7 @@ export default function VisitCreate() {
         // Directly load custom questions/fields for the auto-selected company
         // (don't rely solely on useEffect — React state batching may delay the trigger)
         loadCustomFields(autoSelectedCompanyId)
-        loadCustomQuestions(autoSelectedCompanyId)
+        loadCustomQuestions(autoSelectedCompanyId, visitTargetType || undefined)
         loadSurveyConfig(autoSelectedCompanyId)
         loadQuestionnaires(autoSelectedCompanyId)
       }
@@ -418,11 +418,18 @@ export default function VisitCreate() {
   useEffect(() => {
     if (selectedCompany) {
       loadCustomFields(selectedCompany)
-      loadCustomQuestions(selectedCompany)
+      loadCustomQuestions(selectedCompany, visitTargetType || undefined)
       loadSurveyConfig(selectedCompany)
       loadQuestionnaires(selectedCompany)
     }
   }, [selectedCompany, visitTargetType])
+
+  // Safety net: ensure custom questions are loaded when entering the Details step
+  useEffect(() => {
+    if (currentStepKey === 'details' && selectedCompany && customQuestions.length === 0) {
+      loadCustomQuestions(selectedCompany, visitTargetType || undefined)
+    }
+  }, [currentStepKey])
 
   const loadCustomFields = async (companyId: string) => {
     try {
@@ -434,9 +441,9 @@ export default function VisitCreate() {
     }
   }
 
-  const loadCustomQuestions = async (companyId: string) => {
+  const loadCustomQuestions = async (companyId: string, visitType?: string) => {
     try {
-      const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitTargetType || undefined)
+      const res = await fieldOperationsService.getCompanyCustomQuestions(companyId, visitType)
       const questions = res?.data || res || []
       const allQuestions = Array.isArray(questions) ? questions : []
       const filtered = allQuestions.filter((q: CustomQuestion) => !isDuplicateFlowQuestion(q))

@@ -583,9 +583,13 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const userId = c.get('userId');
+    // Support month query parameter for historical navigation (format: YYYY-MM)
+    const requestedMonth = c.req.query('month');
     const today = new Date().toISOString().split('T')[0];
-    const monthStart = today.substring(0, 7) + '-01';
-    const currentMonth = today.substring(0, 7);
+    const currentMonth = requestedMonth || today.substring(0, 7);
+    const monthStart = currentMonth + '-01';
+    // For "today" counts, only use actual today if viewing current month
+    const todayForCounts = (!requestedMonth || requestedMonth === today.substring(0, 7)) ? today : monthStart;
 
     // Batch 1: Fire all independent queries in parallel
     const userRole = c.get('role');
@@ -613,9 +617,9 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ?) as week_regs
     `;
     const countsResult = await db.prepare(countsQuery).bind(
-      tenantId, userId, today,
+      tenantId, userId, todayForCounts,
       tenantId, userId, monthStart,
-      tenantId, userId, today,
+      tenantId, userId, todayForCounts,
       tenantId, userId, monthStart,
       tenantId, userId, weekStartStr,
       tenantId, userId, weekStartStr
@@ -628,7 +632,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.agent_id = ? ORDER BY v.created_at DESC LIMIT 10").bind(tenantId, userId).all().catch(() => ({ results: [] })),
       db.prepare(companySql).bind(userId, tenantId).all().catch(() => ({ results: [] })),
       db.prepare("SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM visits v3 WHERE v3.agent_id = dt.agent_id AND v3.company_id = dt.company_id AND v3.visit_date = dt.target_date AND v3.tenant_id = dt.tenant_id AND LOWER(v3.visit_type) = 'store') as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.agent_id = ? AND dt.target_date = ?").bind(tenantId, userId, today).all().catch(() => ({ results: [] })),
-      db.prepare(`SELECT COALESCE(v.company_id, 'unassigned') as company_id, COALESCE(fc.name, 'Unassigned') as company_name, COALESCE(v.visit_type, 'unknown') as visit_type, COUNT(*) as count, SUM(CASE WHEN v.visit_date = ? THEN 1 ELSE 0 END) as today_count, SUM(CASE WHEN v.visit_date >= ? THEN 1 ELSE 0 END) as month_count FROM visits v LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND v.agent_id = ? GROUP BY v.company_id, v.visit_type ORDER BY fc.name, v.visit_type`).bind(today, monthStart, tenantId, userId).all().catch(() => ({ results: [] })),
+      db.prepare(`SELECT COALESCE(v.company_id, 'unassigned') as company_id, COALESCE(fc.name, 'Unassigned') as company_name, COALESCE(v.visit_type, 'unknown') as visit_type, COUNT(*) as count, SUM(CASE WHEN v.visit_date = ? THEN 1 ELSE 0 END) as today_count, SUM(CASE WHEN v.visit_date >= ? THEN 1 ELSE 0 END) as month_count FROM visits v LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND v.agent_id = ? GROUP BY v.company_id, v.visit_type ORDER BY fc.name, v.visit_type`).bind(todayForCounts, monthStart, tenantId, userId).all().catch(() => ({ results: [] })),
       db.prepare(`SELECT company_id, visit_type, COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND visit_date >= ? GROUP BY company_id, visit_type`).bind(tenantId, userId, weekStartStr).all().catch(() => ({ results: [] })),
     ]);
     
@@ -921,8 +925,10 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const userId = c.get('userId');
+    // Support month query parameter for historical navigation (format: YYYY-MM)
+    const perfRequestedMonth = c.req.query('month');
     const today = new Date().toISOString().split('T')[0];
-    const currentMonth = today.substring(0, 7);
+    const currentMonth = perfRequestedMonth || today.substring(0, 7);
 
     // Perf optimization: include agentUser + agent companies in main batch to avoid sequential round trips
     const perfUserRole = c.get('role');

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   TrendingUp, MapPin, Users, Target, Calendar, Award, BarChart3,
-  DollarSign, Flame, Zap, Trophy, Clock, Shield, Star, UserCheck, Store, User
+  DollarSign, Flame, Zap, Trophy, Clock, Shield, Star, UserCheck, Store, User,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { toast } from 'react-hot-toast'
@@ -784,28 +785,64 @@ export default function AgentStats() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'targets' | 'earnings'>('overview')
   const [showEarnings, setShowEarnings] = useState(false)
+  // Month navigation state
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+
+  const isCurrentMonth = selectedMonth === (() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })()
+
+  const selectedMonthLabel = (() => {
+    const [y, m] = selectedMonth.split('-').map(Number)
+    return new Date(y, m - 1, 1).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })
+  })()
+
+  const goToPreviousMonth = useCallback(() => {
+    setSelectedMonth(prev => {
+      const [y, m] = prev.split('-').map(Number)
+      const d = new Date(y, m - 2, 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    })
+  }, [])
+
+  const goToNextMonth = useCallback(() => {
+    setSelectedMonth(prev => {
+      const [y, m] = prev.split('-').map(Number)
+      const now = new Date()
+      const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      if (prev >= currentYM) return prev // Don't go beyond current month
+      const d = new Date(y, m, 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    })
+  }, [])
 
   useEffect(() => {
     const abortController = new AbortController()
     let isMounted = true
 
     const fetchAll = async () => {
+      setLoading(true)
       try {
         // Fire all 3 requests in parallel for faster mobile loading
+        const monthParam = `month=${selectedMonth}`
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const withTimeout = (p: Promise<any>, ms: number) => Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))]).catch(() => null)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const [dashRes, perfRes, settingsRes]: any[] = await Promise.all([
-          withTimeout(apiClient.get('/agent/dashboard', { signal: abortController.signal }), 15000),
-          withTimeout(apiClient.get('/agent/performance', { signal: abortController.signal }), 15000),
+          withTimeout(apiClient.get(`/agent/dashboard?${monthParam}`, { signal: abortController.signal }), 15000),
+          withTimeout(apiClient.get(`/agent/performance?${monthParam}`, { signal: abortController.signal }), 15000),
           withTimeout(apiClient.get('/settings', { signal: abortController.signal }), 15000),
         ])
 
         if (isMounted) {
           if (dashRes?.data?.success && dashRes?.data?.data) {
             setDashData(dashRes.data.data)
-            if ((!dashRes.data.data.daily_targets?.length && !dashRes.data.data.company_targets?.length) ||
-                (!dashRes.data.data.company_target_rules?.length && !dashRes.data.data.monthly_targets?.target_visits)) {
+            if (isCurrentMonth && ((!dashRes.data.data.daily_targets?.length && !dashRes.data.data.company_targets?.length) ||
+                (!dashRes.data.data.company_target_rules?.length && !dashRes.data.data.monthly_targets?.target_visits))) {
               toast.error('No targets found. Please contact your manager to assign you to a company.')
             }
           }
@@ -833,7 +870,7 @@ export default function AgentStats() {
       isMounted = false
       abortController.abort()
     }
-  }, [])
+  }, [selectedMonth])
 
   if (loading) {
     return (
@@ -870,10 +907,27 @@ export default function AgentStats() {
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-[#00E87B]" /> My Performance
         </h1>
-        <p className="text-xs text-gray-500 mt-1">
-          <Calendar className="w-3 h-3 inline mr-1" />
-          {new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })}
-        </p>
+        <div className="flex items-center justify-between mt-1">
+          <button
+            onClick={goToPreviousMonth}
+            className="p-1 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-400" />
+          </button>
+          <p className="text-xs text-gray-500 flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            {selectedMonthLabel}
+          </p>
+          <button
+            onClick={goToNextMonth}
+            disabled={isCurrentMonth}
+            className={'p-1 rounded-lg transition-colors ' + (isCurrentMonth ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 active:bg-white/20')}
+            aria-label="Next month"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
       </div>
 
       <div className="px-5 pt-3">
