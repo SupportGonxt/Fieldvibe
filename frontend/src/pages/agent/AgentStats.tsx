@@ -841,8 +841,8 @@ export default function AgentStats() {
         if (isMounted) {
           if (dashRes?.data?.success && dashRes?.data?.data) {
             setDashData(dashRes.data.data)
-            if (isCurrentMonth && (!dashRes.data.data.daily_targets?.length && !dashRes.data.data.company_targets?.length) ||
-                (!dashRes.data.data.company_target_rules?.length && !dashRes.data.data.monthly_targets?.target_visits)) {
+            if (isCurrentMonth && ((!dashRes.data.data.daily_targets?.length && !dashRes.data.data.company_targets?.length) ||
+                (!dashRes.data.data.company_target_rules?.length && !dashRes.data.data.monthly_targets?.target_visits))) {
               toast.error('No targets found. Please contact your manager to assign you to a company.')
             }
           }
