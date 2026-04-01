@@ -11,9 +11,15 @@ const API_TIMEOUT = API_CONFIG.TIMEOUT
 // Lightweight in-memory cache for GET requests (avoids refetching on tab navigation)
 const responseCache = new Map<string, { data: AxiosResponse; timestamp: number }>()
 const pendingRequests = new Map<string, Promise<AxiosResponse>>() // Request deduplication
-const CACHE_TTL_MS = 120_000 // 2 minutes (was 30s - optimized for mobile)
-const STALE_TTL_MS = 300_000 // 5 minutes stale-while-revalidate for mobile
-const CACHEABLE_PATHS = ['/agent/dashboard', '/agent/performance', '/team-lead/dashboard', '/manager/dashboard', '/mobile/']
+const CACHE_TTL_MS = 120_000 // 2 minutes
+const STALE_TTL_MS = 300_000 // 5 minutes stale-while-revalidate
+// Endpoints that benefit from SWR caching (slow-changing data)
+const CACHEABLE_PATHS = [
+  '/agent/dashboard', '/agent/performance', '/agent/my-companies',
+  '/team-lead/dashboard', '/manager/dashboard', '/mobile/',
+  '/settings', '/visit-process-flow',
+  '/field-operations/companies', '/field-operations/questionnaires',
+]
 
 export function invalidateApiCache(pathPrefix?: string) {
   if (pathPrefix) {
@@ -79,14 +85,18 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Stale-while-revalidate cache + request deduplication for mobile dashboard endpoints
-// Returns stale data instantly while refreshing in background; fresh within TTL returns immediately
-// Deduplicates concurrent identical requests to avoid redundant network calls
+// SWR cache + universal request deduplication for GET requests
+// - Cacheable paths: return stale data instantly, revalidate in background
+// - ALL GET requests: deduplicate concurrent identical requests (prevents double-fetching)
 const originalGet = apiClient.get.bind(apiClient)
 apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
+  // Skip caching/dedup for requests with abort signals (page-scoped fetches that should be independent)
+  const hasSignal = !!(config as any)?.signal
+  const cacheKey = url + (config?.params ? '?' + new URLSearchParams(config.params).toString() : '')
   const isCacheable = CACHEABLE_PATHS.some(p => url.includes(p))
+
   if (isCacheable) {
-    const cached = responseCache.get(url)
+    const cached = responseCache.get(cacheKey)
     if (cached) {
       const age = Date.now() - cached.timestamp
       if (age < CACHE_TTL_MS) {
@@ -95,33 +105,33 @@ apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
       }
       if (age < STALE_TTL_MS) {
         // Stale — return cached data immediately, revalidate in background
-        // Mark as background so interceptor skips logout/redirect on 401/403
         originalGet(url, { ...config, _backgroundRevalidation: true } as any).then((res: AxiosResponse) => {
-          responseCache.set(url, { data: res, timestamp: Date.now() })
+          responseCache.set(cacheKey, { data: res, timestamp: Date.now() })
         }).catch(() => { /* background refresh failed, keep stale */ })
         return Promise.resolve(cached.data)
       }
     }
-    // Check for pending request (deduplication)
-    const pending = pendingRequests.get(url)
-    if (pending) {
-      return pending
-    }
   }
-  // Create new request with deduplication
+
+  // Universal request deduplication — if an identical GET is already in-flight, share it
+  if (!hasSignal) {
+    const pending = pendingRequests.get(cacheKey)
+    if (pending) return pending
+  }
+
   const requestPromise = originalGet(url, config).then((res: AxiosResponse) => {
     if (isCacheable) {
-      responseCache.set(url, { data: res, timestamp: Date.now() })
+      responseCache.set(cacheKey, { data: res, timestamp: Date.now() })
     }
-    pendingRequests.delete(url) // Clean up pending request
+    pendingRequests.delete(cacheKey)
     return res
   }).catch((err) => {
-    pendingRequests.delete(url) // Clean up on error too
+    pendingRequests.delete(cacheKey)
     throw err
   })
-  
-  if (isCacheable) {
-    pendingRequests.set(url, requestPromise)
+
+  if (!hasSignal) {
+    pendingRequests.set(cacheKey, requestPromise)
   }
   return requestPromise
 } as typeof apiClient.get

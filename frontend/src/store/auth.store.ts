@@ -55,6 +55,10 @@ export const useAuthStore = create<AuthStore>()(
 
           // Set up token refresh timer
           scheduleTokenRefresh(response.tokens.expires_in)
+
+          // Pre-fetch critical data in background to warm the cache
+          // This makes subsequent page loads instant (SWR cache hit)
+          prefetchCriticalData(response.user?.role)
         } catch (error: any) {
           set({
             user: null,
@@ -199,6 +203,33 @@ function parseJWT(token: string) {
   } catch (error) {
     return null
   }
+}
+
+// Pre-fetch critical data after login to warm the API cache
+// These fire-and-forget GETs populate the SWR cache in api.service.ts
+// so subsequent page loads get instant cache hits instead of waiting for network
+function prefetchCriticalData(role?: string) {
+  // Dynamic import to avoid circular dependency (auth.store ↔ api.service)
+  import('../services/api.service').then(({ apiClient }) => {
+    const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager']
+    const isMobile = role && MOBILE_ROLES.includes(role)
+    if (isMobile) {
+      // Pre-warm the endpoints the agent dashboard + visit creation will need
+      apiClient.get('/agent/my-companies').then(res => {
+        // Cache companies in localStorage for visit creation instant display
+        const companies = res?.data?.data || res?.data || []
+        if (Array.isArray(companies) && companies.length > 0) {
+          try { localStorage.setItem('agent_companies', JSON.stringify(companies)) } catch { /* */ }
+        }
+      }).catch(() => { /* ignore */ })
+      apiClient.get('/agent/dashboard').catch(() => { /* ignore */ })
+      apiClient.get('/settings').catch(() => { /* ignore */ })
+    } else {
+      // Admin: pre-warm company list and settings
+      apiClient.get('/field-operations/companies').catch(() => { /* ignore */ })
+      apiClient.get('/settings').catch(() => { /* ignore */ })
+    }
+  }).catch(() => { /* ignore */ })
 }
 
 // Export auth utilities

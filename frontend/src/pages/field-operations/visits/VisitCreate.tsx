@@ -304,21 +304,25 @@ export default function VisitCreate() {
     try {
       let companiesData: Company[] = []
       if (isMobileContext) {
-        // Mobile agents: use lightweight my-companies endpoint
+        // Try combined visit-init endpoint first (single round-trip for all visit data)
         try {
-          const compRes = await apiClient.get('/agent/my-companies')
-          const agentCompanies = compRes?.data?.data || compRes?.data || []
-          companiesData = Array.isArray(agentCompanies) ? agentCompanies : []
-        } catch { /* endpoint may not exist yet */ }
-        // Fallback: try dashboard companies
+          const initRes = await apiClient.get('/agent/visit-init')
+          const initData = initRes?.data?.data || {}
+          companiesData = Array.isArray(initData.companies) ? initData.companies : []
+          // If stores came back, set customers immediately
+          if (Array.isArray(initData.stores) && initData.stores.length > 0) {
+            setCustomers(initData.stores)
+          }
+        } catch { /* visit-init not available, fall back */ }
+        // Fallback: try my-companies
         if (companiesData.length === 0) {
           try {
-            const dashRes = await apiClient.get('/agent/dashboard')
-            const dashCompanies = dashRes?.data?.data?.companies || dashRes?.data?.companies || []
-            companiesData = Array.isArray(dashCompanies) ? dashCompanies : []
+            const compRes = await apiClient.get('/agent/my-companies')
+            const agentCompanies = compRes?.data?.data || compRes?.data || []
+            companiesData = Array.isArray(agentCompanies) ? agentCompanies : []
           } catch { /* */ }
         }
-        // Fallback: use companies cached from login response
+        // Fallback: use companies cached from login pre-fetch
         if (companiesData.length === 0) {
           try {
             const cached = localStorage.getItem('agent_companies')
@@ -337,6 +341,10 @@ export default function VisitCreate() {
         companiesData = Array.isArray(allCompanies) ? allCompanies : []
       }
       setCompanies(companiesData)
+      // Cache companies in localStorage for instant display on next visit
+      if (isMobileContext && companiesData.length > 0) {
+        try { localStorage.setItem('agent_companies', JSON.stringify(companiesData)) } catch { /* */ }
+      }
       // Auto-select company based on process flow assignment for the current visit type
       let autoSelectedCompanyId = ''
       if (isMobileContext && companiesData.length > 0 && visitTargetType) {
@@ -354,26 +362,24 @@ export default function VisitCreate() {
       }
       if (autoSelectedCompanyId) {
         setSelectedCompany(autoSelectedCompanyId)
-        // The useEffect on [selectedCompany, visitTargetType] will trigger
-        // loadCustomFields/loadCustomQuestions/loadSurveyConfig/loadQuestionnaires
-        // automatically — no need to call them here (avoids duplicate API calls)
       }
-      // Load customers/stores: use store-search endpoint on mobile for better results (includes visit history)
-      if (isMobileContext) {
-        try {
-          const storeRes = await apiClient.get('/agent/store-search?limit=200')
-          const storeData = storeRes?.data?.data || storeRes?.data || []
-          setCustomers(Array.isArray(storeData) ? storeData : [])
-        } catch {
-          // Fallback to generic customers endpoint
+      // Load customers/stores if not already loaded from visit-init
+      if (customers.length === 0) {
+        if (isMobileContext) {
+          try {
+            const storeRes = await apiClient.get('/agent/store-search?limit=200')
+            const storeData = storeRes?.data?.data || storeRes?.data || []
+            setCustomers(Array.isArray(storeData) ? storeData : [])
+          } catch {
+            const customersRes = await fieldOperationsService.getCustomers()
+            const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
+            setCustomers(Array.isArray(customersData) ? customersData : [])
+          }
+        } else {
           const customersRes = await fieldOperationsService.getCustomers()
           const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
           setCustomers(Array.isArray(customersData) ? customersData : [])
         }
-      } else {
-        const customersRes = await fieldOperationsService.getCustomers()
-        const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
-        setCustomers(Array.isArray(customersData) ? customersData : [])
       }
     } catch (err) {
       console.error('Failed to load form data:', err)

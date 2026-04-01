@@ -540,6 +540,83 @@ app.get('/api/agent/my-companies', authMiddleware, async (c) => {
   }
 });
 
+// ==================== AGENT VISIT-INIT (Combined endpoint for visit creation) ====================
+// Returns companies, custom fields, custom questions, survey config, questionnaires, and stores
+// in a single round-trip — replaces 5-6 separate API calls from the visit creation page
+app.get('/api/agent/visit-init', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    const { company_id, visit_target_type } = c.req.query();
+
+    // 1. Companies (same logic as /agent/my-companies but inline for speed)
+    let companySql;
+    if (role === 'manager') {
+      companySql = "SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active'";
+    } else if (role === 'admin' || role === 'super_admin') {
+      companySql = "SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM field_companies fc WHERE fc.tenant_id = ? AND fc.status = 'active'";
+    } else {
+      companySql = "SELECT fc.id, fc.name, fc.code, fc.revisit_radius_meters FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'";
+    }
+    const compBinds = (role === 'admin' || role === 'super_admin') ? [tenantId] : [userId, tenantId];
+
+    // Fire all independent queries in parallel
+    const promises = [
+      db.prepare(companySql).bind(...compBinds).all().catch(() => ({ results: [] })),
+    ];
+
+    // If company_id provided, also fetch company-specific data in parallel
+    if (company_id) {
+      const vType = visit_target_type || 'individual';
+      promises.push(
+        db.prepare("SELECT * FROM brand_custom_fields WHERE tenant_id = ? AND company_id = ? AND is_active = 1 ORDER BY display_order ASC").bind(tenantId, company_id).all().catch(() => ({ results: [] })),
+        db.prepare("SELECT * FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND is_active = 1 AND (visit_target_type = ? OR visit_target_type = 'both') ORDER BY display_order, created_at").bind(tenantId, company_id, vType).all().catch(() => ({ results: [] })),
+        db.prepare("SELECT * FROM visit_survey_config WHERE tenant_id = ? AND company_id = ?").bind(tenantId, company_id).all().catch(() => ({ results: [] })),
+        db.prepare("SELECT * FROM questionnaires WHERE tenant_id = ? AND is_active = 1 AND (company_id = ? OR company_id IS NULL) ORDER BY name LIMIT 100").bind(tenantId, company_id).all().catch(() => ({ results: [] })),
+        db.prepare("SELECT c.id, c.name, c.code, c.contact_person, c.contact_phone, c.address, c.latitude, c.longitude, c.customer_type FROM customers c WHERE c.tenant_id = ? ORDER BY c.name LIMIT 200").bind(tenantId).all().catch(() => ({ results: [] })),
+      );
+    }
+
+    const results = await Promise.all(promises);
+    const companiesRaw = results[0]?.results || [];
+
+    // Enrich companies with process flow types (batched)
+    const enrichedCompanies = [];
+    const cpfAll = await db.prepare("SELECT company_id, visit_target_type FROM company_process_flows WHERE tenant_id = ?").bind(tenantId).all().catch(() => ({ results: [] }));
+    const cpfMap = {};
+    for (const r of (cpfAll.results || [])) {
+      if (!cpfMap[r.company_id]) cpfMap[r.company_id] = [];
+      cpfMap[r.company_id].push(r.visit_target_type);
+    }
+    for (const comp of companiesRaw) {
+      enrichedCompanies.push({ ...comp, process_flow_types: cpfMap[comp.id] || [] });
+    }
+
+    const response = { companies: enrichedCompanies };
+
+    if (company_id && results.length > 1) {
+      response.custom_fields = results[1]?.results || [];
+      response.custom_questions = (results[2]?.results || []).map(q => {
+        try { if (q.field_options && typeof q.field_options === 'string') q.field_options = JSON.parse(q.field_options); } catch {}
+        return q;
+      });
+      response.survey_config = results[3]?.results || [];
+      response.questionnaires = (results[4]?.results || []).map(q => {
+        try { if (q.questions && typeof q.questions === 'string') q.questions = JSON.parse(q.questions); } catch {}
+        return q;
+      });
+      response.stores = results[5]?.results || [];
+    }
+
+    return c.json({ success: true, data: response });
+  } catch (err) {
+    console.error('visit-init error:', err);
+    return c.json({ success: false, data: {}, error: err.message || 'Failed to load visit init data' }, 500);
+  }
+});
+
 // ==================== AGENT STORE SEARCH (Mobile) ====================
 app.get('/api/agent/store-search', authMiddleware, async (c) => {
   try {

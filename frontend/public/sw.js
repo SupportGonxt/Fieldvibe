@@ -1,74 +1,80 @@
-const CACHE_NAME = 'salessync-v1'
-const urlsToCache = [
+const CACHE_NAME = 'fieldvibe-v2'
+const STATIC_CACHE = 'fieldvibe-static-v2'
+
+// Only cache the app shell and static assets — NEVER cache API responses
+const APP_SHELL_URLS = [
   '/',
-  '/dashboard',
-  '/login',
   '/offline',
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
 ]
 
-// Install event
+// Install: pre-cache app shell only
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache')
-        return cache.addAll(urlsToCache)
-      })
+    caches.open(STATIC_CACHE)
+      .then((cache) => cache.addAll(APP_SHELL_URLS))
+      .then(() => self.skipWaiting()) // Activate immediately
   )
 })
 
-// Fetch event
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version or fetch from network
-        if (response) {
-          return response
-        }
-        
-        return fetch(event.request).then((response) => {
-          // Check if we received a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response
-          }
-
-          // Clone the response
-          const responseToCache = response.clone()
-
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache)
-            })
-
-          return response
-        }).catch(() => {
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/offline')
-          }
-        })
-      })
-  )
-})
-
-// Activate event
+// Activate: clean up old caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName)
-            return caches.delete(cacheName)
-          }
-        })
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_NAME && name !== STATIC_CACHE)
+          .map((name) => caches.delete(name))
       )
-    })
+    ).then(() => self.clients.claim()) // Take control of all pages immediately
   )
+})
+
+// Fetch: network-first for everything, cache-first only for static assets
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url)
+
+  // NEVER intercept API calls — let them go straight to network
+  if (url.pathname.startsWith('/api') || url.hostname !== self.location.hostname) {
+    return // Don't call event.respondWith — browser handles natively (fastest path)
+  }
+
+  // For JS/CSS/image assets: cache-first (they have content hashes in filenames)
+  if (event.request.destination === 'script' ||
+      event.request.destination === 'style' ||
+      event.request.destination === 'image' ||
+      event.request.destination === 'font' ||
+      url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached
+        return fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone()
+            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone))
+          }
+          return response
+        }).catch(() => cached || new Response('', { status: 503 }))
+      })
+    )
+    return
+  }
+
+  // For navigation (HTML pages): network-first, fall back to cached app shell
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clone = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', clone))
+          return response
+        })
+        .catch(() => caches.match('/').then((cached) => cached || caches.match('/offline')))
+    )
+    return
+  }
 })
 
 // Background sync
@@ -81,7 +87,7 @@ self.addEventListener('sync', (event) => {
 // Push notifications
 self.addEventListener('push', (event) => {
   const options = {
-    body: event.data ? event.data.text() : 'New notification from SalesSync',
+    body: event.data ? event.data.text() : 'New notification from FieldVibe',
     icon: '/icon-192x192.png',
     badge: '/icon-72x72.png',
     vibrate: [100, 50, 100],
@@ -114,7 +120,7 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'explore') {
     event.waitUntil(
-      clients.openWindow('/dashboard')
+      clients.openWindow('/agent/dashboard')
     )
   }
 })
