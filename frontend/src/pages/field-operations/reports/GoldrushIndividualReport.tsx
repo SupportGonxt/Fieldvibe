@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -43,6 +44,21 @@ const GoldrushIndividualReport: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
+
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
+
+  const companyParam = selectedCompany ? `${startDate || endDate ? '&' : '?'}company_id=${selectedCompany}` : ''
 
   const handleEditGoldrushId = (ind: GoldrushIndividual) => {
     setEditingId(ind.id)
@@ -80,9 +96,9 @@ const GoldrushIndividualReport: React.FC = () => {
     : ''
 
   const { data: individuals = [], isLoading, isError } = useQuery({
-    queryKey: ['goldrush-individuals', startDate, endDate],
+    queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/goldrush-individuals${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`)
       return (res.data?.data || []) as GoldrushIndividual[]
     },
     staleTime: 1000 * 30,
@@ -189,7 +205,18 @@ const GoldrushIndividualReport: React.FC = () => {
             Individual visits and questionnaire data for Goldrush
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {Array.isArray(companies) && companies.length > 1 && (
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Companies' },
+                ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+              ]}
+              value={selectedCompany || null}
+              onChange={(val) => setSelectedCompany(val || '')}
+              placeholder="All Companies"
+            />
+          )}
           <DateRangePresets
             startDate={startDate}
             endDate={endDate}

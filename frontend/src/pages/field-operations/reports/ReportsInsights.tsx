@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
+import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { TrendingUp, Award, Activity, Target , AlertTriangle } from 'lucide-react'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
@@ -16,29 +18,43 @@ interface AgentPerformance {
 const ReportsInsights: React.FC = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
 
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
+
+  const companyParam = selectedCompany ? `&company_id=${selectedCompany}` : ''
   const dateParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
 
   const { data: agentPerf = [], isLoading, isError } = useQuery({
-    queryKey: ['field-ops-insights-agents', startDate, endDate],
+    queryKey: ['field-ops-insights-agents', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}${companyParam}`)
       return (res.data?.data || []) as AgentPerformance[]
     },
   })
 
   const { data: hourlyData = [] } = useQuery({
-    queryKey: ['field-ops-insights-hourly', startDate, endDate],
+    queryKey: ['field-ops-insights-hourly', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}${companyParam}`)
       return (res.data?.data || []) as { hour: number; count: number }[]
     },
   })
 
   const { data: conversionStats } = useQuery({
-    queryKey: ['field-ops-insights-conversions', startDate, endDate],
+    queryKey: ['field-ops-insights-conversions', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}${companyParam}`)
       return res.data?.data || {}
     },
   })
@@ -67,12 +83,25 @@ const ReportsInsights: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Deep Insights</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Performance highlights, activity patterns, and conversion metrics</p>
         </div>
-        <DateRangePresets
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={setStartDate}
-          onEndDateChange={setEndDate}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+            {Array.isArray(companies) && companies.length > 1 && (
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
+                value={selectedCompany || null}
+                onChange={(val) => setSelectedCompany(val || '')}
+                placeholder="All Companies"
+              />
+            )}
+            <DateRangePresets
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
+          </div>
       </div>
 
       {/* Summary Metrics */}

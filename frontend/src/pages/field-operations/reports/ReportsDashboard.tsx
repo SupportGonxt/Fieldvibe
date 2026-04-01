@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
+import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { BarChart3, Users, MapPin, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight , AlertTriangle } from 'lucide-react'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
@@ -44,13 +46,27 @@ interface ConversionStats {
 const ReportsDashboard: React.FC = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
 
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
+
+  const companyParam = selectedCompany ? `&company_id=${selectedCompany}` : ''
   const dateParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
 
   const { data: kpis, isLoading: kpisLoading , isError: kpisError } = useQuery({
-    queryKey: ['field-ops-kpis', startDate, endDate],
+    queryKey: ['field-ops-kpis', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/kpis${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/kpis${dateParams}${companyParam}`)
       return (res.data?.kpis || {}) as KPIs
     },
     staleTime: 1000 * 30,
@@ -58,9 +74,9 @@ const ReportsDashboard: React.FC = () => {
   })
 
   const { data: agentPerf = [], isLoading: agentLoading } = useQuery({
-    queryKey: ['field-ops-agent-perf', startDate, endDate],
+    queryKey: ['field-ops-agent-perf', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}${companyParam}`)
       return (res.data?.data || []) as AgentPerformance[]
     },
     staleTime: 1000 * 30,
@@ -68,9 +84,9 @@ const ReportsDashboard: React.FC = () => {
   })
 
   const { data: hourlyData = [] } = useQuery({
-    queryKey: ['field-ops-hourly', startDate, endDate],
+    queryKey: ['field-ops-hourly', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}${companyParam}`)
       return (res.data?.data || []) as HourlyData[]
     },
     staleTime: 1000 * 30,
@@ -78,9 +94,9 @@ const ReportsDashboard: React.FC = () => {
   })
 
   const { data: dailyData = [] } = useQuery({
-    queryKey: ['field-ops-daily', startDate, endDate],
+    queryKey: ['field-ops-daily', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/checkins-by-day${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/checkins-by-day${dateParams}${companyParam}`)
       return (res.data?.data || []) as DailyData[]
     },
     staleTime: 1000 * 30,
@@ -88,9 +104,9 @@ const ReportsDashboard: React.FC = () => {
   })
 
   const { data: conversionStats } = useQuery({
-    queryKey: ['field-ops-conversions', startDate, endDate],
+    queryKey: ['field-ops-conversions', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}${companyParam}`)
       return (res.data?.data || {}) as ConversionStats
     },
     staleTime: 1000 * 30,
@@ -120,12 +136,25 @@ const ReportsDashboard: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports Dashboard</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Field operations analytics and performance metrics</p>
         </div>
-        <DateRangePresets
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={setStartDate}
-          onEndDateChange={setEndDate}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+            {Array.isArray(companies) && companies.length > 1 && (
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
+                value={selectedCompany || null}
+                onChange={(val) => setSelectedCompany(val || '')}
+                placeholder="All Companies"
+              />
+            )}
+            <DateRangePresets
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
+          </div>
       </div>
 
       {/* KPI Cards */}

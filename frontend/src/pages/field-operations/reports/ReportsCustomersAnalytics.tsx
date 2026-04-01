@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
+import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Users, TrendingUp, MapPin , AlertTriangle } from 'lucide-react'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
@@ -23,13 +25,27 @@ const ReportsCustomersAnalytics: React.FC = () => {
   const [page, setPage] = useState(1)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
 
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
+
+  const companyParam = selectedCompany ? `&company_id=${selectedCompany}` : ''
   const dateParams = `${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
 
   const { data, isLoading , isError } = useQuery({
-    queryKey: ['customers-analytics', page, startDate, endDate],
+    queryKey: ['customers-analytics', page, startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/customers-analytics?page=${page}&limit=20${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/customers-analytics?page=${page}&limit=20${dateParams}${companyParam}`)
       return {
         customers: (res.data?.customers || []) as CustomerRecord[],
         total: res.data?.total || 0,
@@ -58,12 +74,25 @@ const ReportsCustomersAnalytics: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Individual Analytics</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Individual interaction analysis and conversion tracking</p>
         </div>
-        <DateRangePresets
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={setStartDate}
-          onEndDateChange={setEndDate}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+            {Array.isArray(companies) && companies.length > 1 && (
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
+                value={selectedCompany || null}
+                onChange={(val) => setSelectedCompany(val || '')}
+                placeholder="All Companies"
+              />
+            )}
+            <DateRangePresets
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
+          </div>
       </div>
 
       {/* Stats */}

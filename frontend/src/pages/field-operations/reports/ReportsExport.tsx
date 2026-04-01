@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
+import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { Download, FileSpreadsheet, FileText, BarChart3 } from 'lucide-react'
@@ -10,23 +12,37 @@ const ReportsExport: React.FC = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
 
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
+
+  const companyParam = selectedCompany ? `&company_id=${selectedCompany}` : ''
   const dateParams = `${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
 
   const { data: agentPerf = [] } = useQuery({
-    queryKey: ['export-agent-perf', startDate, endDate],
+    queryKey: ['export-agent-perf', startDate, endDate, selectedCompany],
     queryFn: async () => {
       const dParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${dParams}`)
+      const res = await apiClient.get(`/field-ops/reports/agent-performance${dParams}${companyParam}`)
       return res.data?.data || []
     },
   })
 
   const { data: conversionStats } = useQuery({
-    queryKey: ['export-conversions', startDate, endDate],
+    queryKey: ['export-conversions', startDate, endDate, selectedCompany],
     queryFn: async () => {
       const dParams = startDate || endDate ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}` : ''
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dParams}`)
+      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dParams}${companyParam}`)
       return res.data?.data || {}
     },
   })
@@ -35,7 +51,7 @@ const ReportsExport: React.FC = () => {
     setExporting(true)
     try {
       if (type === 'checkins') {
-        const res = await apiClient.get(`/field-ops/reports/export/checkins?dummy=1${dateParams}`)
+        const res = await apiClient.get(`/field-ops/reports/export/checkins?dummy=1${dateParams}${companyParam}`)
         const data = res.data?.data || []
         if (data.length === 0) { toast.error('No data to export'); return }
         const headers = Object.keys(data[0])
@@ -80,12 +96,25 @@ const ReportsExport: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Export</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Export field operations data to CSV for analysis</p>
         </div>
-        <DateRangePresets
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={setStartDate}
-          onEndDateChange={setEndDate}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+            {Array.isArray(companies) && companies.length > 1 && (
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
+                value={selectedCompany || null}
+                onChange={(val) => setSelectedCompany(val || '')}
+                placeholder="All Companies"
+              />
+            )}
+            <DateRangePresets
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
+          </div>
       </div>
 
       {/* Export Cards */}

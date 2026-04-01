@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
+import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { List, Filter, Eye , AlertTriangle } from 'lucide-react'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
@@ -30,6 +32,19 @@ const ReportsCheckinsList: React.FC = () => {
   const [status, setStatus] = useState('')
   const [agentId, setAgentId] = useState('')
   const [selectedCheckin, setSelectedCheckin] = useState<string | null>(null)
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
+
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
 
   const { data: agents = [] } = useQuery({
     queryKey: ['report-agents'],
@@ -44,9 +59,10 @@ const ReportsCheckinsList: React.FC = () => {
   if (endDate) params.set('endDate', endDate)
   if (status) params.set('status', status)
   if (agentId) params.set('agentId', agentId)
+  if (selectedCompany) params.set('company_id', selectedCompany)
 
   const { data, isLoading , isError } = useQuery({
-    queryKey: ['report-checkins', page, startDate, endDate, status, agentId],
+    queryKey: ['report-checkins', page, startDate, endDate, status, agentId, selectedCompany],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/checkins?${params.toString()}`)
       return { checkins: (res.data?.checkins || []) as Checkin[], total: res.data?.total || 0 }
@@ -90,7 +106,20 @@ const ReportsCheckinsList: React.FC = () => {
           <Filter className="h-4 w-4 text-gray-400" />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filters</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {Array.isArray(companies) && companies.length > 1 && (
+            <div className="col-span-full">
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
+                value={selectedCompany || null}
+                onChange={(val) => { setSelectedCompany(val || ''); setPage(1) }}
+                placeholder="All Companies"
+              />
+            </div>
+          )}
           <div className="col-span-full">
             <DateRangePresets
               startDate={startDate}

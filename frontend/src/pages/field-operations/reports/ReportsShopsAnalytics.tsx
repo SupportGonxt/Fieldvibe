@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
+import { fieldOperationsService } from '../../../services/field-operations.service'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Store, MapPin, Eye, ChevronLeft , AlertTriangle } from 'lucide-react'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
@@ -26,13 +28,27 @@ const ReportsShopsAnalytics: React.FC = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [selectedShop, setSelectedShop] = useState<string | null>(null)
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
 
+  const { data: companiesResp } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => fieldOperationsService.getCompanies(),
+  })
+  const companies = companiesResp?.data || companiesResp || []
+
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length === 1 && !selectedCompany) {
+      setSelectedCompany(companies[0].id)
+    }
+  }, [companies, selectedCompany])
+
+  const companyParam = selectedCompany ? `&company_id=${selectedCompany}` : ''
   const dateParams = `${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
 
   const { data, isLoading , isError } = useQuery({
-    queryKey: ['shops-analytics', page, startDate, endDate],
+    queryKey: ['shops-analytics', page, startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/shops-analytics?page=${page}&limit=15${dateParams}`)
+      const res = await apiClient.get(`/field-ops/reports/shops-analytics?page=${page}&limit=15${dateParams}${companyParam}`)
       return { shops: (res.data?.shops || []) as Shop[], total: res.data?.total || 0 }
     },
   })
@@ -121,12 +137,25 @@ const ReportsShopsAnalytics: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Store Analytics</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Store-level check-in analytics and conversion rates</p>
         </div>
-        <DateRangePresets
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={setStartDate}
-          onEndDateChange={setEndDate}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+            {Array.isArray(companies) && companies.length > 1 && (
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'All Companies' },
+                  ...companies.map((c: any) => ({ value: c.id, label: c.name }))
+                ]}
+                value={selectedCompany || null}
+                onChange={(val) => setSelectedCompany(val || '')}
+                placeholder="All Companies"
+              />
+            )}
+            <DateRangePresets
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+            />
+          </div>
       </div>
 
       {/* Summary */}

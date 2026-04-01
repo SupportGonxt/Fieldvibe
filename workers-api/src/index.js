@@ -14510,11 +14510,12 @@ api.get('/field-ops/reports/kpis', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
     let dateFilter = '';
     let regDateFilter = '';
     const binds = [tenantId];
     const regBinds = [tenantId];
+    if (company_id) { dateFilter += " AND v.company_id = ?"; binds.push(company_id); }
     if (startDate) { 
       dateFilter += " AND v.visit_date >= ?"; 
       binds.push(startDate);
@@ -14552,11 +14553,12 @@ api.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
     let dateFilter = '';
     let regDateFilter = '';
     const binds = [tenantId];
     const regBinds = [tenantId];
+    if (company_id) { dateFilter += " AND v.company_id = ?"; binds.push(company_id); }
     if (startDate) { 
       dateFilter += " AND v.visit_date >= ?"; 
       binds.push(startDate);
@@ -14596,9 +14598,10 @@ api.get('/field-ops/reports/checkins-by-hour', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
     let dateFilter = '';
     const binds = [tenantId];
+    if (company_id) { dateFilter += " AND company_id = ?"; binds.push(company_id); }
     if (startDate) { dateFilter += " AND visit_date >= ?"; binds.push(startDate); }
     if (endDate) { dateFilter += " AND visit_date <= ?"; binds.push(endDate); }
 
@@ -14625,9 +14628,10 @@ api.get('/field-ops/reports/checkins-by-day', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
     let dateFilter = '';
     const binds = [tenantId];
+    if (company_id) { dateFilter += " AND company_id = ?"; binds.push(company_id); }
     if (startDate) { dateFilter += " AND visit_date >= ?"; binds.push(startDate); }
     if (endDate) { dateFilter += " AND visit_date <= ?"; binds.push(endDate); }
 
@@ -14653,11 +14657,12 @@ api.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
     let dateFilter = '';
     let regDateFilter = '';
     const binds = [tenantId];
     const regBinds = [tenantId];
+    if (company_id) { dateFilter += " AND company_id = ?"; binds.push(company_id); }
     if (startDate) { 
       dateFilter += " AND visit_date >= ?"; 
       binds.push(startDate);
@@ -14690,7 +14695,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
 
     // Find Goldrush company
     const goldrushCompany = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
@@ -14805,10 +14810,11 @@ api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { page = '1', limit = '15', startDate, endDate } = c.req.query();
+    const { page = '1', limit = '15', startDate, endDate, company_id } = c.req.query();
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let dateFilter = '';
     const dateBinds = [];
+    if (company_id) { dateFilter += " AND v.company_id = ?"; dateBinds.push(company_id); }
     if (startDate) { dateFilter += " AND v.visit_date >= ?"; dateBinds.push(startDate); }
     if (endDate) { dateFilter += " AND v.visit_date <= ?"; dateBinds.push(endDate); }
 
@@ -14864,10 +14870,11 @@ api.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { page = '1', limit = '20', startDate, endDate } = c.req.query();
+    const { page = '1', limit = '20', startDate, endDate, company_id } = c.req.query();
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let dateFilter = '';
     const binds = [tenantId];
+    if (company_id) { dateFilter += " AND v.company_id = ?"; binds.push(company_id); }
     if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
     if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
 
@@ -14906,10 +14913,11 @@ api.get('/field-ops/reports/checkins', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { page = '1', limit = '20', startDate, endDate, status, agentId } = c.req.query();
+    const { page = '1', limit = '20', startDate, endDate, status, agentId, company_id } = c.req.query();
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let where = 'WHERE v.tenant_id = ?';
     const binds = [tenantId];
+    if (company_id) { where += ' AND v.company_id = ?'; binds.push(company_id); }
     if (startDate) { where += ' AND v.visit_date >= ?'; binds.push(startDate); }
     if (endDate) { where += ' AND v.visit_date <= ?'; binds.push(endDate); }
     if (status) { where += ' AND v.status = ?'; binds.push(status); }
@@ -14962,9 +14970,10 @@ api.get('/field-ops/reports/export/checkins', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
     let where = 'WHERE v.tenant_id = ?';
     const binds = [tenantId];
+    if (company_id) { where += ' AND v.company_id = ?'; binds.push(company_id); }
     if (startDate) { where += ' AND v.visit_date >= ?'; binds.push(startDate); }
     if (endDate) { where += ' AND v.visit_date <= ?'; binds.push(endDate); }
 
