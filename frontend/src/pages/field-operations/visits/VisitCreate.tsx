@@ -161,6 +161,9 @@ export default function VisitCreate() {
   const stepDataLoadingRef = useRef(0)
   const [stepDataLoading, setStepDataLoading] = useState(false)
   const submitIdRef = useRef<string | null>(null)
+  // Track which company+visitType combo has had custom data loaded to avoid redundant fetches
+  const loadedCustomDataKeyRef = useRef<string>('')
+  const [customersLoaded, setCustomersLoaded] = useState(false)
 
   // Dynamic process flow steps from backend
   const [processFlowSteps, setProcessFlowSteps] = useState<ProcessFlowStep[]>([])
@@ -304,31 +307,50 @@ export default function VisitCreate() {
     try {
       let companiesData: Company[] = []
       if (isMobileContext) {
-        // Mobile agents: use lightweight my-companies endpoint
+        // Mobile agents: try localStorage cache first for instant display, then refresh from API
         try {
-          const compRes = await apiClient.get('/agent/my-companies')
-          const agentCompanies = compRes?.data?.data || compRes?.data || []
-          companiesData = Array.isArray(agentCompanies) ? agentCompanies : []
-        } catch { /* endpoint may not exist yet */ }
-        // Fallback: try dashboard companies
-        if (companiesData.length === 0) {
+          const cached = localStorage.getItem('agent_companies')
+          if (cached) {
+            const parsed = JSON.parse(cached)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              companiesData = parsed
+            }
+          }
+        } catch { /* ignore parse errors */ }
+        // If cache hit, set companies immediately for fast UI
+        if (companiesData.length > 0) {
+          setCompanies(companiesData)
+        }
+        // Fetch fresh data in background (don't await if we have cache)
+        const fetchFresh = async () => {
+          try {
+            const compRes = await apiClient.get('/agent/my-companies')
+            const agentCompanies = compRes?.data?.data || compRes?.data || []
+            if (Array.isArray(agentCompanies) && agentCompanies.length > 0) {
+              return agentCompanies
+            }
+          } catch { /* */ }
           try {
             const dashRes = await apiClient.get('/agent/dashboard')
             const dashCompanies = dashRes?.data?.data?.companies || dashRes?.data?.companies || []
-            companiesData = Array.isArray(dashCompanies) ? dashCompanies : []
-          } catch { /* */ }
-        }
-        // Fallback: use companies cached from login response
-        if (companiesData.length === 0) {
-          try {
-            const cached = localStorage.getItem('agent_companies')
-            if (cached) {
-              const parsed = JSON.parse(cached)
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                companiesData = parsed
-              }
+            if (Array.isArray(dashCompanies) && dashCompanies.length > 0) {
+              return dashCompanies
             }
-          } catch { /* ignore parse errors */ }
+          } catch { /* */ }
+          return null
+        }
+        if (companiesData.length === 0) {
+          // No cache — must await
+          const fresh = await fetchFresh()
+          if (fresh) companiesData = fresh
+        } else {
+          // Have cache — refresh in background without blocking
+          fetchFresh().then(fresh => {
+            if (fresh && fresh.length > 0) {
+              setCompanies(fresh)
+              localStorage.setItem('agent_companies', JSON.stringify(fresh))
+            }
+          })
         }
       } else {
         // Admin: show all companies
@@ -354,18 +376,48 @@ export default function VisitCreate() {
       }
       if (autoSelectedCompanyId) {
         setSelectedCompany(autoSelectedCompanyId)
-        // The useEffect on [selectedCompany, visitTargetType] will trigger
-        // loadCustomFields/loadCustomQuestions/loadSurveyConfig/loadQuestionnaires
-        // automatically — no need to call them here (avoids duplicate API calls)
+        // Custom data loading is deferred to when approaching the details step
+        // (see loadDetailsStepData) — don't fire 4 API calls eagerly here
       }
-      // Load customers/stores: use store-search endpoint on mobile for better results (includes visit history)
+      // NOTE: Customer/store loading is also deferred to loadDetailsStepData
+      // to avoid blocking the GPS step with unnecessary API calls
+    } catch (err) {
+      console.error('Failed to load form data:', err)
+    }
+  }
+
+  // Load all data needed for the details step in parallel
+  // Called when navigating from visit_type → details (or when entering details step)
+  const loadDetailsStepData = async (companyId?: string) => {
+    const cid = companyId || selectedCompany
+    const vType = visitTargetType || undefined
+    const dataKey = `${cid}|${vType}`
+    // Skip if already loaded for this company+visitType combo
+    if (loadedCustomDataKeyRef.current === dataKey && customersLoaded) return
+    loadedCustomDataKeyRef.current = dataKey
+    // Fire all custom data + customer loading in parallel
+    const promises: Promise<void>[] = []
+    if (cid) {
+      promises.push(loadCustomFields(cid))
+      promises.push(loadCustomQuestions(cid, vType))
+      promises.push(loadSurveyConfig(cid))
+      promises.push(loadQuestionnaires(cid))
+    }
+    if (!customersLoaded) {
+      promises.push(loadCustomersData())
+    }
+    await Promise.all(promises)
+  }
+
+  // Load customers/stores — called lazily when approaching details step
+  const loadCustomersData = async () => {
+    try {
       if (isMobileContext) {
         try {
           const storeRes = await apiClient.get('/agent/store-search?limit=200')
           const storeData = storeRes?.data?.data || storeRes?.data || []
           setCustomers(Array.isArray(storeData) ? storeData : [])
         } catch {
-          // Fallback to generic customers endpoint
           const customersRes = await fieldOperationsService.getCustomers()
           const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
           setCustomers(Array.isArray(customersData) ? customersData : [])
@@ -375,8 +427,9 @@ export default function VisitCreate() {
         const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
         setCustomers(Array.isArray(customersData) ? customersData : [])
       }
+      setCustomersLoaded(true)
     } catch (err) {
-      console.error('Failed to load form data:', err)
+      console.error('Failed to load customers:', err)
     }
   }
 
@@ -414,22 +467,23 @@ export default function VisitCreate() {
     }
   }, [currentStepKey, gpsLocation, gpsLoading, captureGps])
 
-  // Load custom fields, custom questions, survey config, AND questionnaires when company changes
+  // Deferred loading: load custom data when entering the details step
+  // (replaces the eager useEffect on [selectedCompany, visitTargetType] that fired 4 API calls on startup)
   useEffect(() => {
-    if (selectedCompany) {
-      loadCustomFields(selectedCompany)
-      loadCustomQuestions(selectedCompany, visitTargetType || undefined)
-      loadSurveyConfig(selectedCompany)
-      loadQuestionnaires(selectedCompany)
+    if (currentStepKey === 'details' && selectedCompany) {
+      loadDetailsStepData(selectedCompany)
+    }
+  }, [currentStepKey, selectedCompany])
+
+  // If company changes while already on details step, reload custom data
+  useEffect(() => {
+    if (currentStepKey === 'details' && selectedCompany) {
+      const dataKey = `${selectedCompany}|${visitTargetType || undefined}`
+      if (loadedCustomDataKeyRef.current !== dataKey) {
+        loadDetailsStepData(selectedCompany)
+      }
     }
   }, [selectedCompany, visitTargetType])
-
-  // Safety net: ensure custom questions are loaded when entering the Details step
-  useEffect(() => {
-    if (currentStepKey === 'details' && selectedCompany && customQuestions.length === 0) {
-      loadCustomQuestions(selectedCompany, visitTargetType || undefined)
-    }
-  }, [currentStepKey])
 
   const loadCustomFields = async (companyId: string) => {
     try {
@@ -700,6 +754,10 @@ export default function VisitCreate() {
     setNavigating(true)
     setError(null)
     try {
+      // Preload details step data when leaving visit_type step → heading to details
+      if (currentStepKey === 'visit_type' && selectedCompany) {
+        loadDetailsStepData(selectedCompany)
+      }
       // If the user can't proceed, show validation highlights on required fields
       if (!canProceed()) {
         setShowValidation(true)
