@@ -8087,7 +8087,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const role = c.get('role');
   const userId = c.get('userId');
-  const { date, start_date, end_date, company_id, period } = c.req.query();
+  const { date, start_date, end_date, company_id, period, team_lead_id } = c.req.query();
   
   // Calculate date range based on period parameter
   const today = new Date();
@@ -8223,6 +8223,65 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
         total_target_visits: totalTV,
         total_target_stores: totalTS,
         conversion_rate: totalIV > 0 ? Math.round((totalC / totalIV) * 100) : 0, 
+        agents: agentPerformance 
+      });
+    } else if (team_lead_id && (role === 'manager' || role === 'admin' || role === 'super_admin')) {
+      // Manager drilling down into a specific team lead's agents
+      const teamAgents = await db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(team_lead_id, tenantId).all();
+      const agentIds = [team_lead_id, ...(teamAgents.results || []).map(a => a.id)];
+      const placeholders = agentIds.map(() => '?').join(',');
+      
+      const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare("SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
+      ]);
+      
+      const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
+      const convMap = Object.fromEntries((totalConvs.results || []).map(r => [r.agent_id, r.count]));
+      const indivMap = Object.fromEntries((totalIndivVisits.results || []).map(r => [r.agent_id, r.count]));
+      const storeMap = Object.fromEntries((totalStoreVisits.results || []).map(r => [r.agent_id, r.count]));
+      
+      const currentMonth = startD.substring(0, 7);
+      const monthStartDate = currentMonth + '-01';
+      const agentTargetMap = {};
+      await Promise.all(agentIds.map(async (aid) => {
+        try {
+          const mt = await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
+          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
+            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
+          } else {
+            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
+            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
+            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
+            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
+          }
+        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
+      }));
+
+      const tlInfo = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(team_lead_id, tenantId).first();
+      const agentPerformance = agentIds.map(aid => {
+        const agent = aid === team_lead_id ? (tlInfo || { first_name: 'Team Lead', last_name: '' }) : (teamAgents.results || []).find(a => a.id === aid) || {};
+        const tgt = agentTargetMap[aid] || { target_visits: 0, target_stores: 0 };
+        return { 
+          agent_id: aid, 
+          agent_name: (agent.first_name + ' ' + agent.last_name).trim(), 
+          visits: visitMap[aid] || 0, 
+          individual_visits: indivMap[aid] || 0,
+          store_visits: storeMap[aid] || 0,
+          individuals: indivMap[aid] || 0, 
+          conversions: convMap[aid] || 0,
+          target_visits: tgt.target_visits,
+          target_stores: tgt.target_stores
+        };
+      });
+      
+      return c.json({ 
+        role: 'manager_drilldown', 
+        team_lead_id,
+        period: { start: startD, end: endD, type: period || 'custom' },
+        team_size: agentIds.length, 
         agents: agentPerformance 
       });
     } else {
@@ -14876,6 +14935,13 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       LIMIT 5000
     `).bind(...binds).all();
 
+    // Look up custom company questions with field_type='image' to extract photos from custom question responses
+    let customImageKeys = [];
+    try {
+      const imgQs = await db.prepare("SELECT question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND field_type = 'image' AND is_active = 1").bind(tenantId, goldrushId).all();
+      customImageKeys = (imgQs.results || []).map(q => q.question_key);
+    } catch (e) { /* ignore */ }
+
     // Parse both custom field values and questionnaire responses to extract goldrush_id and other fields
     // Custom questions (goldrush_id, etc.) are keyed by question_key in custom_field_values
     // Survey responses may also contain relevant data keyed by question UUID or key
@@ -14893,6 +14959,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       let shop_exterior_photo = '';
       let ad_board_photo = '';
       let competitor_photo = '';
+      let custom_question_photo = '';
       try {
         // Parse custom field values (from visit_individuals - where custom questions like goldrush_id are stored)
         let customFields = {};
@@ -14924,10 +14991,18 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         shop_exterior_photo = responses.shop_exterior_photo || '';
         ad_board_photo = responses.ad_board_photo || '';
         competitor_photo = responses.competitor_photo || '';
+        // Also check custom company question image fields (field_type='image')
+        for (const key of customImageKeys) {
+          const val = responses[key];
+          if (val && typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) {
+            custom_question_photo = val;
+            break;
+          }
+        }
       } catch (e) { /* ignore parse errors */ }
 
-      // Use visit_photos thumbnail first, then fall back to questionnaire image responses
-      const photo_url = row.thumbnail_url || id_passport_photo || shop_exterior_photo || ad_board_photo || competitor_photo || null;
+      // Use visit_photos thumbnail first, then fall back to questionnaire image responses, then custom company question photos
+      const photo_url = row.thumbnail_url || id_passport_photo || shop_exterior_photo || ad_board_photo || competitor_photo || custom_question_photo || null;
 
       return {
         id: row.id,
@@ -15017,7 +15092,22 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
       LIMIT 50
     `).bind(shopId, tenantId).all();
 
-    // Process checkins to extract Goldrush store visit process step photos
+    // Look up custom company question image fields for photo extraction
+    let shopImageKeys = {};
+    try {
+      const visitCompanyIds = await db.prepare('SELECT DISTINCT company_id FROM visits WHERE customer_id = ? AND tenant_id = ? AND company_id IS NOT NULL LIMIT 50').bind(shopId, tenantId).all();
+      const compIds = (visitCompanyIds.results || []).map(r => r.company_id);
+      if (compIds.length > 0) {
+        const ph = compIds.map(() => '?').join(',');
+        const imgQs = await db.prepare("SELECT company_id, question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id IN (" + ph + ") AND field_type = 'image' AND is_active = 1").bind(tenantId, ...compIds).all();
+        for (const q of (imgQs.results || [])) {
+          if (!shopImageKeys[q.company_id]) shopImageKeys[q.company_id] = [];
+          shopImageKeys[q.company_id].push(q.question_key);
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    // Process checkins to extract photos from process steps and custom company questions
     const processedCheckins = (checkins.results || []).map(c => {
       let photo = c.thumbnail_url || null;
       let shop_exterior_photo = null;
@@ -15031,6 +15121,20 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
         ad_board_photo = merged.ad_board_photo || null;
         competitor_photo = merged.competitor_photo || null;
         if (!photo) photo = shop_exterior_photo || ad_board_photo || competitor_photo;
+        // Also check custom company question image fields (field_type='image')
+        if (!photo) {
+          const allCompanyIds = Object.keys(shopImageKeys);
+          for (const cid of allCompanyIds) {
+            for (const key of shopImageKeys[cid]) {
+              const val = merged[key];
+              if (val && typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) {
+                photo = val;
+                break;
+              }
+            }
+            if (photo) break;
+          }
+        }
       } catch (e) { /* ignore */ }
       return {
         id: c.id, timestamp: c.timestamp, status: c.status, agent_name: c.agent_name || null,
