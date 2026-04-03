@@ -41,7 +41,7 @@ export default function AgentVisits() {
       setVisits(Array.isArray(data) ? data : data?.results || data?.visits || [])
       setError(false)
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (signal?.aborted) return
       console.error('Fetch visits error:', err)
       // Auto-retry once on timeout
       if (retryCount < 1 && err instanceof Error && err.message === 'Visits timeout') {
