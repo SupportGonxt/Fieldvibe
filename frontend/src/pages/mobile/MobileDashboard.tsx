@@ -495,21 +495,21 @@ export default function MobileDashboard() {
         </div>
       )}
 
-      {/* Hierarchy Scores: Agent vs Team Lead vs Manager */}
+      {/* Hierarchy Scores: Agent vs Team Lead vs Manager (always monthly to match hierarchy data) */}
       {isAgent && hierarchyData && (hierarchyData.team_performance || hierarchyData.manager_performance) && (
         <div className="px-4 py-3">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-indigo-500" /> Score Comparison
+            <Shield className="w-4 h-4 text-indigo-500" /> Score Comparison (Monthly)
           </h2>
           <div className="space-y-2">
-            {/* My Score */}
+            {/* My Score - always monthly to match hierarchy data */}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-800 dark:text-blue-300">My Total</span>
                 </div>
-                <span className="text-lg font-bold text-blue-600">{agentPerfStats ? agentPerfStats.visits : (periodStats.visits + periodStats.stores)}</span>
+                <span className="text-lg font-bold text-blue-600">{(dashData?.month_individual_visits || dashData?.month_visits || 0) + (dashData?.month_store_visits || dashData?.month_stores || 0)}</span>
               </div>
             </div>
             {/* Team Lead Score */}
