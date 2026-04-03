@@ -66,6 +66,8 @@ interface DashboardData {
     check_in_time: string
     customer_name: string
     individual_name: string
+    thumbnail_url?: string | null
+    r2_url?: string | null
   }>
   companies: Array<{ id: string; name: string; code: string }>
   daily_targets: Array<{
