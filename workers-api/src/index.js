@@ -4936,7 +4936,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
   if (company_id) { where += ' AND v.company_id = ?'; params.push(company_id); }
   const total = await db.prepare('SELECT COUNT(*) as count FROM visits v ' + where).bind(...params).first();
-  const visits = await db.prepare("SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, v.check_out_time, v.notes, v.agent_id, v.customer_id, v.company_id, v.individual_name, v.individual_surname, v.created_at, v.photo_url, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, vp.r2_url as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL LIMIT 1) " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
+  const visits = await db.prepare("SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, vp.r2_url as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL LIMIT 1) " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
   return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 
