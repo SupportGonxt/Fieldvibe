@@ -45,7 +45,8 @@ export default function AgentVisits() {
       console.error('Fetch visits error:', err)
       // Auto-retry once on timeout
       if (retryCount < 1 && err instanceof Error && err.message === 'Visits timeout') {
-        return fetchVisits(signal, retryCount + 1)
+        await fetchVisits(signal, retryCount + 1)
+        return
       }
       setError(true)
       // Fallback: load recent visits from cached dashboard data
