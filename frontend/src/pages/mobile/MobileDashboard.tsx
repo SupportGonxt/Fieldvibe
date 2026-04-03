@@ -509,7 +509,7 @@ export default function MobileDashboard() {
                   <User className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-800 dark:text-blue-300">My Total</span>
                 </div>
-                <span className="text-lg font-bold text-blue-600">{(dashData?.month_individual_visits || dashData?.month_visits || 0) + (dashData?.month_store_visits || dashData?.month_stores || 0)}</span>
+                <span className="text-lg font-bold text-blue-600">{(dashData?.month_individual_visits ?? dashData?.month_visits ?? 0) + (dashData?.month_store_visits ?? dashData?.month_stores ?? 0)}</span>
               </div>
             </div>
             {/* Team Lead Score */}
