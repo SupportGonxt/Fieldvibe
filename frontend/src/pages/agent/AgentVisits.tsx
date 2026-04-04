@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { toast } from 'react-hot-toast'
 
@@ -14,6 +14,7 @@ interface Visit {
   check_out_time: string
   customer_name: string
   individual_name: string
+  individual_surname?: string
   notes: string
   thumbnail_url?: string | null
 }
@@ -22,45 +23,60 @@ export default function AgentVisits() {
   const navigate = useNavigate()
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [filter, setFilter] = useState<'all' | 'completed' | 'in_progress' | 'pending'>('all')
   const [typeFilter, setTypeFilter] = useState<'all' | 'store' | 'individual'>('all')
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    const abortController = new AbortController()
-    let isMounted = true
-    
-    fetchVisits(abortController.signal, isMounted)
-    
-    return () => {
-      isMounted = false
-      abortController.abort()
-    }
-  }, [])
-
-  const fetchVisits = async (signal?: AbortSignal, isMounted?: boolean) => {
+  const fetchVisits = useCallback(async (signal?: AbortSignal, retryCount = 0) => {
     setLoading(true)
+    setError(false)
     try {
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Visits timeout')), 15000))
+      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Visits timeout')), 15000))
       const visitsPromise = apiClient.get('/field-operations/visits?limit=100&agent_id=me', { signal })
       const res = await Promise.race([visitsPromise, timeoutPromise])
       const json = res.data
       // Response format: {data: [...], total: N} (no success field)
       const data = json.data || json
-      if (isMounted !== false) {
-        setVisits(Array.isArray(data) ? data : data?.results || data?.visits || [])
-      }
-    } catch (err) {
+      setVisits(Array.isArray(data) ? data : data?.results || data?.visits || [])
+      setError(false)
+    } catch (err: unknown) {
+      if (signal?.aborted) return
       console.error('Fetch visits error:', err)
-      if (isMounted !== false) {
-        toast.error('Failed to load visits. Please check your connection.')
+      // Auto-retry once on timeout
+      if (retryCount < 1 && err instanceof Error && err.message === 'Visits timeout') {
+        await fetchVisits(signal, retryCount + 1)
+        return
+      }
+      setError(true)
+      // Fallback: load recent visits from cached dashboard data
+      try {
+        const dashRes = await apiClient.get('/agent/dashboard')
+        const dashData = dashRes?.data?.data || dashRes?.data
+        if (dashData?.recent_visits && Array.isArray(dashData.recent_visits) && dashData.recent_visits.length > 0) {
+          setVisits(dashData.recent_visits as Visit[])
+          setError(false)
+          toast('Showing recent visits from dashboard', { icon: '\u2139\uFE0F' })
+        } else {
+          toast.error('Failed to load visits. Tap retry to try again.')
+        }
+      } catch {
+        toast.error('Failed to load visits. Tap retry to try again.')
       }
     } finally {
-      if (isMounted !== false) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const abortController = new AbortController()
+    fetchVisits(abortController.signal)
+    return () => { abortController.abort() }
+  }, [fetchVisits])
+
+  const handleRetry = useCallback(() => {
+    fetchVisits()
+  }, [fetchVisits])
 
   const filtered = useMemo(() => {
     return visits.filter(v => {
@@ -114,12 +130,21 @@ export default function AgentVisits() {
       <div className="bg-[#0A1628] px-5 pt-5 pb-4 border-b border-white/5">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold text-white">My Visits</h1>
-          <button
-            onClick={() => navigate('/agent/visits/create')}
-            className="bg-[#00E87B] text-[#0A1628] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
-          >
-            <Plus className="w-3.5 h-3.5" /> New Visit
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRetry}
+              disabled={loading}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => navigate('/agent/visits/create')}
+              className="bg-[#00E87B] text-[#0A1628] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" /> New Visit
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -181,8 +206,21 @@ export default function AgentVisits() {
       {/* List */}
       <div className="px-5 pt-4">
         {loading ? (
-          <div className="flex justify-center py-12">
+          <div className="flex flex-col items-center py-12 gap-3">
             <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-gray-500">Loading visits...</p>
+          </div>
+        ) : error && visits.length === 0 ? (
+          <div className="text-center py-12">
+            <XCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+            <p className="text-gray-400 text-sm mb-1">Could not load visits</p>
+            <p className="text-gray-600 text-xs mb-4">The server may be slow. Please try again.</p>
+            <button
+              onClick={handleRetry}
+              className="bg-[#00E87B] text-[#0A1628] px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 mx-auto"
+            >
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
@@ -217,7 +255,7 @@ export default function AgentVisits() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">
-                    {visit.customer_name || visit.individual_name || 'Visit'}
+                    {visit.customer_name || (visit.individual_name ? `${visit.individual_name}${visit.individual_surname ? ' ' + visit.individual_surname : ''}` : 'Visit')}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-500 flex items-center gap-1">
