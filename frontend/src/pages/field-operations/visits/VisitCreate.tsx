@@ -135,7 +135,7 @@ const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
   { id: 's3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
   { id: 's4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
-  { id: 's5', step_key: 'photo', step_label: 'Photo Capture', step_order: 5, is_required: 0, config: '{}' },
+  { id: 's5', step_key: 'photo', step_label: 'Photo Capture', step_order: 5, is_required: 1, config: '{}' },
   { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
