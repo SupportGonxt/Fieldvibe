@@ -1686,10 +1686,11 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     let unassignedTeam = null;
     if (unassignedIds.length > 0) {
       const uaPh = unassignedIds.map(() => '?').join(',');
-      const [uaVRes, uaRRes, uaTRes] = await Promise.all([
+      const [uaVRes, uaRRes, uaTRes, uaIRes] = await Promise.all([
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${uaPh}) AND visit_date >= ?`).bind(tenantId, ...unassignedIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (${uaPh}) AND visit_date >= ?`).bind(tenantId, ...unassignedIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(target_registrations),0) as tr FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${uaPh}) AND target_month = ?`).bind(tenantId, ...unassignedIds, currentMonth).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) != 'store' AND agent_id IN (${uaPh}) AND visit_date >= ?`).bind(tenantId, ...unassignedIds, currentMonth + '-01').first(),
       ]);
       let uaTargetVisits = uaTRes?.tv || 0;
       let uaTargetRegs = uaTRes?.tr || 0;
@@ -1708,7 +1709,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         team_lead_id: null,
         team_lead_name: 'Unassigned Agents',
         agent_count: unassignedIds.length,
-        month_visits: uaVRes?.count || 0,
+        month_visits: uaIRes?.count || 0,
         month_stores: uaRRes?.count || 0,
         target_visits: uaTargetVisits,
         actual_visits: uaActualVisits,
