@@ -717,7 +717,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     if (agentCompanyIds.length > 0) {
       const ph = agentCompanyIds.map(() => '?').join(',');
       const [ctrResult, perCompanyRegsTodayAll] = await Promise.all([
-        db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, dashRoleType).all().catch(() => ({ results: [] })),
+        db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, dashAgentIds.length > 1 ? 'agent' : dashRoleType).all().catch(() => ({ results: [] })),
         db.prepare(`SELECT company_id, SUM(CASE WHEN visit_date = ? THEN 1 ELSE 0 END) as today_count, COUNT(*) as month_count FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND LOWER(visit_type) = 'store' AND company_id IN (${ph}) AND visit_date >= ? AND visit_date < ? GROUP BY company_id`).bind(today, tenantId, ...dashAgentIds, ...agentCompanyIds, monthStart, nextMonth).all().catch(() => ({ results: [] })),
       ]);
       companyTargetRules = ctrResult.results || [];
@@ -731,16 +731,34 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       }
     }
 
+    // For managers/team leads, count how many agents are assigned to each company
+    // so we can scale per-agent targets to aggregate targets
+    const agentsPerCompany = {};
+    if ((userRole === 'manager' || userRole === 'team_lead' || userRole === 'admin' || userRole === 'super_admin') && dashAgentIds.length > 1 && agentCompanyIds.length > 0) {
+      const apcPh = agentCompanyIds.map(() => '?').join(',');
+      const dashPh = dashAgentIds.map(() => '?').join(',');
+      const apcResult = await db.prepare(`SELECT company_id, COUNT(DISTINCT agent_id) as agent_count FROM agent_company_links WHERE tenant_id = ? AND agent_id IN (${dashPh}) AND company_id IN (${apcPh}) AND is_active = 1 GROUP BY company_id`).bind(tenantId, ...dashAgentIds, ...agentCompanyIds).all().catch(() => ({ results: [] }));
+      for (const row of (apcResult.results || [])) {
+        agentsPerCompany[row.company_id] = row.agent_count || 1;
+      }
+    }
+    const getAgentMultiplier = (companyId) => {
+      if (dashAgentIds.length <= 1) return 1; // Single agent, no scaling needed
+      return agentsPerCompany[companyId] || 1;
+    };
+
     // Build daily_targets from company_target_rules if no daily_targets exist - now with per-company actuals
     let dailyTargets = targets.results || [];
     if (dailyTargets.length === 0 && companyTargetRules.length > 0) {
       dailyTargets = companyTargetRules.map(ctr => {
         const ca = perCompanyActuals[ctr.company_id] || {};
+        const mult = getAgentMultiplier(ctr.company_id);
         // Use new per-role fields first, fall back to legacy fields (use ?? to preserve explicit 0)
-        const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
-        const storePerDay = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
-        const indivPerWeek = ctr.individual_target_per_week_agent ?? 0;
-        const indivPerMonth = ctr.individual_target_per_month_agent ?? (indivPerDay * 22);
+        // Scale by agent count for managers/team leads
+        const indivPerDay = ((ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0) * mult;
+        const storePerDay = ((ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0) * mult;
+        const indivPerWeek = (ctr.individual_target_per_week_agent ?? 0) * mult;
+        const indivPerMonth = (ctr.individual_target_per_month_agent ?? (((ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0) * 22)) * mult;
         return {
           company_name: ctr.company_name,
           company_id: ctr.company_id,
@@ -810,8 +828,12 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         }
       }
       // Use new per-role fields first, fall back to legacy fields
-      const dayTarget = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
-      const dayRegTarget = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
+      const perAgentDayTarget = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const perAgentDayRegTarget = (ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0;
+      // Scale per-agent targets by number of agents assigned to this company (for managers/team leads)
+      const agentMult = getAgentMultiplier(ctr.company_id);
+      const dayTarget = perAgentDayTarget * agentMult;
+      const dayRegTarget = perAgentDayRegTarget * agentMult;
       weekTargetVisits += dayTarget * workingDaysPerWeek;
       weekTargetRegs += dayRegTarget * workingDaysPerWeek;
       monthTargetVisits += dayTarget * workingDaysPerMonth;
@@ -820,19 +842,20 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         company_id: ctr.company_id,
         company_name: ctr.company_name,
         working_days_in_month: workingDaysPerMonth,
-        // Daily targets
+        agent_count: agentMult,
+        // Daily targets (scaled by agent count for managers/team leads)
         daily_target_visits: dayTarget,
         daily_target_registrations: dayRegTarget,
         daily_actual_visits: ca.today_individual_visits || 0,
         daily_actual_registrations: ca.today_store_visits || 0,
-        // Store-specific targets
-        store_target_per_month: (ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0,
+        // Store-specific targets (scaled by agent count)
+        store_target_per_month: ((ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0) * agentMult,
         store_actual_month: ca.month_store_visits || 0,
         store_actual_today: ca.today_store_visits || 0,
         store_actual_week: weekStoreVisits,
-        // Individual-specific targets
-        individual_target_per_week: ctr.individual_target_per_week_agent ?? 0,
-        individual_target_per_month: (ctr.individual_target_per_month != null ? ctr.individual_target_per_month : ctr.individual_target_per_month_agent) ?? 0,
+        // Individual-specific targets (scaled by agent count)
+        individual_target_per_week: (ctr.individual_target_per_week_agent ?? 0) * agentMult,
+        individual_target_per_month: ((ctr.individual_target_per_month != null ? ctr.individual_target_per_month : ctr.individual_target_per_month_agent) ?? 0) * agentMult,
         individual_actual_month: ca.month_individual_visits || 0,
         individual_actual_today: ca.today_individual_visits || 0,
         individual_actual_week: weekIndividualVisits,
@@ -1173,7 +1196,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       for (const aid of perfAgentIdsForCounts) {
         const aCo = await db.prepare("SELECT fc.id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(aid, tenantId).all().catch(() => ({ results: [] }));
         const aidCoIds = (aCo.results || []).map(co => co.id);
-        const aidTargets = await buildFallbackMonthlyTargets(db, tenantId, aid, currentMonth, aidCoIds, perfRoleType);
+        const aidTargets = await buildFallbackMonthlyTargets(db, tenantId, aid, currentMonth, aidCoIds, 'agent');
         mergedFallbackTargets = [...mergedFallbackTargets, ...aidTargets];
       }
       const agentCompanyIds = [];
@@ -1187,7 +1210,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       // For managers/team leads, generate targets from rules for each agent
       let genTargets = [];
       for (const aid of perfAgentIdsForCounts) {
-        const aidTargets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, perfRoleType);
+        const aidTargets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
         genTargets = [...genTargets, ...aidTargets];
       }
       targets = genTargets;
