@@ -346,8 +346,10 @@ const GoldrushIndividualReport: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <input
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
+                          onChange={e => setEditValue(e.target.value.replace(/[^0-9]/g, ''))}
                           className="w-28 px-2 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
                           placeholder="Goldrush ID"
                           autoFocus

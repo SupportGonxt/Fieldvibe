@@ -228,10 +228,12 @@ export default function VisitDetail() {
                   <div className="flex items-center gap-1">
                     <input
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={goldrushIdValue}
-                      onChange={e => setGoldrushIdValue(e.target.value)}
+                      onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
                       className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-[#00E87B]"
-                      placeholder="Enter ID"
+                      placeholder="Numeric ID"
                       autoFocus
                       onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(); if (e.key === 'Escape') setEditingGoldrushId(false); }}
                     />

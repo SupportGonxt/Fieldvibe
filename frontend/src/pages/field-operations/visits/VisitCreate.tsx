@@ -1400,11 +1400,18 @@ export default function VisitCreate() {
                       fullWidth
                       required={!!q.is_required}
                       label={q.question_label + (q.is_required ? ' *' : '')}
-                      type={q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
+                      type={q.question_key === 'goldrush_id' ? 'text' : q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
                       value={val}
-                      onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: e.target.value }))}
-                      inputProps={{ minLength: q.min_length || undefined, maxLength: q.max_length || undefined }}
-                      helperText={showValidation && !!q.is_required && !val ? 'This field is required' : lenHelper}
+                      onChange={(e) => {
+                        const newVal = q.question_key === 'goldrush_id' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value
+                        setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: newVal }))
+                      }}
+                      inputProps={{
+                        minLength: q.min_length || undefined,
+                        maxLength: q.max_length || undefined,
+                        ...(q.question_key === 'goldrush_id' ? { inputMode: 'numeric' as const, pattern: '[0-9]*' } : {})
+                      }}
+                      helperText={showValidation && !!q.is_required && !val ? 'This field is required' : (q.question_key === 'goldrush_id' ? 'Numeric only' : lenHelper)}
                       error={lenError || (showValidation && !!q.is_required && !val)}
                     />
                   )}

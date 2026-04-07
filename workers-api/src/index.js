@@ -8223,6 +8223,32 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
           cqrId, tenantId, visitId, 'store_custom_questions', JSON.stringify(mergedStoreCustom)
         ).run();
       }
+
+      // 2c. Upload custom question images (base64) to R2 for AI board detection
+      const allCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      for (const [key, val] of Object.entries(allCustom)) {
+        if (typeof val === 'string' && val.startsWith('data:image')) {
+          try {
+            const base64Data = val.split(',')[1];
+            if (!base64Data) continue;
+            const binaryStr = atob(base64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            const cqPhotoId = crypto.randomUUID();
+            const cqPhotoKey = `photos/${tenantId}/${visitId}/${cqPhotoId}.jpg`;
+            const bucket = c.env.UPLOADS;
+            if (bucket) {
+              await bucket.put(cqPhotoKey, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+              const r2Url = `https://fieldvibe-uploads.${tenantId}.r2.dev/${cqPhotoKey}`;
+              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?)').bind(
+                cqPhotoId, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
+                cqPhotoKey, r2Url, userId
+              ).run();
+              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, cqPhotoId, cqPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'store_front')); } catch { /* AI optional */ }
+            }
+          } catch (imgErr) { console.error('Custom question image upload error:', imgErr); }
+        }
+      }
     }
 
     // 3. Save survey responses if provided
@@ -13040,8 +13066,10 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
       prompt = 'Analyze this point-of-sale material photo. Identify the brand, material type (poster, standee, shelf talker, cooler branding, counter display), condition (good, damaged, faded, missing), and visibility score 0-100. Return JSON: { brand, material_type, condition, visibility_score, placement_quality }';
     } else if (photoType === 'store_front') {
       prompt = 'Describe this store front. Identify store type, visible signage, brand presence, and estimate foot traffic level. Return JSON: { store_type, signage: [], brand_visibility: [], estimated_traffic }';
+    } else if (photoType === 'board') {
+      prompt = 'Analyze this photo of a retail/store board or signage. Determine: 1) Is there a board/signage installed? 2) What brand is on the board? 3) What is the condition (good, damaged, faded)? 4) Is it clearly visible to customers? Return JSON: { board_detected: true/false, brand: "", condition: "good/damaged/faded", visibility: "high/medium/low", board_type: "signage/poster/banner/shelf_talker/other" }';
     } else {
-      prompt = 'Describe what you see in this image. Identify any brands, products, retail elements. Return JSON.';
+      prompt = 'Describe what you see in this image. Identify any brands, products, retail elements, boards, or signage. Return JSON: { board_detected: true/false, brands: [], description: "" }';
     }
 
     const aiResponse = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
@@ -13072,6 +13100,21 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
       JSON.stringify(parsed.brands || []), sovPct, brandFacings,
       totalFacings - brandFacings, parsed.compliance_score || null,
       JSON.stringify(parsed), responseText, photoId).run();
+
+    // If AI detected a board, update the board_installed field in store custom questions
+    if (parsed.board_detected === true || (responseText && responseText.toLowerCase().includes('board_detected') && responseText.toLowerCase().includes('true'))) {
+      try {
+        const existingResp = await env.DB.prepare("SELECT id, responses FROM visit_responses WHERE visit_id = ? AND visit_type = 'store_custom_questions' LIMIT 1").bind(visitId).first();
+        if (existingResp) {
+          const respData = typeof existingResp.responses === 'string' ? JSON.parse(existingResp.responses) : existingResp.responses;
+          if (respData.board_installed !== 'Yes') {
+            respData.board_installed = 'Yes';
+            respData.ai_board_detected = true;
+            await env.DB.prepare("UPDATE visit_responses SET responses = ? WHERE id = ?").bind(JSON.stringify(respData), existingResp.id).run();
+          }
+        }
+      } catch (boardErr) { console.error('AI board update error:', boardErr); }
+    }
 
     if (sovPct > 0) {
       const visit = await env.DB.prepare('SELECT customer_id, brand_id FROM visits WHERE id = ?').bind(visitId).first();
@@ -15247,7 +15290,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         email: row.email,
         product_app_player_id: row.product_app_player_id,
         goldrush_id,
-        converted: row.converted,
+        converted: row.converted === 1 ? 1 : (consumer_converted === 'Yes' ? 1 : 0),
         conversion_date: row.conversion_date,
         agent_name: row.agent_name,
         gps_latitude: row.gps_latitude,
@@ -15298,7 +15341,9 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         u.first_name || ' ' || u.last_name as agent_name,
         (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_custom_responses,
-        (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type = 'customer' OR vr.visit_type = 'store') LIMIT 1) as questionnaire_responses
+        (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type = 'customer' OR vr.visit_type = 'store') LIMIT 1) as questionnaire_responses,
+        (SELECT vp2.ai_analysis_status FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.ai_analysis_status IS NOT NULL ORDER BY vp2.ai_analysis_status = 'completed' DESC LIMIT 1) as ai_status,
+        (SELECT vp3.ai_raw_response FROM visit_photos vp3 WHERE vp3.visit_id = v.id AND vp3.tenant_id = v.tenant_id AND vp3.ai_analysis_status = 'completed' LIMIT 1) as ai_raw_response
       FROM visits v
       LEFT JOIN customers c ON v.customer_id = c.id
       LEFT JOIN users u ON v.agent_id = u.id
@@ -15403,6 +15448,8 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         has_advertising,
         other_ad_brands,
         board_installed,
+        ai_status: row.ai_status || null,
+        ai_board_detected: row.ai_raw_response ? (() => { try { const r = JSON.parse(row.ai_raw_response.match(/\{[\s\S]*\}/)?.[0] || '{}'); return r.board_detected === true; } catch { return false; } })() : false,
       };
     });
 

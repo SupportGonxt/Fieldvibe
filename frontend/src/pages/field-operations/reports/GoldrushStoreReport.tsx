@@ -33,6 +33,8 @@ interface GoldrushStore {
   has_advertising: string
   other_ad_brands: string
   board_installed: string
+  ai_status: string | null
+  ai_board_detected: boolean
 }
 
 const GoldrushStoreReport: React.FC = () => {
@@ -134,7 +136,7 @@ const GoldrushStoreReport: React.FC = () => {
   })
 
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes').length
-  const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes').length
+  const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.ai_board_detected).length
   const adRate = stores.length > 0 ? ((totalWithAds / stores.length) * 100).toFixed(1) : '0'
 
   const exportToExcel = () => {
@@ -331,8 +333,10 @@ const GoldrushStoreReport: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <input
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
+                          onChange={e => setEditValue(e.target.value.replace(/[^0-9]/g, ''))}
                           className="w-28 px-2 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
                           placeholder="Goldrush ID"
                           autoFocus
@@ -368,9 +372,10 @@ const GoldrushStoreReport: React.FC = () => {
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      s.board_installed === 'Yes' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400'
+                      s.board_installed === 'Yes' || s.ai_board_detected ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400'
                     }`}>
-                      {s.board_installed || 'N/A'}
+                      {s.board_installed === 'Yes' || s.ai_board_detected ? 'Yes' : (s.board_installed || 'N/A')}
+                      {s.ai_board_detected && !s.board_installed && <span className="ml-1 text-[10px] opacity-70">(AI)</span>}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
