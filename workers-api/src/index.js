@@ -1673,10 +1673,10 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         month_stores: teamRegs,
         target_visits: teamTargetVisits,
         actual_visits: teamActualVisits,
-        target_registrations: teamTargetRegs,
-        actual_registrations: teamActualRegs,
+        target_stores: teamTargetRegs,
+        actual_stores: teamActualRegs,
         achievement: teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0,
-        team_lead_own: { target_visits: tlOwnTgtTV, actual_visits: tlOwnVC?.count || 0, target_registrations: tlOwnTgtTR, actual_registrations: tlOwnRC?.count || 0 },
+        team_lead_own: { target_visits: tlOwnTgtTV, actual_visits: tlOwnVC?.count || 0, target_stores: tlOwnTgtTR, actual_stores: tlOwnRC?.count || 0 },
       };
     }));
 
@@ -1712,10 +1712,10 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         month_stores: uaRRes?.count || 0,
         target_visits: uaTargetVisits,
         actual_visits: uaActualVisits,
-        target_registrations: uaTargetRegs,
-        actual_registrations: uaActualRegs,
+        target_stores: uaTargetRegs,
+        actual_stores: uaActualRegs,
         achievement: uaTargetVisits > 0 ? Math.round((uaActualVisits / uaTargetVisits) * 100) : 0,
-        team_lead_own: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0 },
+        team_lead_own: { target_visits: 0, actual_visits: 0, target_stores: 0, actual_stores: 0 },
       };
       teamsData.push(unassignedTeam);
     }
@@ -1729,8 +1729,8 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     // Org targets = sum from all teams (which now include TL own targets + unassigned agents)
     const orgTargetVisits = teamsData.reduce((s, t) => s + t.target_visits, 0);
     const orgActualVisits = teamsData.reduce((s, t) => s + t.actual_visits, 0);
-    const orgTargetRegs = teamsData.reduce((s, t) => s + t.target_registrations, 0);
-    const orgActualRegs = teamsData.reduce((s, t) => s + t.actual_registrations, 0);
+    const orgTargetRegs = teamsData.reduce((s, t) => s + (t.target_stores || 0), 0);
+    const orgActualRegs = teamsData.reduce((s, t) => s + (t.actual_stores || 0), 0);
 
     if (allAgentIds.length > 0) {
       const ph2 = allAgentIds.map(() => '?').join(',');
@@ -1742,10 +1742,10 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'pending'`).bind(tenantId, ...allAgentIds).first(),
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'approved'`).bind(tenantId, ...allAgentIds).first(),
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${ph2}) AND status = 'paid'`).bind(tenantId, ...allAgentIds).first(),
-        // Use visits table with visit_type for accurate counts
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (${ph2}) AND visit_date = ?`).bind(tenantId, ...allAgentIds, today).first(),
+        // Individual = NOT store; Store = visit_type = 'store'
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) != 'store' AND agent_id IN (${ph2}) AND visit_date = ?`).bind(tenantId, ...allAgentIds, today).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date = ? AND LOWER(visit_type) = 'store'`).bind(tenantId, ...allAgentIds, today).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (${ph2}) AND visit_date >= ?`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) != 'store' AND agent_id IN (${ph2}) AND visit_date >= ?`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph2}) AND visit_date >= ? AND LOWER(visit_type) = 'store'`).bind(tenantId, ...allAgentIds, currentMonth + '-01').first(),
       ]);
       orgTodayVisits = tvRes?.count || 0;
@@ -1809,8 +1809,8 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         org_targets: {
           target_visits: orgTargetVisits,
           actual_visits: orgActualVisits,
-          target_registrations: orgTargetRegs,
-          actual_registrations: orgActualRegs,
+          target_stores: orgTargetRegs,
+          actual_stores: orgActualRegs,
           achievement: orgTargetVisits > 0 ? Math.round((orgActualVisits / orgTargetVisits) * 100) : 0,
         },
         org_commission: {
@@ -1825,7 +1825,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     });
   } catch (error) {
     console.error('Manager dashboard error:', error);
-    return c.json({ success: true, data: { total_team_leads: 0, total_agents: 0, unassigned_agents: 0, teams: [], org_totals: { today_visits: 0, month_visits: 0, today_stores: 0, month_stores: 0 }, org_targets: { target_visits: 0, actual_visits: 0, target_registrations: 0, actual_registrations: 0, achievement: 0 }, org_commission: { pending: 0, approved: 0, paid: 0 }, commission_rules: [], commission_tiers: [], current_org_tier: null } });
+    return c.json({ success: true, data: { total_team_leads: 0, total_agents: 0, unassigned_agents: 0, teams: [], org_totals: { today_visits: 0, month_visits: 0, today_stores: 0, month_stores: 0 }, org_targets: { target_visits: 0, actual_visits: 0, target_stores: 0, actual_stores: 0, achievement: 0 }, org_commission: { pending: 0, approved: 0, paid: 0 }, commission_rules: [], commission_tiers: [], current_org_tier: null } });
   }
 });
 
