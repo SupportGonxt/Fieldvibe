@@ -399,7 +399,7 @@ const GoldrushIndividualReport: React.FC = () => {
 
       {/* Photo Expand Modal */}
       {expandedPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setExpandedPhoto(null)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={() => setExpandedPhoto(null)}>
           <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setExpandedPhoto(null)}

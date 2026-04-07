@@ -17017,7 +17017,7 @@ api.get('/visits/:visitId/photos', authMiddleware, async (c) => {
       if (val && typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) {
         // Avoid duplicates if already added via company_custom_questions
         if (!photos.find(p => p.id === 'q_' + key)) {
-          photos.push({ id: 'q_' + key, photo_type: 'process_step', label: key.replace(/_/g, ' ').replace(/\w/g, l => l.toUpperCase()), r2_url: val, captured_at: visit.created_at });
+          photos.push({ id: 'q_' + key, photo_type: 'process_step', label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), r2_url: val, captured_at: visit.created_at });
         }
       }
     }
