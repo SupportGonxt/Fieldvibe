@@ -36,6 +36,12 @@ interface GoldrushStore {
   ai_status: string | null
   ai_board_detected: boolean
   ai_photos_analyzed: number
+  ai_share_of_voice: number
+  ai_brand: string
+  ai_condition: string
+  ai_visibility: string
+  ai_board_type: string
+  ai_description: string
 }
 
 const GoldrushStoreReport: React.FC = () => {
@@ -200,6 +206,8 @@ const GoldrushStoreReport: React.FC = () => {
 
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes').length
   const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.ai_board_detected).length
+  const totalAiAnalyzed = stores.filter(s => s.ai_status === 'completed' || s.ai_photos_analyzed > 0).length
+  const avgSov = stores.length > 0 ? (stores.reduce((sum, s) => sum + (s.ai_share_of_voice || 0), 0) / Math.max(stores.filter(s => s.ai_share_of_voice > 0).length, 1)).toFixed(1) : '0'
   const adRate = stores.length > 0 ? ((totalWithAds / stores.length) * 100).toFixed(1) : '0'
 
   const exportToExcel = () => {
@@ -215,6 +223,8 @@ const GoldrushStoreReport: React.FC = () => {
         'Stock Source', 'Competitors in Store', 'Competitor Stock Source',
         'Competitor Products', 'Competitor Prices',
         'Has Advertising', 'Other Ad Brands', 'Board Installed',
+        'AI Status', 'AI Board Detected', 'AI Brand', 'AI Condition', 'AI Visibility',
+        'AI Board Type', 'AI Share of Voice %', 'AI Description',
         'Notes', 'GPS Latitude', 'GPS Longitude', 'Date Created'
       ]
 
@@ -232,7 +242,15 @@ const GoldrushStoreReport: React.FC = () => {
         s.competitor_prices || '',
         s.has_advertising || '',
         s.other_ad_brands || '',
-        s.board_installed || '',
+        s.board_installed === 'Yes' || s.ai_board_detected ? 'Yes' : (s.board_installed || ''),
+        s.ai_status || '',
+        s.ai_board_detected ? 'Yes' : 'No',
+        s.ai_brand || '',
+        s.ai_condition || '',
+        s.ai_visibility || '',
+        s.ai_board_type || '',
+        s.ai_share_of_voice ? String(s.ai_share_of_voice) + '%' : '',
+        s.ai_description || '',
         s.notes || '',
         s.gps_latitude?.toString() || '',
         s.gps_longitude?.toString() || '',
@@ -315,7 +333,7 @@ const GoldrushStoreReport: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Store className="h-4 w-4 text-blue-500" />
@@ -343,6 +361,21 @@ const GoldrushStoreReport: React.FC = () => {
             <span className="text-xs text-gray-500 dark:text-gray-400">Ad Coverage</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{adRate}%</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="h-4 w-4 text-violet-500" />
+            <span className="text-xs text-gray-500 dark:text-gray-400">AI Analyzed</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAiAnalyzed}</p>
+          <p className="text-xs text-gray-400 mt-1">of {stores.length} visits</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <span className="text-xs text-gray-500 dark:text-gray-400">Avg Share of Voice</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgSov}%</p>
         </div>
       </div>
 
@@ -372,13 +405,14 @@ const GoldrushStoreReport: React.FC = () => {
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>
                 <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Advertising</th>
                 <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Board</th>
+                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">AI Analysis</th>
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Visit Date</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-gray-400">
+                  <td colSpan={10} className="py-12 text-center text-gray-400">
                     {stores.length === 0 ? 'No Goldrush store visit records found' : 'No records match your search'}
                   </td>
                 </tr>
@@ -450,6 +484,61 @@ const GoldrushStoreReport: React.FC = () => {
                       {s.board_installed === 'Yes' || s.ai_board_detected ? 'Yes' : (s.board_installed || 'N/A')}
                       {s.ai_board_detected && !s.board_installed && <span className="ml-1 text-[10px] opacity-70">(AI)</span>}
                     </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    {s.ai_status === 'completed' ? (
+                      <div className="space-y-1">
+                        {s.ai_brand && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 uppercase">Brand:</span>
+                            <span className="text-xs text-gray-700 dark:text-gray-300 font-medium">{s.ai_brand}</span>
+                          </div>
+                        )}
+                        {s.ai_condition && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 uppercase">Condition:</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              s.ai_condition === 'good' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                              s.ai_condition === 'damaged' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                              'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}>{s.ai_condition}</span>
+                          </div>
+                        )}
+                        {s.ai_visibility && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 uppercase">Visibility:</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              s.ai_visibility === 'high' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                              s.ai_visibility === 'low' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                              'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}>{s.ai_visibility}</span>
+                          </div>
+                        )}
+                        {s.ai_share_of_voice > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 uppercase">SoV:</span>
+                            <span className="text-xs text-violet-600 dark:text-violet-400 font-medium">{s.ai_share_of_voice}%</span>
+                          </div>
+                        )}
+                        {s.ai_board_type && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 uppercase">Type:</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">{s.ai_board_type}</span>
+                          </div>
+                        )}
+                        {!s.ai_brand && !s.ai_condition && !s.ai_visibility && s.ai_description && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={s.ai_description}>{s.ai_description}</p>
+                        )}
+                      </div>
+                    ) : s.ai_status === 'processing' ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                      </span>
+                    ) : s.ai_status === 'failed' ? (
+                      <span className="text-xs text-red-500">Failed</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {s.visit_date || (s.created_at ? new Date(s.created_at).toLocaleDateString() : '—')}

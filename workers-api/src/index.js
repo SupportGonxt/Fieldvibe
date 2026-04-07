@@ -15689,7 +15689,9 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type = 'customer' OR vr.visit_type = 'store') LIMIT 1) as questionnaire_responses,
         (SELECT vp2.ai_analysis_status FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.ai_analysis_status IS NOT NULL ORDER BY vp2.ai_analysis_status = 'completed' DESC LIMIT 1) as ai_status,
         (SELECT vp3.ai_raw_response FROM visit_photos vp3 WHERE vp3.visit_id = v.id AND vp3.tenant_id = v.tenant_id AND vp3.ai_analysis_status = 'completed' AND (vp3.ai_raw_response LIKE '%board_detected%true%' OR vp3.ai_raw_response LIKE '%"board_detected": true%') LIMIT 1) as ai_board_response,
-        (SELECT COUNT(*) FROM visit_photos vp4 WHERE vp4.visit_id = v.id AND vp4.tenant_id = v.tenant_id AND vp4.ai_analysis_status = 'completed') as ai_photos_analyzed
+        (SELECT COUNT(*) FROM visit_photos vp4 WHERE vp4.visit_id = v.id AND vp4.tenant_id = v.tenant_id AND vp4.ai_analysis_status = 'completed') as ai_photos_analyzed,
+        (SELECT COALESCE(MAX(vp5.ai_share_of_voice), 0) FROM visit_photos vp5 WHERE vp5.visit_id = v.id AND vp5.tenant_id = v.tenant_id AND vp5.ai_analysis_status = 'completed') as ai_share_of_voice,
+        (SELECT vp6.ai_raw_response FROM visit_photos vp6 WHERE vp6.visit_id = v.id AND vp6.tenant_id = v.tenant_id AND vp6.ai_analysis_status = 'completed' ORDER BY vp6.ai_processed_at DESC LIMIT 1) as ai_raw_response
       FROM visits v
       LEFT JOIN customers c ON v.customer_id = c.id
       LEFT JOIN users u ON v.agent_id = u.id
@@ -15796,14 +15798,38 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         board_installed,
         ai_status: row.ai_status || null,
         ai_photos_analyzed: row.ai_photos_analyzed || 0,
-        ai_board_detected: (() => {
-          // Check 1: AI raw response from photo analysis explicitly detected a board
+        ai_share_of_voice: row.ai_share_of_voice || 0,
+        ...(() => {
+          let ai = { ai_board_detected: false, ai_brand: '', ai_condition: '', ai_visibility: '', ai_board_type: '', ai_description: '' };
+          // Check board from dedicated board response query
           if (row.ai_board_response) {
-            try { const r = JSON.parse(row.ai_board_response.match(/\{[\s\S]*\}/)?.[0] || '{}'); if (r.board_detected === true) return true; } catch {}
+            try {
+              const r = JSON.parse(row.ai_board_response.match(/\{[\s\S]*\}/)?.[0] || '{}');
+              if (r.board_detected === true) ai.ai_board_detected = true;
+              if (r.brand) ai.ai_brand = r.brand;
+              if (r.condition) ai.ai_condition = r.condition;
+              if (r.visibility) ai.ai_visibility = r.visibility;
+              if (r.board_type) ai.ai_board_type = r.board_type;
+            } catch {}
           }
-          // Check 2: board_installed was set to 'Yes' (either manually or by AI updating visit_responses)
-          if (board_installed === 'Yes') return true;
-          return false;
+          // Also parse full raw response for additional data
+          if (row.ai_raw_response) {
+            try {
+              const r = JSON.parse(row.ai_raw_response.match(/\{[\s\S]*\}/)?.[0] || '{}');
+              if (r.board_detected === true) ai.ai_board_detected = true;
+              if (!ai.ai_brand && r.brand) ai.ai_brand = r.brand;
+              if (!ai.ai_condition && r.condition) ai.ai_condition = r.condition;
+              if (!ai.ai_visibility && r.visibility) ai.ai_visibility = r.visibility;
+              if (!ai.ai_board_type && r.board_type) ai.ai_board_type = r.board_type;
+              if (r.description) ai.ai_description = r.description;
+              if (r.brands && Array.isArray(r.brands) && r.brands.length > 0 && !ai.ai_brand) {
+                ai.ai_brand = r.brands.map(b => b.name || b).filter(Boolean).join(', ');
+              }
+            } catch {}
+          }
+          // Also count board_installed manual entry
+          if (board_installed === 'Yes') ai.ai_board_detected = true;
+          return ai;
         })(),
       };
     });
