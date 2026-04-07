@@ -8229,6 +8229,40 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
       // individual_registrations no longer used - visits table is the single source of truth
       // individual_registrations INSERT removed - visits table is the single source of truth
+
+      // 2a-upload. Upload individual visit custom question images (base64) to R2 for AI analysis
+      const allIndivCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      for (const [key, val] of Object.entries(allIndivCustom)) {
+        if (typeof val === 'string' && val.startsWith('data:image')) {
+          try {
+            const base64Data = val.split(',')[1];
+            if (!base64Data) continue;
+            const binaryStr = atob(base64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            const indPhotoHash = await computePhotoHash(bytes);
+            if (await isPhotoHashDuplicate(db, tenantId, indPhotoHash)) continue;
+            const indPhotoId = crypto.randomUUID();
+            const indPhotoKey = `photos/${tenantId}/${visitId}/${indPhotoId}.jpg`;
+            const bucket = c.env.UPLOADS;
+            if (bucket) {
+              await bucket.put(indPhotoKey, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+              const r2Url = `https://fieldvibe-uploads.${tenantId}.r2.dev/${indPhotoKey}`;
+              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
+                indPhotoId, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
+                indPhotoKey, r2Url, indPhotoHash, userId
+              ).run();
+              // Replace base64 with R2 URL in custom fields for future retrieval
+              mergedCustomFields[key] = r2Url;
+              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, indPhotoId, indPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'general')); } catch { /* AI optional */ }
+            }
+          } catch (imgErr) { console.error('Individual photo upload error:', imgErr); }
+        }
+      }
+      // Update visit_individuals with R2 URLs replacing base64
+      try {
+        await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ?').bind(JSON.stringify(mergedCustomFields), viId).run();
+      } catch { /* optional */ }
     }
 
     // 2b. For store visits, save custom_field_values + custom_question_values as a visit_response
@@ -8267,11 +8301,17 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
                 cqPhotoId, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
                 cqPhotoKey, r2Url, cqPhotoHash, userId
               ).run();
+              // Replace base64 with R2 URL in stored responses
+              mergedStoreCustom[key] = r2Url;
               try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, cqPhotoId, cqPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'store_front')); } catch { /* AI optional */ }
             }
           } catch (imgErr) { console.error('Custom question image upload error:', imgErr); }
         }
       }
+      // Update visit_responses with R2 URLs replacing base64 data
+      try {
+        await db.prepare("UPDATE visit_responses SET responses = ? WHERE visit_id = ? AND visit_type = 'store_custom_questions'").bind(JSON.stringify(mergedStoreCustom), visitId).run();
+      } catch { /* optional */ }
     }
 
     // 3. Save survey responses if provided
@@ -13141,11 +13181,14 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
             await env.DB.prepare("UPDATE visit_responses SET responses = ? WHERE id = ?").bind(JSON.stringify(respData), existingResp.id).run();
           }
         } else {
-          // No store_custom_questions row exists yet — create one with board_installed = 'Yes'
-          const newId = crypto.randomUUID ? crypto.randomUUID() : uuidv4();
-          await env.DB.prepare("INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, 'store_custom_questions', ?)").bind(
-            newId, tenantId, visitId, JSON.stringify({ board_installed: 'Yes', ai_board_detected: true })
-          ).run();
+          // Only create store_custom_questions row for store visits (not individual/customer visits)
+          const visitRow = await env.DB.prepare('SELECT visit_type FROM visits WHERE id = ?').bind(visitId).first();
+          if (visitRow && visitRow.visit_type === 'store') {
+            const newId = crypto.randomUUID ? crypto.randomUUID() : uuidv4();
+            await env.DB.prepare("INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, 'store_custom_questions', ?)").bind(
+              newId, tenantId, visitId, JSON.stringify({ board_installed: 'Yes', ai_board_detected: true })
+            ).run();
+          }
         }
       } catch (boardErr) { console.error('AI board update error:', boardErr); }
     }
@@ -13274,6 +13317,124 @@ api.post('/visit-photos/:id/reanalyze', async (c) => {
   return c.json({ success: true, message: 'Re-analysis triggered' });
 });
 
+
+
+// Migrate historical base64 photos from visit_responses to R2
+api.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    const bucket = c.env.UPLOADS;
+    if (!bucket) return c.json({ success: false, message: 'R2 bucket not configured' }, 500);
+
+    const { limit: batchLimit } = c.req.query();
+    const maxBatch = Math.min(parseInt(batchLimit) || 20, 50);
+    let migrated = 0;
+    let skipped = 0;
+
+    // Find visit_responses with base64 images (store_custom_questions and regular questionnaire responses)
+    const responses = await db.prepare(
+      `SELECT vr.id, vr.visit_id, vr.tenant_id, vr.visit_type, vr.responses
+       FROM visit_responses vr
+       WHERE vr.tenant_id = ? AND vr.responses LIKE '%data:image%'
+       ORDER BY vr.id
+       LIMIT ?`
+    ).bind(tenantId, maxBatch).all();
+
+    // Also check visit_individuals custom_field_values
+    const indivResponses = await db.prepare(
+      `SELECT vi.id, vi.visit_id, vi.tenant_id, vi.custom_field_values as responses, 'individual_custom' as visit_type
+       FROM visit_individuals vi
+       WHERE vi.tenant_id = ? AND vi.custom_field_values LIKE '%data:image%'
+       ORDER BY vi.id
+       LIMIT ?`
+    ).bind(tenantId, maxBatch).all();
+
+    const allRows = [...(responses.results || []), ...(indivResponses.results || [])];
+
+    for (const row of allRows) {
+      try {
+        const data = typeof row.responses === 'string' ? JSON.parse(row.responses) : row.responses;
+        let updated = false;
+
+        for (const [key, val] of Object.entries(data)) {
+          if (typeof val === 'string' && val.startsWith('data:image')) {
+            try {
+              const base64Data = val.split(',')[1];
+              if (!base64Data) continue;
+              const binaryStr = atob(base64Data);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+              // Compute hash for deduplication
+              const photoHash = await computePhotoHash(bytes);
+              if (await isPhotoHashDuplicate(db, tenantId, photoHash)) {
+                // Photo already exists in R2 — just replace base64 with existing R2 URL
+                const existing = await db.prepare("SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1").bind(tenantId, photoHash).first();
+                if (existing && existing.r2_url) {
+                  data[key] = existing.r2_url;
+                  updated = true;
+                }
+                skipped++;
+                continue;
+              }
+
+              const photoId = crypto.randomUUID();
+              const photoKey = `photos/${tenantId}/${row.visit_id}/${photoId}.jpg`;
+              await bucket.put(photoKey, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+              const r2Url = `https://fieldvibe-uploads.${tenantId}.r2.dev/${photoKey}`;
+
+              // Insert into visit_photos
+              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
+                photoId, tenantId, row.visit_id,
+                key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
+                photoKey, r2Url, photoHash, 'migration'
+              ).run();
+
+              // Replace base64 with R2 URL in data
+              data[key] = r2Url;
+              updated = true;
+              migrated++;
+
+              // Trigger AI analysis
+              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, photoId, photoKey, tenantId, row.visit_id, key.includes('board') || key.includes('ad_board') ? 'board' : 'general')); } catch { /* AI optional */ }
+            } catch (imgErr) { console.error('Migration image error:', imgErr); }
+          }
+        }
+
+        // Update the row with R2 URLs replacing base64
+        if (updated) {
+          if (row.visit_type === 'individual_custom') {
+            await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ?').bind(JSON.stringify(data), row.id).run();
+          } else {
+            await db.prepare('UPDATE visit_responses SET responses = ? WHERE id = ?').bind(JSON.stringify(data), row.id).run();
+          }
+        }
+      } catch (rowErr) { console.error('Migration row error:', rowErr); }
+    }
+
+    // Count remaining
+    const remaining = await db.prepare(
+      "SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ? AND responses LIKE '%data:image%'"
+    ).bind(tenantId).first();
+    const remainingIndiv = await db.prepare(
+      "SELECT COUNT(*) as count FROM visit_individuals WHERE tenant_id = ? AND custom_field_values LIKE '%data:image%'"
+    ).bind(tenantId).first();
+
+    return c.json({
+      success: true,
+      message: `Migrated ${migrated} photos to R2 (${skipped} duplicates skipped)`,
+      migrated,
+      skipped,
+      total_remaining: (remaining?.count || 0) + (remainingIndiv?.count || 0)
+    });
+  } catch (e) {
+    console.error('Base64 migration error:', e);
+    return c.json({ success: false, message: 'Migration failed: ' + (e.message || e) }, 500);
+  }
+});
 
 // Batch AI analysis for historical/unanalyzed photos
 api.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {

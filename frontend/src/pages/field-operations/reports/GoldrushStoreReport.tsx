@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Sparkles, Loader2 } from 'lucide-react'
+import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Sparkles, Loader2, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -53,7 +53,9 @@ const GoldrushStoreReport: React.FC = () => {
   const [photoModalPhotos, setPhotoModalPhotos] = useState<Array<{ id: string; photo_type: string; label?: string; r2_url: string }>>([])
   const [photoModalLoading, setPhotoModalLoading] = useState(false)
   const [aiRunning, setAiRunning] = useState(false)
+  const [migrating, setMigrating] = useState(false)
   const [aiStatus, setAiStatus] = useState<{ total_photos: number; completed: number; processing: number; failed: number; pending: number; progress_pct: number } | null>(null)
+  const [migrationStatus, setMigrationStatus] = useState<{ migrated: number; skipped: number; total_remaining: number } | null>(null)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -93,6 +95,35 @@ const GoldrushStoreReport: React.FC = () => {
       toast.error('Failed to trigger AI analysis')
     } finally {
       setAiRunning(false)
+    }
+  }
+
+  const handleMigratePhotos = async () => {
+    setMigrating(true)
+    try {
+      let totalMigrated = 0
+      let totalSkipped = 0
+      let remaining = 1
+      while (remaining > 0) {
+        const res = await apiClient.post('/visit-photos/migrate-base64?limit=20')
+        const data = res.data
+        totalMigrated += data.migrated || 0
+        totalSkipped += data.skipped || 0
+        remaining = data.total_remaining || 0
+        setMigrationStatus({ migrated: totalMigrated, skipped: totalSkipped, total_remaining: remaining })
+        if ((data.migrated || 0) === 0 && (data.skipped || 0) === 0) break
+      }
+      if (totalMigrated > 0) {
+        toast.success(`Migrated ${totalMigrated} photos to R2 (${totalSkipped} duplicates skipped)`)
+      } else {
+        toast.success('No base64 photos to migrate')
+      }
+      await fetchAiStatus()
+      queryClient.invalidateQueries({ queryKey: ['goldrush-stores'] })
+    } catch {
+      toast.error('Failed to migrate photos')
+    } finally {
+      setMigrating(false)
     }
   }
 
@@ -266,6 +297,11 @@ const GoldrushStoreReport: React.FC = () => {
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
           />
+          <button onClick={handleMigratePhotos} disabled={migrating}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium">
+            {migrating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {migrating ? `Migrating${migrationStatus ? ` (${migrationStatus.migrated} done, ${migrationStatus.total_remaining} left)` : '...'}` : 'Migrate Photos'}
+          </button>
           <button onClick={handleAiBackfill} disabled={aiRunning}
             className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
             {aiRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
