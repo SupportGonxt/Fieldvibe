@@ -4028,6 +4028,36 @@ api.put('/notifications/read-all', async (c) => {
   return c.json({ success: true, message: 'All notifications marked as read' });
 });
 
+// ==================== PERFORMANCE MESSAGES ====================
+api.get('/performance-messages', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const role = c.get('role');
+  // Only managers and team leads get performance messages
+  if (!['manager', 'team_lead', 'admin', 'super_admin'].includes(role)) {
+    return c.json({ success: true, data: { messages: [], unread_count: 0 } });
+  }
+  const today = new Date().toISOString().split('T')[0];
+  const messages = await db.prepare("SELECT id, title, message, type, is_read, created_at FROM notifications WHERE tenant_id = ? AND user_id = ? AND type = 'performance_summary' AND created_at >= ? ORDER BY created_at DESC LIMIT 20").bind(tenantId, userId, today + ' 00:00:00').all();
+  const unread = await db.prepare("SELECT COUNT(*) as count FROM notifications WHERE tenant_id = ? AND user_id = ? AND type = 'performance_summary' AND is_read = 0 AND created_at >= ?").bind(tenantId, userId, today + ' 00:00:00').first();
+  return c.json({ success: true, data: { messages: messages.results || [], unread_count: unread ? unread.count : 0 } });
+});
+
+// Generate performance summaries on demand (for testing / manual trigger)
+api.post('/performance-messages/generate', authMiddleware, async (c) => {
+  const role = c.get('role');
+  if (!['admin', 'super_admin', 'manager'].includes(role)) {
+    return c.json({ error: 'Unauthorized' }, 403);
+  }
+  try {
+    await generatePerformanceSummaries(c.env.DB);
+    return c.json({ success: true, message: 'Performance summaries generated' });
+  } catch (e) {
+    return c.json({ error: 'Failed to generate summaries: ' + e.message }, 500);
+  }
+});
+
 api.post('/notifications', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -17262,6 +17292,131 @@ app.route('/api', api);
 app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 
 // ==================== SECTION 9: SCHEDULED JOBS ====================
+
+// ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
+async function generatePerformanceSummaries(db) {
+  try {
+    // Get current SAST hour (UTC+2)
+    const now = new Date();
+    const sastHour = (now.getUTCHours() + 2) % 24;
+    // Only generate during working hours: 8am-5pm SAST
+    if (sastHour < 8 || sastHour > 17) return;
+    // Skip weekends (SAST day)
+    const sastDay = new Date(now.getTime() + 2 * 60 * 60 * 1000).getDay();
+    if (sastDay === 0 || sastDay === 6) return;
+
+    const today = now.toISOString().split('T')[0];
+    const currentMonth = today.substring(0, 7);
+    const monthStart = currentMonth + '-01';
+    const [mY, mM] = currentMonth.split('-').map(Number);
+    const nextMonth = mM === 12 ? `${mY + 1}-01-01` : `${mY}-${String(mM + 1).padStart(2, '0')}-01`;
+
+    // Get all tenants that have active managers or team leads
+    const tenants = await db.prepare("SELECT DISTINCT tenant_id FROM users WHERE role IN ('manager', 'team_lead') AND is_active = 1").all();
+
+    for (const tenant of (tenants.results || [])) {
+      const tenantId = tenant.tenant_id;
+
+      // Get all managers and team leads for this tenant
+      const leaders = await db.prepare("SELECT id, first_name, last_name, role, manager_id, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('manager', 'team_lead') AND is_active = 1").bind(tenantId).all();
+
+      for (const leader of (leaders.results || [])) {
+        try {
+          let agentIds = [];
+          let teamInfo = '';
+
+          if (leader.role === 'manager') {
+            // Manager: get all team leads under them, then all agents under those team leads
+            const tls = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?").bind(tenantId, leader.id).all();
+            const tlIds = (tls.results || []).map(t => t.id);
+            const tlNames = (tls.results || []).map(t => t.first_name + ' ' + t.last_name);
+            
+            if (tlIds.length > 0) {
+              const tlPh = tlIds.map(() => '?').join(',');
+              const agents = await db.prepare(`SELECT id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1 AND team_lead_id IN (${tlPh})`).bind(tenantId, ...tlIds).all();
+              agentIds = (agents.results || []).map(a => a.id);
+            }
+            teamInfo = `${tlIds.length} team lead${tlIds.length !== 1 ? 's' : ''}, ${agentIds.length} agent${agentIds.length !== 1 ? 's' : ''}`;
+          } else if (leader.role === 'team_lead') {
+            // Team lead: get all agents under them
+            const agents = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1").bind(tenantId, leader.id).all();
+            agentIds = [leader.id, ...(agents.results || []).map(a => a.id)];
+            teamInfo = `${(agents.results || []).length} agent${(agents.results || []).length !== 1 ? 's' : ''}`;
+          }
+
+          if (agentIds.length === 0) agentIds = [leader.id];
+          const agentPh = agentIds.map(() => '?').join(',');
+          const agentFilter = agentIds.length === 1 ? 'agent_id = ?' : `agent_id IN (${agentPh})`;
+
+          // Get today's visits count
+          const todayVisits = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN LOWER(visit_type) = 'individual' THEN 1 ELSE 0 END) as individual_count, SUM(CASE WHEN LOWER(visit_type) = 'store' THEN 1 ELSE 0 END) as store_count FROM visits WHERE tenant_id = ? AND ${agentFilter} AND visit_date = ?`).bind(tenantId, ...agentIds, today).first().catch(() => ({ total: 0, individual_count: 0, store_count: 0 }));
+
+          // Get month-to-date visits
+          const monthVisits = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN LOWER(visit_type) = 'individual' THEN 1 ELSE 0 END) as individual_count, SUM(CASE WHEN LOWER(visit_type) = 'store' THEN 1 ELSE 0 END) as store_count FROM visits WHERE tenant_id = ? AND ${agentFilter} AND visit_date >= ? AND visit_date < ?`).bind(tenantId, ...agentIds, monthStart, nextMonth).first().catch(() => ({ total: 0, individual_count: 0, store_count: 0 }));
+
+          // Get monthly targets
+          const monthTargets = await db.prepare(`SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_stores FROM monthly_targets WHERE tenant_id = ? AND ${agentFilter} AND target_month = ?`).bind(tenantId, ...agentIds, currentMonth).first().catch(() => ({ target_visits: 0, target_stores: 0 }));
+
+          // Fall back to company_target_rules if no monthly_targets
+          let targetVisits = monthTargets.target_visits || 0;
+          let targetStores = monthTargets.target_stores || 0;
+          if (targetVisits === 0 && targetStores === 0) {
+            // Simple fallback: count company target rules
+            for (const uid of agentIds) {
+              const rules = await db.prepare("SELECT COALESCE(SUM(ctr.individual_target_per_month), 0) as indiv, COALESCE(SUM(ctr.store_target_per_month), 0) as store FROM company_target_rules ctr JOIN agent_company_links acl ON ctr.company_id = acl.company_id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND ctr.tenant_id = ? AND ctr.is_active = 1").bind(uid, tenantId, tenantId).first().catch(() => null);
+              if (rules) {
+                targetVisits += rules.indiv || 0;
+                targetStores += rules.store || 0;
+              }
+            }
+          }
+
+          // Get top performing agent today (for managers and team leads)
+          let topAgent = null;
+          if (agentIds.length > 1) {
+            const topResult = await db.prepare(`SELECT u.first_name, u.last_name, COUNT(*) as visit_count FROM visits v JOIN users u ON v.agent_id = u.id WHERE v.tenant_id = ? AND v.${agentFilter} AND v.visit_date = ? GROUP BY v.agent_id ORDER BY visit_count DESC LIMIT 1`).bind(tenantId, ...agentIds, today).first().catch(() => null);
+            if (topResult && topResult.visit_count > 0) {
+              topAgent = { name: topResult.first_name + ' ' + topResult.last_name, count: topResult.visit_count };
+            }
+          }
+
+          // Build the performance message
+          const todayTotal = todayVisits.total || 0;
+          const todayIndiv = todayVisits.individual_count || 0;
+          const todayStore = todayVisits.store_count || 0;
+          const monthTotal = monthVisits.total || 0;
+          const monthIndiv = monthVisits.individual_count || 0;
+          const monthStore = monthVisits.store_count || 0;
+          const monthAch = targetVisits > 0 ? Math.round((monthIndiv / targetVisits) * 100) : 0;
+          const storeAch = targetStores > 0 ? Math.round((monthStore / targetStores) * 100) : 0;
+
+          const timeStr = `${String(sastHour).padStart(2, '0')}:00`;
+          const title = `${timeStr} Performance Update`;
+
+          let message = `Today: ${todayTotal} visits (${todayIndiv} individual, ${todayStore} store)`;
+          message += ` | MTD: ${monthTotal} visits (${monthIndiv} individual, ${monthStore} store)`;
+          if (targetVisits > 0) message += ` | Individual: ${monthAch}% of ${targetVisits} target`;
+          if (targetStores > 0) message += ` | Store: ${storeAch}% of ${targetStores} target`;
+          if (topAgent) message += ` | Top today: ${topAgent.name} (${topAgent.count} visits)`;
+          message += ` | Team: ${teamInfo}`;
+
+          // Check if we already sent a message this hour (avoid duplicates on re-run)
+          const hourStart = now.toISOString().substring(0, 13) + ':00:00';
+          const existing = await db.prepare("SELECT id FROM notifications WHERE tenant_id = ? AND user_id = ? AND type = 'performance_summary' AND created_at >= ?").bind(tenantId, leader.id, hourStart).first();
+          if (existing) continue;
+
+          // Insert the notification
+          const notifId = crypto.randomUUID();
+          await db.prepare("INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at) VALUES (?, ?, ?, 'performance_summary', ?, ?, 'PERFORMANCE', ?, 0, datetime('now'))").bind(notifId, tenantId, leader.id, title, message, `perf_${today}_${sastHour}`).run();
+
+        } catch (leaderErr) {
+          console.error(`Performance summary error for ${leader.id}:`, leaderErr);
+        }
+      }
+    }
+  } catch (e) { console.error('generatePerformanceSummaries error:', e); }
+}
+
 async function checkOverdueInvoices(db) {
   try {
     // TI-03: Scope by tenant to prevent cross-tenant updates
@@ -17367,5 +17522,7 @@ export default {
     if (hour === 16) await checkStaleVanLoads(env.DB);
     if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);
     if (day === 1 && hour === 5) await generateAgingReport(env.DB);
+    // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
+    if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
   },
 };

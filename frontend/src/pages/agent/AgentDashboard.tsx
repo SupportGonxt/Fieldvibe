@@ -13,6 +13,7 @@ import { apiClient, invalidateApiCache } from '../../services/api.service'
 // Lazy load non-critical sections (code splitting)
 const PerformanceSection = lazy(() => import('./PerformanceSection'))
 const TeamPerformanceSection = lazy(() => import('./TeamPerformanceSection'))
+const PerformanceMessages = lazy(() => import('./PerformanceMessages'))
 
 interface TargetSummary {
   target_visits: number
@@ -380,6 +381,22 @@ export default function AgentDashboard() {
             <ChevronRight className="w-5 h-5 text-gray-500" />
           </button>
         </div>
+      )}
+
+      {/* Performance Messages - Hourly summaries for managers and team leads */}
+      {(authUser?.role === 'manager' || authUser?.role === 'team_lead') && (
+        <Suspense fallback={
+          <div className="px-5 mb-4">
+            <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+              <div className="w-40 h-4 bg-gray-800 rounded animate-pulse mb-3" />
+              <div className="space-y-2">
+                <div className="w-full h-16 bg-gray-800/50 rounded-xl animate-pulse" />
+              </div>
+            </div>
+          </div>
+        }>
+          <PerformanceMessages />
+        </Suspense>
       )}
 
       <div className="px-5 mb-4">
