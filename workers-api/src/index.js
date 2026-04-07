@@ -15763,8 +15763,9 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         // Check for board_installed with partial key matching (key could be 'board_installed', 'board_placement', etc.)
         board_installed = responses.board_installed || '';
         if (!board_installed) {
+          const boardKeys = ['board_installed', 'board_placement', 'board_present', 'board_status', 'ad_board'];
           for (const [k, v] of Object.entries(responses)) {
-            if (k.toLowerCase().includes('board') && (v === 'Yes' || v === 'No')) {
+            if (boardKeys.some(bk => k.toLowerCase().startsWith(bk)) && (v === 'Yes' || v === 'No')) {
               board_installed = v;
               break;
             }

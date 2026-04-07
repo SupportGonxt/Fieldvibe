@@ -205,7 +205,7 @@ const GoldrushStoreReport: React.FC = () => {
   })
 
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes').length
-  const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.ai_board_detected || s.has_photos).length
+  const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.ai_board_detected).length
   const totalAiAnalyzed = stores.filter(s => s.ai_status === 'completed' || s.ai_photos_analyzed > 0).length
   const avgSov = stores.length > 0 ? (stores.reduce((sum, s) => sum + (s.ai_share_of_voice || 0), 0) / Math.max(stores.filter(s => s.ai_share_of_voice > 0).length, 1)).toFixed(1) : '0'
   const adRate = stores.length > 0 ? ((totalWithAds / stores.length) * 100).toFixed(1) : '0'
@@ -242,7 +242,7 @@ const GoldrushStoreReport: React.FC = () => {
         s.competitor_prices || '',
         s.has_advertising || '',
         s.other_ad_brands || '',
-        s.board_installed === 'Yes' || s.ai_board_detected || s.has_photos ? 'Yes' : (s.board_installed || ''),
+        s.board_installed === 'Yes' || s.ai_board_detected ? 'Yes' : (s.board_installed || ''),
         s.ai_status || '',
         s.ai_board_detected ? 'Yes' : 'No',
         s.ai_brand || '',
@@ -479,9 +479,9 @@ const GoldrushStoreReport: React.FC = () => {
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      s.board_installed === 'Yes' || s.ai_board_detected || s.has_photos ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400'
+                      s.board_installed === 'Yes' || s.ai_board_detected ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400'
                     }`}>
-                      {s.board_installed === 'Yes' || s.ai_board_detected || s.has_photos ? 'Yes' : (s.board_installed || 'N/A')}
+                      {s.board_installed === 'Yes' || s.ai_board_detected ? 'Yes' : (s.board_installed || 'N/A')}
                       {s.ai_board_detected && s.board_installed !== 'Yes' && <span className="ml-1 text-[10px] opacity-70">(AI)</span>}
                     </span>
                   </td>
