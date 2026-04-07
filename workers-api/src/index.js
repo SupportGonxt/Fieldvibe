@@ -15247,7 +15247,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         email: row.email,
         product_app_player_id: row.product_app_player_id,
         goldrush_id,
-        converted: row.converted,
+        converted: row.converted === 1 ? 1 : (consumer_converted === 'Yes' ? 1 : 0),
         conversion_date: row.conversion_date,
         agent_name: row.agent_name,
         gps_latitude: row.gps_latitude,

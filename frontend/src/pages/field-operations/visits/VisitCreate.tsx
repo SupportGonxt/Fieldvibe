@@ -1400,7 +1400,7 @@ export default function VisitCreate() {
                       fullWidth
                       required={!!q.is_required}
                       label={q.question_label + (q.is_required ? ' *' : '')}
-                      type={q.field_type === 'number' || q.question_key === 'goldrush_id' ? 'text' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
+                      type={q.question_key === 'goldrush_id' ? 'text' : q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
                       value={val}
                       onChange={(e) => {
                         const newVal = q.question_key === 'goldrush_id' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value
