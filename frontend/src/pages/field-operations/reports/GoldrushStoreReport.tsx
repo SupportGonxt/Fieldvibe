@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera } from 'lucide-react'
+import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Sparkles, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -51,6 +51,8 @@ const GoldrushStoreReport: React.FC = () => {
   const [photoModalVisitId, setPhotoModalVisitId] = useState<string | null>(null)
   const [photoModalPhotos, setPhotoModalPhotos] = useState<Array<{ id: string; photo_type: string; label?: string; r2_url: string }>>([])
   const [photoModalLoading, setPhotoModalLoading] = useState(false)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [aiStatus, setAiStatus] = useState<{ total_photos: number; completed: number; processing: number; failed: number; pending: number; progress_pct: number } | null>(null)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -66,6 +68,35 @@ const GoldrushStoreReport: React.FC = () => {
       setPhotoModalLoading(false)
     }
   }
+
+  const fetchAiStatus = async () => {
+    try {
+      const res = await apiClient.get('/visit-photos/ai-status')
+      setAiStatus(res.data?.data || null)
+    } catch { /* ignore */ }
+  }
+
+  const handleAiBackfill = async () => {
+    setAiRunning(true)
+    try {
+      const res = await apiClient.post('/visit-photos/ai-backfill?limit=20')
+      const data = res.data
+      if (data.processed > 0) {
+        toast.success(`AI analysis triggered for ${data.processed} photos (${data.total_pending} remaining)`)
+      } else {
+        toast.success('No unanalyzed photos found')
+      }
+      await fetchAiStatus()
+      queryClient.invalidateQueries({ queryKey: ['goldrush-stores'] })
+    } catch {
+      toast.error('Failed to trigger AI analysis')
+    } finally {
+      setAiRunning(false)
+    }
+  }
+
+  // Fetch AI status on mount
+  useEffect(() => { fetchAiStatus() }, [])
 
   const { data: companiesResp } = useQuery({
     queryKey: ['field-companies'],
@@ -234,6 +265,11 @@ const GoldrushStoreReport: React.FC = () => {
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
           />
+          <button onClick={handleAiBackfill} disabled={aiRunning}
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
+            {aiRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {aiRunning ? 'Analyzing...' : 'Analyze Photos'}
+          </button>
           <button onClick={exportToExcel} disabled={exporting || filtered.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
             <Download className="h-4 w-4" /> Export Excel

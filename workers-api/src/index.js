@@ -13232,6 +13232,97 @@ api.post('/visit-photos/:id/reanalyze', async (c) => {
   return c.json({ success: true, message: 'Re-analysis triggered' });
 });
 
+
+// Batch AI analysis for historical/unanalyzed photos
+api.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+
+    const { limit: batchLimit, photo_type: filterPhotoType, visit_id: filterVisitId } = c.req.query();
+    const maxBatch = Math.min(parseInt(batchLimit) || 20, 50); // Max 50 per batch to avoid Worker timeout
+
+    let query = `SELECT vp.id, vp.r2_key, vp.tenant_id, vp.visit_id, vp.photo_type
+      FROM visit_photos vp
+      WHERE vp.tenant_id = ?
+        AND vp.r2_key IS NOT NULL
+        AND (vp.ai_analysis_status IS NULL OR vp.ai_analysis_status = '' OR vp.ai_analysis_status = 'pending')`;
+    const params = [tenantId];
+
+    if (filterPhotoType) { query += ' AND vp.photo_type = ?'; params.push(filterPhotoType); }
+    if (filterVisitId) { query += ' AND vp.visit_id = ?'; params.push(filterVisitId); }
+    query += ' ORDER BY vp.created_at DESC LIMIT ?';
+    params.push(maxBatch);
+
+    const photos = await db.prepare(query).bind(...params).all();
+    const toProcess = photos.results || [];
+
+    if (toProcess.length === 0) {
+      return c.json({ success: true, message: 'No unanalyzed photos found', processed: 0, total_pending: 0 });
+    }
+
+    // Count total pending for progress info
+    const pendingCount = await db.prepare(
+      `SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending')`
+    ).bind(tenantId).first();
+
+    // Mark all as processing
+    for (const photo of toProcess) {
+      await db.prepare("UPDATE visit_photos SET ai_analysis_status = 'processing' WHERE id = ?").bind(photo.id).run();
+    }
+
+    // Trigger AI analysis for each photo using waitUntil (non-blocking)
+    for (const photo of toProcess) {
+      try {
+        c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, photo.id, photo.r2_key, photo.tenant_id, photo.visit_id, photo.photo_type || 'general'));
+      } catch { /* AI analysis optional */ }
+    }
+
+    return c.json({
+      success: true,
+      message: `AI analysis triggered for ${toProcess.length} photos`,
+      processed: toProcess.length,
+      total_pending: (pendingCount?.count || 0) - toProcess.length,
+      photo_ids: toProcess.map(p => p.id)
+    });
+  } catch (e) {
+    console.error('AI backfill error:', e);
+    return c.json({ success: false, message: 'Backfill failed: ' + (e.message || e) }, 500);
+  }
+});
+
+// Get AI analysis status/progress
+api.get('/visit-photos/ai-status', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+
+    const [total, completed, processing, failed, pending] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'completed'").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'processing'").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'failed'").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending')").bind(tenantId).first(),
+    ]);
+
+    return c.json({
+      success: true,
+      data: {
+        total_photos: total?.count || 0,
+        completed: completed?.count || 0,
+        processing: processing?.count || 0,
+        failed: failed?.count || 0,
+        pending: pending?.count || 0,
+        progress_pct: total?.count > 0 ? Math.round(((completed?.count || 0) / total.count) * 1000) / 10 : 0
+      }
+    });
+  } catch (e) {
+    return c.json({ success: false, message: e.message }, 500);
+  }
+});
+
 // ==================== SHARE OF VOICE REPORTING ====================
 
 api.get('/insights/share-of-voice', async (c) => {
