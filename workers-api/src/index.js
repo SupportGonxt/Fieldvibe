@@ -1624,15 +1624,16 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
 
       if (memberIds.length > 0) {
         const ph = memberIds.map(() => '?').join(',');
-        const [vRes, rRes, tRes] = await Promise.all([
+        const [vRes, rRes, tRes, iRes] = await Promise.all([
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${ph}) AND visit_date >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (${ph}) AND visit_date >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
           db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(target_registrations),0) as tr FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${ph}) AND target_month = ?`).bind(tenantId, ...memberIds, currentMonth).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) != 'store' AND agent_id IN (${ph}) AND visit_date >= ?`).bind(tenantId, ...memberIds, currentMonth + '-01').first(),
         ]);
-        teamVisits = vRes?.count || 0;
+        teamVisits = iRes?.count || 0;
         teamRegs = rRes?.count || 0;
         teamTargetVisits = tRes?.tv || 0;
-        teamActualVisits = teamVisits;
+        teamActualVisits = vRes?.count || 0;
         teamTargetRegs = tRes?.tr || 0;
         teamActualRegs = teamRegs;
         if (teamTargetVisits === 0 && teamTargetRegs === 0) {
