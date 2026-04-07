@@ -8104,6 +8104,23 @@ api.post('/visits/check-photo-duplicate', authMiddleware, async (c) => {
   return c.json({ is_duplicate: false, message: 'Photo is unique' });
 });
 
+
+// Compute SHA-256 hash of photo bytes for deduplication
+async function computePhotoHash(bytes) {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Check if a photo with this hash already exists for the tenant
+async function isPhotoHashDuplicate(db, tenantId, photoHash) {
+  if (!photoHash) return false;
+  const existing = await db.prepare(
+    "SELECT id, visit_id FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1"
+  ).bind(tenantId, photoHash).first();
+  return !!existing;
+}
+
 // Create visit with full workflow data (individual or store)
 api.post('/visits/workflow', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -8212,6 +8229,44 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
       // individual_registrations no longer used - visits table is the single source of truth
       // individual_registrations INSERT removed - visits table is the single source of truth
+
+      // 2a-upload. Upload individual visit custom question images (base64) to R2 for AI analysis
+      const allIndivCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      for (const [key, val] of Object.entries(allIndivCustom)) {
+        if (typeof val === 'string' && val.startsWith('data:image')) {
+          try {
+            const base64Data = val.split(',')[1];
+            if (!base64Data) continue;
+            const binaryStr = atob(base64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            const indPhotoHash = await computePhotoHash(bytes);
+            if (await isPhotoHashDuplicate(db, tenantId, indPhotoHash)) {
+              const existingPhoto = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, indPhotoHash).first();
+              if (existingPhoto && existingPhoto.r2_url) mergedCustomFields[key] = existingPhoto.r2_url;
+              continue;
+            }
+            const indPhotoId = crypto.randomUUID();
+            const indPhotoKey = `photos/${tenantId}/${visitId}/${indPhotoId}.jpg`;
+            const bucket = c.env.UPLOADS;
+            if (bucket) {
+              await bucket.put(indPhotoKey, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+              const r2Url = `https://fieldvibe-uploads.${tenantId}.r2.dev/${indPhotoKey}`;
+              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
+                indPhotoId, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
+                indPhotoKey, r2Url, indPhotoHash, userId
+              ).run();
+              // Replace base64 with R2 URL in custom fields for future retrieval
+              mergedCustomFields[key] = r2Url;
+              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, indPhotoId, indPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'general')); } catch { /* AI optional */ }
+            }
+          } catch (imgErr) { console.error('Individual photo upload error:', imgErr); }
+        }
+      }
+      // Update visit_individuals with R2 URLs replacing base64
+      try {
+        await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ?').bind(JSON.stringify(mergedCustomFields), viId).run();
+      } catch { /* optional */ }
     }
 
     // 2b. For store visits, save custom_field_values + custom_question_values as a visit_response
@@ -8234,21 +8289,35 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
             const binaryStr = atob(base64Data);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            // Compute hash for deduplication
+            const cqPhotoHash = await computePhotoHash(bytes);
+            if (await isPhotoHashDuplicate(db, tenantId, cqPhotoHash)) {
+              const existingCqPhoto = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, cqPhotoHash).first();
+              if (existingCqPhoto && existingCqPhoto.r2_url) mergedStoreCustom[key] = existingCqPhoto.r2_url;
+              console.log(`Skipping duplicate photo (hash: ${cqPhotoHash}) for visit ${visitId}, key: ${key}`);
+              continue;
+            }
             const cqPhotoId = crypto.randomUUID();
             const cqPhotoKey = `photos/${tenantId}/${visitId}/${cqPhotoId}.jpg`;
             const bucket = c.env.UPLOADS;
             if (bucket) {
               await bucket.put(cqPhotoKey, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
               const r2Url = `https://fieldvibe-uploads.${tenantId}.r2.dev/${cqPhotoKey}`;
-              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?)').bind(
+              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
                 cqPhotoId, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
-                cqPhotoKey, r2Url, userId
+                cqPhotoKey, r2Url, cqPhotoHash, userId
               ).run();
+              // Replace base64 with R2 URL in stored responses
+              mergedStoreCustom[key] = r2Url;
               try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, cqPhotoId, cqPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'store_front')); } catch { /* AI optional */ }
             }
           } catch (imgErr) { console.error('Custom question image upload error:', imgErr); }
         }
       }
+      // Update visit_responses with R2 URLs replacing base64 data
+      try {
+        await db.prepare("UPDATE visit_responses SET responses = ? WHERE visit_id = ? AND visit_type = 'store_custom_questions'").bind(JSON.stringify(mergedStoreCustom), visitId).run();
+      } catch { /* optional */ }
     }
 
     // 3. Save survey responses if provided
@@ -8259,9 +8328,14 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       ).run();
     }
 
-    // 4. Save photos with GPS, hash, and board placement data
+    // 4. Save photos with GPS, hash, and board placement data (with deduplication)
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       for (const photo of body.photos) {
+        // Skip duplicate photos by hash
+        if (photo.photo_hash && await isPhotoHashDuplicate(db, tenantId, photo.photo_hash)) {
+          console.log(`Skipping duplicate photo (hash: ${photo.photo_hash}) for visit ${visitId}`);
+          continue;
+        }
         const photoId = crypto.randomUUID();
         try {
           await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
@@ -13112,6 +13186,21 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
             respData.ai_board_detected = true;
             await env.DB.prepare("UPDATE visit_responses SET responses = ? WHERE id = ?").bind(JSON.stringify(respData), existingResp.id).run();
           }
+        } else {
+          // Only create store_custom_questions row for store visits (not individual/customer visits)
+          const visitRow = await env.DB.prepare('SELECT visit_type FROM visits WHERE id = ?').bind(visitId).first();
+          if (visitRow && visitRow.visit_type === 'store') {
+            // Re-check to avoid race condition with concurrent AI analysis
+            const recheck = await env.DB.prepare("SELECT id FROM visit_responses WHERE visit_id = ? AND visit_type = 'store_custom_questions' LIMIT 1").bind(visitId).first();
+            if (!recheck) {
+              try {
+                const newId = crypto.randomUUID ? crypto.randomUUID() : uuidv4();
+                await env.DB.prepare("INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, 'store_custom_questions', ?)").bind(
+                  newId, tenantId, visitId, JSON.stringify({ board_installed: 'Yes', ai_board_detected: true })
+                ).run();
+              } catch (dupErr) { console.log('Concurrent board insert (expected):', dupErr.message); }
+            }
+          }
         }
       } catch (boardErr) { console.error('AI board update error:', boardErr); }
     }
@@ -13150,6 +13239,14 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
     const photoHash = formData.get('photo_hash') || null;
 
     if (!photo || !visitId) return c.json({ success: false, message: 'photo and visit_id required' }, 400);
+
+    // Check for duplicate photo by hash BEFORE uploading to R2 (avoids orphaned R2 objects)
+    if (photoHash) {
+      const isDup = await isPhotoHashDuplicate(db, tenantId, photoHash);
+      if (isDup) {
+        return c.json({ success: false, message: 'Duplicate photo detected. This photo has already been uploaded.', is_duplicate: true }, 409);
+      }
+    }
 
     const bucket = c.env.UPLOADS;
     const id = crypto.randomUUID();
@@ -13230,6 +13327,224 @@ api.post('/visit-photos/:id/reanalyze', async (c) => {
   await db.prepare("UPDATE visit_photos SET ai_analysis_status = 'processing' WHERE id = ?").bind(id).run();
   c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, id, photo.r2_key, tenantId, photo.visit_id, photo.photo_type));
   return c.json({ success: true, message: 'Re-analysis triggered' });
+});
+
+
+
+// Migrate historical base64 photos from visit_responses to R2
+api.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    const bucket = c.env.UPLOADS;
+    if (!bucket) return c.json({ success: false, message: 'R2 bucket not configured' }, 500);
+
+    const { limit: batchLimit } = c.req.query();
+    const maxBatch = Math.min(parseInt(batchLimit) || 20, 50);
+    let migrated = 0;
+    let skipped = 0;
+
+    // Find visit_responses with base64 images (store_custom_questions and regular questionnaire responses)
+    const responses = await db.prepare(
+      `SELECT vr.id, vr.visit_id, vr.tenant_id, vr.visit_type, vr.responses
+       FROM visit_responses vr
+       WHERE vr.tenant_id = ? AND vr.responses LIKE '%data:image%'
+       ORDER BY vr.id
+       LIMIT ?`
+    ).bind(tenantId, maxBatch).all();
+
+    // Also check visit_individuals custom_field_values
+    const indivResponses = await db.prepare(
+      `SELECT vi.id, vi.visit_id, vi.tenant_id, vi.custom_field_values as responses, 'individual_custom' as visit_type
+       FROM visit_individuals vi
+       WHERE vi.tenant_id = ? AND vi.custom_field_values LIKE '%data:image%'
+       ORDER BY vi.id
+       LIMIT ?`
+    ).bind(tenantId, maxBatch).all();
+
+    const allRows = [...(responses.results || []), ...(indivResponses.results || [])];
+
+    for (const row of allRows) {
+      try {
+        const data = typeof row.responses === 'string' ? JSON.parse(row.responses) : row.responses;
+        let updated = false;
+
+        for (const [key, val] of Object.entries(data)) {
+          if (typeof val === 'string' && val.startsWith('data:image')) {
+            try {
+              const base64Data = val.split(',')[1];
+              if (!base64Data) continue;
+              const binaryStr = atob(base64Data);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+              // Compute hash for deduplication
+              const photoHash = await computePhotoHash(bytes);
+              if (await isPhotoHashDuplicate(db, tenantId, photoHash)) {
+                // Photo already exists in R2 — just replace base64 with existing R2 URL
+                const existing = await db.prepare("SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1").bind(tenantId, photoHash).first();
+                if (existing && existing.r2_url) {
+                  data[key] = existing.r2_url;
+                  updated = true;
+                }
+                skipped++;
+                continue;
+              }
+
+              const photoId = crypto.randomUUID();
+              const photoKey = `photos/${tenantId}/${row.visit_id}/${photoId}.jpg`;
+              await bucket.put(photoKey, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+              const r2Url = `https://fieldvibe-uploads.${tenantId}.r2.dev/${photoKey}`;
+
+              // Insert into visit_photos
+              await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
+                photoId, tenantId, row.visit_id,
+                key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
+                photoKey, r2Url, photoHash, 'migration'
+              ).run();
+
+              // Replace base64 with R2 URL in data
+              data[key] = r2Url;
+              updated = true;
+              migrated++;
+
+              // Trigger AI analysis
+              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, photoId, photoKey, tenantId, row.visit_id, key.includes('board') || key.includes('ad_board') ? 'board' : 'general')); } catch { /* AI optional */ }
+            } catch (imgErr) { console.error('Migration image error:', imgErr); }
+          }
+        }
+
+        // Update the row with R2 URLs replacing base64
+        if (updated) {
+          if (row.visit_type === 'individual_custom') {
+            await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ?').bind(JSON.stringify(data), row.id).run();
+          } else {
+            await db.prepare('UPDATE visit_responses SET responses = ? WHERE id = ?').bind(JSON.stringify(data), row.id).run();
+          }
+        }
+      } catch (rowErr) { console.error('Migration row error:', rowErr); }
+    }
+
+    // Count remaining
+    const remaining = await db.prepare(
+      "SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ? AND responses LIKE '%data:image%'"
+    ).bind(tenantId).first();
+    const remainingIndiv = await db.prepare(
+      "SELECT COUNT(*) as count FROM visit_individuals WHERE tenant_id = ? AND custom_field_values LIKE '%data:image%'"
+    ).bind(tenantId).first();
+
+    return c.json({
+      success: true,
+      message: `Migrated ${migrated} photos to R2 (${skipped} duplicates skipped)`,
+      migrated,
+      skipped,
+      total_remaining: (remaining?.count || 0) + (remainingIndiv?.count || 0)
+    });
+  } catch (e) {
+    console.error('Base64 migration error:', e);
+    return c.json({ success: false, message: 'Migration failed: ' + (e.message || e) }, 500);
+  }
+});
+
+// Batch AI analysis for historical/unanalyzed photos
+api.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+
+    const { limit: batchLimit, photo_type: filterPhotoType, visit_id: filterVisitId } = c.req.query();
+    const maxBatch = Math.min(parseInt(batchLimit) || 20, 50); // Max 50 per batch to avoid Worker timeout
+
+    let query = `SELECT vp.id, vp.r2_key, vp.tenant_id, vp.visit_id, vp.photo_type, vp.photo_hash
+      FROM visit_photos vp
+      WHERE vp.tenant_id = ?
+        AND vp.r2_key IS NOT NULL
+        AND (vp.ai_analysis_status IS NULL OR vp.ai_analysis_status = '' OR vp.ai_analysis_status = 'pending')
+        AND NOT EXISTS (
+          SELECT 1 FROM visit_photos vp2
+          WHERE vp2.tenant_id = vp.tenant_id
+            AND vp2.photo_hash = vp.photo_hash
+            AND vp2.photo_hash IS NOT NULL
+            AND vp2.photo_hash != ''
+            AND vp2.ai_analysis_status = 'completed'
+            AND vp2.id != vp.id
+        )`;
+    const params = [tenantId];
+
+    if (filterPhotoType) { query += ' AND vp.photo_type = ?'; params.push(filterPhotoType); }
+    if (filterVisitId) { query += ' AND vp.visit_id = ?'; params.push(filterVisitId); }
+    query += ' ORDER BY vp.created_at DESC LIMIT ?';
+    params.push(maxBatch);
+
+    const photos = await db.prepare(query).bind(...params).all();
+    const toProcess = photos.results || [];
+
+    if (toProcess.length === 0) {
+      return c.json({ success: true, message: 'No unanalyzed photos found', processed: 0, total_pending: 0 });
+    }
+
+    // Count total pending for progress info
+    const pendingCount = await db.prepare(
+      `SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending')`
+    ).bind(tenantId).first();
+
+    // Mark all as processing
+    for (const photo of toProcess) {
+      await db.prepare("UPDATE visit_photos SET ai_analysis_status = 'processing' WHERE id = ?").bind(photo.id).run();
+    }
+
+    // Trigger AI analysis for each photo using waitUntil (non-blocking)
+    for (const photo of toProcess) {
+      try {
+        c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, photo.id, photo.r2_key, photo.tenant_id, photo.visit_id, photo.photo_type || 'general'));
+      } catch { /* AI analysis optional */ }
+    }
+
+    return c.json({
+      success: true,
+      message: `AI analysis triggered for ${toProcess.length} photos`,
+      processed: toProcess.length,
+      total_pending: (pendingCount?.count || 0) - toProcess.length,
+      photo_ids: toProcess.map(p => p.id)
+    });
+  } catch (e) {
+    console.error('AI backfill error:', e);
+    return c.json({ success: false, message: 'Backfill failed: ' + (e.message || e) }, 500);
+  }
+});
+
+// Get AI analysis status/progress
+api.get('/visit-photos/ai-status', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+
+    const [total, completed, processing, failed, pending] = await Promise.all([
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'completed'").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'processing'").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'failed'").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending')").bind(tenantId).first(),
+    ]);
+
+    return c.json({
+      success: true,
+      data: {
+        total_photos: total?.count || 0,
+        completed: completed?.count || 0,
+        processing: processing?.count || 0,
+        failed: failed?.count || 0,
+        pending: pending?.count || 0,
+        progress_pct: total?.count > 0 ? Math.round(((completed?.count || 0) / total.count) * 1000) / 10 : 0
+      }
+    });
+  } catch (e) {
+    return c.json({ success: false, message: e.message }, 500);
+  }
 });
 
 // ==================== SHARE OF VOICE REPORTING ====================
@@ -15343,7 +15658,8 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_custom_responses,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type = 'customer' OR vr.visit_type = 'store') LIMIT 1) as questionnaire_responses,
         (SELECT vp2.ai_analysis_status FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.ai_analysis_status IS NOT NULL ORDER BY vp2.ai_analysis_status = 'completed' DESC LIMIT 1) as ai_status,
-        (SELECT vp3.ai_raw_response FROM visit_photos vp3 WHERE vp3.visit_id = v.id AND vp3.tenant_id = v.tenant_id AND vp3.ai_analysis_status = 'completed' LIMIT 1) as ai_raw_response
+        (SELECT vp3.ai_raw_response FROM visit_photos vp3 WHERE vp3.visit_id = v.id AND vp3.tenant_id = v.tenant_id AND vp3.ai_analysis_status = 'completed' AND (vp3.ai_raw_response LIKE '%board_detected%true%' OR vp3.ai_raw_response LIKE '%"board_detected": true%') LIMIT 1) as ai_board_response,
+        (SELECT COUNT(*) FROM visit_photos vp4 WHERE vp4.visit_id = v.id AND vp4.tenant_id = v.tenant_id AND vp4.ai_analysis_status = 'completed') as ai_photos_analyzed
       FROM visits v
       LEFT JOIN customers c ON v.customer_id = c.id
       LEFT JOIN users u ON v.agent_id = u.id
@@ -15449,7 +15765,16 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         other_ad_brands,
         board_installed,
         ai_status: row.ai_status || null,
-        ai_board_detected: row.ai_raw_response ? (() => { try { const r = JSON.parse(row.ai_raw_response.match(/\{[\s\S]*\}/)?.[0] || '{}'); return r.board_detected === true; } catch { return false; } })() : false,
+        ai_photos_analyzed: row.ai_photos_analyzed || 0,
+        ai_board_detected: (() => {
+          // Check 1: AI raw response from photo analysis explicitly detected a board
+          if (row.ai_board_response) {
+            try { const r = JSON.parse(row.ai_board_response.match(/\{[\s\S]*\}/)?.[0] || '{}'); if (r.board_detected === true) return true; } catch {}
+          }
+          // Check 2: board_installed was set to 'Yes' (either manually or by AI updating visit_responses)
+          if (board_installed === 'Yes') return true;
+          return false;
+        })(),
       };
     });
 

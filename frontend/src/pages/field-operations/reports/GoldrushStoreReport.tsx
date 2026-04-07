@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera } from 'lucide-react'
+import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Sparkles, Loader2, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -35,6 +35,7 @@ interface GoldrushStore {
   board_installed: string
   ai_status: string | null
   ai_board_detected: boolean
+  ai_photos_analyzed: number
 }
 
 const GoldrushStoreReport: React.FC = () => {
@@ -51,6 +52,10 @@ const GoldrushStoreReport: React.FC = () => {
   const [photoModalVisitId, setPhotoModalVisitId] = useState<string | null>(null)
   const [photoModalPhotos, setPhotoModalPhotos] = useState<Array<{ id: string; photo_type: string; label?: string; r2_url: string }>>([])
   const [photoModalLoading, setPhotoModalLoading] = useState(false)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [aiStatus, setAiStatus] = useState<{ total_photos: number; completed: number; processing: number; failed: number; pending: number; progress_pct: number } | null>(null)
+  const [migrationStatus, setMigrationStatus] = useState<{ migrated: number; skipped: number; total_remaining: number } | null>(null)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -66,6 +71,64 @@ const GoldrushStoreReport: React.FC = () => {
       setPhotoModalLoading(false)
     }
   }
+
+  const fetchAiStatus = async () => {
+    try {
+      const res = await apiClient.get('/visit-photos/ai-status')
+      setAiStatus(res.data?.data || null)
+    } catch { /* ignore */ }
+  }
+
+  const handleAiBackfill = async () => {
+    setAiRunning(true)
+    try {
+      const res = await apiClient.post('/visit-photos/ai-backfill?limit=20')
+      const data = res.data
+      if (data.processed > 0) {
+        toast.success(`AI analysis triggered for ${data.processed} photos (${data.total_pending} remaining)`)
+      } else {
+        toast.success('No unanalyzed photos found')
+      }
+      await fetchAiStatus()
+      queryClient.invalidateQueries({ queryKey: ['goldrush-stores'] })
+    } catch {
+      toast.error('Failed to trigger AI analysis')
+    } finally {
+      setAiRunning(false)
+    }
+  }
+
+  const handleMigratePhotos = async () => {
+    setMigrating(true)
+    try {
+      let totalMigrated = 0
+      let totalSkipped = 0
+      let remaining = 1
+      while (remaining > 0) {
+        const res = await apiClient.post('/visit-photos/migrate-base64?limit=20')
+        const data = res.data
+        totalMigrated += data.migrated || 0
+        totalSkipped += data.skipped || 0
+        remaining = data.total_remaining || 0
+        setMigrationStatus({ migrated: totalMigrated, skipped: totalSkipped, total_remaining: remaining })
+        if ((data.migrated || 0) === 0 && (data.skipped || 0) === 0) break
+      }
+      if (totalMigrated > 0) {
+        toast.success(`Migrated ${totalMigrated} photos to R2 (${totalSkipped} duplicates skipped)`)
+      } else {
+        toast.success('No base64 photos to migrate')
+      }
+      await fetchAiStatus()
+      queryClient.invalidateQueries({ queryKey: ['goldrush-stores'] })
+    } catch {
+      toast.error('Failed to migrate photos')
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  // Fetch AI status on mount
+  useEffect(() => { fetchAiStatus() }, [])
 
   const { data: companiesResp } = useQuery({
     queryKey: ['field-companies'],
@@ -234,6 +297,16 @@ const GoldrushStoreReport: React.FC = () => {
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
           />
+          <button onClick={handleMigratePhotos} disabled={migrating}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium">
+            {migrating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {migrating ? `Migrating${migrationStatus ? ` (${migrationStatus.migrated} done, ${migrationStatus.total_remaining} left)` : '...'}` : 'Migrate Photos'}
+          </button>
+          <button onClick={handleAiBackfill} disabled={aiRunning}
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
+            {aiRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {aiRunning ? 'Analyzing...' : 'Analyze Photos'}
+          </button>
           <button onClick={exportToExcel} disabled={exporting || filtered.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
             <Download className="h-4 w-4" /> Export Excel
