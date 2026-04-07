@@ -25,8 +25,12 @@ interface DashboardData {
   today_store_visits?: number
   month_individual_visits?: number
   month_store_visits?: number
+  week_visits?: number
   week_individual_visits?: number
   week_store_visits?: number
+  prior_month_visits?: number
+  prior_month_individual_visits?: number
+  prior_month_store_visits?: number
   daily_targets: Array<{
     company_name: string
     target_visits: number
@@ -384,11 +388,35 @@ function OverviewTab({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard icon={<MapPin className="w-5 h-5 text-blue-400" />} label="Today Individual" value={dashData?.today_individual_visits ?? dashData?.today_visits ?? 0} />
-        <StatCard icon={<Store className="w-5 h-5 text-purple-400" />} label="Today Store" value={dashData?.today_store_visits ?? 0} />
-        <StatCard icon={<TrendingUp className="w-5 h-5 text-emerald-400" />} label="Month Individual" value={dashData?.month_individual_visits ?? dashData?.month_visits ?? 0} />
-        <StatCard icon={<Award className="w-5 h-5 text-amber-400" />} label="Month Store" value={dashData?.month_store_visits ?? 0} />
+      {/* Period summary table: Day / Week / MTD / Prior Month */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Performance Summary</h3>
+        <div className="grid grid-cols-4 gap-0 text-[10px]">
+          <div className="p-1.5 text-gray-500 font-medium">Period</div>
+          <div className="p-1.5 text-gray-500 font-medium text-center">Individual</div>
+          <div className="p-1.5 text-gray-500 font-medium text-center">Store</div>
+          <div className="p-1.5 text-gray-500 font-medium text-center">Total</div>
+
+          <div className="p-1.5 text-[#00E87B] font-semibold">Day</div>
+          <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_individual_visits ?? dashData?.today_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_store_visits ?? dashData?.today_stores ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_visits ?? 0}</div>
+
+          <div className="p-1.5 text-blue-400 font-semibold">Week</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.week_individual_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.week_store_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.week_visits ?? 0}</div>
+
+          <div className="p-1.5 text-amber-400 font-semibold">MTD</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.month_individual_visits ?? dashData?.month_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.month_store_visits ?? dashData?.month_stores ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.month_visits ?? 0}</div>
+
+          <div className="p-1.5 text-purple-400 font-semibold">Prior Mo</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.prior_month_individual_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.prior_month_store_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.prior_month_visits ?? 0}</div>
+        </div>
       </div>
 
       {/* Visit breakdown by company and type */}

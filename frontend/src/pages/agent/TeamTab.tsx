@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield } from 'lucide-react'
+import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield, Store } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+
+type Period = 'day' | 'week' | 'month' | 'prior_month'
 
 interface AgentStat {
   id: string
@@ -12,6 +14,16 @@ interface AgentStat {
   month_visits: number
   today_stores: number
   month_stores: number
+  today_individual_visits?: number
+  today_store_visits?: number
+  month_individual_visits?: number
+  month_store_visits?: number
+  week_visits?: number
+  week_individual_visits?: number
+  week_store_visits?: number
+  prior_month_visits?: number
+  prior_month_individual_visits?: number
+  prior_month_store_visits?: number
   target_visits: number
   actual_visits: number
   target_stores: number
@@ -52,6 +64,12 @@ interface TeamData {
     today_store_visits?: number
     month_individual_visits?: number
     month_store_visits?: number
+    week_visits?: number
+    week_individual_visits?: number
+    week_store_visits?: number
+    prior_month_visits?: number
+    prior_month_individual_visits?: number
+    prior_month_store_visits?: number
   }
   team_targets: {
     target_visits: number
@@ -116,6 +134,7 @@ export default function TeamTab() {
   const [refreshing, setRefreshing] = useState(false)
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
+  const [period, setPeriod] = useState<Period>('day')
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -154,6 +173,29 @@ export default function TeamTab() {
   const tiers = data?.commission_tiers || []
   const currentTier = data?.current_team_tier
 
+  // Period-based team totals helper
+  const getTeamTotals = (p: Period) => {
+    const t = data?.team_totals
+    if (!t) return { individual: 0, store: 0, total: 0 }
+    switch (p) {
+      case 'day': return { individual: t.today_individual_visits ?? t.today_visits ?? 0, store: t.today_store_visits ?? 0, total: t.today_visits ?? 0 }
+      case 'week': return { individual: t.week_individual_visits ?? 0, store: t.week_store_visits ?? 0, total: t.week_visits ?? 0 }
+      case 'month': return { individual: t.month_individual_visits ?? t.month_visits ?? 0, store: t.month_store_visits ?? 0, total: t.month_visits ?? 0 }
+      case 'prior_month': return { individual: t.prior_month_individual_visits ?? 0, store: t.prior_month_store_visits ?? 0, total: t.prior_month_visits ?? 0 }
+    }
+  }
+  // Period-based agent data helper
+  const getAgentPeriod = (a: AgentStat, p: Period) => {
+    switch (p) {
+      case 'day': return { individual: a.today_individual_visits ?? a.today_visits ?? 0, store: a.today_store_visits ?? a.today_stores ?? 0, total: a.today_visits ?? 0 }
+      case 'week': return { individual: a.week_individual_visits ?? 0, store: a.week_store_visits ?? 0, total: a.week_visits ?? 0 }
+      case 'month': return { individual: a.month_individual_visits ?? a.month_visits ?? 0, store: a.month_store_visits ?? a.month_stores ?? 0, total: a.month_visits ?? 0 }
+      case 'prior_month': return { individual: a.prior_month_individual_visits ?? 0, store: a.prior_month_store_visits ?? 0, total: a.prior_month_visits ?? 0 }
+    }
+  }
+  const periodLabel = (p: Period) => p === 'day' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'Month to Date' : 'Prior Month'
+  const teamPeriod = getTeamTotals(period)
+
   return (
     <div className="min-h-screen bg-[#06090F] pb-24">
       {/* Header */}
@@ -169,36 +211,42 @@ export default function TeamTab() {
         </div>
       </div>
 
+      {/* Period Toggle */}
+      <div className="px-5 pt-4 pb-1">
+        <div className="flex gap-1 bg-white/5 rounded-xl p-1">
+          {(['day', 'week', 'month', 'prior_month'] as Period[]).map(p => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={'flex-1 py-1.5 text-[10px] font-semibold rounded-lg capitalize transition-all ' + (period === p ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400')}>
+              {p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Team KPIs */}
-      <div className="px-5 pt-4 pb-2">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="px-5 pt-2 pb-2">
+        <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">{periodLabel(period)} Team Totals</p>
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-4 h-4 text-blue-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individual</span>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-3.5 h-3.5 text-blue-400" /></div>
+              <span className="text-[10px] text-gray-500">Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.today_individual_visits ?? data?.team_totals?.today_visits ?? 0}</p>
+            <p className="text-xl font-bold text-white">{teamPeriod.individual}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-purple-500/10"><UserCheck className="w-4 h-4 text-purple-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Store</span>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="p-1.5 rounded-lg bg-purple-500/10"><Store className="w-3.5 h-3.5 text-purple-400" /></div>
+              <span className="text-[10px] text-gray-500">Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.today_store_visits ?? 0}</p>
+            <p className="text-xl font-bold text-white">{teamPeriod.store}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individual</span>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-3.5 h-3.5 text-emerald-400" /></div>
+              <span className="text-[10px] text-gray-500">Total</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.month_individual_visits ?? data?.team_totals?.month_visits ?? 0}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-amber-500/10"><Target className="w-4 h-4 text-amber-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Store</span>
-            </div>
-            <p className="text-xl font-bold text-white">{data?.team_totals?.month_store_visits ?? 0}</p>
+            <p className="text-xl font-bold text-white">{teamPeriod.total}</p>
           </div>
         </div>
       </div>
@@ -442,7 +490,7 @@ export default function TeamTab() {
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
-                      <p className="text-[10px] text-gray-500">{agent.today_visits} individual · {agent.today_stores} store today</p>
+                      <p className="text-[10px] text-gray-500">{getAgentPeriod(agent, period).individual} individual · {getAgentPeriod(agent, period).store} store ({periodLabel(period).toLowerCase()})</p>
                     </div>
                     <div className="text-right mr-1">
                       <span className={`text-xs font-bold ${pctClass(agent.achievement)}`}>
@@ -451,16 +499,38 @@ export default function TeamTab() {
                     </div>
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
                   </button>
-                  {isExpanded && (
+                  {isExpanded && (() => {
+                    const ap = getAgentPeriod(agent, period)
+                    return (
                     <div className="px-3 pb-3 pt-0 border-t border-white/5">
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Individual</p>
-                          <p className="text-sm font-semibold text-white">{agent.month_visits}</p>
+                      {/* Period breakdown table */}
+                      <div className="mt-2 bg-white/5 rounded-lg overflow-hidden">
+                        <div className="grid grid-cols-4 gap-0 text-[10px]">
+                          <div className="p-1.5 text-gray-500 font-medium">Period</div>
+                          <div className="p-1.5 text-gray-500 font-medium text-center">Individual</div>
+                          <div className="p-1.5 text-gray-500 font-medium text-center">Store</div>
+                          <div className="p-1.5 text-gray-500 font-medium text-center">Total</div>
+                          {(['day', 'week', 'month', 'prior_month'] as Period[]).map(p => {
+                            const d = getAgentPeriod(agent, p)
+                            const isActive = p === period
+                            return (<React.Fragment key={p}>
+                              <div className={'p-1.5 ' + (isActive ? 'text-[#00E87B] font-semibold' : 'text-gray-400')}>{p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}</div>
+                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.individual}</div>
+                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.store}</div>
+                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.total}</div>
+                            </React.Fragment>)
+                          })}
                         </div>
-                        <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Store</p>
-                          <p className="text-sm font-semibold text-white">{agent.month_stores}</p>
+                      </div>
+                      {/* Selected period highlight */}
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="bg-blue-500/10 rounded-lg p-2">
+                          <p className="text-[10px] text-blue-300">{periodLabel(period)} Individual</p>
+                          <p className="text-sm font-semibold text-white">{ap.individual}</p>
+                        </div>
+                        <div className="bg-purple-500/10 rounded-lg p-2">
+                          <p className="text-[10px] text-purple-300">{periodLabel(period)} Store</p>
+                          <p className="text-sm font-semibold text-white">{ap.store}</p>
                         </div>
                       </div>
                       {/* Individual target progress */}
@@ -492,7 +562,8 @@ export default function TeamTab() {
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
               )
             })}
