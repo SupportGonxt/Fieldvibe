@@ -4047,7 +4047,7 @@ api.get('/performance-messages', authMiddleware, async (c) => {
 // Generate performance summaries on demand (for testing / manual trigger)
 api.post('/performance-messages/generate', authMiddleware, async (c) => {
   const role = c.get('role');
-  if (!['admin', 'super_admin', 'manager'].includes(role)) {
+  if (!['admin', 'super_admin', 'manager', 'team_lead'].includes(role)) {
     return c.json({ error: 'Unauthorized' }, 403);
   }
   try {
@@ -17329,7 +17329,6 @@ async function generatePerformanceSummaries(db) {
             // Manager: get all team leads under them, then all agents under those team leads
             const tls = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?").bind(tenantId, leader.id).all();
             const tlIds = (tls.results || []).map(t => t.id);
-            const tlNames = (tls.results || []).map(t => t.first_name + ' ' + t.last_name);
             
             if (tlIds.length > 0) {
               const tlPh = tlIds.map(() => '?').join(',');
