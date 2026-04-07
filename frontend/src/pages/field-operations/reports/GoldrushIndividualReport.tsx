@@ -19,6 +19,7 @@ interface GoldrushIndividual {
   product_app_player_id: string
   goldrush_id: string
   thumbnail_url: string
+  has_photos: boolean
   converted: number
   conversion_date: string
   agent_name: string
@@ -309,6 +310,10 @@ const GoldrushIndividualReport: React.FC = () => {
                       <button onClick={() => setExpandedPhoto(ind.thumbnail_url)} className="block">
                         <img src={ind.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
                       </button>
+                    ) : ind.has_photos ? (
+                      <span className="inline-flex items-center justify-center w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700" title="Photos captured (view in visit detail)">
+                        <Camera className="w-4 h-4 text-blue-500" />
+                      </span>
                     ) : (
                       <span className="text-gray-400 text-xs">No photo</span>
                     )}
