@@ -1427,8 +1427,8 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
     const teamPriorMonthStore = agentStats.reduce((s, a) => s + (a.prior_month_store_visits || 0), 0);
     const agentTargetVisits = agentStats.reduce((s, a) => s + a.target_visits, 0);
     const agentActualVisits = agentStats.reduce((s, a) => s + a.actual_visits, 0);
-    const agentTargetRegs = agentStats.reduce((s, a) => s + (a.target_registrations || 0), 0);
-    const agentActualRegs = agentStats.reduce((s, a) => s + (a.actual_registrations || 0), 0);
+    const agentTargetRegs = agentStats.reduce((s, a) => s + (a.target_stores || 0), 0);
+    const agentActualRegs = agentStats.reduce((s, a) => s + (a.actual_stores || 0), 0);
 
     // Include team lead's own targets in team totals
     const tlOwnTargets = await db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(target_registrations),0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, userId, currentMonth).first();
