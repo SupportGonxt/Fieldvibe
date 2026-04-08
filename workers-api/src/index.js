@@ -12848,16 +12848,16 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       { key: 'additional_notes', label: 'Additional Notes', type: 'textarea', options: null, required: 0, order: 15, visit_target_type: 'individual', show_in_reports: 0 },
     ];
     const allCcqs = [...storeQuestions, ...individualQuestions2];
-    try {
-      for (const q of allCcqs) {
+    for (const q of allCcqs) {
+      try {
         const existing = await db.prepare("SELECT id FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND question_key = ? AND visit_target_type = ? AND is_active = 1").bind(tenantId, goldrushId, q.key, q.visit_target_type).first();
         if (!existing) {
           await db.prepare("INSERT INTO company_custom_questions (id, tenant_id, company_id, question_label, question_key, field_type, field_options, is_required, display_order, visit_target_type, check_duplicate, min_length, max_length, show_in_reports, enable_ai_analysis, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?, datetime('now'), datetime('now'))").bind(
             crypto.randomUUID(), tenantId, goldrushId, q.label, q.key, q.type, q.options ? JSON.stringify(q.options) : null, q.required, q.order, q.visit_target_type, q.show_in_reports, q.enable_ai || 0
           ).run();
         }
-      }
-    } catch (e) { console.error('Company custom questions seed error:', e); }
+      } catch (e) { console.error(`Company custom question seed error for ${q.key}:`, e); }
+    }
 
     return c.json({
       success: true,
