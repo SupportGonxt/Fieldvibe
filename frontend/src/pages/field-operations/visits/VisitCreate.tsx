@@ -509,15 +509,6 @@ export default function VisitCreate() {
     }
   }, [selectedCompany, visitTargetType])
 
-  // Eagerly load survey config + questionnaires when company is selected
-  // so the survey step appears in activeSteps before the user reaches it
-  useEffect(() => {
-    if (selectedCompany) {
-      loadSurveyConfig(selectedCompany)
-      loadQuestionnaires(selectedCompany)
-    }
-  }, [selectedCompany, visitTargetType])
-
   const loadCustomFields = async (companyId: string) => {
     try {
       const res = await fieldOperationsService.getBrandCustomFields(companyId, visitTargetType || 'individual')

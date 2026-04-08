@@ -12811,19 +12811,53 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       } catch (e) { console.error('Sample board seed error (table may not exist yet):', e); }
     }
 
-    // 7. Seed visit_survey_config so survey step is required for Goldrush visits
-    const finalShopQId = existingShopQ?.id || shopQId;
-    const finalIndivQId = existingIndivQ?.id || indivQId;
+    // 7. Seed Goldrush questions as company_custom_questions (shown in details step, not survey step)
+    const storeQuestions = [
+      { key: 'brand_awareness', label: 'Does the customer know the brand?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 1, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'stocks_product', label: 'Does the customer stock the product?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 2, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'sales_volume', label: 'Current sales volume', type: 'text', options: null, required: 0, order: 3, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'stock_source', label: 'Where do they get stock?', type: 'select', options: ['Wholesaler', 'Manufacturer', 'Other'], required: 1, order: 4, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'competitors_in_store', label: 'Competitors in store', type: 'text', options: null, required: 0, order: 5, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'competitor_stock_source', label: 'Where do competitors get stock?', type: 'select', options: ['Wholesaler', 'Manufacturer', 'Other'], required: 0, order: 6, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'competitor_products', label: 'Competitor products', type: 'textarea', options: null, required: 0, order: 7, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'competitor_prices', label: 'Competitor prices', type: 'text', options: null, required: 0, order: 8, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'has_advertising', label: 'Does the shop have our advertising?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 9, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'other_ad_brands', label: 'Other advertising brands visible', type: 'text', options: null, required: 0, order: 10, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'board_installed', label: 'Did you put up our board?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 11, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'shop_exterior_photo', label: 'Shop exterior photo', type: 'image', options: null, required: 0, order: 12, visit_target_type: 'store', show_in_reports: 1, enable_ai: 0 },
+      { key: 'competitor_photo', label: 'Competitor product photos', type: 'image', options: null, required: 0, order: 13, visit_target_type: 'store', show_in_reports: 1, enable_ai: 0 },
+      { key: 'ad_board_photo', label: 'Advertising board photo', type: 'image', options: null, required: 1, order: 14, visit_target_type: 'store', show_in_reports: 1, enable_ai: 1 },
+      { key: 'goldrush_id', label: 'Goldrush ID (Optional)', type: 'text', options: null, required: 0, order: 15, visit_target_type: 'store', show_in_reports: 1 },
+      { key: 'additional_notes', label: 'Additional Notes', type: 'textarea', options: null, required: 0, order: 16, visit_target_type: 'store', show_in_reports: 0 },
+    ];
+    const individualQuestions2 = [
+      { key: 'gave_brand_info', label: 'Did you give brand information?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 1, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'consumer_name', label: 'Consumer Name', type: 'text', options: null, required: 1, order: 2, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'consumer_surname', label: 'Consumer Surname', type: 'text', options: null, required: 1, order: 3, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'id_passport', label: 'ID/Passport Number', type: 'text', options: null, required: 0, order: 4, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'cellphone', label: 'Cellphone Number', type: 'text', options: null, required: 1, order: 5, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'goldrush_id', label: 'Goldrush ID', type: 'text', options: null, required: 1, order: 6, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'id_passport_photo', label: 'ID/Passport Photo', type: 'image', options: null, required: 0, order: 7, visit_target_type: 'individual', show_in_reports: 1, enable_ai: 0 },
+      { key: 'consumer_converted', label: 'Did the consumer convert (buy first voucher)?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 8, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'betting_elsewhere', label: 'Is the consumer betting somewhere?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 9, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'competitor_company', label: 'What company do you use?', type: 'text', options: null, required: 0, order: 10, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'used_goldrush_before', label: 'Have they used Goldrush before?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 11, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'goldrush_comparison', label: 'How does Goldrush compare?', type: 'textarea', options: null, required: 0, order: 12, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'likes_goldrush', label: 'Do they like Goldrush?', type: 'radio', options: ['Yes', 'No'], required: 1, order: 13, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'platform_suggestions', label: 'Platform suggestions', type: 'textarea', options: null, required: 0, order: 14, visit_target_type: 'individual', show_in_reports: 1 },
+      { key: 'additional_notes', label: 'Additional Notes', type: 'textarea', options: null, required: 0, order: 15, visit_target_type: 'individual', show_in_reports: 0 },
+    ];
+    const allCcqs = [...storeQuestions, ...individualQuestions2];
     try {
-      const existingStoreConfig = await db.prepare("SELECT id FROM visit_survey_config WHERE tenant_id = ? AND company_id = ? AND visit_target_type = 'store'").bind(tenantId, goldrushId).first();
-      if (!existingStoreConfig) {
-        await db.prepare("INSERT INTO visit_survey_config (id, tenant_id, company_id, visit_target_type, survey_required, questionnaire_id) VALUES (?, ?, ?, 'store', 1, ?)").bind(crypto.randomUUID(), tenantId, goldrushId, finalShopQId).run();
+      for (const q of allCcqs) {
+        const existing = await db.prepare("SELECT id FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND question_key = ? AND visit_target_type = ? AND is_active = 1").bind(tenantId, goldrushId, q.key, q.visit_target_type).first();
+        if (!existing) {
+          await db.prepare("INSERT INTO company_custom_questions (id, tenant_id, company_id, question_label, question_key, field_type, field_options, is_required, display_order, visit_target_type, check_duplicate, min_length, max_length, show_in_reports, enable_ai_analysis, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?, datetime('now'), datetime('now'))").bind(
+            crypto.randomUUID(), tenantId, goldrushId, q.label, q.key, q.type, q.options ? JSON.stringify(q.options) : null, q.required, q.order, q.visit_target_type, q.show_in_reports, q.enable_ai || 0
+          ).run();
+        }
       }
-      const existingIndivConfig = await db.prepare("SELECT id FROM visit_survey_config WHERE tenant_id = ? AND company_id = ? AND visit_target_type = 'individual'").bind(tenantId, goldrushId).first();
-      if (!existingIndivConfig) {
-        await db.prepare("INSERT INTO visit_survey_config (id, tenant_id, company_id, visit_target_type, survey_required, questionnaire_id) VALUES (?, ?, ?, 'individual', 1, ?)").bind(crypto.randomUUID(), tenantId, goldrushId, finalIndivQId).run();
-      }
-    } catch (e) { console.error('Survey config seed error:', e); }
+    } catch (e) { console.error('Company custom questions seed error:', e); }
 
     return c.json({
       success: true,
