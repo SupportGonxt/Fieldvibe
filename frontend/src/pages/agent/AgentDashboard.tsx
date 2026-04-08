@@ -4,10 +4,11 @@ import { toast } from 'react-hot-toast'
 import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
-  Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap,
+  Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap, Download, X,
   DollarSign, Flame, BarChart3
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 
 // Lazy load non-critical sections (code splitting)
@@ -118,6 +119,7 @@ export default function AgentDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [online, setOnline] = useState(navigator.onLine)
   const authUser = useAuthStore((s) => s.user)
+  const { showPrompt: showInstallPrompt, promptInstall, dismiss: dismissInstall } = usePwaInstall()
 
   // Critical data loaded (stats + targets) - show skeletons until this is ready
   const [criticalLoaded, setCriticalLoaded] = useState(false)
@@ -345,6 +347,36 @@ export default function AgentDashboard() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {/* PWA Install Prompt */}
+      {showInstallPrompt && (
+        <div className="px-5 mb-4">
+          <div className="bg-gradient-to-r from-[#00E87B]/10 to-cyan-500/10 border border-[#00E87B]/20 rounded-2xl p-4 relative">
+            <button
+              onClick={dismissInstall}
+              className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#00E87B]/20 flex items-center justify-center flex-shrink-0">
+                <Download className="w-5 h-5 text-[#00E87B]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">Install FieldVibe</p>
+                <p className="text-xs text-gray-400">Add to your home screen for quick access</p>
+              </div>
+            </div>
+            <button
+              onClick={promptInstall}
+              className="mt-3 w-full py-2.5 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
+            >
+              Install App
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Role-specific quick access card */}
       {authUser?.role === 'team_lead' && (
