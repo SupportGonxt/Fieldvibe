@@ -12866,7 +12866,6 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
         company_id: goldrushId,
         shop_questionnaire_id: existingShopQ?.id || shopQId,
         individual_questionnaire_id: existingIndivQ?.id || indivQId,
-        target_rule_id: targetRuleId,
         sample_board_id: sampleBoardId
       }
     });
