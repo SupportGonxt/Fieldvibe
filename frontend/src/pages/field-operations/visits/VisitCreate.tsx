@@ -1543,7 +1543,10 @@ export default function VisitCreate() {
                                 const file = e.target.files?.[0]
                                 if (file) {
                                   const reader = new FileReader()
-                                  reader.onload = () => setSurveyResponses(prev => ({ ...prev, [qKey]: reader.result as string }))
+                                  reader.onload = async () => {
+                                    const compressed = await compressImage(reader.result as string)
+                                    setSurveyResponses(prev => ({ ...prev, [qKey]: compressed }))
+                                  }
                                   reader.readAsDataURL(file)
                                 }
                               }} />
