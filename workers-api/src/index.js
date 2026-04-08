@@ -8981,12 +8981,12 @@ function tinyZip(files) {
     const data = typeof file.data === 'string' ? te.encode(file.data) : file.data;
     const chk = crc32(data);
     const fh = new Uint8Array(30 + fname.length);
-    putU32(fh, 0, 0x04034b50); putU32(fh, 14, chk, data.length, data.length); putU16(fh, 26, fname.length);
+    putU32(fh, 0, 0x04034b50); putU16(fh, 4, 20); putU32(fh, 14, chk, data.length, data.length); putU16(fh, 26, fname.length);
     fh.set(fname, 30);
     file._header = fh; file._data = data; file._offset = offset;
     records.push(fh); records.push(data);
     const cdr = new Uint8Array(46 + fname.length);
-    putU32(cdr, 0, 0x02014b50); putU32(cdr, 16, chk, data.length, data.length); putU16(cdr, 28, fname.length); putU32(cdr, 42, offset);
+    putU32(cdr, 0, 0x02014b50); putU16(cdr, 4, 20, 20); putU32(cdr, 16, chk, data.length, data.length); putU16(cdr, 28, fname.length); putU32(cdr, 42, offset);
     cdr.set(fname, 46);
     file._cdr = cdr;
     cdSz += cdr.length;
@@ -9085,20 +9085,27 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
     // ===== Build OOXML .xlsx (ZIP of XML parts) =====
     // Helper: build a sheet XML from rows array. Each row is array of {v, t} where t='s'|'n'|'b' (string/number/bold-string)
     const buildSheetXml = (rows) => {
+      // Calculate dimension for Excel compatibility
+      let maxCol = 0;
+      rows.forEach(row => { if (row.length > maxCol) maxCol = row.length; });
+      const lastColLetter = maxCol > 0 ? String.fromCharCode(64 + maxCol) : 'A';
+      const dimRef = `A1:${lastColLetter}${rows.length || 1}`;
       let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
       xml += '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+      xml += `<dimension ref="${dimRef}"/>`;
       xml += '<sheetData>';
       rows.forEach((row, ri) => {
+        if (row.length === 0) { xml += `<row r="${ri+1}"/>`; return; }
         xml += `<row r="${ri+1}">`;
         row.forEach((cell, ci) => {
           const colLetter = String.fromCharCode(65 + ci);
           const ref = `${colLetter}${ri+1}`;
           if (cell.t === 'n') {
             const sIdx = cell.bold ? '2' : '0';
-            xml += `<c r="${ref}" s="${sIdx}"><v>${cell.v}</v></c>`;
+            xml += `<c r="${ref}" s="${sIdx}"><v>${cell.v != null ? cell.v : 0}</v></c>`;
           } else {
             const sIdx = cell.bold ? '1' : '0';
-            xml += `<c r="${ref}" t="inlineStr" s="${sIdx}"><is><t>${escXml(String(cell.v))}</t></is></c>`;
+            xml += `<c r="${ref}" t="inlineStr" s="${sIdx}"><is><t>${escXml(String(cell.v ?? ''))}</t></is></c>`;
           }
         });
         xml += '</row>';
@@ -9190,7 +9197,8 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
     return new Response(zipData, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': String(zipData.byteLength)
       }
     });
   } catch (e) {

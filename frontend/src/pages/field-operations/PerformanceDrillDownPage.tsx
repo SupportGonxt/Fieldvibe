@@ -49,7 +49,7 @@ export default function PerformanceDrillDownPage() {
         params.append('end_date', dateRange.end_date)
       }
       
-      const response = await fieldOperationsService.get(`/field-ops/drill-down/${userId}/export?${params.toString()}`)
+      const response = await fieldOperationsService.get(`/field-ops/drill-down/${userId}/export?${params.toString()}`, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
