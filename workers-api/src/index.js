@@ -12811,6 +12811,20 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
       } catch (e) { console.error('Sample board seed error (table may not exist yet):', e); }
     }
 
+    // 7. Seed visit_survey_config so survey step is required for Goldrush visits
+    const finalShopQId = existingShopQ?.id || shopQId;
+    const finalIndivQId = existingIndivQ?.id || indivQId;
+    try {
+      const existingStoreConfig = await db.prepare("SELECT id FROM visit_survey_config WHERE tenant_id = ? AND company_id = ? AND visit_target_type = 'store'").bind(tenantId, goldrushId).first();
+      if (!existingStoreConfig) {
+        await db.prepare("INSERT INTO visit_survey_config (id, tenant_id, company_id, visit_target_type, survey_required, questionnaire_id) VALUES (?, ?, ?, 'store', 1, ?)").bind(crypto.randomUUID(), tenantId, goldrushId, finalShopQId).run();
+      }
+      const existingIndivConfig = await db.prepare("SELECT id FROM visit_survey_config WHERE tenant_id = ? AND company_id = ? AND visit_target_type = 'individual'").bind(tenantId, goldrushId).first();
+      if (!existingIndivConfig) {
+        await db.prepare("INSERT INTO visit_survey_config (id, tenant_id, company_id, visit_target_type, survey_required, questionnaire_id) VALUES (?, ?, ?, 'individual', 1, ?)").bind(crypto.randomUUID(), tenantId, goldrushId, finalIndivQId).run();
+      }
+    } catch (e) { console.error('Survey config seed error:', e); }
+
     return c.json({
       success: true,
       message: 'Goldrush company, questionnaires, targets, and sample board seeded',
