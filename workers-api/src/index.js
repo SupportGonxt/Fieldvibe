@@ -13305,10 +13305,14 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
     }
 
     const aiResponse = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-      messages: [{ role: 'user', content: [
-        { type: 'text', text: prompt },
-        { type: 'image', image: Array.from(imageBytes) }
-      ]}]
+      messages: [
+        { role: 'user', content: 'agree' },
+        { role: 'assistant', content: 'I agree to the terms.' },
+        { role: 'user', content: [
+          { type: 'text', text: prompt },
+          { type: 'image', image: Array.from(imageBytes) }
+        ]}
+      ]
     });
 
     const responseText = aiResponse?.response || '';
