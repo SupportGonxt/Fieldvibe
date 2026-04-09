@@ -717,15 +717,31 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     const agentCompanyIds = (companies.results || []).map(co => co.id);
     if (agentCompanyIds.length > 0) {
       const ph = agentCompanyIds.map(() => '?').join(',');
-      const [ctrResult, perCompanyRegsTodayAll] = await Promise.all([
-        db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, dashAgentIds.length > 1 ? 'agent' : dashRoleType).all().catch(() => ({ results: [] })),
+      // For team leads/managers with multiple agents, fetch 'agent' rules for individual targets (scaled by agent count)
+      // Also fetch role-specific rules separately for team lead's own store target
+      const fetchRoleType = dashAgentIds.length > 1 ? 'agent' : dashRoleType;
+      const [ctrResult, perCompanyRegsTodayAll, ownRoleRulesResult] = await Promise.all([
+        db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, fetchRoleType).all().catch(() => ({ results: [] })),
         db.prepare(`SELECT company_id, SUM(CASE WHEN visit_date = ? THEN 1 ELSE 0 END) as today_count, COUNT(*) as month_count FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND LOWER(visit_type) = 'store' AND company_id IN (${ph}) AND visit_date >= ? AND visit_date < ? GROUP BY company_id`).bind(today, tenantId, ...dashAgentIds, ...agentCompanyIds, monthStart, nextMonth).all().catch(() => ({ results: [] })),
+        // Fetch role-specific rules (team_lead or manager) for own store targets when viewing aggregate
+        (fetchRoleType !== dashRoleType)
+          ? db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph}) AND ctr.role_type = ?`).bind(tenantId, ...agentCompanyIds, dashRoleType).all().catch(() => ({ results: [] }))
+          : Promise.resolve({ results: [] }),
       ]);
       companyTargetRules = ctrResult.results || [];
       // Fallback: get any rules if no role-specific ones found
       if (companyTargetRules.length === 0) {
         const fallbackResult = await db.prepare(`SELECT ctr.*, fc.name as company_name FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ? AND ctr.company_id IN (${ph})`).bind(tenantId, ...agentCompanyIds).all().catch(() => ({ results: [] }));
         companyTargetRules = fallbackResult.results || [];
+      }
+      // Build lookup of role-specific store targets (team_lead's own store target, manager's own target)
+      const ownRoleRules = (ownRoleRulesResult.results || []);
+      const ownRoleStoreTargetByCompany = {};
+      for (const rule of ownRoleRules) {
+        ownRoleStoreTargetByCompany[rule.company_id] = {
+          store_target_per_day: (rule.store_target_per_day != null ? rule.store_target_per_day : rule.target_registrations_per_day) || 0,
+          store_target_per_month: rule.store_target_per_month || 0,
+        };
       }
       for (const r of (perCompanyRegsTodayAll.results || [])) {
         perCompanyRegsLookup[r.company_id] = { today: r.today_count || 0, month: r.month_count || 0 };
@@ -757,7 +773,9 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         // Use new per-role fields first, fall back to legacy fields (use ?? to preserve explicit 0)
         // Scale by agent count for managers/team leads
         const indivPerDay = ((ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0) * mult;
-        const storePerDay = ((ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0) * mult;
+        // For team leads/managers: use their own role-specific store target (not scaled by agents)
+        const ownStore = ownRoleStoreTargetByCompany[ctr.company_id];
+        const storePerDay = ownStore ? ownStore.store_target_per_day : (((ctr.store_target_per_day != null ? ctr.store_target_per_day : ctr.target_registrations_per_day) ?? 0) * mult);
         const indivPerWeek = (ctr.individual_target_per_week_agent ?? 0) * mult;
         const indivPerMonth = (ctr.individual_target_per_month_agent ?? (((ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0) * 22)) * mult;
         return {
@@ -765,9 +783,11 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
           company_id: ctr.company_id,
           target_visits: indivPerDay,
           target_registrations: storePerDay,
+          target_stores: storePerDay,
           target_conversions: (ctr.target_conversions_per_day || 0) * mult,
           actual_visits: ca.today_individual_visits || 0,
           actual_registrations: ca.today_store_visits || 0,
+          actual_stores: ca.today_store_visits || 0,
           actual_store_visits: ca.today_store_visits || 0,
           actual_individual_visits: ca.today_individual_visits || 0,
           individual_target_per_day: indivPerDay,
@@ -834,7 +854,10 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       // Scale per-agent targets by number of agents assigned to this company (for managers/team leads)
       const agentMult = getAgentMultiplier(ctr.company_id);
       const dayTarget = perAgentDayTarget * agentMult;
-      const dayRegTarget = perAgentDayRegTarget * agentMult;
+      // For team leads/managers: use their own role-specific store target (not scaled by agents)
+      // Team lead's store target is their own (e.g. 4/day = 20/week), not per-agent
+      const ownStoreTarget = ownRoleStoreTargetByCompany[ctr.company_id];
+      const dayRegTarget = ownStoreTarget ? ownStoreTarget.store_target_per_day : (perAgentDayRegTarget * agentMult);
       weekTargetVisits += dayTarget * workingDaysPerWeek;
       weekTargetRegs += dayRegTarget * workingDaysPerWeek;
       monthTargetVisits += dayTarget * workingDaysPerMonth;
@@ -847,10 +870,13 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         // Daily targets (scaled by agent count for managers/team leads)
         daily_target_visits: dayTarget,
         daily_target_registrations: dayRegTarget,
+        daily_target_stores: dayRegTarget,
         daily_actual_visits: ca.today_individual_visits || 0,
         daily_actual_registrations: ca.today_store_visits || 0,
+        daily_actual_stores: ca.today_store_visits || 0,
         // Store-specific targets (scaled by agent count)
-        store_target_per_month: ((ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0) * agentMult,
+        store_target_per_month: ownStoreTarget ? (ownStoreTarget.store_target_per_day * workingDaysPerMonth) : (((ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0) * agentMult),
+        month_target_stores: ownStoreTarget ? (ownStoreTarget.store_target_per_day * workingDaysPerMonth) : (((ctr.store_target_per_month != null ? ctr.store_target_per_month : ctr.store_target_per_month_agent) ?? 0) * agentMult),
         store_actual_month: ca.month_store_visits || 0,
         store_actual_today: ca.today_store_visits || 0,
         store_actual_week: weekStoreVisits,
@@ -896,8 +922,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         daily_targets: dailyTargets,
         company_target_rules: companyTargetRules,
         company_targets: companyTargets,
-        weekly_targets: { target_visits: weekTargetVisits, actual_visits: totalWeekIndividual, actual_visits_all: weekVisits?.count || 0, target_registrations: weekTargetRegs, actual_registrations: totalWeekStore, actual_registrations_all: weekRegs?.count || 0 },
-        monthly_targets: { target_visits: monthTargetVisits, actual_visits: totalMonthIndividual, actual_visits_all: monthVisits?.count || 0, target_registrations: monthTargetRegs, actual_registrations: totalMonthStore, actual_registrations_all: monthRegs?.count || 0 },
+        weekly_targets: { target_visits: weekTargetVisits, actual_visits: totalWeekIndividual, actual_visits_all: weekVisits?.count || 0, target_registrations: weekTargetRegs, target_stores: weekTargetRegs, actual_registrations: totalWeekStore, actual_stores: totalWeekStore, actual_registrations_all: weekRegs?.count || 0 },
+        monthly_targets: { target_visits: monthTargetVisits, actual_visits: totalMonthIndividual, actual_visits_all: monthVisits?.count || 0, target_registrations: monthTargetRegs, target_stores: monthTargetRegs, actual_registrations: totalMonthStore, actual_stores: totalMonthStore, actual_registrations_all: monthRegs?.count || 0 },
         visit_breakdown: visitBreakdown.results || [],
       }
     });
@@ -1260,12 +1286,17 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       const perfCompanyIds = (perfAgentCompanies.results || []).map(co => co.id);
       if (perfCompanyIds.length > 0) {
         const ph = perfCompanyIds.map(() => '?').join(',');
-        let perfCtrResult = await db.prepare(`SELECT individual_target_per_day, target_visits_per_day FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph}) AND role_type = ?`).bind(tenantId, ...perfCompanyIds, perfRoleType).all().catch(() => ({ results: [] }));
+        // For team leads/managers: use agent rules and scale by agent count to get aggregate individual target
+        const perfFetchRole = (perfUserRole === 'team_lead' || perfUserRole === 'manager') ? 'agent' : perfRoleType;
+        let perfCtrResult = await db.prepare(`SELECT individual_target_per_day, target_visits_per_day, company_id FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph}) AND role_type = ?`).bind(tenantId, ...perfCompanyIds, perfFetchRole).all().catch(() => ({ results: [] }));
         if (!perfCtrResult.results || perfCtrResult.results.length === 0) {
-          perfCtrResult = await db.prepare(`SELECT individual_target_per_day, target_visits_per_day FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph})`).bind(tenantId, ...perfCompanyIds).all().catch(() => ({ results: [] }));
+          perfCtrResult = await db.prepare(`SELECT individual_target_per_day, target_visits_per_day, company_id FROM company_target_rules WHERE tenant_id = ? AND company_id IN (${ph})`).bind(tenantId, ...perfCompanyIds).all().catch(() => ({ results: [] }));
         }
         for (const r of (perfCtrResult.results || [])) {
-          dailyIndividualTarget += (r.individual_target_per_day != null ? r.individual_target_per_day : r.target_visits_per_day) || 0;
+          const perAgentTarget = (r.individual_target_per_day != null ? r.individual_target_per_day : r.target_visits_per_day) || 0;
+          // For team leads/managers, scale by number of agents (perfAgentIdsForCounts includes all agents)
+          const perfMult = (perfUserRole === 'team_lead' || perfUserRole === 'manager') ? perfAgentIdsForCounts.length : 1;
+          dailyIndividualTarget += perAgentTarget * perfMult;
         }
       }
     } catch { /* keep 0 */ }
@@ -12772,9 +12803,9 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
         const ruleId = crypto.randomUUID();
         // Set appropriate targets per role
         const targets = {
-          agent: { dayVisits: 8, dayRegs: 4, monthStore: 80, weekIndiv: 20 },
-          team_lead: { dayVisits: 0, dayRegs: 0, monthStore: 160, weekIndiv: 0 }, // Sum of agents
-          manager: { dayVisits: 0, dayRegs: 0, monthStore: 0, weekIndiv: 0 } // Sum of TLs
+          agent: { dayVisits: 20, dayRegs: 0, monthStore: 0, weekIndiv: 100 }, // 20 individuals/day, 100/week (5 days)
+          team_lead: { dayVisits: 0, dayRegs: 4, monthStore: 0, weekIndiv: 0 }, // 4 stores/day = 20/week; individual = sum of agents
+          manager: { dayVisits: 0, dayRegs: 0, monthStore: 0, weekIndiv: 0 } // Sum of TLs + agents
         };
         try {
           await db.prepare(`INSERT INTO company_target_rules (id, tenant_id, company_id, role_type,
