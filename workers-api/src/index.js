@@ -714,6 +714,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     // Batch 2: Fetch company target rules + per-company regs (depends on companies result)
     let companyTargetRules = [];
     const perCompanyRegsLookup = {};
+    let ownRoleStoreTargetByCompany = {};
     const agentCompanyIds = (companies.results || []).map(co => co.id);
     if (agentCompanyIds.length > 0) {
       const ph = agentCompanyIds.map(() => '?').join(',');
@@ -736,7 +737,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       }
       // Build lookup of role-specific store targets (team_lead's own store target, manager's own target)
       const ownRoleRules = (ownRoleRulesResult.results || []);
-      const ownRoleStoreTargetByCompany = {};
+      ownRoleStoreTargetByCompany = {};
       for (const rule of ownRoleRules) {
         ownRoleStoreTargetByCompany[rule.company_id] = {
           store_target_per_day: (rule.store_target_per_day != null ? rule.store_target_per_day : rule.target_registrations_per_day) || 0,

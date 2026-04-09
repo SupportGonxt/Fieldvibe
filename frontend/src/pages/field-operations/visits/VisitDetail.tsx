@@ -60,7 +60,8 @@ export default function VisitDetail() {
     try {
       // Pass ID as string (UUIDs) — do NOT convert to Number
       const response = await fieldOperationsService.getVisit(id!)
-      setVisit(response.data)
+      // getVisit already unwraps response.data?.data || response.data, so response IS the visit object
+      setVisit(response.data || response)
     } catch (error) {
       console.error('Failed to load visit:', error)
     } finally {
