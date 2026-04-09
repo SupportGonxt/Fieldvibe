@@ -13527,6 +13527,10 @@ api.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
         }
         if (!fullRow || !fullRow.responses) { errors.push('Row ' + rowMeta.id + ': no data'); continue; }
 
+        // Look up the visit's agent_id to use as uploaded_by (FK constraint requires valid user ID)
+        const visitRow = await db.prepare("SELECT agent_id FROM visits WHERE id = ?").bind(rowMeta.visit_id).first();
+        const uploadedBy = (visitRow && visitRow.agent_id) || c.get('userId');
+
         const data = typeof fullRow.responses === 'string' ? JSON.parse(fullRow.responses) : fullRow.responses;
         let updated = false;
 
@@ -13559,7 +13563,7 @@ api.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
               await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
                 photoId, tenantId, rowMeta.visit_id,
                 key.includes('board') || key.includes('ad_board') ? 'board' : key.includes('exterior') ? 'store_front' : 'general',
-                photoKey, r2Url, photoHash, c.get('userId')
+                photoKey, r2Url, photoHash, uploadedBy
               ).run();
 
               data[key] = r2Url;
