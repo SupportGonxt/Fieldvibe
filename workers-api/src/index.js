@@ -13287,7 +13287,15 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
     const bucket = env.UPLOADS;
     const object = await bucket.get(r2Key);
     if (!object) return;
-    const imageBytes = new Uint8Array(await object.arrayBuffer());
+    let imageBytes = new Uint8Array(await object.arrayBuffer());
+
+    // Llama Vision 128K context window: each image byte ≈ 1.5-2 tokens
+    // 128K tokens - ~3K for prompt/output = ~125K tokens for image ≈ ~80KB max
+    const MAX_AI_IMAGE_BYTES = 80000;
+    if (imageBytes.length > MAX_AI_IMAGE_BYTES) {
+      await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image ' + Math.round(imageBytes.length/1024) + 'KB exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB limit for 128K context window', photoId).run();
+      return;
+    }
 
     let prompt = '';
     if (photoType === 'shelf' || photoType === 'compliance') {
