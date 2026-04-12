@@ -76,59 +76,7 @@ export default function EventsPage() {
       setEvents(response.data?.events || [])
     } catch (error) {
       console.error('Error fetching events:', error)
-      // Fallback to mock data for demo
-      setEvents([
-          {
-            id: '1',
-            title: 'Product Launch Event - Summer Collection',
-            description: 'Launch event for our new summer product line',
-            type: 'product_launch',
-            status: 'active',
-            start_date: '2024-01-15T09:00:00Z',
-            end_date: '2024-01-15T17:00:00Z',
-            location: 'Cape Town Convention Centre',
-            budget: 50000,
-            max_participants: 200,
-            expected_attendees: 180,
-            actual_attendees: 165,
-            organizer_name: 'Sarah Johnson',
-            participant_count: 165,
-            resource_count: 8
-          },
-          {
-            id: '2',
-            title: 'Sales Team Training Workshop',
-            description: 'Quarterly sales training and strategy session',
-            type: 'training',
-            status: 'completed',
-            start_date: '2024-01-10T08:00:00Z',
-            end_date: '2024-01-12T16:00:00Z',
-            location: 'Johannesburg Office',
-            budget: 25000,
-            max_participants: 50,
-            expected_attendees: 45,
-            actual_attendees: 42,
-            organizer_name: 'Mike Chen',
-            participant_count: 42,
-            resource_count: 5
-          },
-          {
-            id: '3',
-            title: 'Trade Show - Food & Beverage Expo',
-            description: 'Annual food and beverage industry trade show',
-            type: 'trade_show',
-            status: 'planned',
-            start_date: '2024-02-20T08:00:00Z',
-            end_date: '2024-02-22T18:00:00Z',
-            location: 'Durban ICC',
-            budget: 75000,
-            max_participants: 300,
-            expected_attendees: 280,
-            organizer_name: 'Lisa Williams',
-            participant_count: 0,
-            resource_count: 12
-          }
-        ])
+      setEvents([])
     } finally {
       setLoading(false)
     }
@@ -150,17 +98,6 @@ export default function EventsPage() {
       })
     } catch (error) {
       console.error('Error fetching metrics:', error)
-      // Fallback to mock data for demo
-      setMetrics({
-        total_events: 15,
-        completed_events: 8,
-        active_events: 4,
-        cancelled_events: 1,
-        total_budget: 450000,
-        avg_budget: 30000,
-        total_participants: 1250,
-        attendance_rate: 87.5
-      })
     }
   }
 
