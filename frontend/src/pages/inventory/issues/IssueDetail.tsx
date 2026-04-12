@@ -26,7 +26,7 @@ export default function IssueDetail() {
   const loadIssue = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getIssue(Number(id))
+      const response = await inventoryService.getIssue(String(id))
       setIssue(response.data)
     } catch (error) {
       console.error('Failed to load issue:', error)
@@ -41,7 +41,7 @@ export default function IssueDetail() {
       message: 'Are you sure you want to reverse this issue? This will reverse all inventory movements.',
       action: async () => {
         try {
-      await inventoryService.reverseIssue(Number(id))
+      await inventoryService.reverseIssue(String(id))
       navigate('/inventory/issues')
     } catch (error) {
       console.error('Failed to reverse issue:', error)

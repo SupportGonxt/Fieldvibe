@@ -57,7 +57,7 @@ export default function PriceListEditPage() {
       if (data) {
         setFormData({
           name: data.name,
-          code: data.code || '',
+          code: (data as any).code || '',
           description: data.description || '',
           customer_type: data.customer_type || '',
           region_id: data.region_id || '',

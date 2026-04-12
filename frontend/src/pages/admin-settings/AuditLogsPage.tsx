@@ -42,8 +42,8 @@ export const AuditLogsPage: React.FC = () => {
     })
   })
 
-  const logs = data?.logs || []
-  const total = data?.total || 0
+  const logs = Array.isArray(data) ? data : (data as any)?.logs || []
+  const total = Array.isArray(data) ? data.length : (data as any)?.total || 0
 
   const getActionBadge = (action: string) => {
     const badges = {

@@ -74,7 +74,7 @@ export default function PaymentAllocationCreate() {
               className="input"
             >
               <option value="">Select invoice...</option>
-              {invoices?.map((invoice) => (
+              {invoices?.invoices?.map((invoice) => (
                 <option key={invoice.id} value={invoice.id}>
                   {invoice.invoice_number} (Balance: ${invoice.balance.toFixed(2)})
                 </option>

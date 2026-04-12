@@ -207,8 +207,9 @@ apiClient.interceptors.response.use(
     }
 
     // Handle other errors
-    const errorMessage = error.response?.data?.message || error.message || 'An error occurred'
-    const errorCode = error.response?.data?.code || 'UNKNOWN_ERROR'
+    const errorData = error.response?.data as Record<string, any> | undefined
+    const errorMessage = errorData?.message || error.message || 'An error occurred'
+    const errorCode = errorData?.code || 'UNKNOWN_ERROR'
     
     return Promise.reject({
       message: errorMessage,

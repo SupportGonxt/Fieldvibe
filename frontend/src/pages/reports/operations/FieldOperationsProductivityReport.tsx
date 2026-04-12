@@ -14,7 +14,7 @@ export default function FieldOperationsProductivityReport() {
   const loadReport = async () => {
     setLoading(true)
     try {
-      const response = await reportsService.getFieldOperationsReport('productivity', filters)
+      const response = await (reportsService as any).getFieldOperationsReport('productivity', filters)
       setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load field operations productivity report:', error)
@@ -61,7 +61,7 @@ export default function FieldOperationsProductivityReport() {
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
     try {
-      await reportsService.exportReport('field-operations', 'productivity', format, filters)
+      await (reportsService as any).exportReport('field-operations', 'productivity', format, filters)
     } catch (error) {
       console.error('Failed to export report:', error)
     }

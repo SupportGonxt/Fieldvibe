@@ -272,6 +272,17 @@ class PromotionsService extends ApiService {
     
     return response.data?.data || response.data
   }
+
+
+  async getProductPromotions(productId: string): Promise<any> {
+    try {
+      const response = await this.get(`/products/${productId}/promotions`);
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error('Failed to get product promotions:', error);
+      return [];
+    }
+  }
 }
 
 export const promotionsService = new PromotionsService()

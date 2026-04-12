@@ -114,7 +114,7 @@ export const IntegrationsPage: React.FC = () => {
       </div>
 
       {/* Integrations by Category */}
-      {categories.map((category) => (
+      {categories.map((category: string) => (
         <div key={category} className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-lg font-medium text-gray-900">{category}</h2>
@@ -123,9 +123,9 @@ export const IntegrationsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {integrations
                 .filter(i => i.category === category)
-                .map((integration) => (
+                .map((integration: any) => (
                   <div
-                    key={integration.id}
+                    key={String(integration.id)}
                     className="border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between mb-3">

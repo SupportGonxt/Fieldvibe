@@ -295,6 +295,8 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
     default_duration_minutes: config?.default_duration_minutes || 30,
     is_active: config?.is_active !== undefined ? config.is_active : true
   })
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<{action: () => void; title: string; message: string}>({action: () => {}, title: '', message: ''})
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -355,7 +357,7 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
                   { value: 'customer_type', label: 'Customer Type' },
                 ]}
                 value={formData.target_type}
-              onChange={(val) => setFormData(prev => ({...prev, target_type: val}))}
+              onChange={(val) => setFormData((prev: any) => ({...prev, target_type: val}))}
                 placeholder="All Customers"
               />
             </div>
@@ -369,7 +371,7 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
                     { value: 'brand.id', label: '{brand.name}' },
                   ]}
                   value={formData.brand_id || null}
-              onChange={(val) => setFormData(prev => ({...prev, brand_id: val}))}
+              onChange={(val) => setFormData((prev: any) => ({...prev, brand_id: val}))}
                   placeholder="Select Brand"
                 />
               </div>
@@ -387,7 +389,7 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
                     { value: 'distributor', label: 'Distributor' },
                   ]}
                   value={formData.customer_type || null}
-              onChange={(val) => setFormData(prev => ({...prev, customer_type: val}))}
+              onChange={(val) => setFormData((prev: any) => ({...prev, customer_type: val}))}
                   placeholder="Select Type"
                 />
               </div>
@@ -534,7 +536,7 @@ function ConfigurationModal({ config, brands, surveys, boards, onClose, onSucces
                         { value: 'board.id', label: '{board.name}' },
                       ]}
                       value={formData.board_id || null}
-              onChange={(val) => setFormData(prev => ({...prev, board_id: val}))}
+              onChange={(val) => setFormData((prev: any) => ({...prev, board_id: val}))}
                       placeholder="Any Board"
                     />
                   </div>

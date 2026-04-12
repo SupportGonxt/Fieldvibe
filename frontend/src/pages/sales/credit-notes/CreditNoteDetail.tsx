@@ -22,7 +22,7 @@ export default function CreditNoteDetail() {
     setLoading(true)
     setError(null)
     try {
-      const response = await salesService.getCreditNote(Number(id))
+      const response = await salesService.getCreditNote(String(id))
       setCreditNote(response.data)
     } catch (err: any) {
       console.error('Failed to load credit note:', err)

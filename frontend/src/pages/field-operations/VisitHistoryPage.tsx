@@ -7,7 +7,7 @@ export default function VisitHistoryPage() {
   const [filter, setFilter] = useState({ page: 1, limit: 20, agent_id: '', start_date: '', end_date: '' })
   const { data, isLoading, error } = useQuery({
     queryKey: ['visit-history', filter],
-    queryFn: () => fieldOperationsService.getVisitHistory(filter)
+    queryFn: () => fieldOperationsService.getVisitHistory(filter as any)
   })
 
   const visits = data?.data || []

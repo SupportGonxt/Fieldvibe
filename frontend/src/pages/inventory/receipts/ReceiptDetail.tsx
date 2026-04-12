@@ -26,7 +26,7 @@ export default function ReceiptDetail() {
   const loadReceipt = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getReceipt(Number(id))
+      const response = await inventoryService.getReceipt(String(id))
       setReceipt(response.data)
     } catch (error) {
       console.error('Failed to load receipt:', error)
@@ -41,7 +41,7 @@ export default function ReceiptDetail() {
       message: 'Are you sure you want to reverse this receipt? This will reverse all inventory movements.',
       action: async () => {
         try {
-      await inventoryService.reverseReceipt(Number(id))
+      await inventoryService.reverseReceipt(String(id))
       navigate('/inventory/receipts')
     } catch (error) {
       console.error('Failed to reverse receipt:', error)

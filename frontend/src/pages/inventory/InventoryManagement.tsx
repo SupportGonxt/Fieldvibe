@@ -34,7 +34,7 @@ export default function InventoryManagement() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [showStockAdjustDialog, setShowStockAdjustDialog] = useState(false)
   const [showLocationDialog, setShowLocationDialog] = useState(false)
-  const [filter, setFilter] = useState<InventoryFilter>({
+  const [filter, setFilter] = useState<InventoryFilter & { category?: string }>({
     page: 1,
     limit: 20,
     sort_by: 'updated_at',
@@ -733,7 +733,7 @@ export default function InventoryManagement() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Location</label>
-                    <p className="text-gray-900">{selectedItem.warehouse_name || selectedItem.van_code || 'N/A'}</p>
+                    <p className="text-gray-900">{selectedItem.warehouse_name || (selectedItem as any).van_code || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Status</label>

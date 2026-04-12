@@ -8,7 +8,7 @@ export default function OrderDelivery() {
 
   const { data: deliveryData, isLoading, isError } = useQuery({
     queryKey: ['order-delivery', id],
-    queryFn: () => orderService.getOrderDelivery(id!),
+    queryFn: () => (orderService as any).getOrderDelivery(id!),
   })
 
   const delivery = deliveryData?.delivery || {}

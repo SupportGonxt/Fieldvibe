@@ -71,7 +71,7 @@ export default function ProductDetailsPage() {
         throw new Error('Product not found')
       }
       
-      setProduct(productResponse)
+      setProduct(productResponse as any)
       setEditForm(productResponse)
 
       // Fetch stock history from API

@@ -28,7 +28,7 @@ const TradeMarketingAgentPage: React.FC = () => {
         tradeMarketingService.getAnalyticsSummary()
       ]);
       
-      setVisits(visitsRes.visits || []);
+      setVisits((visitsRes as any).visits || []);
       setAnalytics(analyticsRes);
     } catch (error) {
       console.error('Failed to load data:', error);

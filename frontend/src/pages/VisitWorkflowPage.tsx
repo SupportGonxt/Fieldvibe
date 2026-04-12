@@ -33,7 +33,7 @@ const VisitWorkflowPage: React.FC = () => {
   const createVisit = async () => {
     setLoading(true);
     try {
-      const result = await fieldMarketingService.createVisit({
+      const result: any = await fieldMarketingService.createVisit({
         customerId: customer.id,
         visitType: 'field_marketing',
         startLatitude: gpsLocation.latitude,
@@ -53,7 +53,7 @@ const VisitWorkflowPage: React.FC = () => {
 
   const loadBoards = async () => {
     try {
-      const result = await fieldMarketingService.getBoards();
+      const result: any = await fieldMarketingService.getBoards();
       setBoards(result.boards || []);
     } catch (error) {
       console.error('Failed to load boards:', error);
@@ -80,7 +80,7 @@ const VisitWorkflowPage: React.FC = () => {
     setShowCompleteDialog(false);
     setLoading(true);
     try {
-      await fieldMarketingService.completeVisit(visit.id, {
+      await (fieldMarketingService as any).completeVisit(visit.id, {
         endLatitude: gpsLocation.latitude,
         endLongitude: gpsLocation.longitude,
         visitNotes: notes || undefined

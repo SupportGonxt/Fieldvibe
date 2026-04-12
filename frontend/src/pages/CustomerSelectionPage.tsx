@@ -54,8 +54,8 @@ const CustomerSelectionPage: React.FC = () => {
         params.radius = 100;
       }
       
-      const result = await fieldMarketingService.searchCustomers(params);
-      setCustomers(result.customers || []);
+      const result: any = await fieldMarketingService.searchCustomers(params);
+      setCustomers(result?.customers || []);
     } catch (error) {
       console.error('Search failed:', error);
     } finally {
@@ -73,16 +73,15 @@ const CustomerSelectionPage: React.FC = () => {
     setValidatingGPS(true);
     
     try {
-      const result = await fieldMarketingService.validateGPS({
-        customerId: customer.id,
+      const result: any = await fieldMarketingService.validateGPS({
+        customer_id: customer.id,
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
-        accuracy: 10
-      });
+      } as any);
       
       setGpsValidation(result);
       
-      if (result.valid) {
+      if (result?.valid) {
         setTimeout(() => startVisit(customer), 1500);
       }
     } catch (error) {
@@ -237,18 +236,18 @@ const CustomerSelectionPage: React.FC = () => {
             <div className="bg-white rounded-lg p-6 max-w-md w-full">
               <div className="text-center">
                 <div className="text-6xl mb-4">
-                  {gpsValidation.valid ? '✅' : '❌'}
+                  {gpsValidation?.valid ? '✅' : '❌'}
                 </div>
                 <h3 className="text-xl font-bold mb-2">
-                  {gpsValidation.valid ? 'GPS Validated!' : 'GPS Validation Failed'}
+                  {gpsValidation?.valid ? 'GPS Validated!' : 'GPS Validation Failed'}
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  {gpsValidation.valid 
+                  {gpsValidation?.valid 
                     ? `You are ${gpsValidation.distance.toFixed(1)}m from ${selectedCustomer.name}`
                     : `You are ${gpsValidation.distance.toFixed(1)}m away. Please move closer (within ${gpsValidation.requiredDistance}m)`
                   }
                 </p>
-                {gpsValidation.valid ? (
+                {gpsValidation?.valid ? (
                   <div className="text-sm text-gray-500">
                     Starting visit...
                   </div>

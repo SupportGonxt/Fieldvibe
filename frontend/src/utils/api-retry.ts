@@ -63,6 +63,8 @@ export async function retryRequest<T>(
 export function addRetryToAxiosConfig(config: AxiosRequestConfig, retryConfig?: RetryConfig): AxiosRequestConfig {
   return {
     ...config,
+    // @ts-ignore
+    // @ts-ignore
     'axios-retry': retryConfig || DEFAULT_RETRY_CONFIG
   }
 }

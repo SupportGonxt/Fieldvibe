@@ -123,13 +123,13 @@ export default function VanSalesOrdersList() {
     }
   ]
 
-  const handleReverse = async (orderId: number) => {
+  const handleReverse = async (orderId: string | number) => {
     setPendingAction({
       title: 'Confirm',
       message: 'Are you sure you want to reverse this order?',
       action: async () => {
         try {
-          await vanSalesService.reverseOrder(orderId)
+          await vanSalesService.reverseOrder(String(orderId))
           loadOrders()
         } catch (error) {
           console.error('Failed to reverse order:', error)

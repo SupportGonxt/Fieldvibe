@@ -19,7 +19,7 @@ export default function AdjustmentsList() {
     try {
       const response = await inventoryService.getAdjustments()
       // API returns { success: true, data: [...] }, axios wraps it in response.data
-      const adjustments = response.data?.data || response.data?.adjustments || response.data || []
+      const adjustments = (response as any)?.data || response || []
       setAdjustments(Array.isArray(adjustments) ? adjustments : [])
     } catch (error) {
       console.error('Failed to load adjustments:', error)

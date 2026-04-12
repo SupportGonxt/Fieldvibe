@@ -14,7 +14,7 @@ export default function InventorySnapshotReport() {
   const loadReport = async () => {
     setLoading(true)
     try {
-      const response = await reportsService.getInventoryReport('snapshot', filters)
+      const response = await (reportsService as any).getInventoryReport('snapshot', filters)
       setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load inventory snapshot report:', error)
@@ -73,7 +73,7 @@ export default function InventorySnapshotReport() {
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
     try {
-      await reportsService.exportReport('inventory', 'snapshot', format, filters)
+      await (reportsService as any).exportReport('inventory', 'snapshot', format, filters)
     } catch (error) {
       console.error('Failed to export report:', error)
     }

@@ -22,7 +22,7 @@ export default function PaymentDetail() {
     setLoading(true)
     setError(null)
     try {
-      const response = await salesService.getPayment(Number(id))
+      const response = await salesService.getPayment(String(id))
       setPayment(response.data)
     } catch (err: any) {
       console.error('Failed to load payment:', err)

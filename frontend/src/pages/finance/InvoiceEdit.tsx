@@ -26,7 +26,7 @@ export default function InvoiceEdit() {
   })
 
   const { register, handleSubmit, formState: { errors } } = useForm<InvoiceFormData>({
-    values: invoice
+    values: invoice as any
   })
 
   const updateMutation = useMutation({

@@ -33,13 +33,13 @@ export default function VanLoadsList() {
     }
   }
 
-  const handleConfirm = async (loadId: number) => {
+  const handleConfirm = async (loadId: string | number) => {
     setPendingAction({
       title: 'Confirm',
       message: 'Are you sure you want to confirm this van load?',
       action: async () => {
         try {
-          await vanSalesService.confirmVanLoad(loadId)
+          await vanSalesService.confirmVanLoad(String(loadId))
           loadVanLoads()
         } catch (error) {
           console.error('Failed to confirm van load:', error)

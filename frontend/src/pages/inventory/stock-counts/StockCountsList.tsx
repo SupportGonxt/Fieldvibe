@@ -22,7 +22,7 @@ export default function StockCountsList() {
   const loadStockCounts = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getStockCounts()
+      const response: any = await inventoryService.getStockCounts()
       // API returns { success: true, data: [...] }, axios wraps it in response.data
       const stockCounts = response.data?.data || response.data?.stock_counts || response.data || []
       setStockCounts(Array.isArray(stockCounts) ? stockCounts : [])
@@ -33,13 +33,13 @@ export default function StockCountsList() {
     }
   }
 
-  const handleConfirm = async (countId: number) => {
+  const handleConfirm = async (countId: string | number) => {
     setPendingAction({
       title: 'Confirm',
       message: 'Are you sure you want to confirm this stock count? This will create adjustments for variances.',
       action: async () => {
         try {
-          await inventoryService.confirmStockCount(countId)
+          await inventoryService.confirmStockCount(String(countId))
           loadStockCounts()
         } catch (error) {
           console.error('Failed to confirm stock count:', error)

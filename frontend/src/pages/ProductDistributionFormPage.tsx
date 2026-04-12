@@ -81,23 +81,21 @@ const ProductDistributionFormPage: React.FC = () => {
     setLoading(true);
     try {
       await fieldMarketingService.createProductDistribution({
-        visitId: visit.id,
-        productId: 1, // Would be selected from product list
-        customerId: customer.id,
-        productType: formData.productType,
-        productSerialNumber: formData.productSerialNumber,
+        visit_id: visit.id,
+        product_id: '1', // Would be selected from product list
+        customer_id: customer.id,
+        recipient_name: formData.recipientName,
+        recipient_id_number: formData.recipientIdNumber,
+        recipient_phone: formData.recipientPhone,
         quantity: formData.quantity,
-        recipientName: formData.recipientName,
-        recipientIdNumber: formData.recipientIdNumber,
-        recipientPhone: formData.recipientPhone,
-        recipientAddress: formData.recipientAddress,
-        recipientSignatureUrl: formData.recipientSignature,
-        recipientPhotoUrl: formData.recipientPhoto,
-        idDocumentPhotoUrl: formData.idDocumentPhoto,
-        formData: {},
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        distributionNotes: formData.distributionNotes
+        serial_number: formData.productSerialNumber,
+        recipient_signature: formData.recipientSignature,
+        recipient_photo: formData.recipientPhoto,
+        id_document_photo: formData.idDocumentPhoto,
+        form_data: {},
+        gps_latitude: currentLocation.latitude,
+        gps_longitude: currentLocation.longitude,
+        notes: formData.distributionNotes
       });
 
       toast.success('✅ Product distribution recorded successfully!');

@@ -58,26 +58,26 @@ export default function RouteCustomers() {
           <tbody className="bg-white divide-y divide-gray-200">
             {customers?.map((customer) => (
               <tr key={customer.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{customer.name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{(customer as any).name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center gap-1">
                     <MapPin className="h-4 w-4 text-gray-400" />
-                    {customer.address}
+                    {(customer as any).address}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center gap-1">
                     <Phone className="h-4 w-4 text-gray-400" />
-                    {customer.phone}
+                    {(customer as any).phone}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                    {customer.status}
+                    {(customer as any).status}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(customer.last_visit).toLocaleDateString()}
+                  {new Date((customer as any).last_visit).toLocaleDateString()}
                 </td>
               </tr>
             ))}

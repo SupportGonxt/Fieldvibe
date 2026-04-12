@@ -23,7 +23,8 @@ export const ProductHierarchyPage: React.FC = () => {
   })
 
   const hierarchy: HierarchyNode[] = (() => {
-    const products = productsData?.products || productsData || []
+    const rawData = productsData as any
+    const products = rawData?.products || rawData || []
     const categories: Record<string, any> = {}
     products.forEach((p: any) => {
       const cat = p.category_name || p.category || 'Uncategorized'

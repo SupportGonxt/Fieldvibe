@@ -80,7 +80,7 @@ export default function OrderCreatePage() {
       }
       if (productsRes.status === 'fulfilled') {
         const prodData = productsRes.value
-        setProducts(prodData.products || [])
+        setProducts((prodData.products || []) as Product[])
       }
       if (discountsRes.status === 'fulfilled') {
         setDiscounts(discountsRes.value || [])

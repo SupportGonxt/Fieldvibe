@@ -6,7 +6,7 @@
 export const VERSION = {
   version: '1.0.0',
   buildDate: new Date().toISOString(),
-  gitCommit: process.env.VITE_GIT_COMMIT || 'unknown',
+  gitCommit: (import.meta.env.VITE_GIT_COMMIT as string) || 'unknown',
   environment: import.meta.env.MODE || 'production'
 };
 

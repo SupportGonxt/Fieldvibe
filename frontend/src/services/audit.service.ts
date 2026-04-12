@@ -9,6 +9,7 @@ export interface AuditEntry {
   id: string
   entity_type: string
   entity_id: string
+  entity_name?: string
   action: string
   description: string
   performed_by: string
@@ -17,6 +18,20 @@ export interface AuditEntry {
   details?: Record<string, any>
   tenant_id: string
   created_at: string
+  field_changed?: string
+  old_value?: string
+  new_value?: string
+  changed_by?: string
+  changed_by_role?: string
+  changed_by_email?: string
+  changed_at?: string
+  ip_address?: string
+  session_id?: string
+  request_id?: string
+  user_agent?: string
+  location?: { latitude: number; longitude: number }
+  notes?: string
+  metadata?: Record<string, any>
 }
 
 class AuditService {

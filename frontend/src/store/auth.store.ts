@@ -165,7 +165,7 @@ export const useAuthStore = create<AuthStore>()(
 )
 
 // Token refresh timer
-let refreshTimer: NodeJS.Timeout | null = null
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
 function scheduleTokenRefresh(expiresIn: number) {
   clearTokenRefreshTimer()

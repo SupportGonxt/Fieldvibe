@@ -145,7 +145,7 @@ export const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
       onExport(format);
     } else {
       // Default CSV export
-      const csvContent = exportToCSV(rows, columns);
+      const csvContent = exportToCSV(rows as any[], columns);
       downloadFile(csvContent, `${title || 'data'}.csv`, 'text/csv');
     }
     setAnchorEl(null);
@@ -320,8 +320,8 @@ export const AdvancedDataTable: React.FC<AdvancedDataTableProps> = ({
           }}
           checkboxSelection={enableBulkActions}
           disableRowSelectionOnClick
-          onRowSelectionModelChange={(newSelection) => {
-            setSelectedRows(newSelection);
+          onRowSelectionModelChange={(newSelection: any) => {
+            setSelectedRows(newSelection as GridRowId[]);
           }}
           pageSizeOptions={[10, 25, 50, 100]}
           initialState={{

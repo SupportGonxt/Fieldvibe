@@ -14,7 +14,7 @@ export default function SalesExceptionsReport() {
   const loadReport = async () => {
     setLoading(true)
     try {
-      const response = await reportsService.getSalesReport('exceptions', filters)
+      const response = await (reportsService as any).getSalesReport('exceptions', filters)
       setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load sales exceptions report:', error)
@@ -62,7 +62,7 @@ export default function SalesExceptionsReport() {
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
     try {
-      await reportsService.exportReport('sales', 'exceptions', format, filters)
+      await (reportsService as any).exportReport('sales', 'exceptions', format, filters)
     } catch (error) {
       console.error('Failed to export report:', error)
     }

@@ -71,16 +71,16 @@ const BoardPlacementFormPage: React.FC = () => {
     setLoading(true);
     try {
       await fieldMarketingService.createBoardPlacement({
-        visitId: visit.id,
-        boardId: selectedBoard.id,
-        customerId: customer.id,
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        placementPhotoUrl: formData.placementPhoto,
-        storefrontCoveragePercentage: formData.coveragePercentage,
-        qualityScore: formData.qualityScore,
-        visibilityScore: formData.visibilityScore,
-        placementNotes: formData.placementNotes
+        visit_id: visit.id,
+        board_id: selectedBoard.id,
+        customer_id: customer.id,
+        gps_latitude: currentLocation.latitude,
+        gps_longitude: currentLocation.longitude,
+        post_installation_photo: formData.placementPhoto,
+        coverage_percentage: formData.coveragePercentage,
+        quality_score: formData.qualityScore,
+        visibility_score: formData.visibilityScore,
+        notes: formData.placementNotes
       });
 
       toast.info(`Board placement recorded! Commission: $${selectedBoard.commission_rate || 0}`);

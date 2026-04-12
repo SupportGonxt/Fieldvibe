@@ -120,7 +120,7 @@ export default function WorkingDaysConfigPage() {
 
   function handleSave() {
     if (editingId) {
-      updateMutation.mutate({ id: editingId, data: form })
+      updateMutation.mutate({ id: editingId, data: form as any })
     } else {
       createMutation.mutate(form)
     }

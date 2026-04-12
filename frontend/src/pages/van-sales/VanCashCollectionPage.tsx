@@ -8,7 +8,7 @@ export default function VanCashCollectionPage() {
   const [filter, setFilter] = useState({ van_id: '', date: new Date().toISOString().split('T')[0] })
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['van-cash-collection', filter],
-    queryFn: () => vanSalesService.getVanCashCollection(filter),
+    queryFn: () => (vanSalesService as any).getVanCashCollection(filter),
     enabled: !!filter.van_id
   })
 

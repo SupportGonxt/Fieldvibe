@@ -31,7 +31,8 @@ export const ProductInventoryPage: React.FC = () => {
     queryFn: () => productsService.getProducts({ limit: 100 }),
   })
 
-  const inventoryData: ProductInventory[] = (productsData?.products || productsData || []).map((p: any) => ({
+  const rawProdData = productsData as any
+  const inventoryData: ProductInventory[] = (rawProdData?.products || rawProdData || []).map((p: any) => ({
     product_id: String(p.id),
     product_name: p.name || 'Unknown Product',
     sku: p.sku || '',

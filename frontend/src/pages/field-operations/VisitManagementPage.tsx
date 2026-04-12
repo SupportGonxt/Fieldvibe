@@ -34,7 +34,7 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['visits', filter, activeType],
-    queryFn: () => fieldOperationsService.getVisits({ ...filter, ...(activeType ? { visit_type: activeType } : {}) })
+    queryFn: () => (fieldOperationsService as any).getVisits({ ...filter, ...(activeType ? { visit_type: activeType } : {}) })
   })
 
   const deleteMutation = useMutation({

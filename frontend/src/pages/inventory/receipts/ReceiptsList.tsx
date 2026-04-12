@@ -22,7 +22,7 @@ export default function ReceiptsList() {
   const loadReceipts = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getReceipts()
+      const response: any = await inventoryService.getReceipts()
       // API returns { success: true, data: [...] }, axios wraps it in response.data
       const receipts = response.data?.data || response.data?.receipts || response.data || []
       setReceipts(Array.isArray(receipts) ? receipts : [])
@@ -39,7 +39,7 @@ export default function ReceiptsList() {
       message: 'Are you sure you want to reverse this receipt?',
       action: async () => {
         try {
-          await inventoryService.reverseReceipt(receiptId)
+          await inventoryService.reverseReceipt(String(receiptId))
           loadReceipts()
         } catch (error) {
           console.error('Failed to reverse receipt:', error)

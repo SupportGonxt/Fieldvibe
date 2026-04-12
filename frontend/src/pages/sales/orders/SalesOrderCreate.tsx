@@ -15,11 +15,16 @@ import type { SearchableSelectOption } from '../../../components/ui/SearchableSe
 interface Customer {
   id: string
   name: string
+  business_name?: string
+  email?: string
 }
 
 interface SalesRep {
   id: string
   name: string
+  first_name?: string
+  last_name?: string
+  email?: string
 }
 
 interface Product {
@@ -127,14 +132,14 @@ export default function SalesOrderCreate() {
         // Try different paths to find the products array
         if (response?.products && Array.isArray(response.products)) {
           productsData = response.products
-        } else if (response?.data?.data?.products && Array.isArray(response.data.data.products)) {
-          productsData = response.data.data.products
-        } else if (response?.data?.products && Array.isArray(response.data.products)) {
-          productsData = response.data.products
-        } else if (response?.data?.data && Array.isArray(response.data.data)) {
-          productsData = response.data.data
-        } else if (response?.data && Array.isArray(response.data)) {
-          productsData = response.data
+        } else if ((response as any)?.data?.data?.products && Array.isArray((response as any).data.data.products)) {
+          productsData = (response as any).data.data.products
+        } else if ((response as any)?.data?.products && Array.isArray((response as any).data.products)) {
+          productsData = (response as any).data.products
+        } else if ((response as any)?.data?.data && Array.isArray((response as any).data.data)) {
+          productsData = (response as any).data.data
+        } else if ((response as any)?.data && Array.isArray((response as any).data)) {
+          productsData = (response as any).data
         }
         
         setProducts(productsData)

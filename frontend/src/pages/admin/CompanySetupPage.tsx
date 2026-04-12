@@ -138,8 +138,8 @@ function GeneralSettingsTab() {
       const response = await apiClient.put('/settings/company', data)
       return response.data
     },
-    onSuccess: () => useToastStore.getState().addToast('Settings saved successfully', 'success'),
-    onError: () => useToastStore.getState().addToast('Failed to save settings', 'error'),
+    onSuccess: () => useToastStore.getState().addToast({ type: 'success', message: 'Settings saved successfully' }),
+    onError: () => useToastStore.getState().addToast({ type: 'error', message: 'Failed to save settings' }),
   })
 
   if (isLoading) {
@@ -356,10 +356,10 @@ function UsersTab() {
       await apiClient.delete(`/users/${id}`)
     },
     onSuccess: () => {
-      useToastStore.getState().addToast('User removed', 'success')
+      useToastStore.getState().addToast({ type: 'success', message: 'User removed' })
       setDeleteUserId(null)
     },
-    onError: () => useToastStore.getState().addToast('Failed to remove user', 'error'),
+    onError: () => useToastStore.getState().addToast({ type: 'error', message: 'Failed to remove user' }),
   })
 
   if (isLoading) {

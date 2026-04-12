@@ -31,7 +31,7 @@ export default function KYCEdit() {
   })
 
   const { register, handleSubmit, formState: { errors } } = useForm<KYCFormData>({
-    values: kyc
+    values: kyc as unknown as KYCFormData
   })
 
   const updateMutation = useMutation({

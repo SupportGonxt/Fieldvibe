@@ -26,7 +26,7 @@ export default function StockCountDetail() {
   const loadStockCount = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getStockCount(Number(id))
+      const response = await inventoryService.getStockCount(String(id))
       setStockCount(response.data)
     } catch (error) {
       console.error('Failed to load stock count:', error)
@@ -41,7 +41,7 @@ export default function StockCountDetail() {
       message: 'Are you sure you want to confirm this stock count? This will create adjustments for variances.',
       action: async () => {
         try {
-      await inventoryService.confirmStockCount(Number(id))
+      await inventoryService.confirmStockCount(String(id))
       navigate('/inventory/stock-counts')
     } catch (error) {
       console.error('Failed to confirm stock count:', error)

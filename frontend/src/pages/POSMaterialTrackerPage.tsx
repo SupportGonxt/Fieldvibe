@@ -380,7 +380,7 @@ const POSMaterialTrackerPage: React.FC = () => {
                         { value: 'damaged', label: 'Damaged' },
                       ]}
                       value={formData.condition}
-              onChange={(val) => setFormData(prev => ({...prev, condition: val}))}
+              onChange={(val: string) => setFormData(prev => ({...prev, condition: val as Installation['condition']})  )}
                       placeholder="Excellent"
                     />
                   </div>
