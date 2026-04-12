@@ -265,6 +265,26 @@ function RolesTab() {
     }
   })
 
+  const updatePermissions = useMutation({
+    mutationFn: async ({ roleId, permissions }: { roleId: string; permissions: string[] }) => {
+      await apiClient.patch(`/roles/${roleId}`, { permissions })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      useToastStore.getState().addToast({ type: 'success', message: 'Permissions updated' })
+    },
+    onError: () => useToastStore.getState().addToast({ type: 'error', message: 'Failed to update permissions' }),
+  })
+
+  const handlePermissionToggle = (role: UserRole, permKey: string) => {
+    if (role.is_system) return
+    const current = role.permissions || []
+    const updated = current.includes(permKey)
+      ? current.filter(p => p !== permKey)
+      : [...current, permKey]
+    updatePermissions.mutate({ roleId: role.id, permissions: updated })
+  }
+
   const categories = [...new Set(ALL_PERMISSIONS.map(p => p.category))]
 
   if (isLoading) {
@@ -319,7 +339,7 @@ function RolesTab() {
                           checked={role.permissions?.includes(perm.key) || false}
                           disabled={role.is_system}
                           className="rounded border-gray-300 text-blue-600"
-                          onChange={() => {}}
+                          onChange={() => handlePermissionToggle(role, perm.key)}
                         />
                         <span className="text-sm text-gray-600">{perm.label}</span>
                       </label>
