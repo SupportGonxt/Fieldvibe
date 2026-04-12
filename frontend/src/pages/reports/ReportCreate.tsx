@@ -27,7 +27,6 @@ export default function ReportCreate() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ReportFormData) => {
-      // Mock API call - replace with actual implementation
       const response = await apiClient.post('/reports', data)
       return response.data?.data || response.data
     },

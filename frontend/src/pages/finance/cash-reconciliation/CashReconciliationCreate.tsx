@@ -13,7 +13,7 @@ export default function CashReconciliationCreate() {
 
   const loadAgents = async () => {
     try {
-      const response = await financeService.getAgents()
+      const response = await (financeService as any).getAgents()
       setAgents(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load agents:', error)
@@ -73,7 +73,7 @@ export default function CashReconciliationCreate() {
 
   const handleSubmit = async (data: any) => {
     try {
-      await financeService.createCashReconciliation(data)
+      await (financeService as any).createCashReconciliation(data)
       navigate('/finance/cash-reconciliation')
     } catch (error: any) {
       throw new Error(error.message || 'Failed to create cash reconciliation')

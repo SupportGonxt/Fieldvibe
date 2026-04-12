@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { Visit, VisitActivity, Agent, AGENT_ROLES } from '../../types/agent.types'
 import AIInsightsPanel from '../ai/AIInsightsPanel'
+import { apiClient } from '../../services/api.service'
 
 interface VisitManagerProps {
   agent: Agent
@@ -32,57 +33,37 @@ export default function VisitManager({ agent, onVisitUpdate }: VisitManagerProps
   const [showNewVisitForm, setShowNewVisitForm] = useState(false)
   const [activeTab, setActiveTab] = useState<'today' | 'planned' | 'completed' | 'all'>('today')
 
-  // Mock data - replace with real API calls
-  const mockVisits: Visit[] = [
-    {
-      id: '1',
-      agent_id: agent.id,
-      customer_id: 'cust_1',
-      customer_name: 'ABC Store',
-      customer_address: '123 High Street, London',
-      visit_type: 'scheduled',
-      purpose: ['sales', 'merchandising'],
-      status: 'in_progress',
-      scheduled_time: '2024-01-15T09:00:00Z',
-      actual_start_time: '2024-01-15T09:15:00Z',
-      location: {
-        latitude: 51.5074,
-        longitude: -0.1278,
-        address: '123 High Street, London',
-        accuracy: 5
-      },
-      activities: [
-        {
-          id: 'act_1',
-          visit_id: '1',
-          type: 'photo',
-          title: 'Store Front Photo',
-          description: 'Capture current store front condition',
-          data: { photo_url: '/photos/storefront_1.jpg' },
-          completed: true,
-          timestamp: '2024-01-15T09:20:00Z'
-        },
-        {
-          id: 'act_2',
-          visit_id: '1',
-          type: 'survey',
-          title: 'Customer Satisfaction Survey',
-          description: 'Monthly satisfaction survey',
-          data: { survey_id: 'survey_1' },
-          completed: false,
-          timestamp: '2024-01-15T09:25:00Z'
-        }
-      ],
-      notes: 'Customer interested in new product line',
-      outcome: 'Positive response, follow-up required',
-      next_action: 'Schedule product demo next week',
-      created_at: '2024-01-14T10:00:00Z',
-      updated_at: '2024-01-15T09:25:00Z'
-    }
-  ]
-
   useEffect(() => {
-    setVisits(mockVisits)
+    const fetchVisits = async () => {
+      try {
+        const response = await apiClient.get(`/field-operations/visits`, { params: { agent_id: agent.id } })
+        const data = response.data?.data || response.data?.visits || response.data || []
+        const visitList = Array.isArray(data) ? data : []
+        setVisits(visitList.map((v: any) => ({
+          id: String(v.id),
+          agent_id: v.agent_id || agent.id,
+          customer_id: v.customer_id || v.store_id || '',
+          customer_name: v.customer_name || v.store_name || 'Unknown',
+          customer_address: v.customer_address || v.store_address || '',
+          visit_type: v.visit_type || 'scheduled',
+          purpose: Array.isArray(v.purpose) ? v.purpose : (v.purpose ? [v.purpose] : ['general']),
+          status: v.status || 'planned',
+          scheduled_time: v.scheduled_time || v.scheduled_date || v.created_at || new Date().toISOString(),
+          actual_start_time: v.actual_start_time || v.check_in_time,
+          actual_end_time: v.actual_end_time || v.check_out_time,
+          location: v.location || { latitude: 0, longitude: 0, address: v.customer_address || '', accuracy: 0 },
+          activities: Array.isArray(v.activities) ? v.activities : [],
+          notes: v.notes || '',
+          outcome: v.outcome || '',
+          next_action: v.next_action || '',
+          created_at: v.created_at || new Date().toISOString(),
+          updated_at: v.updated_at || new Date().toISOString(),
+        })))
+      } catch {
+        setVisits([])
+      }
+    }
+    fetchVisits()
   }, [agent.id])
 
   const getVisitsByTab = () => {

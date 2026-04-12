@@ -49,8 +49,8 @@ export default function IssueCreate() {
         inventoryService.getWarehouses(),
         productsService.getProducts()
       ])
-      setWarehouses(warehousesRes.data || warehousesRes.warehouses || [])
-      setProducts(productsRes.products || productsRes.data || [])
+      setWarehouses((warehousesRes.data || []).map((w: any) => ({ id: w.id, name: w.warehouse_name || w.name })) as any || warehousesRes.data || [])
+      setProducts(((productsRes as any).products || []) as any || productsRes.products || [])
     } catch (error) {
       console.error('Failed to load form data:', error)
     } finally {

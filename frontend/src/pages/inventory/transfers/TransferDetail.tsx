@@ -26,7 +26,7 @@ export default function TransferDetail() {
   const loadTransfer = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getTransfer(Number(id))
+      const response = await inventoryService.getTransfer(String(id))
       setTransfer(response.data)
     } catch (error) {
       console.error('Failed to load transfer:', error)
@@ -41,7 +41,7 @@ export default function TransferDetail() {
       message: 'Are you sure you want to reverse this transfer? This will reverse all inventory movements.',
       action: async () => {
         try {
-      await inventoryService.reverseTransfer(Number(id))
+      await inventoryService.reverseTransfer(String(id))
       navigate('/inventory/transfers')
     } catch (error) {
       console.error('Failed to reverse transfer:', error)

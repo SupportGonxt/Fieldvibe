@@ -18,7 +18,7 @@ export default function AdjustmentDetail() {
   const loadAdjustment = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getAdjustment(Number(id))
+      const response = await inventoryService.getAdjustment(String(id))
       setAdjustment(response.data)
     } catch (error) {
       console.error('Failed to load adjustment:', error)

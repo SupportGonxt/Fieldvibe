@@ -18,8 +18,8 @@ export default function RouteOrders() {
   const { data: orders, isLoading, isError } = useQuery({
     queryKey: ['route-orders', id],
     queryFn: async () => {
-      const result = await ordersService.getOrders({ route_id: id })
-      return result.data || []
+      const result = await (ordersService as any).getOrders({ route_id: id })
+      return (result as any).data || []
     },
   })
 

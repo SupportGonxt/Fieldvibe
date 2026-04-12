@@ -10,7 +10,7 @@ export default function CustomerSurveys() {
 
   const { data: surveys = [], isLoading, isError } = useQuery({
     queryKey: ['customer-surveys', id],
-    queryFn: () => surveyService.getSurveyResponses({ customer_id: id }),
+    queryFn: () => surveyService.getSurveys({ search: id }),
   })
 
   return (

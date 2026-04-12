@@ -332,7 +332,6 @@ Respond with JSON containing:
     
     try {
       await apiClient.post(`${this.baseUrl}/monitoring/start`, { modules })
-      console.log('Real-time AI monitoring started for modules:', modules)
     } catch (error) {
       console.error('Failed to start real-time monitoring:', error)
       throw new Error('Failed to start real-time AI monitoring')
@@ -346,7 +345,6 @@ Respond with JSON containing:
     
     try {
       await apiClient.post(`${this.baseUrl}/monitoring/stop`)
-      console.log('Real-time AI monitoring stopped')
     } catch (error) {
       console.error('Failed to stop real-time monitoring:', error)
       throw new Error('Failed to stop real-time AI monitoring')

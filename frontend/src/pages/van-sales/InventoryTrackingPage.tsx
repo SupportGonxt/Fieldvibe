@@ -5,6 +5,7 @@ import { Package, AlertTriangle, TrendingDown, TrendingUp, Search, Filter } from
 import { formatCurrency } from '../../utils/currency'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { apiClient } from '../../services/api.service'
 
 interface InventoryItem {
   id: string
@@ -34,53 +35,25 @@ export default function InventoryTrackingPage() {
   const fetchInventoryData = async () => {
     try {
       setLoading(true)
-      // FUTURE: Replace with real API calls
-      setInventory([
-        {
-          id: '1',
-          productName: 'Premium Coffee Beans',
-          sku: 'PCB-001',
-          vanId: '1',
-          vanNumber: 'VAN-001',
-          currentStock: 45,
-          maxCapacity: 100,
-          reorderLevel: 20,
-          unitPrice: 25.99,
-          totalValue: 1169.55,
-          lastRestocked: '2024-01-14T08:00:00Z',
-          status: 'in_stock'
-        },
-        {
-          id: '2',
-          productName: 'Organic Tea Selection',
-          sku: 'OTS-002',
-          vanId: '1',
-          vanNumber: 'VAN-001',
-          currentStock: 15,
-          maxCapacity: 80,
-          reorderLevel: 20,
-          unitPrice: 18.50,
-          totalValue: 277.50,
-          lastRestocked: '2024-01-12T10:30:00Z',
-          status: 'low_stock'
-        },
-        {
-          id: '3',
-          productName: 'Artisan Pastries',
-          sku: 'AP-003',
-          vanId: '2',
-          vanNumber: 'VAN-002',
-          currentStock: 0,
-          maxCapacity: 50,
-          reorderLevel: 10,
-          unitPrice: 12.75,
-          totalValue: 0,
-          lastRestocked: '2024-01-10T14:15:00Z',
-          status: 'out_of_stock'
-        }
-      ])
-    } catch (error) {
-      console.error('Error fetching inventory data:', error)
+      const response = await apiClient.get('/van-sales/inventory')
+      const data = response.data?.data || response.data?.inventory || response.data || []
+      const items = Array.isArray(data) ? data : []
+      setInventory(items.map((item: any) => ({
+        id: String(item.id),
+        productName: item.product_name || item.productName || '',
+        sku: item.sku || '',
+        vanId: item.van_id || item.vanId || '',
+        vanNumber: item.van_number || item.vanNumber || '',
+        currentStock: Number(item.current_stock || item.currentStock || 0),
+        maxCapacity: Number(item.max_capacity || item.maxCapacity || 1),
+        reorderLevel: Number(item.reorder_level || item.reorderLevel || 0),
+        unitPrice: Number(item.unit_price || item.unitPrice || 0),
+        totalValue: Number(item.total_value || item.totalValue || 0),
+        lastRestocked: item.last_restocked || item.lastRestocked || '',
+        status: item.status || 'in_stock',
+      })))
+    } catch {
+      setInventory([])
     } finally {
       setLoading(false)
     }

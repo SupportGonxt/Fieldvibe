@@ -8,6 +8,7 @@ import EmptyState from '../ui/EmptyState'
 import ErrorState from '../ui/ErrorState'
 
 interface Column {
+  header?: string;
   key: string
   label: string
   sortable?: boolean
@@ -166,12 +167,13 @@ export default function TransactionList({
           {(loading || filteredData.length > 0) && (
             <div className="bg-white dark:bg-night-50 rounded-lg shadow">
               <DataTable
-                columns={columns.map(col => ({
+                columns={(columns as any[]).map((col: any) => ({
                   ...col,
                   header: col.label
                 }))}
                 data={filteredData}
                 loading={loading}
+                {...({} as any)}
               />
             </div>
           )}

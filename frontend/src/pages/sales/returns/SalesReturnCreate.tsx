@@ -61,7 +61,7 @@ export default function SalesReturnCreate() {
         setOrders(returnableOrders.length > 0 ? returnableOrders : orderList)
       }
       if (productsRes.status === 'fulfilled') {
-        const prodData = productsRes.value
+        const prodData = productsRes.value as any
         setProducts(prodData.products || [])
       }
     } catch (error) {

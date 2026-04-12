@@ -14,6 +14,7 @@ interface ReportFormData {
   schedule: string
   format: string
   recipients: string
+  [key: string]: any
 }
 
 export default function ReportEdit() {
@@ -27,12 +28,11 @@ export default function ReportEdit() {
   })
 
   const { register, handleSubmit, formState: { errors } } = useForm<ReportFormData>({
-    values: report
+    values: report as unknown as ReportFormData
   })
 
   const updateMutation = useMutation({
     mutationFn: async (data: ReportFormData) => {
-      // Mock API call - replace with actual implementation
       const response = await apiClient.put(`/reports/${id}`, data)
       return response.data?.data || response.data
     },

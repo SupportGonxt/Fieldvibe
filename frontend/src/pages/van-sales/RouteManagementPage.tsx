@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { MapPin, Clock, Truck, Navigation, Plus, Edit, Trash2 } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { apiClient } from '../../services/api.service'
 
 interface Route {
   id: string
@@ -41,70 +42,32 @@ export default function RouteManagementPage() {
   const fetchRoutes = async () => {
     try {
       setLoading(true)
-      // FUTURE: Replace with real API calls
-      setRoutes([
-        {
-          id: '1',
-          name: 'North District Route A',
-          description: 'Covers downtown and business district',
-          vanAssigned: 'VAN-001',
-          driver: 'John Smith',
-          status: 'active',
-          totalStops: 12,
-          estimatedTime: 480,
-          distance: 45.2,
-          priority: 'high',
-          lastUpdated: '2024-01-15T10:30:00Z',
-          customers: [
-            {
-              id: '1',
-              name: 'ABC Electronics',
-              address: '123 Main St',
-              estimatedValue: 2500,
-              visitTime: '09:00',
-              status: 'completed'
-            },
-            {
-              id: '2',
-              name: 'XYZ Retail',
-              address: '456 Oak Ave',
-              estimatedValue: 1800,
-              visitTime: '10:30',
-              status: 'pending'
-            }
-          ]
-        },
-        {
-          id: '2',
-          name: 'South District Route B',
-          description: 'Industrial and warehouse areas',
-          vanAssigned: 'VAN-002',
-          driver: 'Sarah Johnson',
-          status: 'active',
-          totalStops: 8,
-          estimatedTime: 360,
-          distance: 32.8,
-          priority: 'medium',
-          lastUpdated: '2024-01-15T09:15:00Z',
-          customers: []
-        },
-        {
-          id: '3',
-          name: 'East District Route C',
-          description: 'Residential and small business areas',
-          vanAssigned: 'Unassigned',
-          driver: 'Unassigned',
-          status: 'planned',
-          totalStops: 15,
-          estimatedTime: 540,
-          distance: 38.5,
-          priority: 'low',
-          lastUpdated: '2024-01-14T16:45:00Z',
-          customers: []
-        }
-      ])
-    } catch (error) {
-      console.error('Error fetching routes:', error)
+      const response = await apiClient.get('/van-sales/routes')
+      const data = response.data?.data || response.data?.routes || response.data || []
+      const routeList = Array.isArray(data) ? data : []
+      setRoutes(routeList.map((r: any) => ({
+        id: String(r.id),
+        name: r.name || '',
+        description: r.description || '',
+        vanAssigned: r.van_assigned || r.vanAssigned || 'Unassigned',
+        driver: r.driver || r.driver_name || 'Unassigned',
+        status: r.status || 'planned',
+        totalStops: Number(r.total_stops || r.totalStops || 0),
+        estimatedTime: Number(r.estimated_time || r.estimatedTime || 0),
+        distance: Number(r.distance || 0),
+        priority: r.priority || 'medium',
+        lastUpdated: r.last_updated || r.updated_at || '',
+        customers: Array.isArray(r.customers) ? r.customers.map((c: any) => ({
+          id: String(c.id),
+          name: c.name || c.customer_name || '',
+          address: c.address || '',
+          estimatedValue: Number(c.estimated_value || c.estimatedValue || 0),
+          visitTime: c.visit_time || c.visitTime || '',
+          status: c.status || 'pending',
+        })) : [],
+      })))
+    } catch {
+      setRoutes([])
     } finally {
       setLoading(false)
     }

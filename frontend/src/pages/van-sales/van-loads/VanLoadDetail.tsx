@@ -26,7 +26,7 @@ export default function VanLoadDetail() {
   const loadVanLoad = async () => {
     setLoading(true)
     try {
-      const response = await vanSalesService.getVanLoad(Number(id))
+      const response = await vanSalesService.getVanLoad(String(id))
       setVanLoad(response.data)
     } catch (error) {
       console.error('Failed to load van load:', error)
@@ -41,7 +41,7 @@ export default function VanLoadDetail() {
       message: 'Are you sure you want to confirm this van load?',
       action: async () => {
         try {
-      await vanSalesService.confirmVanLoad(Number(id))
+      await vanSalesService.confirmVanLoad(String(id))
       navigate('/van-sales/van-loads')
     } catch (error) {
       console.error('Failed to confirm van load:', error)

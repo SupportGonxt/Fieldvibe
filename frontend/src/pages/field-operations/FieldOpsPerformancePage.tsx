@@ -45,9 +45,7 @@ export default function FieldOpsPerformancePage() {
         start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
         end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
       }
-      console.log('[PERF-FRONTEND] Fetching with params:', params)
       const result = await fieldOperationsService.getPerformance(params)
-      console.log('[PERF-FRONTEND] Received data:', result)
       return result
     },
     staleTime: 1000 * 30,

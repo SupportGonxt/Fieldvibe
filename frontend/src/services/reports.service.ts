@@ -11,11 +11,30 @@ export interface Report {
   tenant_id: string
   report_type: string
   report_name: string
+  name?: string
+  description?: string
+  type?: string
+  format?: string
+  schedule?: string
   generated_by: string
   generated_at: string
   status: 'pending' | 'completed' | 'failed'
   file_path?: string
   file_size?: number
+  parameters?: any
+  last_run?: string
+  created_by?: string
+  created_at?: string
+  recipients?: string[]
+}
+
+export interface ReportFormData {
+  name: string
+  description: string
+  type: string
+  schedule: string
+  format: string
+  recipients: string[]
   parameters?: any
 }
 

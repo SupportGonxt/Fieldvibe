@@ -15,7 +15,7 @@ export interface Customer {
   route_id?: string
   credit_limit: number
   payment_terms: number
-  status: 'active' | 'inactive' | 'suspended'
+  status: 'active' | 'inactive' | 'suspended' | 'pending' | 'approved' | 'rejected'
   created_at: string
   route_name?: string
   route_code?: string
@@ -23,6 +23,18 @@ export interface Customer {
   region_name?: string
   total_orders: number
   total_sales: number
+  business_name?: string
+  first_name?: string
+  last_name?: string
+  customer_name?: string
+  registration_number?: string
+  tax_number?: string
+  owner_name?: string
+  owner_id?: string
+  verified_by?: string
+  verified_at?: string
+  notes?: string
+  contact_person?: string
 }
 
 export interface CustomerFilter {

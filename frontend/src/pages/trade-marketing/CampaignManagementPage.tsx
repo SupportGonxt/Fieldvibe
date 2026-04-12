@@ -110,7 +110,7 @@ export default function CampaignManagementPage() {
               ) : (
                 campaigns.map(campaign => (
                   <tr key={campaign.id} className="hover:bg-surface-secondary cursor-pointer" onClick={() => navigate(`/trade-marketing/campaigns/${campaign.id}`)}>
-                    <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{campaign.campaign_name}</div><div className="text-sm text-gray-500">{campaign.description}</div></td>
+                    <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{campaign.campaign_name}</div><div className="text-sm text-gray-500">{(campaign as any).description}</div></td>
                     <td className="px-6 py-4 text-sm text-gray-900">{campaign.brand_name}</td>
                     <td className="px-6 py-4"><div className="text-sm text-gray-900">{new Date(campaign.start_date).toLocaleDateString()}</div><div className="text-sm text-gray-500">to {new Date(campaign.end_date).toLocaleDateString()}</div></td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(campaign.budget || 0)}</td>

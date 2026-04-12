@@ -11,6 +11,7 @@ export interface Invoice {
   tenant_id: string
   invoice_number: string
   customer_id: string
+  customer_name?: string
   order_id?: string
   invoice_date: string
   due_date: string
@@ -21,8 +22,10 @@ export interface Invoice {
   paid_amount: number
   balance: number
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+  current_status?: string
   notes?: string
   created_at: string
+  items?: any[]
 }
 
 export interface Payment {
@@ -30,6 +33,7 @@ export interface Payment {
   tenant_id: string
   payment_number: string
   customer_id: string
+  customer_name?: string
   invoice_id?: string
   order_id?: string
   payment_date: string
@@ -37,6 +41,7 @@ export interface Payment {
   payment_method: 'cash' | 'card' | 'bank_transfer' | 'mobile_money' | 'cheque'
   reference_number?: string
   status: 'pending' | 'completed' | 'failed' | 'refunded'
+  current_status?: string
   notes?: string
   created_at: string
 }

@@ -24,7 +24,7 @@ export default function IssuesList() {
     try {
       const response = await inventoryService.getIssues()
       // API returns { success: true, data: [...] }, axios wraps it in response.data
-      const issues = response.data?.data || response.data?.issues || response.data || []
+      const issues = (response as any)?.data || response || []
       setIssues(Array.isArray(issues) ? issues : [])
     } catch (error) {
       console.error('Failed to load issues:', error)
@@ -33,7 +33,7 @@ export default function IssuesList() {
     }
   }
 
-  const handleReverse = async (issueId: number) => {
+  const handleReverse = async (issueId: string) => {
     setPendingAction({
       title: 'Confirm',
       message: 'Are you sure you want to reverse this issue?',

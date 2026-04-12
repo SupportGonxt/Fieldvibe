@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { Megaphone, Users, Eye, MousePointer, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '../../utils/currency'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { apiClient } from '../../services/api.service'
 
 interface CampaignMetrics {
   totalCampaigns: number
@@ -52,71 +53,44 @@ export default function CampaignsPage() {
   const fetchCampaignsData = async () => {
     try {
       setLoading(true)
-      // FUTURE: Replace with real API calls
-      setMetrics({
-        totalCampaigns: 24,
-        activeCampaigns: 8,
-        totalReach: 125000,
-        averageCTR: 3.2,
-        totalSpend: 85000,
-        averageROI: 4.5
-      })
-
-      setCampaigns([
-        {
-          id: '1',
-          name: 'Summer Product Launch',
-          type: 'multi_channel',
-          status: 'active',
-          startDate: '2024-01-01',
-          endDate: '2024-03-31',
-          budget: 25000,
-          spent: 18500,
-          reach: 45000,
-          impressions: 125000,
-          clicks: 4200,
-          conversions: 320,
-          ctr: 3.36,
-          roi: 5.2,
-          targetAudience: 'Young Professionals'
-        },
-        {
-          id: '2',
-          name: 'Brand Awareness Campaign',
-          type: 'social',
-          status: 'active',
-          startDate: '2024-01-15',
-          endDate: '2024-02-15',
-          budget: 15000,
-          spent: 12800,
-          reach: 28000,
-          impressions: 85000,
-          clicks: 2550,
-          conversions: 180,
-          ctr: 3.0,
-          roi: 3.8,
-          targetAudience: 'General Consumers'
-        },
-        {
-          id: '3',
-          name: 'Holiday Promotion',
-          type: 'email',
-          status: 'scheduled',
-          startDate: '2024-02-01',
-          endDate: '2024-02-29',
-          budget: 8000,
-          spent: 0,
-          reach: 0,
-          impressions: 0,
-          clicks: 0,
-          conversions: 0,
-          ctr: 0,
-          roi: 0,
-          targetAudience: 'Existing Customers'
-        }
+      const [metricsRes, campaignsRes] = await Promise.all([
+        apiClient.get('/campaigns/metrics').catch(() => ({ data: null })),
+        apiClient.get('/campaigns'),
       ])
-    } catch (error) {
-      console.error('Error fetching campaigns data:', error)
+
+      if (metricsRes.data?.data) {
+        const m = metricsRes.data.data
+        setMetrics({
+          totalCampaigns: Number(m.total_campaigns || m.totalCampaigns || 0),
+          activeCampaigns: Number(m.active_campaigns || m.activeCampaigns || 0),
+          totalReach: Number(m.total_reach || m.totalReach || 0),
+          averageCTR: Number(m.average_ctr || m.averageCTR || 0),
+          totalSpend: Number(m.total_spend || m.totalSpend || 0),
+          averageROI: Number(m.average_roi || m.averageROI || 0),
+        })
+      }
+
+      const data = campaignsRes.data?.data || campaignsRes.data?.campaigns || campaignsRes.data || []
+      const campaignList = Array.isArray(data) ? data : []
+      setCampaigns(campaignList.map((c: any) => ({
+        id: String(c.id),
+        name: c.name || '',
+        type: c.type || 'email',
+        status: c.status || 'draft',
+        startDate: c.start_date || c.startDate || '',
+        endDate: c.end_date || c.endDate || '',
+        budget: Number(c.budget || 0),
+        spent: Number(c.spent || 0),
+        reach: Number(c.reach || 0),
+        impressions: Number(c.impressions || 0),
+        clicks: Number(c.clicks || 0),
+        conversions: Number(c.conversions || 0),
+        ctr: Number(c.ctr || 0),
+        roi: Number(c.roi || 0),
+        targetAudience: c.target_audience || c.targetAudience || '',
+      })))
+    } catch {
+      setCampaigns([])
     } finally {
       setLoading(false)
     }

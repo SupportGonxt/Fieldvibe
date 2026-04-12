@@ -26,7 +26,7 @@ export default function VanSalesOrderDetail() {
   const loadOrder = async () => {
     setLoading(true)
     try {
-      const response = await vanSalesService.getOrder(Number(id))
+      const response = await vanSalesService.getOrder(String(id))
       setOrder(response.data)
     } catch (error) {
       console.error('Failed to load order:', error)
@@ -41,7 +41,7 @@ export default function VanSalesOrderDetail() {
       message: 'Are you sure you want to reverse this order? This action cannot be undone.',
       action: async () => {
         try {
-      await vanSalesService.reverseOrder(Number(id))
+      await vanSalesService.reverseOrder(String(id))
       navigate('/van-sales/orders')
     } catch (error) {
       console.error('Failed to reverse order:', error)

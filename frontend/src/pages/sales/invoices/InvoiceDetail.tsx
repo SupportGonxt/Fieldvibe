@@ -22,7 +22,7 @@ export default function InvoiceDetail() {
     setLoading(true)
     setError(null)
     try {
-      const response = await salesService.getInvoice(Number(id))
+      const response = await salesService.getInvoice(String(id))
       setInvoice(response.data)
     } catch (err: any) {
       console.error('Failed to load invoice:', err)

@@ -27,7 +27,7 @@ export default function PaymentEdit() {
   })
 
   const { register, handleSubmit, formState: { errors } } = useForm<PaymentFormData>({
-    values: payment
+    values: payment as any
   })
 
   const updateMutation = useMutation({

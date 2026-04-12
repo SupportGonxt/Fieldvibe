@@ -18,7 +18,7 @@ export default function CashReconciliationDetail() {
   const loadReconciliation = async () => {
     setLoading(true)
     try {
-      const response = await vanSalesService.getCashReconciliation(Number(id))
+      const response = await vanSalesService.getCashReconciliation(String(id))
       setReconciliation(response.data)
     } catch (error) {
       console.error('Failed to load reconciliation:', error)

@@ -21,7 +21,7 @@ export default function VanSalesOrderEdit() {
     setLoading(true)
     try {
       const [orderRes, customersRes, routesRes] = await Promise.all([
-        vanSalesService.getOrder(Number(id)),
+        vanSalesService.getOrder(String(id)),
         vanSalesService.getCustomers(),
         vanSalesService.getRoutes()
       ])
@@ -92,7 +92,7 @@ export default function VanSalesOrderEdit() {
 
   const handleSubmit = async (data: any) => {
     try {
-      await vanSalesService.updateOrder(Number(id), data)
+      await vanSalesService.updateOrder(String(id), data)
       navigate(`/van-sales/orders/${id}`)
     } catch (error: any) {
       throw new Error(error.message || 'Failed to update order')

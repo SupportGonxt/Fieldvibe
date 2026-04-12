@@ -29,7 +29,8 @@ export const ProductPricingPage: React.FC = () => {
     queryFn: () => productsService.getProducts({ limit: 100 }),
   })
 
-  const pricingData: ProductPricing[] = (productsData?.products || productsData || []).map((p: any) => ({
+  const rawProdData = productsData as any
+  const pricingData: ProductPricing[] = (rawProdData?.products || rawProdData || []).map((p: any) => ({
     product_id: String(p.id),
     product_name: p.name || 'Unknown Product',
     sku: p.sku || '',

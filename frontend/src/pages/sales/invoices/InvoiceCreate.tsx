@@ -27,19 +27,19 @@ interface Product {
 export default function InvoiceCreate() {
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [discounts, setDiscounts] = useState<Discount[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [customers, setCustomers]: any[] = useState<Customer[]>([])
+  const [products, setProducts]: any[] = useState<Product[]>([])
+  const [discounts, setDiscounts]: any[] = useState<Discount[]>([])
+  const [loading, setLoading]: any[] = useState(true)
+  const [saving, setSaving]: any[] = useState(false)
 
-  const [selectedCustomer, setSelectedCustomer] = useState('')
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
-  const [dueDate, setDueDate] = useState('')
-  const [paymentTerms, setPaymentTerms] = useState('30')
-  const [notes, setNotes] = useState('')
-  const [lineItems, setLineItems] = useState<LineItem[]>([])
-  const [totals, setTotals] = useState<LineItemsTotals>({ subtotal: 0, discount_amount: 0, tax_amount: 0, total_amount: 0, item_count: 0 })
+  const [selectedCustomer, setSelectedCustomer]: any[] = useState('')
+  const [invoiceDate, setInvoiceDate]: any[] = useState(new Date().toISOString().split('T')[0])
+  const [dueDate, setDueDate]: any[] = useState('')
+  const [paymentTerms, setPaymentTerms]: any[] = useState('30')
+  const [notes, setNotes]: any[] = useState('')
+  const [lineItems, setLineItems]: any[] = useState<LineItem[]>([])
+  const [totals, setTotals]: any[] = useState<LineItemsTotals>({ subtotal: 0, discount_amount: 0, tax_amount: 0, total_amount: 0, item_count: 0 })
 
   useEffect(() => {
     loadFormData()
@@ -61,8 +61,8 @@ export default function InvoiceCreate() {
         productsService.getProducts(),
         discountsService.getDiscounts({ is_active: true })
       ])
-      setCustomers(customersRes.customers || customersRes.data || [])
-      setProducts(productsRes.products || productsRes.data || [])
+      setCustomers((customersRes as any).customers || (customersRes as any).data || [])
+      setProducts((productsRes as any).products || (productsRes as any).data || [])
       setDiscounts(discountsRes.map((d: any) => ({ id: d.id, name: d.name, value: d.value, discount_type: d.discount_type })))
     } catch (error) {
       console.error('Failed to load form data:', error)

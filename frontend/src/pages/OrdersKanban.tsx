@@ -56,7 +56,7 @@ const OrdersKanban: React.FC = () => {
           title: group.title,
           color: group.color,
           cards: group.cards,
-          limit: group.limit,
+          limit: (group as any).limit,
         })
       );
 

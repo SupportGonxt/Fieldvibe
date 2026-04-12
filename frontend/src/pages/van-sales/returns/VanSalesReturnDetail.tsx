@@ -18,7 +18,7 @@ export default function VanSalesReturnDetail() {
   const loadReturn = async () => {
     setLoading(true)
     try {
-      const response = await vanSalesService.getReturn(Number(id))
+      const response = await vanSalesService.getReturn(String(id))
       setReturnData(response.data)
     } catch (error) {
       console.error('Failed to load return:', error)

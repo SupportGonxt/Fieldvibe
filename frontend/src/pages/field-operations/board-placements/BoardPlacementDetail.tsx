@@ -26,7 +26,7 @@ export default function BoardPlacementDetail() {
   const loadPlacement = async () => {
     setLoading(true)
     try {
-      const response = await fieldOperationsService.getBoardPlacement(Number(id))
+      const response = await fieldOperationsService.getBoardPlacement(String(id))
       setPlacement(response.data)
     } catch (error) {
       console.error('Failed to load board placement:', error)
@@ -41,7 +41,7 @@ export default function BoardPlacementDetail() {
       message: 'Are you sure you want to reverse this board placement? This will reverse the commission.',
       action: async () => {
         try {
-      await fieldOperationsService.reverseBoardPlacement(Number(id))
+      await fieldOperationsService.reverseBoardPlacement(String(id))
       navigate('/field-operations/board-placements')
     } catch (error) {
       console.error('Failed to reverse board placement:', error)

@@ -22,7 +22,7 @@ export default function SalesReturnDetail() {
     setLoading(true)
     setError(null)
     try {
-      const response = await salesService.getReturn(Number(id))
+      const response = await salesService.getReturn(String(id))
       setReturnData(response.data)
     } catch (err: any) {
       console.error('Failed to load return:', err)

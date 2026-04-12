@@ -29,13 +29,13 @@ const FieldMarketingAgentPage: React.FC = () => {
         fieldMarketingService.getCommissions()
       ]);
       
-      setVisits(visitsRes.visits || []);
+      setVisits((visitsRes as any).visits || []);
       setCommissions(commissionsRes);
       
       setStats({
-        todayVisits: visitsRes.visits?.filter((v: any) => v.visit_status === 'completed').length || 0,
-        weekVisits: visitsRes.visits?.length || 0,
-        monthCommission: commissionsRes.totals?.approved || 0,
+        todayVisits: (visitsRes as any).visits?.filter((v: any) => v.visit_status === 'completed').length || 0,
+        weekVisits: (visitsRes as any).visits?.length || 0,
+        monthCommission: (commissionsRes as any).totals?.approved || 0,
         boardsPlaced: 0
       });
     } catch (error) {
@@ -70,7 +70,7 @@ const FieldMarketingAgentPage: React.FC = () => {
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-gray-600 text-sm">Commission (Approved)</div>
-            <div className="text-2xl font-bold text-purple-600">${commissions.totals?.approved || 0}</div>
+            <div className="text-2xl font-bold text-purple-600">${(commissions as any).totals?.approved || 0}</div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-gray-600 text-sm">Boards Placed</div>
@@ -156,19 +156,19 @@ const FieldMarketingAgentPage: React.FC = () => {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-yellow-600">
-                  ${commissions.totals?.pending || 0}
+                  ${(commissions as any).totals?.pending || 0}
                 </div>
                 <div className="text-sm text-gray-600">Pending</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">
-                  ${commissions.totals?.approved || 0}
+                  ${(commissions as any).totals?.approved || 0}
                 </div>
                 <div className="text-sm text-gray-600">Approved</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  ${commissions.totals?.paid || 0}
+                  ${(commissions as any).totals?.paid || 0}
                 </div>
                 <div className="text-sm text-gray-600">Paid</div>
               </div>

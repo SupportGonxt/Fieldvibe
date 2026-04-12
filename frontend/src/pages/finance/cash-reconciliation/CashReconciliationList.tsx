@@ -17,7 +17,7 @@ export default function CashReconciliationList() {
   const loadReconciliations = async () => {
     setLoading(true)
     try {
-      const response = await financeService.getCashReconciliations()
+      const response = await (financeService as any).getCashReconciliations()
       setReconciliations(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load cash reconciliations:', error)

@@ -22,7 +22,7 @@ export default function TransfersList() {
   const loadTransfers = async () => {
     setLoading(true)
     try {
-      const response = await inventoryService.getTransfers()
+      const response: any = await inventoryService.getTransfers()
       // API returns { success: true, data: [...] }, axios wraps it in response.data
       const transfers = response.data?.data || response.data?.transfers || response.data || []
       setTransfers(Array.isArray(transfers) ? transfers : [])
@@ -39,7 +39,7 @@ export default function TransfersList() {
       message: 'Are you sure you want to reverse this transfer?',
       action: async () => {
         try {
-          await inventoryService.reverseTransfer(transferId)
+          await inventoryService.reverseTransfer(String(transferId))
           loadTransfers()
         } catch (error) {
           console.error('Failed to reverse transfer:', error)

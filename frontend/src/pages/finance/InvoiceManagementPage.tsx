@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileText, Download, Send, Eye, Plus, Filter, Search, Check, X, Clock, Printer } from 'lucide-react'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
+import { apiClient } from '../../services/api.service'
 
 interface Invoice {
   id: string
@@ -36,42 +37,47 @@ export default function InvoiceManagementPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [invoices] = useState<Invoice[]>([
-    {
-      id: '1',
-      invoiceNumber: 'INV-2024-001',
-      customerId: 'C001',
-      customerName: 'ABC Retail Store',
-      date: '2024-10-20',
-      dueDate: '2024-11-20',
-      amount: 5000.00,
-      tax: 750.00,
-      total: 5750.00,
-      status: 'sent',
-      paymentTerms: 'Net 30',
-      items: [
-        { id: '1', productName: 'Product A', description: 'Premium product', quantity: 50, price: 100, tax: 15, total: 5750 }
-      ],
-      notes: 'Thank you for your business'
-    },
-    {
-      id: '2',
-      invoiceNumber: 'INV-2024-002',
-      customerId: 'C002',
-      customerName: 'XYZ Wholesale',
-      date: '2024-10-18',
-      dueDate: '2024-10-18',
-      amount: 12000.00,
-      tax: 1800.00,
-      total: 13800.00,
-      status: 'overdue',
-      paymentTerms: 'Due on receipt',
-      items: [
-        { id: '1', productName: 'Product B', description: 'Bulk order', quantity: 200, price: 60, tax: 15, total: 13800 }
-      ]
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        setLoading(true)
+        const response = await apiClient.get('/finance/invoices')
+        const data = response.data?.data || response.data?.invoices || response.data || []
+        const invoiceList = Array.isArray(data) ? data : []
+        setInvoices(invoiceList.map((inv: any) => ({
+          id: String(inv.id),
+          invoiceNumber: inv.invoice_number || inv.invoiceNumber || `INV-${inv.id}`,
+          customerId: inv.customer_id || inv.customerId || '',
+          customerName: inv.customer_name || inv.customerName || 'Unknown',
+          date: inv.date || inv.invoice_date || inv.created_at || new Date().toISOString(),
+          dueDate: inv.due_date || inv.dueDate || '',
+          amount: Number(inv.amount || inv.subtotal || 0),
+          tax: Number(inv.tax || inv.tax_amount || 0),
+          total: Number(inv.total || inv.total_amount || 0),
+          status: inv.status || 'draft',
+          paymentTerms: inv.payment_terms || inv.paymentTerms || '',
+          items: Array.isArray(inv.items) ? inv.items.map((item: any) => ({
+            id: String(item.id),
+            productName: item.product_name || item.productName || '',
+            description: item.description || '',
+            quantity: Number(item.quantity || 0),
+            price: Number(item.price || item.unit_price || 0),
+            tax: Number(item.tax || 0),
+            total: Number(item.total || item.line_total || 0),
+          })) : [],
+          notes: inv.notes || '',
+        })))
+      } catch {
+        setInvoices([])
+      } finally {
+        setLoading(false)
+      }
     }
-  ])
+    fetchInvoices()
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {

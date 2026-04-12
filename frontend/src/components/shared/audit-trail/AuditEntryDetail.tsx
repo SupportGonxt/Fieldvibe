@@ -120,7 +120,7 @@ export default function AuditEntryDetail() {
           <div className="flex items-start gap-3">
             <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
             <div>
-              <p className="text-sm text-gray-900">{entry.location.city}, {entry.location.country}</p>
+              <p className="text-sm text-gray-900">{(entry.location as any).city}, {(entry.location as any).country}</p>
               <p className="text-xs text-gray-500 font-mono mt-1">
                 {entry.location.latitude}, {entry.location.longitude}
               </p>

@@ -481,9 +481,30 @@ class AdvancedOfflineService {
    * Execute operation
    */
   private async executeOperation(op: any): Promise<void> {
-    // This would integrate with your API client
-    // Implementation depends on your API structure
-    console.log('Executing operation:', op);
+    const { ApiService } = await import('./api.service');
+    const apiService = new ApiService();
+    const method = (op.method || 'POST').toLowerCase();
+    const url = op.url || op.endpoint;
+    if (!url) throw new Error('Operation missing URL/endpoint');
+    switch (method) {
+      case 'get':
+        await apiService.get(url, { params: op.params });
+        break;
+      case 'post':
+        await apiService.post(url, op.data || op.body);
+        break;
+      case 'put':
+        await apiService.put(url, op.data || op.body);
+        break;
+      case 'patch':
+        await apiService.patch(url, op.data || op.body);
+        break;
+      case 'delete':
+        await apiService.delete(url);
+        break;
+      default:
+        await apiService.post(url, op.data || op.body);
+    }
   }
 }
 

@@ -193,7 +193,7 @@ export default function AgentDashboard() {
       const dashTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Dashboard timeout')), 15000))
       const dashPromise = apiClient.get('/agent/dashboard')
       const dashRes = await Promise.race([dashPromise, dashTimeout])
-      const json = dashRes.data
+      const json = (dashRes as any).data
       if (json.success && json.data) {
         setData(json.data)
         setCriticalLoaded(true) // Mark critical data as loaded
@@ -206,9 +206,9 @@ export default function AgentDashboard() {
       // Load performance data separately (non-critical, can be lazy-loaded)
       const perfTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Performance timeout')), 15000))
       const perfPromise = apiClient.get('/agent/performance')
-      Promise.race([perfPromise, perfTimeout]).then(perfRes => {
+      Promise.race([perfPromise, perfTimeout]).then((perfRes: any) => {
         if (perfRes?.data?.success && perfRes?.data?.data) {
-          setPerfSummary(perfRes.data.data)
+          setPerfSummary((perfRes as any).data.data)
         }
       }).catch(() => { /* ignore perf errors */ })
     } catch (err) {

@@ -813,16 +813,26 @@ export default function LandingPage() {
               <h4 className="font-semibold text-white text-sm mb-4">Company</h4>
               <ul className="space-y-2.5">
                 <li><a href="https://www.gonxt.tech" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-500 hover:text-white transition-colors">About GONXT</a></li>
-                {['Careers', 'Blog', 'Contact', 'Support'].map((item) => (
-                  <li key={item}><a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">{item}</a></li>
+                {[
+                  { label: 'Careers', path: '/careers' },
+                  { label: 'Blog', path: '/blog' },
+                  { label: 'Contact', path: '/contact' },
+                  { label: 'Support', path: '/support' },
+                ].map((item) => (
+                  <li key={item.label}><Link to={item.path} className="text-sm text-slate-500 hover:text-white transition-colors">{item.label}</Link></li>
                 ))}
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white text-sm mb-4">Legal</h4>
               <ul className="space-y-2.5">
-                {['Privacy Policy', 'Terms of Service', 'Cookie Policy', 'Security'].map((item) => (
-                  <li key={item}><a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">{item}</a></li>
+                {[
+                  { label: 'Privacy Policy', path: '/privacy' },
+                  { label: 'Terms of Service', path: '/terms' },
+                  { label: 'Cookie Policy', path: '/cookies' },
+                  { label: 'Security', path: '/security' },
+                ].map((item) => (
+                  <li key={item.label}><Link to={item.path} className="text-sm text-slate-500 hover:text-white transition-colors">{item.label}</Link></li>
                 ))}
               </ul>
             </div>

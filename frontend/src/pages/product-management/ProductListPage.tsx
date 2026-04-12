@@ -25,7 +25,7 @@ export const ProductListPage: React.FC = () => {
   })
 
   const products = data?.products || []
-  const total = data?.total || 0
+  const total = (data as any)?.total || (data as any)?.pagination?.total || 0
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {

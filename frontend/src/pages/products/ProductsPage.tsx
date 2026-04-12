@@ -123,7 +123,7 @@ export default function ProductsPage() {
   const loadStats = async () => {
     try {
       const statsData = await productsService.getProductStats()
-      setStats(statsData)
+      setStats(statsData as any)
     } catch (err) {
       console.error('Error loading product stats:', err)
     }

@@ -14,7 +14,7 @@ export default function SalesSummaryReport() {
   const loadReport = async () => {
     setLoading(true)
     try {
-      const response = await reportsService.getSalesReport('summary', filters)
+      const response = await (reportsService as any).getSalesReport('summary', filters)
       setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load sales summary report:', error)
@@ -59,7 +59,7 @@ export default function SalesSummaryReport() {
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
     try {
-      await reportsService.exportReport('sales', 'summary', format, filters)
+      await (reportsService as any).exportReport('sales', 'summary', format, filters)
     } catch (error) {
       console.error('Failed to export report:', error)
     }

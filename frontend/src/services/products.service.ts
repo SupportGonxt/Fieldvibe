@@ -6,12 +6,17 @@ export interface Product {
   tenant_id: string
   name: string
   code: string
+  sku?: string
   barcode?: string
   category_id: string
   brand_id: string
+  category?: string
+  brand?: string
   unit_of_measure?: string
   selling_price: number
   cost_price: number
+  price?: number
+  unitPrice?: number
   tax_rate: number
   status: 'active' | 'inactive' | 'discontinued'
   created_at: string
@@ -19,6 +24,7 @@ export interface Product {
   category_name?: string
   brand_name?: string
   total_stock: number
+  stock_quantity?: number
   description?: string
   image_url?: string
   min_stock_level?: number
@@ -51,6 +57,7 @@ export interface ProductFilter {
   search?: string
   category_id?: string
   brand_id?: string
+  category?: string
   status?: string
   price_min?: number
   price_max?: number
@@ -270,6 +277,17 @@ class ProductsService {
     }
   }
 
+
+
+  async getProductPricing(productId: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`/products/${productId}/pricing`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get product pricing:', error);
+      return [];
+    }
+  }
 }
 
 export const productsService = new ProductsService()

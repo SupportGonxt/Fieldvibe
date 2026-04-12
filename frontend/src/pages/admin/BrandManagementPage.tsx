@@ -39,7 +39,7 @@ export default function BrandManagementPage() {
   const loadBrands = async () => {
     try {
       setLoading(true)
-      const response = await brandService.getBrands()
+      const response: any = await brandService.getBrands()
       setBrands(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load brands:', error)
@@ -53,10 +53,10 @@ export default function BrandManagementPage() {
     e.preventDefault()
     try {
       if (editingBrand) {
-        await brandService.updateBrand(editingBrand.id, formData)
+        await brandService.updateBrand(editingBrand.id, { name: formData.name, code: formData.code, description: formData.description, status: formData.active ? 'active' as const : 'inactive' as const })
         toast.success('Brand updated successfully')
       } else {
-        await brandService.createBrand(formData)
+        await brandService.createBrand({ name: formData.name, code: formData.code, description: formData.description, status: formData.active ? 'active' as const : 'inactive' as const })
         toast.success('Brand created successfully')
       }
       setShowModal(false)

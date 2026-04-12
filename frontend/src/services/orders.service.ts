@@ -6,7 +6,13 @@ export interface Order {
   tenant_id: string
   order_number: string
   customer_id: string
+  customer_name?: string
+  customer_email?: string
+  customer_phone?: string
   salesman_id?: string
+  agent_id?: string
+  agent_name?: string
+  status?: string
   order_date: string
   delivery_date?: string
   subtotal: number
@@ -16,6 +22,7 @@ export interface Order {
   payment_method?: string
   payment_status: string
   order_status: string
+  current_status?: string
   notes?: string
   created_at: string
   customer?: {
@@ -66,6 +73,7 @@ export interface OrderFilter {
   payment_status?: string
   customer_id?: string
   salesman_id?: string
+  route_id?: string
   date_from?: string
   date_to?: string
   page?: number
@@ -314,6 +322,17 @@ class OrdersService {
     } catch (error) {
       console.error('Failed to calculate pricing:', error)
       throw error
+    }
+  }
+
+
+  async getProductSales(productId: string): Promise<any> {
+    try {
+      const response = await apiClient.get(`/products/${productId}/sales`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get product sales:', error);
+      return [];
     }
   }
 }

@@ -14,7 +14,7 @@ export default function VarianceAnalysisReport() {
   const loadReport = async () => {
     setLoading(true)
     try {
-      const response = await reportsService.getInventoryReport('variance-analysis', filters)
+      const response = await (reportsService as any).getInventoryReport('variance-analysis', filters)
       setData(Array.isArray(response.data) ? response.data : (response.data?.data || []))
     } catch (error) {
       console.error('Failed to load variance analysis report:', error)
@@ -74,7 +74,7 @@ export default function VarianceAnalysisReport() {
 
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
     try {
-      await reportsService.exportReport('inventory', 'variance-analysis', format, filters)
+      await (reportsService as any).exportReport('inventory', 'variance-analysis', format, filters)
     } catch (error) {
       console.error('Failed to export report:', error)
     }
