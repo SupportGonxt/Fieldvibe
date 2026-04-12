@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DollarSign, CreditCard, Clock, CheckCircle, XCircle, Search, Filter, Calendar, Download } from 'lucide-react'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
+import { apiClient } from '../../services/api.service'
 
 interface Payment {
   id: string
@@ -23,55 +24,36 @@ export default function PaymentCollectionPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [methodFilter, setMethodFilter] = useState<string>('all')
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [payments] = useState<Payment[]>([
-    {
-      id: '1',
-      paymentNumber: 'PAY-2024-001',
-      invoiceNumber: 'INV-2024-001',
-      customerName: 'ABC Retail Store',
-      amount: 5750.00,
-      method: 'bank_transfer',
-      status: 'completed',
-      date: '2024-10-22',
-      reference: 'TXN123456',
-      notes: 'Full payment received'
-    },
-    {
-      id: '2',
-      paymentNumber: 'PAY-2024-002',
-      invoiceNumber: 'INV-2024-002',
-      customerName: 'XYZ Wholesale',
-      amount: 6900.00,
-      method: 'card',
-      status: 'completed',
-      date: '2024-10-21',
-      reference: 'CARD789012'
-    },
-    {
-      id: '3',
-      paymentNumber: 'PAY-2024-003',
-      invoiceNumber: 'INV-2024-003',
-      customerName: 'SuperMart Chain',
-      amount: 2500.00,
-      method: 'cash',
-      status: 'pending',
-      date: '2024-10-23',
-      notes: 'Partial payment'
-    },
-    {
-      id: '4',
-      paymentNumber: 'PAY-2024-004',
-      invoiceNumber: 'INV-2024-004',
-      customerName: 'Corner Shop',
-      amount: 1725.00,
-      method: 'mobile',
-      status: 'failed',
-      date: '2024-10-23',
-      reference: 'MPAY345678',
-      notes: 'Insufficient funds'
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        setLoading(true)
+        const response = await apiClient.get('/finance/payments')
+        const data = response.data?.data || response.data?.payments || response.data || []
+        const paymentList = Array.isArray(data) ? data : []
+        setPayments(paymentList.map((p: any) => ({
+          id: String(p.id),
+          paymentNumber: p.payment_number || p.paymentNumber || `PAY-${p.id}`,
+          invoiceNumber: p.invoice_number || p.invoiceNumber || '',
+          customerName: p.customer_name || p.customerName || 'Unknown',
+          amount: Number(p.amount || 0),
+          method: p.method || p.payment_method || 'cash',
+          status: p.status || 'pending',
+          date: p.date || p.payment_date || p.created_at || new Date().toISOString(),
+          reference: p.reference || p.reference_number || '',
+          notes: p.notes || '',
+        })))
+      } catch {
+        setPayments([])
+      } finally {
+        setLoading(false)
+      }
     }
-  ])
+    fetchPayments()
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
