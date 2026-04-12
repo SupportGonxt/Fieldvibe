@@ -496,7 +496,8 @@ class InventoryService {
   async exportInventoryReport(format: string, filter?: any): Promise<void> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/export`, { params: { format, ...filter } })
-      console.log('Export initiated:', response.data)
+      // Export initiated - download response data
+      return response.data
     } catch (error) {
       console.error('Failed to export inventory report:', error)
     }
