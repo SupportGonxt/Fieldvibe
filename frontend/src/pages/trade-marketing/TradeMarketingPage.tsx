@@ -109,30 +109,7 @@ export default function TradeMarketingPage() {
       if (competitorRes.data?.success) {
         setCompetitorData(competitorRes.data.data)
       } else {
-        // Fallback to mock data if API returns nothing
-        setCompetitorData([
-          {
-            competitor: 'Competitor A',
-            marketShare: 28.5,
-            priceIndex: 102.3,
-            promotionalActivity: 85.2,
-            trend: 'up'
-          },
-          {
-            competitor: 'Competitor B',
-            marketShare: 22.1,
-            priceIndex: 98.7,
-            promotionalActivity: 72.4,
-            trend: 'down'
-          },
-          {
-            competitor: 'Competitor C',
-            marketShare: 18.9,
-            priceIndex: 105.1,
-            promotionalActivity: 91.8,
-            trend: 'stable'
-          }
-        ])
+        setCompetitorData(competitorRes.data?.data || [])
       }
     } catch (error) {
       console.error('Error fetching trade marketing data:', error)
