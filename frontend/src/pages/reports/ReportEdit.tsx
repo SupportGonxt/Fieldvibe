@@ -33,7 +33,6 @@ export default function ReportEdit() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: ReportFormData) => {
-      // Mock API call - replace with actual implementation
       const response = await apiClient.put(`/reports/${id}`, data)
       return response.data?.data || response.data
     },
