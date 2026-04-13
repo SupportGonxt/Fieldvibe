@@ -3089,7 +3089,7 @@ api.get('/visits/:id', async (c) => {
   if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
   const [responses, photos, individuals] = await Promise.all([
     db.prepare('SELECT vr.* FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE vr.visit_id = ? AND v.tenant_id = ? LIMIT 500').bind(id, tenantId).all(),
-    db.prepare('SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score, ai_share_of_voice, board_placement_location, board_placement_position, board_condition, sample_board_match_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] })),
+    db.prepare('SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score, ai_share_of_voice, ai_labels, ai_raw_response, ai_brands_detected, board_placement_location, board_placement_position, board_condition, sample_board_match_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] })),
     db.prepare('SELECT vi.*, i.first_name, i.last_name, i.id_number, i.phone, i.email FROM visit_individuals vi LEFT JOIN individuals i ON vi.individual_id = i.id WHERE vi.visit_id = ? AND vi.tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] }))
   ]);
   // Extract images from custom question responses (company questions with field_type='image')
@@ -8276,6 +8276,8 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
     // 2. If individual visit, create or link the individual
     let individualId = null;
+    // Track which custom question keys have AI analysis enabled (used by both individual and store paths)
+    let aiEnabledKeys = new Set();
     if (body.visit_target_type === 'individual' && (body.individual_first_name || body.individual_id_number)) {
       // Check if individual already exists
       let existingIndividual = null;
@@ -8314,6 +8316,14 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       // individual_registrations INSERT removed - visits table is the single source of truth
 
       // 2a-upload. Upload individual visit custom question images (base64) to R2 for AI analysis
+      // Look up which custom question keys have AI analysis enabled
+      aiEnabledKeys = new Set();
+      if (companyId) {
+        try {
+          const aiQs = await db.prepare("SELECT question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND field_type = 'image' AND enable_ai_analysis = 1 AND is_active = 1").bind(tenantId, companyId).all();
+          aiEnabledKeys = new Set((aiQs.results || []).map(q => q.question_key));
+        } catch { /* ignore */ }
+      }
       const allIndivCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
       for (const [key, val] of Object.entries(allIndivCustom)) {
         if (typeof val === 'string' && val.startsWith('data:image')) {
@@ -8341,7 +8351,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
               ).run();
               // Replace base64 with R2 URL in custom fields for future retrieval
               mergedCustomFields[key] = r2Url;
-              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, indPhotoId, indPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'general')); } catch { /* AI optional */ }
+              if (aiEnabledKeys.has(key)) { try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, indPhotoId, indPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'general')); } catch { /* AI optional */ } }
             }
           } catch (imgErr) { console.error('Individual photo upload error:', imgErr); }
         }
@@ -8363,6 +8373,15 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       }
 
       // 2c. Upload custom question images (base64) to R2 for AI board detection
+      // Look up which custom question keys have AI analysis enabled (reuse aiEnabledKeys if already set)
+      if (!aiEnabledKeys || aiEnabledKeys.size === 0) {
+        if (companyId) {
+          try {
+            const aiQsStore = await db.prepare("SELECT question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND field_type = 'image' AND enable_ai_analysis = 1 AND is_active = 1").bind(tenantId, companyId).all();
+            aiEnabledKeys = new Set((aiQsStore.results || []).map(q => q.question_key));
+          } catch { /* ignore */ }
+        }
+      }
       const allCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
       for (const [key, val] of Object.entries(allCustom)) {
         if (typeof val === 'string' && val.startsWith('data:image')) {
@@ -8392,7 +8411,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
               ).run();
               // Replace base64 with R2 URL in stored responses
               mergedStoreCustom[key] = r2Url;
-              try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, cqPhotoId, cqPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'store_front')); } catch { /* AI optional */ }
+              if (aiEnabledKeys.has(key)) { try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, cqPhotoId, cqPhotoKey, tenantId, visitId, key.includes('board') || key.includes('ad_board') ? 'board' : 'store_front')); } catch { /* AI optional */ } }
             }
           } catch (imgErr) { console.error('Custom question image upload error:', imgErr); }
         }
@@ -8412,6 +8431,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     }
 
     // 4. Save photos with GPS, hash, and board placement data (with deduplication)
+    const stepPhotoIds = [];
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       for (const photo of body.photos) {
         // Skip duplicate photos by hash
@@ -8438,13 +8458,15 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
             photo.captured_at || now, photo.photo_hash || null, userId
           ).run();
         }
+        stepPhotoIds.push(photoId);
       }
     }
 
-    // 5. Trigger AI analysis for uploaded photos (runs async in background)
-    if (Array.isArray(body.photos) && body.photos.length > 0) {
+    // 5. Trigger AI analysis for uploaded body.photos only (custom question photos are handled in steps 2a/2c with aiEnabledKeys)
+    if (Array.isArray(body.photos) && body.photos.length > 0 && stepPhotoIds.length > 0) {
       try {
-        const savedPhotos = await db.prepare('SELECT id, r2_key, photo_type FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(visitId, tenantId).all();
+        const placeholders = stepPhotoIds.map(() => '?').join(',');
+        const savedPhotos = await db.prepare(`SELECT id, r2_key, photo_type FROM visit_photos WHERE id IN (${placeholders}) AND tenant_id = ?`).bind(...stepPhotoIds, tenantId).all();
         for (const sp of (savedPhotos?.results || [])) {
           if (sp.r2_key && !sp.r2_key.startsWith('data:')) {
             try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, sp.id, sp.r2_key, tenantId, visitId, sp.photo_type)); } catch { /* AI analysis optional */ }
@@ -16722,7 +16744,7 @@ api.get('/field-operations/visits/:visitId', authMiddleware, async (c) => {
     if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
     // Fetch photos for this visit - include all fields needed by frontend
     let photos = [];
-    try { const photosRes = await db.prepare("SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score, ai_share_of_voice, board_placement_location, board_placement_position, board_condition, sample_board_match_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).all(); photos = photosRes?.results || []; } catch { /* visit_photos may not exist */ }
+    try { const photosRes = await db.prepare("SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score, ai_share_of_voice, ai_labels, ai_raw_response, ai_brands_detected, board_placement_location, board_placement_position, board_condition, sample_board_match_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).all(); photos = photosRes?.results || []; } catch { /* visit_photos may not exist */ }
     // Fetch survey responses
     let surveyResponses = null;
     try { const sr = await db.prepare("SELECT responses FROM visit_responses WHERE visit_id = ? AND tenant_id = ? AND (visit_type IS NULL OR visit_type != 'store_custom_questions')").bind(visitId, tenantId).first(); if (sr?.responses) surveyResponses = typeof sr.responses === 'string' ? JSON.parse(sr.responses) : sr.responses; } catch { /* ok */ }

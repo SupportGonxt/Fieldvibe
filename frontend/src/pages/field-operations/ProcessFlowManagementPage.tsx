@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -25,6 +25,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { surveysService } from '../../services/surveys.service'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 // ── Types ──
 
@@ -722,6 +723,8 @@ function CustomQuestionsTab() {
   const [showCreate, setShowCreate] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<CustomQuestion | null>(null)
   const [keyManuallyEdited, setKeyManuallyEdited] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState({
     company_id: '',
     question_label: '',
@@ -800,6 +803,8 @@ function CustomQuestionsTab() {
     setEditingQuestion(q)
     setShowCreate(true)
     setKeyManuallyEdited(true)
+    // Scroll to form after React renders it
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     setForm({
       company_id: q.company_id,
       question_label: q.question_label,
@@ -856,7 +861,7 @@ function CustomQuestionsTab() {
       </div>
 
       {showCreate && (
-        <div className="card p-6 border-2 border-blue-200 dark:border-blue-800">
+        <div ref={formRef} className="card p-6 border-2 border-blue-200 dark:border-blue-800">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
             {editingQuestion ? 'Edit Custom Question' : 'Create Custom Question'}
           </h3>
@@ -1106,10 +1111,10 @@ function CustomQuestionsTab() {
                           </td>
                           <td className="px-6 py-3">
                             <div className="flex gap-2">
-                              <button onClick={() => startEdit(q)} className="text-blue-600 hover:text-blue-800">
+                              <button onClick={() => startEdit(q)} className="text-blue-600 hover:text-blue-800 p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Edit question">
                                 <Edit2 className="w-4 h-4" />
                               </button>
-                              <button onClick={() => deleteMutation.mutate(q.id)} className="text-red-600 hover:text-red-800">
+                              <button onClick={() => setPendingDeleteId(q.id)} className="text-red-600 hover:text-red-800 p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete question">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -1124,6 +1129,20 @@ function CustomQuestionsTab() {
           ))
         })()
       )}
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) deleteMutation.mutate(pendingDeleteId)
+          setPendingDeleteId(null)
+        }}
+        title="Delete Question"
+        message="Are you sure you want to delete this custom question? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   )
 

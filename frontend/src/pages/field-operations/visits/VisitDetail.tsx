@@ -5,7 +5,7 @@ import { fieldOperationsService } from '../../../services/field-operations.servi
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X } from 'lucide-react'
+import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X, Sparkles, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function VisitDetail() {
@@ -300,9 +300,64 @@ export default function VisitDetail() {
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    {/* Photo metadata: SOV, board placement, condition */}
+                    {/* Photo metadata: AI analysis, SOV, board placement, condition */}
                     <div className="p-2 space-y-1">
-                      {photo.ai_share_of_voice != null && (
+                      {photo.ai_analysis_status === 'completed' && photo.ai_labels && (() => {
+                        try {
+                          const labels = typeof photo.ai_labels === 'string' ? JSON.parse(photo.ai_labels) : photo.ai_labels
+                          if (labels && typeof labels === 'object') {
+                            return (
+                              <div className="space-y-1">
+                                {labels.board_detected !== undefined && (
+                                  <div className="flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-violet-400" />
+                                    <span className="text-[10px] text-gray-400">Board:</span>
+                                    <span className={`text-[10px] font-medium ${labels.board_detected ? 'text-green-400' : 'text-gray-500'}`}>
+                                      {labels.board_detected ? 'Detected' : 'Not found'}
+                                    </span>
+                                  </div>
+                                )}
+                                {labels.brand && (
+                                  <div className="flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-violet-400" />
+                                    <span className="text-[10px] text-gray-400">Brand:</span>
+                                    <span className="text-[10px] font-medium text-white">{labels.brand}</span>
+                                  </div>
+                                )}
+                                {labels.condition && (
+                                  <div className="flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-violet-400" />
+                                    <span className="text-[10px] text-gray-400">Condition:</span>
+                                    <span className={`text-[10px] font-medium ${labels.condition === 'good' ? 'text-green-400' : labels.condition === 'damaged' ? 'text-red-400' : 'text-yellow-400'}`}>
+                                      {labels.condition}
+                                    </span>
+                                  </div>
+                                )}
+                                {labels.visibility && (
+                                  <div className="flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-violet-400" />
+                                    <span className="text-[10px] text-gray-400">Visibility:</span>
+                                    <span className={`text-[10px] font-medium ${labels.visibility === 'high' ? 'text-green-400' : labels.visibility === 'low' ? 'text-red-400' : 'text-yellow-400'}`}>
+                                      {labels.visibility}
+                                    </span>
+                                  </div>
+                                )}
+                                {labels.description && !labels.brand && !labels.condition && (
+                                  <p className="text-[10px] text-gray-400 truncate" title={labels.description}>{labels.description}</p>
+                                )}
+                              </div>
+                            )
+                          }
+                          return null
+                        } catch { return null }
+                      })()}
+                      {photo.ai_analysis_status === 'processing' && (
+                        <div className="flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 text-amber-400 animate-spin" />
+                          <span className="text-[10px] text-amber-400">AI analyzing...</span>
+                        </div>
+                      )}
+                      {photo.ai_share_of_voice != null && photo.ai_share_of_voice > 0 && (
                         <div className="flex items-center gap-1">
                           <BarChart3 className="w-3 h-3 text-cyan-400" />
                           <span className="text-[10px] text-gray-400">SOV:</span>
@@ -439,9 +494,64 @@ export default function VisitDetail() {
                     className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                   />
                 </div>
-                {(photo.ai_share_of_voice != null || photo.board_condition) && (
+                {((photo.ai_analysis_status === 'completed' && photo.ai_labels) || photo.ai_analysis_status === 'processing' || (photo.ai_share_of_voice != null && photo.ai_share_of_voice > 0) || photo.board_condition) && (
                   <div className="p-2 space-y-1 bg-gray-50 dark:bg-gray-700/50">
-                    {photo.ai_share_of_voice != null && (
+                    {photo.ai_analysis_status === 'completed' && photo.ai_labels && (() => {
+                      try {
+                        const labels = typeof photo.ai_labels === 'string' ? JSON.parse(photo.ai_labels) : photo.ai_labels
+                        if (labels && typeof labels === 'object') {
+                          return (
+                            <div className="space-y-1">
+                              {labels.board_detected !== undefined && (
+                                <div className="flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-violet-500" />
+                                  <span className="text-xs text-gray-500">Board:</span>
+                                  <span className={`text-xs font-medium ${labels.board_detected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                    {labels.board_detected ? 'Detected' : 'Not found'}
+                                  </span>
+                                </div>
+                              )}
+                              {labels.brand && (
+                                <div className="flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-violet-500" />
+                                  <span className="text-xs text-gray-500">Brand:</span>
+                                  <span className="text-xs font-medium text-gray-900 dark:text-white">{labels.brand}</span>
+                                </div>
+                              )}
+                              {labels.condition && (
+                                <div className="flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-violet-500" />
+                                  <span className="text-xs text-gray-500">Condition:</span>
+                                  <span className={`text-xs font-medium ${labels.condition === 'good' ? 'text-green-600 dark:text-green-400' : labels.condition === 'damaged' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                    {labels.condition}
+                                  </span>
+                                </div>
+                              )}
+                              {labels.visibility && (
+                                <div className="flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-violet-500" />
+                                  <span className="text-xs text-gray-500">Visibility:</span>
+                                  <span className={`text-xs font-medium ${labels.visibility === 'high' ? 'text-green-600 dark:text-green-400' : labels.visibility === 'low' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                    {labels.visibility}
+                                  </span>
+                                </div>
+                              )}
+                              {labels.description && !labels.brand && !labels.condition && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={labels.description}>{labels.description}</p>
+                              )}
+                            </div>
+                          )
+                        }
+                        return null
+                      } catch { return null }
+                    })()}
+                    {photo.ai_analysis_status === 'processing' && (
+                      <div className="flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 text-amber-500 animate-spin" />
+                        <span className="text-xs text-amber-600 dark:text-amber-400">AI analyzing...</span>
+                      </div>
+                    )}
+                    {photo.ai_share_of_voice != null && photo.ai_share_of_voice > 0 && (
                       <div className="flex items-center gap-1">
                         <BarChart3 className="w-3 h-3 text-cyan-500" />
                         <span className="text-xs text-gray-500">SOV:</span>
