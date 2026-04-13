@@ -559,11 +559,11 @@ function App() {
             {/* Field Operations Routes */}
             <Route path="field-operations" element={<PageLoader><FieldOperationsDashboard /></PageLoader>} />
             <Route path="field-operations/dashboard" element={<PageLoader><FieldOperationsDashboard /></PageLoader>} />
-            <Route path="field-operations/agent-dashboard" element={<PageLoader><FieldAgentDashboardPage /></PageLoader>} />
+            <Route path="field-operations/agent-dashboard" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/agents" element={<Navigate to="/field-operations" replace />} />
-            <Route path="field-operations/mapping" element={<Navigate to="/field-operations/gps-tracking" replace />} />
-            <Route path="field-operations/live-map" element={<PageLoader><LiveGPSTrackingPage /></PageLoader>} />
-            <Route path="field-operations/gps-tracking" element={<PageLoader><LiveGPSTrackingPage /></PageLoader>} />
+            <Route path="field-operations/mapping" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/live-map" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/gps-tracking" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/boards" element={<PageLoader><BoardPlacementsList /></PageLoader>} />
             <Route path="field-operations/boards/create" element={<PageLoader><BoardPlacementFormPage /></PageLoader>} />
             <Route path="field-operations/boards/:id" element={<PageLoader><BoardPlacementDetail /></PageLoader>} />
@@ -580,18 +580,18 @@ function App() {
             <Route path="field-operations/visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="field-operations/visit-configurations" element={<PageLoader><VisitConfigurationPage /></PageLoader>} />
             <Route path="field-operations/process-flows" element={<PageLoader><ProcessFlowManagementPage /></PageLoader>} />
-            <Route path="field-operations/visit-history" element={<PageLoader><VisitHistoryPage /></PageLoader>} />
+            <Route path="field-operations/visit-history" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/visit-management" element={<PageLoader><VisitManagementPage /></PageLoader>} />
 
             {/* Field Operations Refactor: New Routes */}
-            <Route path="field-operations/performance" element={<PageLoader><FieldOpsPerformancePage /></PageLoader>} />
+            <Route path="field-operations/performance" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/daily-targets" element={<PageLoader><DailyTargetsPage /></PageLoader>} />
             <Route path="field-operations/individuals" element={<PageLoader><IndividualRegistrationPage /></PageLoader>} />
             <Route path="field-operations/companies" element={<PageLoader><CompanyManagementPage /></PageLoader>} />
             <Route path="field-operations/company-dashboard/:companyId" element={<PageLoader><CompanyDashboardPage /></PageLoader>} />
             <Route path="field-operations/hierarchy" element={<PageLoader><AgentHierarchyPage /></PageLoader>} />
             <Route path="field-operations/drill-down/:userId" element={<PageLoader><PerformanceDrillDownPage /></PageLoader>} />
-            <Route path="field-operations/brand-insights" element={<PageLoader><BrandInsightsPage /></PageLoader>} />
+            <Route path="field-operations/brand-insights" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/company-logins" element={<PageLoader><CompanyLoginsPage /></PageLoader>} />
             <Route path="field-operations/working-days" element={<PageLoader><WorkingDaysConfigPage /></PageLoader>} />
             <Route path="field-operations/monthly-targets" element={<PageLoader><MonthlyTargetsPage /></PageLoader>} />

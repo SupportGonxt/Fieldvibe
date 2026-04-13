@@ -89,21 +89,13 @@ export const navigation: NavigationItem[] = [
       { name: 'Monthly Targets', href: '/field-operations/monthly-targets', permission: null, description: 'Monthly target management', group: 'Targets & Commissions' },
       { name: 'Commission Tiers', href: '/field-operations/commission-tiers', permission: null, description: 'Commission tier configuration', group: 'Targets & Commissions' },
 
-      // ── Visits & Activity ──
-      { name: 'All Visits', href: '/field-operations/visits', permission: null, description: 'Manage all visits', group: 'Visits & Activity' },
-      { name: 'Store Visits', href: '/field-operations/visits/stores', permission: null, description: 'Store & business visits', group: 'Visits & Activity' },
-      { name: 'Individual Visits', href: '/field-operations/visits/individuals', permission: null, description: 'Individual person visits', group: 'Visits & Activity' },
-      { name: 'Individuals', href: '/field-operations/individuals', permission: null, description: 'Individual visits', group: 'Visits & Activity' },
-      { name: 'Board Placements', href: '/field-operations/boards', permission: null, description: 'Track board placements', group: 'Visits & Activity' },
-      { name: 'Product Distribution', href: '/field-operations/products', permission: null, description: 'Product distribution tracking', group: 'Visits & Activity' },
-
-      // ── Performance & Tracking ──
-      { name: 'Agent Dashboard', href: '/field-operations/agent-dashboard', permission: null, description: 'Agent performance overview', group: 'Performance & Tracking' },
-      { name: 'Performance', href: '/field-operations/performance', permission: null, description: 'Role-based performance metrics', group: 'Performance & Tracking' },
-      { name: 'Brand Insights', href: '/field-operations/brand-insights', permission: null, description: 'Brand analytics & reporting', group: 'Performance & Tracking' },
-      { name: 'Live Map', href: '/field-operations/mapping', permission: null, description: 'Real-time agent tracking', group: 'Performance & Tracking' },
-      { name: 'GPS Tracking', href: '/field-operations/gps-tracking', permission: null, description: 'GPS compliance monitoring', group: 'Performance & Tracking' },
-      { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Performance & Tracking' },
+      // ── Activity ──
+      { name: 'Visit Management', href: '/field-operations/visits', permission: null, description: 'Manage all visits (store & individual)', group: 'Activity' },
+      { name: 'Individuals', href: '/field-operations/individuals', permission: null, description: 'Register & convert individuals', group: 'Activity' },
+      { name: 'Board Placements', href: '/field-operations/boards', permission: null, description: 'Track board placements', group: 'Activity' },
+      { name: 'Product Distribution', href: '/field-operations/products', permission: null, description: 'Product distribution tracking', group: 'Activity' },
+      { name: 'Live Map', href: '/field-operations/mapping', permission: null, description: 'Real-time agent tracking', group: 'Activity' },
+      { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Activity' },
 
       // ── Reports ──
       { name: 'Field Ops Report', href: '/reports/operations/field-ops', permission: 'view_field_reports', description: 'Comprehensive field ops analytics, check-ins, stores, individuals & export', group: 'Reports' },

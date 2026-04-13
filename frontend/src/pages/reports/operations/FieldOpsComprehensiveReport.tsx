@@ -9,8 +9,14 @@ import toast from 'react-hot-toast'
 import {
   BarChart3, Users, MapPin, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight,
   AlertTriangle, Award, Activity, Target, Store, Eye, ChevronLeft, X,
-  Filter, List, Download, FileSpreadsheet, FileText
+  Filter, List, Download, FileSpreadsheet, FileText, UserCheck, ChevronRight,
+  Navigation, Clock, Building2, ClipboardList, PieChart as PieChartIcon
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, Legend
+} from 'recharts'
 
 // ─── Shared Types ───────────────────────────────────────────────────────────
 
@@ -93,7 +99,7 @@ interface CustomerRecord {
 
 // ─── Tab types ──────────────────────────────────────────────────────────────
 
-type TabKey = 'overview' | 'insights' | 'checkins' | 'stores' | 'individuals' | 'export'
+type TabKey = 'overview' | 'insights' | 'checkins' | 'stores' | 'individuals' | 'performance' | 'brand' | 'gps' | 'export'
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'overview', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
@@ -101,6 +107,9 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'checkins', label: 'Check-ins', icon: <List className="w-4 h-4" /> },
   { key: 'stores', label: 'Stores', icon: <Store className="w-4 h-4" /> },
   { key: 'individuals', label: 'Individuals', icon: <Users className="w-4 h-4" /> },
+  { key: 'performance', label: 'Performance', icon: <Target className="w-4 h-4" /> },
+  { key: 'brand', label: 'Brand Insights', icon: <TrendingUp className="w-4 h-4" /> },
+  { key: 'gps', label: 'GPS Tracking', icon: <MapPin className="w-4 h-4" /> },
   { key: 'export', label: 'Export', icon: <Download className="w-4 h-4" /> },
 ]
 
@@ -194,6 +203,15 @@ const FieldOpsComprehensiveReport: React.FC = () => {
       )}
       {activeTab === 'individuals' && (
         <IndividualsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+      )}
+      {activeTab === 'performance' && (
+        <PerformanceTab />
+      )}
+      {activeTab === 'brand' && (
+        <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+      )}
+      {activeTab === 'gps' && (
+        <GPSTrackingTab />
       )}
       {activeTab === 'export' && (
         <ExportTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
@@ -1155,6 +1173,604 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Performance Tab (was FieldOpsPerformancePage) ──────────────────────────
+
+function PerformanceTab() {
+  const navigate = useNavigate()
+  const today = new Date().toISOString().split('T')[0]
+  const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'custom'>('month')
+  const [dateRange, setDateRange] = useState({ start_date: today, end_date: today })
+
+  const { data: performance, isLoading, isError } = useQuery({
+    queryKey: ['field-ops-performance', timePeriod, dateRange],
+    queryFn: async () => {
+      const params = {
+        period: timePeriod === 'custom' ? undefined : timePeriod,
+        start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
+        end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
+      }
+      return fieldOperationsService.getPerformance(params)
+    },
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+  })
+
+  const handleExport = async (format: 'csv' | 'excel' = 'excel') => {
+    try {
+      const params = new URLSearchParams()
+      if (timePeriod !== 'custom') {
+        params.append('period', timePeriod)
+      } else {
+        params.append('start_date', dateRange.start_date)
+        params.append('end_date', dateRange.end_date)
+      }
+      const endpoint = format === 'excel' ? '/field-ops/performance/export-excel' : '/field-ops/performance/export'
+      const response = await fieldOperationsService.get(`${endpoint}?${params.toString()}`, { responseType: 'blob' })
+      const mimeType = format === 'excel' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv;charset=utf-8'
+      const ext = format === 'excel' ? 'xlsx' : 'csv'
+      const blob = new Blob([response.data], { type: mimeType })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const periodLabel = timePeriod === 'day' ? 'Day' : timePeriod === 'week' ? 'Week' : timePeriod === 'month' ? 'Month' : 'Custom'
+      a.download = `field-ops-performance-${periodLabel}-${today}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+      toast.error('Failed to export report')
+    }
+  }
+
+  if (isLoading) return <LoadingSpinner />
+  if (isError) return <ErrorBanner />
+
+  const role = performance?.role || 'agent'
+
+  return (
+    <div className="space-y-6">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          {(['day', 'week', 'month', 'custom'] as const).map((p) => (
+            <button key={p} onClick={() => setTimePeriod(p)}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                timePeriod === p
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}>
+              {p === 'day' ? 'Day' : p === 'week' ? 'Week to Date' : p === 'month' ? 'Month to Date' : 'Custom'}
+            </button>
+          ))}
+        </div>
+        {timePeriod === 'custom' && (
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <input type="date" value={dateRange.start_date} onChange={(e) => setDateRange({ ...dateRange, start_date: e.target.value })} className="input text-sm" />
+            <span className="text-gray-500">to</span>
+            <input type="date" value={dateRange.end_date} onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })} className="input text-sm" />
+          </div>
+        )}
+        <button onClick={() => handleExport('excel')} className="btn-primary flex items-center gap-2" title="Export multi-sheet Excel">
+          <FileSpreadsheet className="w-4 h-4" /> Excel
+        </button>
+        <button onClick={() => handleExport('csv')} className="btn-outline flex items-center gap-2 text-sm" title="Export CSV">CSV</button>
+      </div>
+
+      {/* Agent View */}
+      {role === 'agent' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <PerfProgressCard title="Visits" current={performance?.visits || 0} target={performance?.targets?.visits || 20} icon={<Target className="w-6 h-6 text-blue-600" />} color="blue" />
+          <PerfProgressCard title="Individuals" current={performance?.individuals || performance?.individual_visits || 0} target={performance?.targets?.individuals || 10} icon={<UserCheck className="w-6 h-6 text-green-600" />} color="green" />
+          <PerfProgressCard title="Store Visits" current={performance?.store_visits || 0} target={performance?.targets?.stores || 5} icon={<Award className="w-6 h-6 text-purple-600" />} color="purple" />
+        </div>
+      )}
+
+      {/* Team Lead View */}
+      {role === 'team_lead' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <PerfMetricCard title="Team Size" value={performance?.team_size || 0} icon={<Users className="w-6 h-6 text-blue-600" />} />
+            <PerfMetricCard title="Total Visits" value={performance?.total_visits || 0} icon={<Target className="w-6 h-6 text-green-600" />} />
+            <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-purple-600" />} />
+            <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-6 h-6 text-orange-600" />} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />
+            <PerfMetricCard title="Target (Store)" value={performance?.total_target_stores || 0} icon={<BarChart3 className="w-5 h-5 text-orange-600" />} />
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Agent Performance</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead><tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Store)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {(performance?.agents || []).map((agent: any) => (
+                    <tr key={agent.agent_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{agent.agent_name}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.visits}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.individual_visits || 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.store_visits || 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_stores || 0}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => navigate(`/field-operations/drill-down/${agent.agent_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                          Details <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {(performance?.agents || []).length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No agent data available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {(performance?.agents || []).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Visits by Agent</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={performance?.agents || []}>
+                    <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="agent_name" /><YAxis /><Tooltip />
+                    <Bar dataKey="visits" fill="#3B82F6" name="Visits" />
+                    <Bar dataKey="target_visits" fill="#F59E0B" name="Target" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Manager / Admin View */}
+      {(role === 'manager' || role === 'admin') && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <PerfMetricCard title="Team Leads" value={performance?.total_team_leads || 0} icon={<Users className="w-6 h-6 text-blue-600" />} />
+            <PerfMetricCard title="Total Agents" value={performance?.total_agents || 0} icon={<UserCheck className="w-6 h-6 text-green-600" />} />
+            <PerfMetricCard title="Total Visits" value={performance?.total_visits || 0} icon={<Target className="w-6 h-6 text-purple-600" />} />
+            <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-indigo-600" />} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-5 h-5 text-orange-600" />} />
+            <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />
+            <PerfMetricCard title="Target (Store)" value={performance?.total_target_stores || 0} icon={<BarChart3 className="w-5 h-5 text-orange-600" />} />
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Team Performance</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead><tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team Lead</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Agents</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Store)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {(performance?.teams || []).map((team: any) => (
+                    <tr key={team.team_lead_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{team.team_lead_name}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.agent_count}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.visits}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.individual_visits || 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.store_visits || 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_stores || 0}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => navigate(`/field-operations/drill-down/${team.team_lead_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                          Drill Down <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {(performance?.teams || []).length === 0 && (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No team data available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {(performance?.teams || []).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Team Comparison</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={performance?.teams || []}>
+                    <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="team_lead_name" /><YAxis /><Tooltip />
+                    <Bar dataKey="visits" fill="#3B82F6" name="Visits" />
+                    <Bar dataKey="target_visits" fill="#F59E0B" name="Target (Indiv)" />
+                    <Bar dataKey="target_stores" fill="#10B981" name="Target (Store)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function PerfProgressCard({ title, current, target, icon, color }: { title: string; current: number; target: number; icon: React.ReactNode; color: string }) {
+  const pct = target > 0 ? Math.min(Math.round((current / target) * 100), 100) : 0
+  const colorMap: Record<string, string> = { blue: 'bg-blue-100 dark:bg-blue-900/30', green: 'bg-green-100 dark:bg-green-900/30', purple: 'bg-purple-100 dark:bg-purple-900/30' }
+  const barColorMap: Record<string, string> = { blue: 'bg-blue-600', green: 'bg-green-600', purple: 'bg-purple-600' }
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-lg ${colorMap[color] || 'bg-gray-100'}`}>{icon}</div>
+        <span className="text-2xl font-bold text-gray-900 dark:text-white">{current}/{target}</span>
+      </div>
+      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">{title}</p>
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+        <div className={`${barColorMap[color] || 'bg-blue-600'} h-3 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-gray-500 mt-1">{pct}% of target</p>
+    </div>
+  )
+}
+
+function PerfMetricCard({ title, value, icon }: { title: string; value: string | number; icon: React.ReactNode }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">{icon}</div>
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{value}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Brand Insights Tab (was BrandInsightsPage) ─────────────────────────────
+
+const BRAND_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6']
+
+function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: string; endDate: string; selectedCompany: string }) {
+  const effectiveStart = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const effectiveEnd = endDate || new Date().toISOString().split('T')[0]
+
+  const { data: insights, isLoading, isError } = useQuery({
+    queryKey: ['brand-insights', effectiveStart, effectiveEnd, selectedCompany],
+    queryFn: () => fieldOperationsService.getBrandInsights({
+      start_date: effectiveStart,
+      end_date: effectiveEnd,
+      company_id: selectedCompany || undefined
+    }),
+  })
+
+  const { data: surveyInsights } = useQuery({
+    queryKey: ['survey-insights', effectiveStart, effectiveEnd, selectedCompany],
+    queryFn: () => fieldOperationsService.getSurveyInsights({
+      start_date: effectiveStart,
+      end_date: effectiveEnd,
+      company_id: selectedCompany || undefined
+    }),
+  })
+
+  if (isLoading) return <LoadingSpinner />
+  if (isError) return <ErrorBanner />
+
+  const summary = insights?.kpis || {}
+  const dailyTrends = insights?.visits_by_day || []
+  const topAgents = insights?.agent_performance || []
+  const conversionsByDay = insights?.conversions_by_day || []
+  const visitsByHour = insights?.visits_by_hour || []
+
+  return (
+    <div className="space-y-6">
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <BrandKPICard title="Total Visits" value={summary.total_visits || 0} icon={<Target className="w-5 h-5 text-blue-600" />} bg="bg-blue-100 dark:bg-blue-900/30" />
+        <BrandKPICard title="Total Individuals" value={summary.total_individuals || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
+        <BrandKPICard title="Total Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />
+        <BrandKPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daily Visit Trends</h3>
+            <BarChart3 className="w-5 h-5 text-gray-400" />
+          </div>
+          {dailyTrends.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="visit_date" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                  <YAxis /><Tooltip /><Legend />
+                  <Line type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={2} name="Visits" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-400">No visit trend data available</div>
+          )}
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
+            <PieChartIcon className="w-5 h-5 text-gray-400" />
+          </div>
+          {conversionsByDay.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={conversionsByDay}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                  <YAxis /><Tooltip /><Legend />
+                  <Bar dataKey="individuals" fill="#10B981" name="Individuals" />
+                  <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-400">No conversion data available</div>
+          )}
+        </div>
+      </div>
+
+      {/* Visits by Hour */}
+      {visitsByHour.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Visits by Hour of Day</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={visitsByHour}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
+                <YAxis /><Tooltip labelFormatter={(h) => `${h}:00 - ${h}:59`} />
+                <Bar dataKey="count" fill="#3B82F6" name="Visits" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Top Agents */}
+      {topAgents.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Performing Agents</h3>
+          <div className="space-y-3">
+            {topAgents.slice(0, 10).map((agent: any, index: number) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    index === 0 ? 'bg-yellow-100 text-yellow-800' : index === 1 ? 'bg-gray-200 text-gray-800' : index === 2 ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                  }`}>{index + 1}</div>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">{agent.agent_name}</p>
+                    <p className="text-sm text-gray-500">{agent.completed || 0} completed</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-gray-900 dark:text-white">{agent.visit_count || 0} visits</p>
+                  <p className="text-sm text-gray-500">{agent.completed || 0} completed</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Survey Insights Section */}
+      {surveyInsights && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <ClipboardList className="w-5 h-5" /> Survey Insights
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <BrandKPICard title="Active Surveys" value={surveyInsights.total_active_surveys || 0} icon={<ClipboardList className="w-5 h-5 text-indigo-600" />} bg="bg-indigo-100 dark:bg-indigo-900/30" />
+            <BrandKPICard title="Total Responses" value={surveyInsights.total_responses || 0} icon={<UserCheck className="w-5 h-5 text-teal-600" />} bg="bg-teal-100 dark:bg-teal-900/30" />
+            <BrandKPICard title="Companies with Mandatory Surveys" value={surveyInsights.companies_with_mandatory_surveys || 0} icon={<Building2 className="w-5 h-5 text-orange-600" />} bg="bg-orange-100 dark:bg-orange-900/30" />
+          </div>
+          {(surveyInsights.responses_per_survey || []).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Responses per Survey</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={surveyInsights.responses_per_survey} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" />
+                    <YAxis type="category" dataKey="survey_name" width={150} tick={{ fontSize: 12 }} />
+                    <Tooltip /><Bar dataKey="response_count" fill="#8B5CF6" name="Responses" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          {(surveyInsights.responses_per_agent || []).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Survey Responses per Agent</h3>
+              <div className="space-y-2">
+                {surveyInsights.responses_per_agent.slice(0, 10).map((agent: { agent_name: string; response_count: number }, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.agent_name || 'Unknown'}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{agent.response_count} responses</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(surveyInsights.monthly_trend || []).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Monthly Response Trend</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={[...(surveyInsights.monthly_trend || [])].reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip />
+                    <Line type="monotone" dataKey="count" stroke="#10B981" strokeWidth={2} name="Responses" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          {(surveyInsights.survey_configs || []).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Survey Assignment Config</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead><tr className="border-b dark:border-gray-700">
+                    <th className="text-left p-2 text-gray-600 dark:text-gray-400">Company</th>
+                    <th className="text-left p-2 text-gray-600 dark:text-gray-400">Survey</th>
+                    <th className="text-left p-2 text-gray-600 dark:text-gray-400">Target Type</th>
+                    <th className="text-left p-2 text-gray-600 dark:text-gray-400">Required</th>
+                  </tr></thead>
+                  <tbody>
+                    {surveyInsights.survey_configs.map((cfg: { id: string; company_name: string; survey_name: string; visit_target_type: string; survey_required: number }) => (
+                      <tr key={cfg.id} className="border-b dark:border-gray-700">
+                        <td className="p-2 text-gray-900 dark:text-white">{cfg.company_name || 'N/A'}</td>
+                        <td className="p-2 text-gray-900 dark:text-white">{cfg.survey_name || 'N/A'}</td>
+                        <td className="p-2 text-gray-600 dark:text-gray-400">{cfg.visit_target_type}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${cfg.survey_required ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                            {cfg.survey_required ? 'Mandatory' : 'Optional'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!dailyTrends.length && !topAgents.length && !conversionsByDay.length && !surveyInsights?.total_responses && !surveyInsights?.total_active_surveys && !(surveyInsights?.survey_configs || []).length && (
+        <div className="text-center py-12">
+          <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 text-lg font-medium">No brand insights data available</p>
+          <p className="text-gray-400 text-sm">Data will appear once agents start visiting individuals and making store visits</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BrandKPICard({ title, value, icon, bg }: { title: string; value: string | number; icon: React.ReactNode; bg: string }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-lg ${bg}`}>{icon}</div>
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{value}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── GPS Tracking Tab (was LiveGPSTrackingPage) ─────────────────────────────
+
+function GPSTrackingTab() {
+  const { data: locations, isLoading, isError, refetch } = useQuery({
+    queryKey: ['live-locations'],
+    queryFn: () => fieldOperationsService.getLiveLocations(),
+    refetchInterval: 30000
+  })
+
+  useEffect(() => {
+    const interval = setInterval(() => refetch(), 30000)
+    return () => clearInterval(interval)
+  }, [refetch])
+
+  if (isLoading) return <LoadingSpinner />
+  if (isError) return <ErrorBanner />
+
+  const agents = locations || []
+  const activeAgents = agents.filter((a: any) => a.status === 'active')
+  const idleAgents = agents.filter((a: any) => a.status === 'idle')
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm text-gray-600 dark:text-gray-400">Total Agents</p><p className="text-2xl font-bold text-gray-900 dark:text-white">{agents.length}</p></div>
+            <MapPin className="h-8 w-8 text-blue-500" />
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm text-gray-600 dark:text-gray-400">Active</p><p className="text-2xl font-bold text-green-600">{activeAgents.length}</p></div>
+            <Activity className="h-8 w-8 text-green-500" />
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm text-gray-600 dark:text-gray-400">Idle</p><p className="text-2xl font-bold text-yellow-600">{idleAgents.length}</p></div>
+            <Clock className="h-8 w-8 text-yellow-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Agent Locations */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Locations</h3>
+          <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Live (30s refresh)</span>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {agents.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No agents currently tracked</p>
+          ) : (
+            agents.map((agent: any) => (
+              <div key={agent.agent_id} className="flex items-center space-x-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg">
+                <div className={`w-3 h-3 rounded-full ${agent.status === 'active' ? 'bg-green-500' : agent.status === 'idle' ? 'bg-yellow-500' : 'bg-gray-400'}`}></div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.agent_name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Lat: {agent.latitude?.toFixed(6)}, Lng: {agent.longitude?.toFixed(6)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Accuracy: {agent.accuracy}m</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(agent.timestamp).toLocaleTimeString()}</p>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${agent.status === 'active' ? 'bg-green-100 text-green-800' : agent.status === 'idle' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>{agent.status}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Navigation className="h-5 w-5 text-blue-600 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-300">Interactive Map Integration</p>
+            <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">Agent locations are displayed in the list above. For map visualization, integrate with Google Maps or Leaflet using the coordinate data.</p>
+          </div>
         </div>
       </div>
     </div>
