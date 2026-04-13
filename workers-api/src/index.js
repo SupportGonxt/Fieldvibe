@@ -8276,6 +8276,8 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
     // 2. If individual visit, create or link the individual
     let individualId = null;
+    // Track which custom question keys have AI analysis enabled (used by both individual and store paths)
+    let aiEnabledKeys = new Set();
     if (body.visit_target_type === 'individual' && (body.individual_first_name || body.individual_id_number)) {
       // Check if individual already exists
       let existingIndividual = null;
@@ -8315,7 +8317,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
       // 2a-upload. Upload individual visit custom question images (base64) to R2 for AI analysis
       // Look up which custom question keys have AI analysis enabled
-      let aiEnabledKeys = new Set();
+      aiEnabledKeys = new Set();
       if (companyId) {
         try {
           const aiQs = await db.prepare("SELECT question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND field_type = 'image' AND enable_ai_analysis = 1 AND is_active = 1").bind(tenantId, companyId).all();
