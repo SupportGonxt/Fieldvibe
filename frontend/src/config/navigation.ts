@@ -105,13 +105,8 @@ export const navigation: NavigationItem[] = [
       { name: 'GPS Tracking', href: '/field-operations/gps-tracking', permission: null, description: 'GPS compliance monitoring', group: 'Performance & Tracking' },
       { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Performance & Tracking' },
 
-      // ── Reports (SSReports-style) ──
-      { name: 'Reports Dashboard', href: '/field-operations/reports/dashboard', permission: 'view_field_reports', description: 'KPIs, agent performance, charts', group: 'Reports' },
-      { name: 'Deep Insights', href: '/field-operations/reports/insights', permission: 'view_field_reports', description: 'Performance highlights & analytics', group: 'Reports' },
-      { name: 'Store Analytics', href: '/field-operations/reports/shops', permission: 'view_field_reports', description: 'Store-level analytics & drill-down', group: 'Reports' },
-      { name: 'Individual Analytics', href: '/field-operations/reports/customers', permission: 'view_field_reports', description: 'Individual interaction analysis', group: 'Reports' },
-      { name: 'Check-ins List', href: '/field-operations/reports/checkins', permission: 'view_field_reports', description: 'Paginated check-in records', group: 'Reports' },
-      { name: 'Export Reports', href: '/field-operations/reports/export', permission: 'export_data', description: 'Export data to CSV', group: 'Reports' },
+      // ── Reports ──
+      { name: 'Field Ops Report', href: '/reports/operations/field-ops', permission: 'view_field_reports', description: 'Comprehensive field ops analytics, check-ins, stores, individuals & export', group: 'Reports' },
       { name: 'Goldrush Individuals', href: '/field-operations/reports/goldrush-individuals', permission: 'view_field_reports', description: 'Goldrush individual report with questionnaire data', group: 'Reports' },
       { name: 'Goldrush Stores', href: '/field-operations/reports/goldrush-stores', permission: 'view_field_reports', description: 'Goldrush store visit report with questionnaire data', group: 'Reports' },
     ],
