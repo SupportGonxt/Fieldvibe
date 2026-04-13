@@ -427,13 +427,8 @@ const VisitManagementPage = lazyWithRetry(() => import('./pages/field-operations
 const VisitWorkflowPage = lazyWithRetry(() => import('./pages/VisitWorkflowPage'))
 const VisitsList = lazyWithRetry(() => import('./pages/field-operations/visits/VisitsList'))
 
-// Field Operations Reports (SSReports-style)
-const ReportsDashboard = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsDashboard'))
-const ReportsInsights = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsInsights'))
-const ReportsShopsAnalytics = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsShopsAnalytics'))
-const ReportsCustomersAnalytics = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsCustomersAnalytics'))
-const ReportsCheckinsList = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsCheckinsList'))
-const ReportsExport = lazyWithRetry(() => import('./pages/field-operations/reports/ReportsExport'))
+// Field Operations Reports — consolidated comprehensive report + Goldrush custom reports
+const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/operations/FieldOpsComprehensiveReport'))
 const GoldrushIndividualReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualReport'))
 const GoldrushStoreReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreReport'))
 
@@ -1076,14 +1071,19 @@ function App() {
             <Route path="van-sales/workflow" element={<PageLoader><VanSalesWorkflowPage /></PageLoader>} />
             <Route path="field-operations/visits/list" element={<PageLoader><VisitsList /></PageLoader>} />
 
-            {/* Field Operations Reports (SSReports-style) */}
-            <Route path="field-operations/reports" element={<PageLoader><ReportsDashboard /></PageLoader>} />
-            <Route path="field-operations/reports/dashboard" element={<PageLoader><ReportsDashboard /></PageLoader>} />
-            <Route path="field-operations/reports/insights" element={<PageLoader><ReportsInsights /></PageLoader>} />
-            <Route path="field-operations/reports/shops" element={<PageLoader><ReportsShopsAnalytics /></PageLoader>} />
-            <Route path="field-operations/reports/customers" element={<PageLoader><ReportsCustomersAnalytics /></PageLoader>} />
-            <Route path="field-operations/reports/checkins" element={<PageLoader><ReportsCheckinsList /></PageLoader>} />
-            <Route path="field-operations/reports/export" element={<PageLoader><ReportsExport /></PageLoader>} />
+            {/* Field Operations Reports — consolidated under reports section */}
+            <Route path="reports/operations/field-ops" element={<PageLoader><FieldOpsComprehensiveReport /></PageLoader>} />
+
+            {/* Redirects: old field-operations/reports/* → consolidated report */}
+            <Route path="field-operations/reports" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/reports/dashboard" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/reports/insights" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/reports/shops" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/reports/customers" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/reports/checkins" element={<Navigate to="/reports/operations/field-ops" replace />} />
+            <Route path="field-operations/reports/export" element={<Navigate to="/reports/operations/field-ops" replace />} />
+
+            {/* Goldrush custom reports — kept as-is */}
             <Route path="field-operations/reports/goldrush-individuals" element={<PageLoader><GoldrushIndividualReport /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores" element={<PageLoader><GoldrushStoreReport /></PageLoader>} />
 
