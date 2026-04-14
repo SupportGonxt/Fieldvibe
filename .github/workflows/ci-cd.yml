@@ -37,11 +37,9 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
-        continue-on-error: true
 
       - name: Type check
         run: npm run typecheck
-        continue-on-error: true
 
   # ============================================
   # Security Scanning
@@ -70,7 +68,7 @@ jobs:
 
       - name: Run npm audit
         run: npm audit --audit-level=moderate
-        continue-on-error: true
+        continue-on-error: true  # Known vulnerabilities in hono and vite — tracked separately
 
       - name: Run Semgrep (SAST)
         uses: returntocorp/semgrep-action@v1
@@ -107,7 +105,7 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit -- --coverage
-        continue-on-error: true
+        continue-on-error: true  # @cloudflare/vitest-pool-workers config issue — tracked separately
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -143,7 +141,7 @@ jobs:
 
       - name: Run integration tests
         run: npm run test:integration
-        continue-on-error: true
+        continue-on-error: true  # @cloudflare/vitest-pool-workers config issue — tracked separately
         env:
           TEST_ENV: true
 
@@ -243,7 +241,8 @@ jobs:
       - name: Deploy to Cloudflare Workers (Staging)
         run: npx wrangler deploy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ENVIRONMENT: staging
 
@@ -259,14 +258,11 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [deploy-staging]
+    needs: [lint, build-frontend, build-backend]
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
       url: https://fieldvibe.vantax.co.za
-    defaults:
-      run:
-        working-directory: workers-api
 
     steps:
       - name: Checkout
@@ -277,15 +273,36 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: workers-api/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            workers-api/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci
 
-      - name: Deploy to Cloudflare Workers (Production)
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Deploy Frontend to Cloudflare Pages
+        working-directory: frontend
+        run: npx wrangler pages deploy dist --project-name=fieldvibe --branch=main
+        env:
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Install backend dependencies
+        working-directory: workers-api
+        run: npm ci
+
+      - name: Deploy Backend to Cloudflare Workers
+        working-directory: workers-api
         run: npx wrangler deploy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ENVIRONMENT: production
 
