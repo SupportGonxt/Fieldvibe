@@ -3089,7 +3089,7 @@ api.get('/visits/:id', async (c) => {
   if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
   const [responses, photos, individuals] = await Promise.all([
     db.prepare('SELECT vr.* FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE vr.visit_id = ? AND v.tenant_id = ? LIMIT 500').bind(id, tenantId).all(),
-    db.prepare('SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score, ai_share_of_voice, ai_labels, ai_raw_response, ai_brands_detected, board_placement_location, board_placement_position, board_condition, sample_board_match_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] })),
+    db.prepare('SELECT * FROM visit_photos WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] })),
     db.prepare('SELECT vi.*, i.first_name, i.last_name, i.id_number, i.phone, i.email FROM visit_individuals vi LEFT JOIN individuals i ON vi.individual_id = i.id WHERE vi.visit_id = ? AND vi.tenant_id = ?').bind(id, tenantId).all().catch(() => ({ results: [] }))
   ]);
   // Extract images from custom question responses (company questions with field_type='image')
@@ -16936,7 +16936,7 @@ api.get('/field-operations/visits/:visitId', authMiddleware, async (c) => {
     if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
     // Fetch photos for this visit - include all fields needed by frontend
     let photos = [];
-    try { const photosRes = await db.prepare("SELECT id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, ai_analysis_status, ai_compliance_score, ai_share_of_voice, ai_labels, ai_raw_response, ai_brands_detected, board_placement_location, board_placement_position, board_condition, sample_board_match_score FROM visit_photos WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).all(); photos = photosRes?.results || []; } catch { /* visit_photos may not exist */ }
+    try { const photosRes = await db.prepare("SELECT * FROM visit_photos WHERE visit_id = ? AND tenant_id = ?").bind(visitId, tenantId).all(); photos = photosRes?.results || []; } catch { /* visit_photos may not exist */ }
     // Fetch survey responses
     let surveyResponses = null;
     try { const sr = await db.prepare("SELECT responses FROM visit_responses WHERE visit_id = ? AND tenant_id = ? AND (visit_type IS NULL OR visit_type != 'store_custom_questions')").bind(visitId, tenantId).first(); if (sr?.responses) surveyResponses = typeof sr.responses === 'string' ? JSON.parse(sr.responses) : sr.responses; } catch { /* ok */ }

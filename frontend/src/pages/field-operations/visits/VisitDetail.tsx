@@ -37,11 +37,11 @@ export default function VisitDetail() {
         successCount++
       }
       toast.success(`${successCount} photo(s) uploaded successfully`)
-      loadVisit()
     } catch {
       if (successCount > 0) toast.success(`${successCount} photo(s) uploaded, some failed`)
       else toast.error('Failed to upload photos')
     } finally {
+      if (successCount > 0) loadVisit()
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
       if (desktopFileInputRef.current) desktopFileInputRef.current.value = ''
