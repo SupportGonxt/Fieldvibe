@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import { tradeMarketingService } from '../../../services/insights.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X, Sparkles, Loader2 } from 'lucide-react'
+import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X, Sparkles, Loader2, Upload, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function VisitDetail() {
@@ -17,6 +18,35 @@ export default function VisitDetail() {
   const [editingGoldrushId, setEditingGoldrushId] = useState(false)
   const [goldrushIdValue, setGoldrushIdValue] = useState('')
   const [savingGoldrushId, setSavingGoldrushId] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const desktopFileInputRef = useRef<HTMLInputElement>(null)
+
+  const handlePhotoUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !id) return
+    setUploading(true)
+    let successCount = 0
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const formData = new FormData()
+        formData.append('photo', file)
+        formData.append('visit_id', id)
+        formData.append('photo_type', 'general')
+        await tradeMarketingService.uploadPhoto(formData)
+        successCount++
+      }
+      toast.success(`${successCount} photo(s) uploaded successfully`)
+      loadVisit()
+    } catch {
+      if (successCount > 0) toast.success(`${successCount} photo(s) uploaded, some failed`)
+      else toast.error('Failed to upload photos')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (desktopFileInputRef.current) desktopFileInputRef.current.value = ''
+    }
+  }
 
   const getGoldrushId = (v: any): string => {
     const individuals = v?.individuals || []
@@ -285,11 +315,36 @@ export default function VisitDetail() {
           )}
 
           {/* Photos */}
-          {photos.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <Camera className="w-3 h-3" /> Photos ({photos.length})
               </h3>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-[#00E87B]/10 text-[#00E87B] hover:bg-[#00E87B]/20 transition-colors disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(e.target.files)} />
+            </div>
+            {photos.length === 0 && (
+              <div className="text-center py-6">
+                <Camera className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-xs text-gray-500">No photos uploaded yet</p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="mt-2 flex items-center gap-1 mx-auto px-3 py-1.5 text-xs font-medium rounded-lg bg-[#00E87B]/10 text-[#00E87B] hover:bg-[#00E87B]/20 transition-colors disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                  {uploading ? 'Uploading...' : 'Upload Photos'}
+                </button>
+              </div>
+            )}
+            {photos.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 {photos.map((photo: any, idx: number) => (
                   <div key={idx} className="rounded-lg overflow-hidden bg-white/5">
@@ -394,8 +449,18 @@ export default function VisitDetail() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+            {/* Rejected photos warning */}
+            {photos.some((p: any) => p.review_status === 'rejected') && (
+              <div className="mt-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="w-3 h-3 text-red-400" />
+                  <span className="text-[10px] font-semibold text-red-400">Some photos were rejected</span>
+                </div>
+                <p className="text-[10px] text-gray-400">Please upload replacement photos using the Upload button above.</p>
+              </div>
+            )}
+          </div>
 
           {/* Survey Responses */}
           {responses.length > 0 && (
@@ -479,11 +544,46 @@ export default function VisitDetail() {
       />
 
       {/* Photos Section */}
-      {photos.length > 0 && (
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+      <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Camera className="w-5 h-5" /> Photos ({photos.length})
           </h3>
+          <button
+            onClick={() => desktopFileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? 'Uploading...' : 'Upload Photos'}
+          </button>
+          <input ref={desktopFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(e.target.files)} />
+        </div>
+        {photos.length === 0 && (
+          <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+            <Camera className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">No photos uploaded for this visit</p>
+            <button
+              onClick={() => desktopFileInputRef.current?.click()}
+              disabled={uploading}
+              className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? 'Uploading...' : 'Upload Photos'}
+            </button>
+          </div>
+        )}
+        {/* Rejected photos warning */}
+        {photos.some((p: any) => p.review_status === 'rejected') && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-500" />
+              <span className="text-sm font-medium text-red-700 dark:text-red-400">Some photos were rejected by admin</span>
+            </div>
+            <p className="text-xs text-red-600 dark:text-red-400/70 mt-1">Please upload replacement photos using the Upload button above.</p>
+          </div>
+        )}
+        {photos.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {photos.map((photo: any, idx: number) => (
               <div key={idx} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -573,8 +673,8 @@ export default function VisitDetail() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Survey Responses Section */}
       {responses.length > 0 && (

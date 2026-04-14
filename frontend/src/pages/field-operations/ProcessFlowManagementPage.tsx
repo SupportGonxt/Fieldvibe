@@ -140,7 +140,7 @@ const FIELD_TYPES = [
 // ── Main Page Component ──
 
 export default function ProcessFlowManagementPage() {
-  const [activeTab, setActiveTab] = useState<'flows' | 'assignments' | 'questions' | 'surveys' | 'targets' | 'migration'>('flows')
+  const [activeTab, setActiveTab] = useState<'flows' | 'assignments' | 'questions' | 'surveys' | 'targets'>('flows')
 
   const tabs = [
     { key: 'flows' as const, label: 'Process Flows', icon: Workflow },
@@ -148,7 +148,6 @@ export default function ProcessFlowManagementPage() {
     { key: 'questions' as const, label: 'Custom Questions', icon: MessageSquare },
     { key: 'surveys' as const, label: 'Surveys', icon: FileText },
     { key: 'targets' as const, label: 'Target Rules', icon: Target },
-    { key: 'migration' as const, label: 'Database Setup', icon: Database },
   ]
 
   return (
@@ -186,7 +185,6 @@ export default function ProcessFlowManagementPage() {
       {activeTab === 'questions' && <CustomQuestionsTab />}
       {activeTab === 'surveys' && <SurveysTab />}
       {activeTab === 'targets' && <CompanyTargetRulesTab />}
-      {activeTab === 'migration' && <MigrationTab />}
     </div>
   )
 }
@@ -226,7 +224,7 @@ function ProcessFlowsTab() {
       <div className="card p-8 text-center">
         <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
         <p className="text-lg font-medium text-gray-900 dark:text-white">Process flow tables not found</p>
-        <p className="text-gray-500 mt-1">Go to the "Database Setup" tab to run the migration first.</p>
+        <p className="text-gray-500 mt-1">Please contact an administrator to run the database migration.</p>
       </div>
     )
   }
@@ -587,7 +585,7 @@ function CompanyAssignmentsTab() {
       <div className="card p-8 text-center">
         <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
         <p className="text-lg font-medium text-gray-900 dark:text-white">Tables not found</p>
-        <p className="text-gray-500 mt-1">Go to the "Database Setup" tab to run the migration first.</p>
+        <p className="text-gray-500 mt-1">Please contact an administrator to run the database migration.</p>
       </div>
     )
   }
@@ -833,7 +831,7 @@ function CustomQuestionsTab() {
       <div className="card p-8 text-center">
         <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
         <p className="text-lg font-medium text-gray-900 dark:text-white">Tables not found</p>
-        <p className="text-gray-500 mt-1">Go to the "Database Setup" tab to run the migration first.</p>
+        <p className="text-gray-500 mt-1">Please contact an administrator to run the database migration.</p>
       </div>
     )
   }
@@ -1883,75 +1881,3 @@ function SurveysTab() {
 }
 
 // ══════════════════════════════════════════════════════════
-// Tab 5: Database Setup (Migration)
-// ══════════════════════════════════════════════════════════
-
-function MigrationTab() {
-  const [migrationResult, setMigrationResult] = useState<string[] | null>(null)
-
-  const migrationMutation = useMutation({
-    mutationFn: () => fieldOperationsService.runProcessFlowsMigration(),
-    onSuccess: (resp) => {
-      const data = resp?.data || resp
-      setMigrationResult(data?.results || ['Migration completed successfully'])
-      toast.success('Migration completed!')
-    },
-    onError: () => {
-      toast.error('Migration failed')
-      setMigrationResult(['Migration failed - check server logs'])
-    },
-  })
-
-  return (
-    <div className="space-y-6">
-      <div className="card p-6">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-            <Database className="w-6 h-6 text-amber-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Database Migration</h3>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              This will create the required database tables for process flows, company assignments, and custom questions.
-              It also seeds default process flows for store and individual visits.
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              <strong>Tables created:</strong> process_flows, process_flow_steps, company_process_flows, company_custom_questions
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              <strong>Seed data:</strong> Standard Store Visit flow (6 steps), Standard Individual Visit flow (5 steps, no photo)
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <button
-            onClick={() => migrationMutation.mutate()}
-            disabled={migrationMutation.isPending}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Database className="w-4 h-4" />
-            {migrationMutation.isPending ? 'Running Migration...' : 'Run Migration'}
-          </button>
-        </div>
-
-        {migrationResult && (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              Migration Results
-            </h4>
-            <ul className="space-y-1">
-              {migrationResult.map((result, i) => (
-                <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                  {result}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}

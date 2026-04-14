@@ -97,6 +97,9 @@ export const navigation: NavigationItem[] = [
       { name: 'Live Map', href: '/field-operations/mapping', permission: null, description: 'Real-time agent tracking', group: 'Activity' },
       { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Activity' },
 
+      // ── Review ──
+      { name: 'Photo Review', href: '/field-operations/photo-review', permission: null, description: 'Review, approve or reject agent-uploaded photos', group: 'Review' },
+
       // ── Reports ──
       { name: 'Field Ops Report', href: '/reports/operations/field-ops', permission: 'view_field_reports', description: 'Comprehensive field ops analytics, check-ins, stores, individuals & export', group: 'Reports' },
       { name: 'Goldrush Individuals', href: '/field-operations/reports/goldrush-individuals', permission: 'view_field_reports', description: 'Goldrush individual report with questionnaire data', group: 'Reports' },

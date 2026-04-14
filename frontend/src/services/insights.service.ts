@@ -310,6 +310,33 @@ export const tradeMarketingService = {
   },
 }
 
+export const photoReviewService = {
+  getAdminReview: async (params?: Record<string, string>) => {
+    const res = await apiClient.get('/visit-photos/admin-review', { params })
+    return res.data?.data || res.data
+  },
+  rejectPhoto: async (id: string, reason: string) => {
+    const res = await apiClient.post(`/visit-photos/${id}/reject`, { reason })
+    return res.data?.data || res.data
+  },
+  approvePhoto: async (id: string) => {
+    const res = await apiClient.post(`/visit-photos/${id}/approve`)
+    return res.data?.data || res.data
+  },
+  getNeedsReupload: async () => {
+    const res = await apiClient.get('/visit-photos/needs-reupload')
+    return res.data?.data || res.data
+  },
+  deletePhoto: async (id: string) => {
+    const res = await apiClient.delete(`/visit-photos/${id}`)
+    return res.data?.data || res.data
+  },
+  addReviewColumns: async () => {
+    const res = await apiClient.post('/visit-photos/add-review-columns')
+    return res.data?.data || res.data
+  },
+}
+
 export const rbacService = {
   getPermissions: async () => {
     const res = await apiClient.get('/rbac/permissions')

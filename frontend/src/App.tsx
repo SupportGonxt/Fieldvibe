@@ -258,6 +258,7 @@ const PayoutLineDetail = lazyWithRetry(() => import('./pages/commissions/payout-
 const PayoutLineEdit = lazyWithRetry(() => import('./pages/commissions/payout-lines/PayoutLineEdit'))
 const PayoutLineList = lazyWithRetry(() => import('./pages/commissions/payout-lines/PayoutLineList'))
 const PerformanceDrillDownPage = lazyWithRetry(() => import('./pages/field-operations/PerformanceDrillDownPage'))
+const AdminPhotoReviewPage = lazyWithRetry(() => import('./pages/field-operations/photos/AdminPhotoReviewPage'))
 const PhotoDetail = lazyWithRetry(() => import('./pages/field-operations/photos/PhotoDetail'))
 const PhotoEvidence = lazyWithRetry(() => import('./pages/field-operations/photos/PhotoEvidence'))
 const PhotoGallery = lazyWithRetry(() => import('./pages/field-operations/photos/PhotoGallery'))
@@ -1015,6 +1016,7 @@ function App() {
             <Route path="commissions/payouts/:payoutId/lines/:lineId" element={<PageLoader><PayoutLineDetail /></PageLoader>} />
             <Route path="commissions/payouts/:payoutId/lines/:lineId/edit" element={<PageLoader><PayoutLineEdit /></PageLoader>} />
             <Route path="commissions/payouts/:payoutId/lines" element={<PageLoader><PayoutLineList /></PageLoader>} />
+            <Route path="field-operations/photo-review" element={<PageLoader><AdminPhotoReviewPage /></PageLoader>} />
             <Route path="field-operations/photos/:id" element={<PageLoader><PhotoDetail /></PageLoader>} />
             <Route path="field-operations/photos/:id/evidence" element={<PageLoader><PhotoEvidence /></PageLoader>} />
             <Route path="field-operations/photos" element={<PageLoader><PhotoGallery /></PageLoader>} />

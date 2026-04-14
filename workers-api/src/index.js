@@ -13519,6 +13519,198 @@ api.post('/visit-photos/:id/reanalyze', async (c) => {
 
 
 
+
+// ── Admin Photo Review: list all visits with photos for review ──
+api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
+      return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    }
+    const { agent_id, store_name, review_status, page = '1', limit = '50' } = c.req.query();
+    let where = 'WHERE vp.tenant_id = ?';
+    const params = [tenantId];
+    if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id); }
+    if (store_name) { where += ' AND (c.name LIKE ? OR v.individual_name LIKE ?)'; params.push('%' + store_name + '%', '%' + store_name + '%'); }
+    if (review_status) { where += ' AND vp.review_status = ?'; params.push(review_status); }
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const photos = await db.prepare(`
+      SELECT vp.id, vp.visit_id, vp.photo_type, vp.r2_key, vp.r2_url, vp.review_status, vp.rejection_reason, vp.reviewed_by, vp.reviewed_at,
+             vp.ai_analysis_status, vp.ai_labels, vp.created_at as photo_uploaded_at,
+             v.visit_date, v.visit_type, v.visit_target_type, v.status as visit_status,
+             u.first_name || ' ' || u.last_name as agent_name, v.agent_id,
+             c.name as store_name, v.individual_name, v.individual_surname
+      FROM visit_photos vp
+      JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
+      LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN customers c ON v.customer_id = c.id
+      ${where}
+      ORDER BY vp.created_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(...params, parseInt(limit), offset).all();
+    const countR = await db.prepare(`
+      SELECT COUNT(*) as total FROM visit_photos vp
+      JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
+      LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN customers c ON v.customer_id = c.id
+      ${where}
+    `).bind(...params).first();
+    // Get unique agents for filter dropdown
+    const agents = await db.prepare(`
+      SELECT DISTINCT u.id as agent_id, u.first_name || ' ' || u.last_name as agent_name
+      FROM visit_photos vp
+      JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
+      JOIN users u ON v.agent_id = u.id
+      WHERE vp.tenant_id = ?
+      ORDER BY agent_name
+    `).bind(tenantId).all();
+    return c.json({
+      success: true,
+      data: {
+        photos: (photos.results || []).map(p => ({ ...p, r2_url: p.r2_url ? rewriteR2Url(p.r2_url, c.req.url) : null })),
+        agents: agents.results || [],
+        pagination: { total: countR?.total || 0, page: parseInt(page), limit: parseInt(limit) }
+      }
+    });
+  } catch (e) { console.error('Admin photo review error:', e); return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ── Reject a photo (admin) ──
+api.post('/visit-photos/:id/reject', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
+      return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    }
+    const { id } = c.req.param();
+    const body = await c.req.json().catch(() => ({}));
+    const reason = body.reason || 'Photo rejected by admin';
+    const photo = await db.prepare('SELECT id, visit_id FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+    if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
+    try {
+      await db.prepare("UPDATE visit_photos SET review_status = 'rejected', rejection_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+        .bind(reason, userId, id, tenantId).run();
+    } catch {
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'").run().catch(() => {});
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT").run().catch(() => {});
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT").run().catch(() => {});
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT").run().catch(() => {});
+      await db.prepare("UPDATE visit_photos SET review_status = 'rejected', rejection_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+        .bind(reason, userId, id, tenantId).run();
+    }
+    return c.json({ success: true, message: 'Photo rejected', data: { id, review_status: 'rejected', rejection_reason: reason } });
+  } catch (e) { console.error('Photo reject error:', e); return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ── Approve a photo (admin) ──
+api.post('/visit-photos/:id/approve', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
+      return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    }
+    const { id } = c.req.param();
+    const photo = await db.prepare('SELECT id FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+    if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
+    try {
+      await db.prepare("UPDATE visit_photos SET review_status = 'approved', rejection_reason = NULL, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+        .bind(userId, id, tenantId).run();
+    } catch {
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'").run().catch(() => {});
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT").run().catch(() => {});
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT").run().catch(() => {});
+      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT").run().catch(() => {});
+      await db.prepare("UPDATE visit_photos SET review_status = 'approved', rejection_reason = NULL, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+        .bind(userId, id, tenantId).run();
+    }
+    return c.json({ success: true, message: 'Photo approved', data: { id, review_status: 'approved' } });
+  } catch (e) { console.error('Photo approve error:', e); return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ── Get visits with missing/rejected photos (for agent re-upload) ──
+api.get('/visit-photos/needs-reupload', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    let agentFilter = '';
+    const params = [tenantId];
+    if (role === 'agent' || role === 'field_agent') {
+      agentFilter = ' AND v.agent_id = ?';
+      params.push(userId);
+    }
+    let rejectedVisits = [];
+    try {
+      const res = await db.prepare(`
+        SELECT DISTINCT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status,
+               c.name as store_name, v.individual_name, v.individual_surname,
+               u.first_name || ' ' || u.last_name as agent_name,
+               (SELECT COUNT(*) FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.review_status = 'rejected') as rejected_count
+        FROM visits v
+        LEFT JOIN customers c ON v.customer_id = c.id
+        LEFT JOIN users u ON v.agent_id = u.id
+        WHERE v.tenant_id = ? ${agentFilter}
+          AND EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.review_status = 'rejected')
+        ORDER BY v.visit_date DESC
+        LIMIT 100
+      `).bind(...params).all();
+      rejectedVisits = res.results || [];
+    } catch { /* review_status column may not exist */ }
+    return c.json({ success: true, data: rejectedVisits });
+  } catch (e) { console.error('Needs reupload error:', e); return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ── Delete a rejected photo (allows agent to re-upload) ──
+api.delete('/visit-photos/:id', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    const { id } = c.req.param();
+    const photo = await db.prepare('SELECT id, visit_id, r2_key, review_status FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+    if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
+    if (role === 'agent' || role === 'field_agent') {
+      const visit = await db.prepare('SELECT agent_id FROM visits WHERE id = ? AND tenant_id = ?').bind(photo.visit_id, tenantId).first();
+      if (!visit || visit.agent_id !== userId) return c.json({ success: false, message: 'Not authorized' }, 403);
+      if (photo.review_status !== 'rejected') return c.json({ success: false, message: 'Only rejected photos can be deleted for re-upload' }, 403);
+    }
+    if (c.env.UPLOADS && photo.r2_key) {
+      try { await c.env.UPLOADS.delete(photo.r2_key); } catch { /* ok */ }
+    }
+    await db.prepare('DELETE FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+    return c.json({ success: true, message: 'Photo deleted' });
+  } catch (e) { console.error('Photo delete error:', e); return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ── Run migration to add review columns to visit_photos ──
+api.post('/visit-photos/add-review-columns', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const role = c.get('role');
+    if (role !== 'admin' && role !== 'super_admin') return c.json({ success: false, message: 'Admin access required' }, 403);
+    const results = [];
+    for (const col of [
+      "ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'",
+      "ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT",
+      "ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT",
+      "ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT"
+    ]) {
+      try { await db.prepare(col).run(); results.push(col.split('ADD COLUMN ')[1].split(' ')[0] + ' added'); } catch { results.push(col.split('ADD COLUMN ')[1].split(' ')[0] + ' already exists'); }
+    }
+    try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_photos_review ON visit_photos(review_status)").run(); results.push('index created'); } catch { results.push('index already exists'); }
+    return c.json({ success: true, data: results });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
 // Migrate historical base64 photos from visit_responses to R2
 api.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
   try {
