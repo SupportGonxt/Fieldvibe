@@ -37,11 +37,9 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
-        continue-on-error: true
 
       - name: Type check
         run: npm run typecheck
-        continue-on-error: true
 
   # ============================================
   # Security Scanning
@@ -70,7 +68,6 @@ jobs:
 
       - name: Run npm audit
         run: npm audit --audit-level=moderate
-        continue-on-error: true
 
       - name: Run Semgrep (SAST)
         uses: returntocorp/semgrep-action@v1
@@ -107,7 +104,6 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit -- --coverage
-        continue-on-error: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -143,7 +139,6 @@ jobs:
 
       - name: Run integration tests
         run: npm run test:integration
-        continue-on-error: true
         env:
           TEST_ENV: true
 
@@ -243,7 +238,8 @@ jobs:
       - name: Deploy to Cloudflare Workers (Staging)
         run: npx wrangler deploy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ENVIRONMENT: staging
 
@@ -290,7 +286,8 @@ jobs:
         working-directory: frontend
         run: npx wrangler pages deploy dist --project-name=fieldvibe --branch=main
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Install backend dependencies
@@ -301,7 +298,8 @@ jobs:
         working-directory: workers-api
         run: npx wrangler deploy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ENVIRONMENT: production
 
