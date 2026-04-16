@@ -13,7 +13,7 @@ interface HealthMetric {
 }
 
 export const SystemHealthPage: React.FC = () => {
-  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(false)
 
   const checkEndpoint = async (name: string, endpoint: string) => {
     const start = Date.now()
@@ -25,7 +25,7 @@ export const SystemHealthPage: React.FC = () => {
     }
   }
 
-  const { data: healthData, isLoading, isError } = useQuery({
+  const { data: healthData, isLoading, isError, refetch } = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => {
       const checks = await Promise.all([
@@ -45,7 +45,7 @@ export const SystemHealthPage: React.FC = () => {
         totalCount: checks.length,
       }
     },
-    refetchInterval: autoRefresh ? 30000 : false,
+    refetchInterval: autoRefresh ? 60000 : false,
   })
 
   if (isLoading) return <LoadingSpinner />
@@ -116,7 +116,7 @@ export const SystemHealthPage: React.FC = () => {
             />
             <span className="ml-2 text-sm text-gray-700">Auto-refresh</span>
           </label>
-          <button onClick={() => toast.success('Health check running...')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <button onClick={() => { refetch(); toast.success('Health check running...') }} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
             Refresh Now
           </button>
         </div>

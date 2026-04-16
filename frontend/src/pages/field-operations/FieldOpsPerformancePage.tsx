@@ -11,7 +11,8 @@ import {
   BarChart3,
   UserCheck,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react'
 import {
   BarChart,
@@ -37,7 +38,7 @@ export default function FieldOpsPerformancePage() {
     end_date: today
   })
 
-  const { data: performance, isLoading, error } = useQuery({
+  const { data: performance, isLoading, error, refetch } = useQuery({
     queryKey: ['field-ops-performance', timePeriod, dateRange],
     queryFn: async () => {
       const params = { 
@@ -48,8 +49,7 @@ export default function FieldOpsPerformancePage() {
       const result = await fieldOperationsService.getPerformance(params)
       return result
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const handleExport = async (format: 'csv' | 'excel' = 'excel') => {
@@ -175,7 +175,15 @@ export default function FieldOpsPerformancePage() {
             </>
           )}
 
-          {/* Export Buttons */}
+          {/* Refresh & Export Buttons */}
+          <button
+            onClick={() => refetch()}
+            className="btn-outline flex items-center gap-2 text-sm"
+            title="Refresh data"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
           <button
             onClick={() => handleExport('excel')}
             className="btn-primary flex items-center gap-2"

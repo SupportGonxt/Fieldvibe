@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera } from 'lucide-react'
+import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -116,14 +116,13 @@ const GoldrushIndividualReport: React.FC = () => {
     ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `${startDate ? '&' : ''}endDate=${endDate}` : ''}`
     : ''
 
-  const { data: individuals = [], isLoading, isError } = useQuery({
+  const { data: individuals = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`)
       return (res.data?.data || []) as GoldrushIndividual[]
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const filtered = individuals.filter(ind => {
@@ -244,6 +243,10 @@ const GoldrushIndividualReport: React.FC = () => {
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
           />
+          <button onClick={() => refetch()}
+            className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
           <button onClick={exportToExcel} disabled={exporting || filtered.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
             <Download className="h-4 w-4" /> Export Excel
