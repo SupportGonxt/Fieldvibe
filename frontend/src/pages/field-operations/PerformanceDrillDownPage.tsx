@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { ArrowLeft, User, Target, TrendingUp, Calendar, Building2, ChevronRight, UserCheck, Award, FileSpreadsheet, Store } from 'lucide-react'
+import { ArrowLeft, User, Target, TrendingUp, Calendar, Building2, ChevronRight, UserCheck, Award, FileSpreadsheet, Store, RefreshCw } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -27,7 +27,7 @@ export default function PerformanceDrillDownPage() {
     end_date: new Date().toISOString().split('T')[0]
   })
 
-  const { data: drillDown, isLoading, isError, error } = useQuery({
+  const { data: drillDown, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['field-ops-drill-down', userId, timePeriod, dateRange],
     queryFn: () => fieldOperationsService.getDrillDown(userId!, { 
       period: timePeriod === 'custom' ? undefined : timePeriod,
@@ -36,7 +36,6 @@ export default function PerformanceDrillDownPage() {
     }),
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
-    refetchInterval: 1000 * 60 * 5,
   })
 
   const handleExport = async () => {
@@ -174,7 +173,15 @@ export default function PerformanceDrillDownPage() {
             </div>
           )}
 
-          {/* Export Button */}
+          {/* Refresh & Export Buttons */}
+          <button
+            onClick={() => refetch()}
+            className="btn-outline flex items-center gap-2 text-sm"
+            title="Refresh data"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
           <button
             onClick={handleExport}
             className="btn-primary flex items-center gap-2"

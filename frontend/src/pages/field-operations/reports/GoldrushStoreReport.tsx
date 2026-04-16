@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Sparkles, Loader2, Upload } from 'lucide-react'
+import { Download, Store, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Sparkles, Loader2, Upload, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -187,14 +187,13 @@ const GoldrushStoreReport: React.FC = () => {
     ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `${startDate ? '&' : ''}endDate=${endDate}` : ''}`
     : ''
 
-  const { data: stores = [], isLoading, isError } = useQuery({
+  const { data: stores = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-stores', startDate, endDate, selectedCompany],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/goldrush-stores${dateParams}${companyParam}`)
       return (res.data?.data || []) as GoldrushStore[]
     },
     staleTime: 1000 * 60 * 5,
-    refetchInterval: 1000 * 60 * 5,
   })
 
   const filtered = stores.filter(s => {
@@ -330,6 +329,10 @@ const GoldrushStoreReport: React.FC = () => {
             className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
             {aiRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {aiRunning ? 'Analyzing...' : 'Analyze Photos'}
+          </button>
+          <button onClick={() => refetch()}
+            className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
+            <RefreshCw className="h-4 w-4" /> Refresh
           </button>
           <button onClick={exportToExcel} disabled={exporting || filtered.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
