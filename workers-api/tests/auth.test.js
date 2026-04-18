@@ -3,7 +3,7 @@
  * Tests: login, register, JWT verification, rate limiting
  */
 
-const API_BASE = 'https://fieldvibe-api.vantax.co.za/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 async function testLoginSuccess() {
   const res = await fetch(`${API_BASE}/auth/login`, {

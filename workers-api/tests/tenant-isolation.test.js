@@ -3,7 +3,7 @@
  * Tests: data isolation between tenants, cross-tenant access prevention
  */
 
-const API_BASE = 'https://fieldvibe-api.vantax.co.za/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 async function getToken(email, password) {
   const res = await fetch(`${API_BASE}/auth/login`, {
