@@ -80,10 +80,12 @@ app.use('*', cors({
     const allowed = [
       'https://fieldvibe.vantax.co.za',
       'https://fieldvibe.pages.dev',
+      'https://dev.fieldvibe-frontend.pages.dev',
     ];
     if (!origin) return allowed[0];
     if (allowed.includes(origin)) return origin;
     if (origin.endsWith('.fieldvibe.pages.dev')) return origin;
+    if (origin.endsWith('.fieldvibe-frontend.pages.dev')) return origin;
     if (origin.startsWith('http://localhost:')) return origin;
     return null;
   },
