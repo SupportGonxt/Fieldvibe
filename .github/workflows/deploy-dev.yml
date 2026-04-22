@@ -1,0 +1,84 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [Dev]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: dev
+      url: https://dev.fieldvibe.pages.dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            workers-api/package-lock.json
+
+      # ── Backend ──────────────────────────────────────────────
+      - name: Install backend dependencies
+        working-directory: workers-api
+        run: npm ci
+
+      - name: Deploy Workers (preview env)
+        working-directory: workers-api
+        run: npx wrangler deploy --env preview
+        env:
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # ── Frontend ─────────────────────────────────────────────
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (preview env)
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://fieldvibe-api-preview.vantax.co.za/api
+          VITE_ENABLE_AI: false
+          VITE_ENABLE_MOCK_DATA: false
+          VITE_ENABLE_OFFLINE_MODE: true
+          VITE_PWA_ENABLED: true
+          VITE_APP_VERSION: dev-${{ github.sha }}
+
+      - name: Deploy Frontend to Cloudflare Pages (dev branch)
+        id: pages-deploy
+        working-directory: frontend
+        run: |
+          output=$(npx wrangler pages deploy dist --project-name=fieldvibe --branch=dev 2>&1)
+          echo "$output"
+          url=$(echo "$output" | grep -oP 'https://[^\s]+\.pages\.dev[^\s]*' | tail -1)
+          echo "url=${url:-https://dev.fieldvibe.pages.dev}" >> $GITHUB_OUTPUT
+        env:
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # ── Summary ───────────────────────────────────────────────
+      - name: Post dev deployment summary
+        run: |
+          echo "## Dev Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ steps.pages-deploy.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API | https://fieldvibe-api-preview.vantax.co.za/api |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\` by @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

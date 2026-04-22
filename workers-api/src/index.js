@@ -80,10 +80,12 @@ app.use('*', cors({
     const allowed = [
       'https://fieldvibe.vantax.co.za',
       'https://fieldvibe.pages.dev',
+      'https://dev.fieldvibe-frontend.pages.dev',
     ];
     if (!origin) return allowed[0];
     if (allowed.includes(origin)) return origin;
     if (origin.endsWith('.fieldvibe.pages.dev')) return origin;
+    if (origin.endsWith('.fieldvibe-frontend.pages.dev')) return origin;
     if (origin.startsWith('http://localhost:')) return origin;
     return null;
   },
@@ -8831,8 +8833,9 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       });
     } else {
       // Manager sees all teams
-      const allTeamLeads = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1").bind(tenantId).all();
-      const allAgents = await db.prepare("SELECT id, first_name, last_name, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1").bind(tenantId).all();
+      const EXCLUDED_TL_IDS = "'5a47959c-9f93-45d2-a03f-783064817165','49554b57-c6e4-422b-91aa-fb6e5d66c9d9','f0669dd7-9fb1-4595-a94c-f108cfe402b5'";
+      const allTeamLeads = await db.prepare(`SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND id NOT IN (${EXCLUDED_TL_IDS})`).bind(tenantId).all();
+      const allAgents = await db.prepare(`SELECT id, first_name, last_name, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (team_lead_id IS NULL OR team_lead_id NOT IN (${EXCLUDED_TL_IDS}))`).bind(tenantId).all();
       
       const [allVisits, allConvs, allIndivVisits, allStoreVisits] = await Promise.all([
         db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' GROUP BY agent_id").bind(tenantId, startD, endD).all(),
@@ -8891,18 +8894,18 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
         };
       });
       
-      const grandVisits = Object.values(vMap).reduce((s, c) => s + c, 0);
-      const grandIndiv = Object.values(iMap).reduce((s, c) => s + c, 0);
-      const grandStore = Object.values(sMap).reduce((s, c) => s + c, 0);
-      const grandConvs = Object.values(cMap).reduce((s, c) => s + c, 0);
-      const grandTargetV = Object.values(agentTargetMap).reduce((s, t) => s + (t.target_visits || 0), 0);
-      const grandTargetS = Object.values(agentTargetMap).reduce((s, t) => s + (t.target_stores || 0), 0);
+      const grandVisits = allUserIds.reduce((s, id) => s + (vMap[id] || 0), 0);
+      const grandIndiv = allUserIds.reduce((s, id) => s + (iMap[id] || 0), 0);
+      const grandStore = allUserIds.reduce((s, id) => s + (sMap[id] || 0), 0);
+      const grandConvs = allUserIds.reduce((s, id) => s + (cMap[id] || 0), 0);
+      const grandTargetV = allUserIds.reduce((s, id) => s + ((agentTargetMap[id] || {}).target_visits || 0), 0);
+      const grandTargetS = allUserIds.reduce((s, id) => s + ((agentTargetMap[id] || {}).target_stores || 0), 0);
       
       return c.json({ 
         role: 'manager', 
         period: { start: startD, end: endD, type: period || 'custom' },
         total_team_leads: (allTeamLeads.results || []).length, 
-        total_agents: (allAgents.results || []).length, 
+        total_agents: teams.reduce((s, t) => s + t.agent_count, 0),
         total_visits: grandVisits, 
         total_individual_visits: grandIndiv,
         total_store_visits: grandStore,
@@ -9207,9 +9210,11 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
   try {
     const escXml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
     // Fetch all managers, team leads, agents
-    const allManagers = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1").bind(tenantId).all();
-    const allTeamLeads = await db.prepare("SELECT id, first_name, last_name, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1").bind(tenantId).all();
-    const allAgents = await db.prepare("SELECT id, first_name, last_name, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1").bind(tenantId).all();
+    const EXCLUDED_TL_IDS = "'5a47959c-9f93-45d2-a03f-783064817165','49554b57-c6e4-422b-91aa-fb6e5d66c9d9','f0669dd7-9fb1-4595-a94c-f108cfe402b5'";
+    const EXCLUDED_MGR_IDS = "'619a2943-861c-4da5-9c13-6ca7c4736e4e','2dced2a8-ed77-4e7c-8d7b-cfa09cf1b14f'";
+    const allManagers = await db.prepare(`SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 AND id NOT IN (${EXCLUDED_MGR_IDS})`).bind(tenantId).all();
+    const allTeamLeads = await db.prepare(`SELECT id, first_name, last_name, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND id NOT IN (${EXCLUDED_TL_IDS})`).bind(tenantId).all();
+    const allAgents = await db.prepare(`SELECT id, first_name, last_name, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (team_lead_id IS NULL OR team_lead_id NOT IN (${EXCLUDED_TL_IDS}))`).bind(tenantId).all();
     const [allVisits, allIndivV, allStoreV] = await Promise.all([
       db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY agent_id").bind(tenantId, startD, endD).all(),
       db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date BETWEEN ? AND ? GROUP BY agent_id").bind(tenantId, startD, endD).all(),
@@ -9309,7 +9314,7 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
     for (const m of managers) {
       s1Rows.push([str(m.name), num(m.totalTLs), num(m.totalAgents), num(m.visits), num(m.individual), num(m.store), num(m.target_visits), num(m.target_stores)]);
     }
-    s1Rows.push([str('TOTAL', true), num((allTeamLeads.results||[]).length, true), num((allAgents.results||[]).length, true), num(grand.visits, true), num(grand.individual, true), num(grand.store, true), num(grand.target_visits, true), num(grand.target_stores, true)]);
+    s1Rows.push([str('TOTAL', true), num(managers.reduce((s, m) => s + m.totalTLs, 0), true), num(managers.reduce((s, m) => s + m.totalAgents, 0), true), num(grand.visits, true), num(grand.individual, true), num(grand.store, true), num(grand.target_visits, true), num(grand.target_stores, true)]);
 
     // --- Sheet 2: Manager + Team Leader Breakdown ---
     const s2Rows = [];
@@ -9327,6 +9332,8 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
         s2Rows.push([str(''), str('(Unassigned Agents)'), num(m.directAgents.length), num(daTotal.visits), num(daTotal.individual), num(daTotal.store), num(daTgts.target_visits), num(daTgts.target_stores)]);
       }
     }
+    s2Rows.push([]);
+    s2Rows.push([str('GRAND TOTAL', true), str('', true), num(managers.reduce((s, m) => s + m.totalAgents, 0), true), num(grand.visits, true), num(grand.individual, true), num(grand.store, true), num(grand.target_visits, true), num(grand.target_stores, true)]);
 
     // --- Sheet 3: Team Leader + Agent Breakdown ---
     const s3Rows = [];
@@ -9349,6 +9356,8 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
         }
       }
     }
+    s3Rows.push([]);
+    s3Rows.push([str('GRAND TOTAL', true), str('', true), num(grand.visits, true), num(grand.individual, true), num(grand.store, true), num(grand.target_visits, true), num(grand.target_stores, true)]);
 
     // Build OOXML parts
     const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';

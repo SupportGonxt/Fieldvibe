@@ -16,6 +16,7 @@ ENVIRONMENT = "production"
 binding = "DB"
 database_name = "fieldvibe-db"
 database_id = "1521287d-96be-42b7-b77c-e8c5f67629a6"
+migrations_dir = "../migrations"
 
 [[r2_buckets]]
 binding = "UPLOADS"
@@ -27,6 +28,29 @@ binding = "AI"
 [placement]
 mode = "smart"
 
-# Section 9: Scheduled jobs
 [triggers]
 crons = ["0 4 * * *", "0 6 * * *", "0 7 * * *", "0 8 * * *", "0 9 * * *", "0 10 * * *", "0 11 * * *", "0 12 * * *", "0 13 * * *", "0 14 * * *", "0 15 * * *", "0 16 * * *", "0 22 1 * *", "0 5 * * 1"]
+
+# ─────────────────────────────────────────
+# PREVIEW / DEV ENVIRONMENT
+# ─────────────────────────────────────────
+[env.preview]
+name = "fieldvibe-api-preview"
+vars = { ENVIRONMENT = "preview" }
+
+routes = [
+  { pattern = "fieldvibe-api-preview.vantax.co.za/*", zone_name = "vantax.co.za" }
+]
+
+[env.preview.ai]
+binding = "AI"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "fieldvibe-dev"
+database_id = "7076deff-47ab-485e-a1d8-d01404dbb201"
+migrations_dir = "../migrations"
+
+[[env.preview.r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "fieldvibe-uploads-dev"
