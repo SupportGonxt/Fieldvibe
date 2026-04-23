@@ -25,6 +25,7 @@ export default function AgentVisits() {
   const navigate = useNavigate()
   const [visits, setVisits] = useState<Visit[]>([])
   const [rejectedVisitIds, setRejectedVisitIds] = useState<string[]>([])
+  const [showRejectedOnly, setShowRejectedOnly] = useState(false)
   const location = useLocation()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -72,21 +73,25 @@ export default function AgentVisits() {
     }
   }, [])
 
+  // Always fetch rejected-photo visits for badge visibility on list cards.
+  useEffect(() => {
+    let mounted = true
+    photoReviewService.getNeedsReupload().then((res: any) => {
+      if (!mounted) return
+      const photos = Array.isArray(res) ? res : res?.photos || []
+      const visitIds = [...new Set(photos.map((p: any) => p.id || p.visit_id).filter(Boolean))]
+      setRejectedVisitIds(visitIds)
+    }).catch(() => {
+      if (mounted) setRejectedVisitIds([])
+    })
+    return () => { mounted = false }
+  }, [])
+
   // Check for rejected_photos filter in query params
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const rejected = params.get('filter') === 'rejected_photos'
-    if (rejected) {
-      // Fetch rejected photos and extract visit IDs
-      photoReviewService.getNeedsReupload().then((res: any) => {
-        const photos = Array.isArray(res) ? res : res?.photos || []
-        // API returns visit objects — id field is the visit id
-        const visitIds = [...new Set(photos.map((p: any) => p.id || p.visit_id).filter(Boolean))]
-        setRejectedVisitIds(visitIds)
-      }).catch(() => setRejectedVisitIds([]))
-    } else {
-      setRejectedVisitIds([])
-    }
+    setShowRejectedOnly(rejected)
   }, [location.search])
 
   useEffect(() => {
@@ -101,8 +106,8 @@ export default function AgentVisits() {
 
   const filtered = useMemo(() => {
     let base = visits
-    // If rejectedVisitIds is set (from filter param), filter to only those visits
-    if (rejectedVisitIds.length > 0) {
+    // If user came from rejected KPI filter, show only visits with rejected photos.
+    if (showRejectedOnly && rejectedVisitIds.length > 0) {
       base = base.filter(v => rejectedVisitIds.includes(v.id))
     }
     return base.filter(v => {
@@ -119,7 +124,7 @@ export default function AgentVisits() {
       }
       return true
     })
-  }, [visits, filter, typeFilter, search, rejectedVisitIds])
+  }, [visits, filter, typeFilter, search, rejectedVisitIds, showRejectedOnly])
 
   // Count by type
   const storeCount = useMemo(() => visits.filter(v => (v.visit_target_type || v.visit_type || '').toLowerCase() === 'store').length, [visits])
@@ -283,6 +288,14 @@ export default function AgentVisits() {
                   <p className="text-sm font-medium text-white truncate">
                     {visit.customer_name || (visit.individual_name ? `${visit.individual_name}${visit.individual_surname ? ' ' + visit.individual_surname : ''}` : 'Visit')}
                   </p>
+                  {rejectedVisitIds.includes(visit.id) && (
+                    <div className="mt-1">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
+                        <XCircle className="w-3 h-3" />
+                        Rejected photo
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-500 flex items-center gap-1">
                       {typeIcon(visit)}

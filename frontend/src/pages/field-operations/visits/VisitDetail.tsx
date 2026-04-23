@@ -157,6 +157,7 @@ export default function VisitDetail() {
     const visitType = (visit.visit_target_type || visit.visit_type || 'visit').toLowerCase()
     const displayName = visit.customer_name || visit.individual_name || visit.store_name || 'Visit'
     const photos = visit.photos || []
+    const hasRejectedPhotos = photos.some((p: any) => p.review_status === 'rejected')
     const responses = visit.responses || []
     const individuals = visit.individuals || []
 
@@ -351,14 +352,16 @@ export default function VisitDetail() {
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <Camera className="w-3 h-3" /> Photos ({photos.length})
               </h3>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-[#00E87B]/10 text-[#00E87B] hover:bg-[#00E87B]/20 transition-colors disabled:opacity-50"
-              >
-                {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                {uploading ? 'Uploading...' : 'Upload'}
-              </button>
+              {hasRejectedPhotos && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-[#00E87B]/10 text-[#00E87B] hover:bg-[#00E87B]/20 transition-colors disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                  {uploading ? 'Uploading...' : 'Upload'}
+                </button>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -373,14 +376,6 @@ export default function VisitDetail() {
               <div className="text-center py-6">
                 <Camera className="w-8 h-8 text-gray-600 mx-auto mb-2" />
                 <p className="text-xs text-gray-500">No photos uploaded yet</p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="mt-2 flex items-center gap-1 mx-auto px-3 py-1.5 text-xs font-medium rounded-lg bg-[#00E87B]/10 text-[#00E87B] hover:bg-[#00E87B]/20 transition-colors disabled:opacity-50"
-                >
-                  {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                  {uploading ? 'Uploading...' : 'Upload Photos'}
-                </button>
               </div>
             )}
 
@@ -565,6 +560,7 @@ export default function VisitDetail() {
   })()
 
   const photos = visit.photos || []
+  const hasRejectedPhotos = photos.some((p: any) => p.review_status === 'rejected')
   const responses = visit.responses || []
 
   const fields = [
@@ -608,14 +604,16 @@ export default function VisitDetail() {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Camera className="w-5 h-5" /> Photos ({photos.length})
           </h3>
-          <button
-            onClick={() => desktopFileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-          >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? 'Uploading...' : 'Upload Photos'}
-          </button>
+          {hasRejectedPhotos && (
+            <button
+              onClick={() => desktopFileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? 'Uploading...' : 'Upload Photos'}
+            </button>
+          )}
           <input
             ref={desktopFileInputRef}
             type="file"
@@ -630,14 +628,6 @@ export default function VisitDetail() {
           <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
             <Camera className="w-10 h-10 text-gray-400 mx-auto mb-2" />
             <p className="text-sm text-gray-500 dark:text-gray-400">No photos uploaded for this visit</p>
-            <button
-              onClick={() => desktopFileInputRef.current?.click()}
-              disabled={uploading}
-              className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {uploading ? 'Uploading...' : 'Upload Photos'}
-            </button>
           </div>
         )}
 

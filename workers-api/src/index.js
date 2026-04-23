@@ -13536,6 +13536,7 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
     const thumbnail = formData.get('thumbnail');
     const visitId = formData.get('visit_id');
     const photoType = formData.get('photo_type') || 'general';
+    const replacePhotoId = formData.get('replace_photo_id');
     const latitude = formData.get('latitude');
     const longitude = formData.get('longitude');
     const boardPlacementLocation = formData.get('board_placement_location') || null;
@@ -13556,12 +13557,29 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
 
     const bucket = c.env.UPLOADS;
 
-    // On re-upload: delete the existing rejected photo of the same type so only the new one remains
+    // On re-upload for a specific rejected photo id, delete exactly that rejected photo first
+    if (replacePhotoId && typeof replacePhotoId === 'string') {
+      try {
+        const targetRejected = await db.prepare(
+          "SELECT id, r2_key, thumbnail_r2_key FROM visit_photos WHERE id = ? AND visit_id = ? AND tenant_id = ? AND review_status = 'rejected' LIMIT 1"
+        ).bind(replacePhotoId, visitId, tenantId).first();
+        if (targetRejected) {
+          if (bucket) {
+            if (targetRejected.r2_key) bucket.delete(targetRejected.r2_key).catch(() => {});
+            if (targetRejected.thumbnail_r2_key) bucket.delete(targetRejected.thumbnail_r2_key).catch(() => {});
+          }
+          await db.prepare('DELETE FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(targetRejected.id, tenantId).run();
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // On generic re-upload: delete all existing rejected photos of the same type so only the new one remains
     try {
-      const rejected = await db.prepare(
-        "SELECT id, r2_key, thumbnail_r2_key FROM visit_photos WHERE visit_id = ? AND tenant_id = ? AND photo_type = ? AND review_status = 'rejected' LIMIT 1"
-      ).bind(visitId, tenantId, photoType).first();
-      if (rejected) {
+      const rejectedRows = await db.prepare(
+        "SELECT id, r2_key, thumbnail_r2_key FROM visit_photos WHERE visit_id = ? AND tenant_id = ? AND photo_type = ? AND review_status = 'rejected'"
+      ).bind(visitId, tenantId, photoType).all();
+      const rejectedPhotos = rejectedRows.results || [];
+      for (const rejected of rejectedPhotos) {
         if (bucket) {
           if (rejected.r2_key) bucket.delete(rejected.r2_key).catch(() => {});
           if (rejected.thumbnail_r2_key) bucket.delete(rejected.thumbnail_r2_key).catch(() => {});
@@ -13573,6 +13591,9 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
     const id = crypto.randomUUID();
     const photoKey = `photos/${tenantId}/${visitId}/${id}.jpg`;
     const thumbKey = `thumbnails/${tenantId}/${visitId}/${id}_thumb.jpg`;
+    const reqUrl = new URL(c.req.url);
+    const photoUrl = `${reqUrl.protocol}//${reqUrl.host}/api/uploads/${photoKey}`;
+    const thumbnailUrl = thumbnail ? `${reqUrl.protocol}//${reqUrl.host}/api/uploads/${thumbKey}` : null;
 
     // Upload to R2 if bucket is available
     if (bucket) {
@@ -13586,11 +13607,11 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
 
     // Insert into visit_photos - try with all columns including board placement, fallback to minimal
     try {
-      await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, thumbnail_r2_key,
+      await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, thumbnail_r2_key, r2_url, thumbnail_url,
         original_size_bytes, compressed_size_bytes, gps_latitude, gps_longitude, captured_at, uploaded_by,
         ai_analysis_status, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending', ?, ?, ?, ?, ?)`).bind(
-        id, tenantId, visitId, photoType, photoKey, thumbnail ? thumbKey : null,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending', ?, ?, ?, ?, ?)`).bind(
+        id, tenantId, visitId, photoType, photoKey, thumbnail ? thumbKey : null, photoUrl, thumbnailUrl,
         parseInt(formData.get('original_size') || '0'), photo.size,
         latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, userId,
         photoHash, boardPlacementLocation, boardPlacementPosition, boardCondition, sampleBoardId
@@ -13599,7 +13620,7 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
       // Fallback: minimal columns if some don't exist in the schema yet
       await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)`).bind(
-        id, tenantId, visitId, photoType, photoKey, null,
+        id, tenantId, visitId, photoType, photoKey, photoUrl,
         latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, photoHash, userId
       ).run();
     }
@@ -13608,7 +13629,7 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
       try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, id, photoKey, tenantId, visitId, photoType)); } catch { /* AI analysis optional */ }
     }
 
-    return c.json({ success: true, data: { id, r2_key: photoKey, thumbnail_key: thumbKey } }, 201);
+    return c.json({ success: true, data: { id, r2_key: photoKey, thumbnail_key: thumbKey, r2_url: photoUrl, thumbnail_url: thumbnailUrl, review_status: 'pending' } }, 201);
   } catch (e) { console.error('Photo upload error:', e); return c.json({ success: false, message: 'Upload failed: ' + (e.message || e) }, 500); }
 });
 
@@ -13857,12 +13878,42 @@ api.get('/visit-photos/needs-reupload', authMiddleware, async (c) => {
         SELECT DISTINCT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status,
                c.name as store_name, v.individual_name, v.individual_surname,
                u.first_name || ' ' || u.last_name as agent_name,
-               (SELECT COUNT(*) FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.review_status = 'rejected') as rejected_count
+               (
+                 SELECT COUNT(*)
+                 FROM visit_photos vp2
+                 WHERE vp2.visit_id = v.id
+                   AND vp2.tenant_id = v.tenant_id
+                   AND vp2.review_status = 'rejected'
+                   AND NOT EXISTS (
+                     SELECT 1
+                     FROM visit_photos newer
+                     WHERE newer.visit_id = vp2.visit_id
+                       AND newer.tenant_id = vp2.tenant_id
+                       AND newer.photo_type = vp2.photo_type
+                       AND newer.review_status = 'pending'
+                       AND datetime(newer.created_at) > datetime(vp2.created_at)
+                   )
+               ) as rejected_count
         FROM visits v
         LEFT JOIN customers c ON v.customer_id = c.id
         LEFT JOIN users u ON v.agent_id = u.id
         WHERE v.tenant_id = ? ${agentFilter}
-          AND EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.review_status = 'rejected')
+          AND EXISTS (
+            SELECT 1
+            FROM visit_photos vp
+            WHERE vp.visit_id = v.id
+              AND vp.tenant_id = v.tenant_id
+              AND vp.review_status = 'rejected'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM visit_photos newer
+                WHERE newer.visit_id = vp.visit_id
+                  AND newer.tenant_id = vp.tenant_id
+                  AND newer.photo_type = vp.photo_type
+                  AND newer.review_status = 'pending'
+                  AND datetime(newer.created_at) > datetime(vp.created_at)
+              )
+          )
         ORDER BY v.visit_date DESC
         LIMIT 100
       `).bind(...params).all();
@@ -13880,7 +13931,7 @@ api.delete('/visit-photos/:id', authMiddleware, async (c) => {
     const userId = c.get('userId');
     const role = c.get('role');
     const { id } = c.req.param();
-    const photo = await db.prepare('SELECT id, visit_id, r2_key, review_status FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+    const photo = await db.prepare('SELECT id, visit_id, r2_key, thumbnail_r2_key, review_status FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
     if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
     if (role === 'agent' || role === 'field_agent') {
       const visit = await db.prepare('SELECT agent_id FROM visits WHERE id = ? AND tenant_id = ?').bind(photo.visit_id, tenantId).first();
@@ -13889,6 +13940,9 @@ api.delete('/visit-photos/:id', authMiddleware, async (c) => {
     }
     if (c.env.UPLOADS && photo.r2_key) {
       try { await c.env.UPLOADS.delete(photo.r2_key); } catch { /* ok */ }
+    }
+    if (c.env.UPLOADS && photo.thumbnail_r2_key) {
+      try { await c.env.UPLOADS.delete(photo.thumbnail_r2_key); } catch { /* ok */ }
     }
     await db.prepare('DELETE FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
     return c.json({ success: true, message: 'Photo deleted' });
