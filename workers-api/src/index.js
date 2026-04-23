@@ -13555,6 +13555,21 @@ api.post('/visit-photos/upload', authMiddleware, async (c) => {
     }
 
     const bucket = c.env.UPLOADS;
+
+    // On re-upload: delete the existing rejected photo of the same type so only the new one remains
+    try {
+      const rejected = await db.prepare(
+        "SELECT id, r2_key, thumbnail_r2_key FROM visit_photos WHERE visit_id = ? AND tenant_id = ? AND photo_type = ? AND review_status = 'rejected' LIMIT 1"
+      ).bind(visitId, tenantId, photoType).first();
+      if (rejected) {
+        if (bucket) {
+          if (rejected.r2_key) bucket.delete(rejected.r2_key).catch(() => {});
+          if (rejected.thumbnail_r2_key) bucket.delete(rejected.thumbnail_r2_key).catch(() => {});
+        }
+        await db.prepare('DELETE FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(rejected.id, tenantId).run();
+      }
+    } catch { /* non-fatal */ }
+
     const id = crypto.randomUUID();
     const photoKey = `photos/${tenantId}/${visitId}/${id}.jpg`;
     const thumbKey = `thumbnails/${tenantId}/${visitId}/${id}_thumb.jpg`;
@@ -13613,16 +13628,6 @@ api.get('/visit-photos', async (c) => {
   return c.json({ success: true, data: { photos: photos.results || [], pagination: { total: countR?.total || 0, page: parseInt(page), limit: parseInt(limit) } } });
 });
 
-// Get single photo
-api.get('/visit-photos/:id', async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const { id } = c.req.param();
-  const photo = await db.prepare('SELECT * FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
-  return c.json({ success: true, data: photo });
-});
-
 // Re-trigger AI analysis
 api.post('/visit-photos/:id/reanalyze', async (c) => {
   const db = c.env.DB;
@@ -13648,16 +13653,21 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
       return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     }
     const { agent_id, store_name, review_status, page = '1', limit = '50' } = c.req.query();
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+    const reqUrl = c.req.url;
+
+    // ── Query 1: proper visit_photos records ──
     let where = 'WHERE vp.tenant_id = ?';
     const params = [tenantId];
     if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id); }
     if (store_name) { where += ' AND (c.name LIKE ? OR v.individual_name LIKE ?)'; params.push('%' + store_name + '%', '%' + store_name + '%'); }
     if (review_status) { where += ' AND vp.review_status = ?'; params.push(review_status); }
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const photos = await db.prepare(`
+    const vpRows = await db.prepare(`
       SELECT vp.id, vp.visit_id, vp.photo_type, vp.r2_key, vp.r2_url, vp.review_status, vp.rejection_reason, vp.reviewed_by, vp.reviewed_at,
              vp.ai_analysis_status, vp.ai_labels, vp.created_at as photo_uploaded_at,
-             v.visit_date, v.visit_type, v.visit_target_type, v.status as visit_status,
+             v.visit_date, v.visit_type, COALESCE(v.visit_target_type, 'store') as visit_target_type, v.status as visit_status,
              u.first_name || ' ' || u.last_name as agent_name, v.agent_id,
              c.name as store_name, v.individual_name, v.individual_surname
       FROM visit_photos vp
@@ -13666,34 +13676,119 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
       LEFT JOIN customers c ON v.customer_id = c.id
       ${where}
       ORDER BY vp.created_at DESC
-      LIMIT ? OFFSET ?
-    `).bind(...params, parseInt(limit), offset).all();
-    const countR = await db.prepare(`
-      SELECT COUNT(*) as total FROM visit_photos vp
-      JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
+      LIMIT 2000
+    `).bind(...params).all();
+
+    // ── Query 2: questionnaire photos from visit_responses not yet in visit_photos ──
+    // Only pull visits that have no visit_photos records at all (avoids duplicates after migration)
+    let vrWhere = 'WHERE vr.tenant_id = ?';
+    const vrParams = [tenantId];
+    if (agent_id) { vrWhere += ' AND v.agent_id = ?'; vrParams.push(agent_id); }
+    if (store_name) { vrWhere += ' AND (c.name LIKE ? OR v.individual_name LIKE ?)'; vrParams.push('%' + store_name + '%', '%' + store_name + '%'); }
+    // review_status filter: questionnaire photos are always 'pending' — skip if filtering for approved/rejected
+    const vrRows = (review_status && review_status !== 'pending') ? { results: [] } : await db.prepare(`
+      SELECT vr.id, vr.visit_id, vr.responses, vr.created_at,
+             v.visit_date, v.visit_type, COALESCE(v.visit_target_type, 'store') as visit_target_type, v.status as visit_status,
+             u.first_name || ' ' || u.last_name as agent_name, v.agent_id,
+             c.name as store_name, v.individual_name, v.individual_surname
+      FROM visit_responses vr
+      JOIN visits v ON vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
       LEFT JOIN users u ON v.agent_id = u.id
       LEFT JOIN customers c ON v.customer_id = c.id
-      ${where}
-    `).bind(...params).first();
-    // Get unique agents for filter dropdown
-    const agents = await db.prepare(`
-      SELECT DISTINCT u.id as agent_id, u.first_name || ' ' || u.last_name as agent_name
-      FROM visit_photos vp
-      JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
-      JOIN users u ON v.agent_id = u.id
-      WHERE vp.tenant_id = ?
-      ORDER BY agent_name
-    `).bind(tenantId).all();
+      ${vrWhere}
+      AND NOT EXISTS (SELECT 1 FROM visit_photos vp2 WHERE vp2.visit_id = vr.visit_id AND vp2.tenant_id = vr.tenant_id)
+      AND (
+        (vr.responses LIKE '%shop_exterior_photo%' AND vr.responses NOT LIKE '%shop_exterior_photo":""%' AND vr.responses NOT LIKE '%shop_exterior_photo":null%')
+        OR (vr.responses LIKE '%ad_board_photo%' AND vr.responses NOT LIKE '%ad_board_photo":""%' AND vr.responses NOT LIKE '%ad_board_photo":null%')
+        OR (vr.responses LIKE '%competitor_photo%' AND vr.responses NOT LIKE '%competitor_photo":""%' AND vr.responses NOT LIKE '%competitor_photo":null%')
+      )
+      ORDER BY vr.created_at DESC
+      LIMIT 2000
+    `).bind(...vrParams).all();
+
+    // Expand visit_responses rows into individual photo records
+    const vrPhotoRows = [];
+    const photoTypeMap = {
+      shop_exterior_photo: 'store_front',
+      ad_board_photo: 'board',
+      competitor_photo: 'competitor',
+    };
+    for (const row of (vrRows.results || [])) {
+      let responses = {};
+      try { responses = typeof row.responses === 'string' ? JSON.parse(row.responses) : (row.responses || {}); } catch { continue; }
+      for (const [field, photoType] of Object.entries(photoTypeMap)) {
+        const url = responses[field];
+        if (url && typeof url === 'string' && url.startsWith('http')) {
+          vrPhotoRows.push({
+            id: row.id + '_' + field,
+            visit_id: row.visit_id,
+            photo_type: photoType,
+            r2_key: null,
+            r2_url: rewriteR2Url(url, reqUrl),
+            review_status: 'pending',
+            rejection_reason: null,
+            reviewed_by: null,
+            reviewed_at: null,
+            ai_analysis_status: null,
+            ai_labels: null,
+            photo_uploaded_at: row.created_at,
+            visit_date: row.visit_date,
+            visit_type: row.visit_type,
+            visit_target_type: row.visit_target_type,
+            visit_status: row.visit_status,
+            agent_name: row.agent_name,
+            agent_id: row.agent_id,
+            store_name: row.store_name,
+            individual_name: row.individual_name,
+            individual_surname: row.individual_surname,
+          });
+        }
+      }
+    }
+
+    // Merge, sort by date desc, paginate
+    const vpMapped = (vpRows.results || []).map(p => ({ ...p, r2_url: p.r2_url ? rewriteR2Url(p.r2_url, reqUrl) : null }));
+    const allPhotos = [...vpMapped, ...vrPhotoRows].sort((a, b) => (b.photo_uploaded_at || '').localeCompare(a.photo_uploaded_at || ''));
+    const total = allPhotos.length;
+    const paginated = allPhotos.slice(offset, offset + limitNum);
+
+    // Agents dropdown: union of agents from both sources
+    const agentMap = new Map();
+    for (const p of allPhotos) {
+      if (p.agent_id && p.agent_name) agentMap.set(p.agent_id, p.agent_name);
+    }
+    const agents = [...agentMap.entries()].map(([agent_id, agent_name]) => ({ agent_id, agent_name })).sort((a, b) => a.agent_name.localeCompare(b.agent_name));
+
     return c.json({
       success: true,
-      data: {
-        photos: (photos.results || []).map(p => ({ ...p, r2_url: p.r2_url ? rewriteR2Url(p.r2_url, c.req.url) : null })),
-        agents: agents.results || [],
-        pagination: { total: countR?.total || 0, page: parseInt(page), limit: parseInt(limit) }
-      }
+      data: { photos: paginated, agents, pagination: { total, page: pageNum, limit: limitNum } }
     });
   } catch (e) { console.error('Admin photo review error:', e); return c.json({ success: false, message: e.message }, 500); }
 });
+
+// Materialise a questionnaire photo (synthetic id = "{vr_id}_{field}") into visit_photos and return the real id.
+// Returns the real visit_photos id to use, or null if the source can't be found.
+async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedBy) {
+  const qrFields = ['shop_exterior_photo', 'ad_board_photo', 'competitor_photo'];
+  const field = qrFields.find(f => syntheticId.endsWith('_' + f));
+  if (!field) return null;
+  const vrId = syntheticId.slice(0, syntheticId.length - field.length - 1);
+  const vr = await db.prepare('SELECT id, visit_id, responses FROM visit_responses WHERE id = ? AND tenant_id = ?').bind(vrId, tenantId).first();
+  if (!vr) return null;
+  let responses = {};
+  try { responses = typeof vr.responses === 'string' ? JSON.parse(vr.responses) : (vr.responses || {}); } catch { return null; }
+  const url = responses[field];
+  if (!url || typeof url !== 'string' || !url.startsWith('http')) return null;
+  // Check if already materialised
+  const existing = await db.prepare("SELECT id FROM visit_photos WHERE visit_id = ? AND tenant_id = ? AND r2_url = ? LIMIT 1").bind(vr.visit_id, tenantId, url).first();
+  if (existing) return existing.id;
+  const photoTypeMap = { shop_exterior_photo: 'store_front', ad_board_photo: 'board', competitor_photo: 'competitor' };
+  const newId = crypto.randomUUID();
+  const r2Key = 'photos/' + tenantId + '/' + vr.visit_id + '/' + newId + '.jpg';
+  await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, uploaded_by, review_status)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, 'pending')`).bind(newId, tenantId, vr.visit_id, photoTypeMap[field], r2Key, url, uploadedBy).run();
+  return newId;
+}
 
 // ── Reject a photo (admin) ──
 api.post('/visit-photos/:id/reject', authMiddleware, async (c) => {
@@ -13705,22 +13800,17 @@ api.post('/visit-photos/:id/reject', authMiddleware, async (c) => {
     if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
       return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     }
-    const { id } = c.req.param();
+    let { id } = c.req.param();
     const body = await c.req.json().catch(() => ({}));
     const reason = body.reason || 'Photo rejected by admin';
-    const photo = await db.prepare('SELECT id, visit_id FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-    if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
-    try {
-      await db.prepare("UPDATE visit_photos SET review_status = 'rejected', rejection_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
-        .bind(reason, userId, id, tenantId).run();
-    } catch {
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'").run().catch(() => {});
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT").run().catch(() => {});
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT").run().catch(() => {});
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT").run().catch(() => {});
-      await db.prepare("UPDATE visit_photos SET review_status = 'rejected', rejection_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
-        .bind(reason, userId, id, tenantId).run();
+    // If synthetic id, materialise into visit_photos first
+    if (!await db.prepare('SELECT id FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first()) {
+      const realId = await materializeQuestionnairPhoto(db, id, tenantId, userId);
+      if (!realId) return c.json({ success: false, message: 'Photo not found' }, 404);
+      id = realId;
     }
+    await db.prepare("UPDATE visit_photos SET review_status = 'rejected', rejection_reason = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+      .bind(reason, userId, id, tenantId).run();
     return c.json({ success: true, message: 'Photo rejected', data: { id, review_status: 'rejected', rejection_reason: reason } });
   } catch (e) { console.error('Photo reject error:', e); return c.json({ success: false, message: e.message }, 500); }
 });
@@ -13735,20 +13825,15 @@ api.post('/visit-photos/:id/approve', authMiddleware, async (c) => {
     if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
       return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     }
-    const { id } = c.req.param();
-    const photo = await db.prepare('SELECT id FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
-    if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
-    try {
-      await db.prepare("UPDATE visit_photos SET review_status = 'approved', rejection_reason = NULL, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
-        .bind(userId, id, tenantId).run();
-    } catch {
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'").run().catch(() => {});
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT").run().catch(() => {});
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT").run().catch(() => {});
-      await db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT").run().catch(() => {});
-      await db.prepare("UPDATE visit_photos SET review_status = 'approved', rejection_reason = NULL, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
-        .bind(userId, id, tenantId).run();
+    let { id } = c.req.param();
+    // If synthetic id, materialise into visit_photos first
+    if (!await db.prepare('SELECT id FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first()) {
+      const realId = await materializeQuestionnairPhoto(db, id, tenantId, userId);
+      if (!realId) return c.json({ success: false, message: 'Photo not found' }, 404);
+      id = realId;
     }
+    await db.prepare("UPDATE visit_photos SET review_status = 'approved', rejection_reason = NULL, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND tenant_id = ?")
+      .bind(userId, id, tenantId).run();
     return c.json({ success: true, message: 'Photo approved', data: { id, review_status: 'approved' } });
   } catch (e) { console.error('Photo approve error:', e); return c.json({ success: false, message: e.message }, 500); }
 });
@@ -14098,6 +14183,16 @@ api.get('/visit-photos/ai-status', authMiddleware, async (c) => {
   } catch (e) {
     return c.json({ success: false, message: e.message }, 500);
   }
+});
+
+// Get single photo — must be after all static /visit-photos/* routes to avoid /:id swallowing them
+api.get('/visit-photos/:id', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { id } = c.req.param();
+  const photo = await db.prepare('SELECT * FROM visit_photos WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!photo) return c.json({ success: false, message: 'Photo not found' }, 404);
+  return c.json({ success: true, data: photo });
 });
 
 // ==================== SHARE OF VOICE REPORTING ====================

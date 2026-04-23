@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
+import { photoReviewService } from '../../services/insights.service'
 import { useNavigate } from 'react-router-dom'
 import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
@@ -22,6 +24,8 @@ interface Visit {
 export default function AgentVisits() {
   const navigate = useNavigate()
   const [visits, setVisits] = useState<Visit[]>([])
+  const [rejectedVisitIds, setRejectedVisitIds] = useState<string[]>([])
+  const location = useLocation()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [filter, setFilter] = useState<'all' | 'completed' | 'in_progress' | 'pending'>('all')
@@ -68,6 +72,23 @@ export default function AgentVisits() {
     }
   }, [])
 
+  // Check for rejected_photos filter in query params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const rejected = params.get('filter') === 'rejected_photos'
+    if (rejected) {
+      // Fetch rejected photos and extract visit IDs
+      photoReviewService.getNeedsReupload().then((res: any) => {
+        const photos = Array.isArray(res) ? res : res?.photos || []
+        // API returns visit objects — id field is the visit id
+        const visitIds = [...new Set(photos.map((p: any) => p.id || p.visit_id).filter(Boolean))]
+        setRejectedVisitIds(visitIds)
+      }).catch(() => setRejectedVisitIds([]))
+    } else {
+      setRejectedVisitIds([])
+    }
+  }, [location.search])
+
   useEffect(() => {
     const abortController = new AbortController()
     fetchVisits(abortController.signal)
@@ -79,7 +100,12 @@ export default function AgentVisits() {
   }, [fetchVisits])
 
   const filtered = useMemo(() => {
-    return visits.filter(v => {
+    let base = visits
+    // If rejectedVisitIds is set (from filter param), filter to only those visits
+    if (rejectedVisitIds.length > 0) {
+      base = base.filter(v => rejectedVisitIds.includes(v.id))
+    }
+    return base.filter(v => {
       if (filter !== 'all' && v.status !== filter) return false
       if (typeFilter !== 'all') {
         const vType = (v.visit_target_type || v.visit_type || '').toLowerCase()
@@ -93,7 +119,7 @@ export default function AgentVisits() {
       }
       return true
     })
-  }, [visits, filter, typeFilter, search])
+  }, [visits, filter, typeFilter, search, rejectedVisitIds])
 
   // Count by type
   const storeCount = useMemo(() => visits.filter(v => (v.visit_target_type || v.visit_type || '').toLowerCase() === 'store').length, [visits])

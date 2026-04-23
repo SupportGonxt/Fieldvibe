@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { tradeMarketingService } from '../../../services/insights.service'
@@ -13,16 +13,20 @@ export default function VisitDetail() {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [visit, setVisit] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [editingGoldrushId, setEditingGoldrushId] = useState(false)
   const [goldrushIdValue, setGoldrushIdValue] = useState('')
   const [savingGoldrushId, setSavingGoldrushId] = useState(false)
   const [uploading, setUploading] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const desktopFileInputRef = useRef<HTMLInputElement>(null)
+  const rejectedPhotosSectionRef = useRef<HTMLDivElement>(null)
+  const photoFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  const handlePhotoUpload = async (files: FileList | null) => {
+  const handlePhotoUpload = async (files: FileList | null, photoType: string = 'general') => {
     if (!files || files.length === 0 || !id) return
     setUploading(true)
     let successCount = 0
@@ -32,7 +36,7 @@ export default function VisitDetail() {
         const formData = new FormData()
         formData.append('photo', file)
         formData.append('visit_id', id)
-        formData.append('photo_type', 'general')
+        formData.append('photo_type', photoType)
         await tradeMarketingService.uploadPhoto(formData)
         successCount++
       }
@@ -45,6 +49,26 @@ export default function VisitDetail() {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
       if (desktopFileInputRef.current) desktopFileInputRef.current.value = ''
+    }
+  }
+
+  const handleReplacePhoto = async (files: FileList | null, photoId: string, photoType: string) => {
+    if (!files || files.length === 0 || !id) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('photo', files[0])
+      formData.append('visit_id', id)
+      formData.append('photo_type', photoType)
+      formData.append('replace_photo_id', photoId)
+      await tradeMarketingService.uploadPhoto(formData)
+      toast.success('Photo replaced — pending admin review')
+      loadVisit()
+    } catch {
+      toast.error('Failed to replace photo')
+    } finally {
+      setUploading(false)
+      if (photoFileRefs.current[photoId]) photoFileRefs.current[photoId]!.value = ''
     }
   }
 
@@ -85,12 +109,19 @@ export default function VisitDetail() {
     loadVisit()
   }, [id])
 
+  // Auto-scroll to rejected photos section if navigated here with ?scrollTo=rejected-photos
+  useEffect(() => {
+    if (!loading && searchParams.get('scrollTo') === 'rejected-photos') {
+      setTimeout(() => {
+        rejectedPhotosSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 300)
+    }
+  }, [loading, searchParams])
+
   const loadVisit = async () => {
     setLoading(true)
     try {
-      // Pass ID as string (UUIDs) — do NOT convert to Number
       const response = await fieldOperationsService.getVisit(id!)
-      // getVisit already unwraps response.data?.data || response.data, so response IS the visit object
       setVisit(response.data || response)
     } catch (error) {
       console.error('Failed to load visit:', error)
@@ -111,7 +142,7 @@ export default function VisitDetail() {
     return <ErrorState title="Visit not found" message="The visit you are looking for does not exist or has been deleted." />
   }
 
-  // Mobile-friendly detail view
+  // ─── MOBILE VIEW ────────────────────────────────────────────────────────────
   if (isMobileContext) {
     const statusIcon = visit.status === 'completed'
       ? <CheckCircle className="w-5 h-5 text-green-400" />
@@ -314,8 +345,8 @@ export default function VisitDetail() {
             </div>
           )}
 
-          {/* Photos */}
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+          {/* Photos — ref attached for scroll-to on rejected photo navigation */}
+          <div ref={rejectedPhotosSectionRef} className="bg-white/5 border border-white/10 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <Camera className="w-3 h-3" /> Photos ({photos.length})
@@ -328,8 +359,16 @@ export default function VisitDetail() {
                 {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                 {uploading ? 'Uploading...' : 'Upload'}
               </button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(e.target.files)} />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={e => handlePhotoUpload(e.target.files)}
+              />
             </div>
+
             {photos.length === 0 && (
               <div className="text-center py-6">
                 <Camera className="w-8 h-8 text-gray-600 mx-auto mb-2" />
@@ -344,18 +383,48 @@ export default function VisitDetail() {
                 </button>
               </div>
             )}
+
             {photos.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 {photos.map((photo: any, idx: number) => (
-                  <div key={idx} className="rounded-lg overflow-hidden bg-white/5">
-                    <div className="aspect-square">
+                  <div key={photo.id || idx} className="rounded-lg overflow-hidden bg-white/5">
+                    <div className="aspect-square relative">
                       <img
                         src={photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : undefined)}
                         alt={`Photo ${idx + 1}`}
                         className="w-full h-full object-cover"
                       />
+
+                      {/* Rejected overlay — tap to replace this specific photo */}
+                      {photo.review_status === 'rejected' && (
+                        <div className="absolute inset-0 bg-red-900/70 flex flex-col items-center justify-center gap-1 p-2">
+                          <XCircle className="w-5 h-5 text-red-400" />
+                          <span className="text-[10px] font-semibold text-red-300">Rejected</span>
+                          {photo.rejection_reason && (
+                            <span className="text-[10px] text-red-200 text-center line-clamp-2">
+                              {photo.rejection_reason}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => photoFileRefs.current[photo.id]?.click()}
+                            disabled={uploading}
+                            className="mt-1 flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md bg-[#00E87B] text-[#0A1628] disabled:opacity-50"
+                          >
+                            <Upload className="w-3 h-3" /> Tap to Replace
+                          </button>
+                          {/* Hidden input scoped to this photo */}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={el => { photoFileRefs.current[photo.id] = el }}
+                            onChange={e => handleReplacePhoto(e.target.files, photo.id, photo.photo_type || 'general')}
+                          />
+                        </div>
+                      )}
                     </div>
-                    {/* Photo metadata: AI analysis, SOV, board placement, condition */}
+
+                    {/* Photo metadata */}
                     <div className="p-2 space-y-1">
                       {photo.ai_analysis_status === 'completed' && photo.ai_labels && (() => {
                         try {
@@ -450,16 +519,6 @@ export default function VisitDetail() {
                 ))}
               </div>
             )}
-            {/* Rejected photos warning */}
-            {photos.some((p: any) => p.review_status === 'rejected') && (
-              <div className="mt-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <AlertTriangle className="w-3 h-3 text-red-400" />
-                  <span className="text-[10px] font-semibold text-red-400">Some photos were rejected</span>
-                </div>
-                <p className="text-[10px] text-gray-400">Please upload replacement photos using the Upload button above.</p>
-              </div>
-            )}
           </div>
 
           {/* Survey Responses */}
@@ -494,7 +553,7 @@ export default function VisitDetail() {
     )
   }
 
-  // Desktop view: compute duration from check-in/check-out times
+  // ─── DESKTOP VIEW ────────────────────────────────────────────────────────────
   const durationStr = (() => {
     if (visit.check_in_time && visit.check_out_time) {
       const mins = Math.round((new Date(visit.check_out_time).getTime() - new Date(visit.check_in_time).getTime()) / 60000)
@@ -557,8 +616,16 @@ export default function VisitDetail() {
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Uploading...' : 'Upload Photos'}
           </button>
-          <input ref={desktopFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(e.target.files)} />
+          <input
+            ref={desktopFileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={e => handlePhotoUpload(e.target.files)}
+          />
         </div>
+
         {photos.length === 0 && (
           <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
             <Camera className="w-10 h-10 text-gray-400 mx-auto mb-2" />
@@ -573,27 +640,57 @@ export default function VisitDetail() {
             </button>
           </div>
         )}
-        {/* Rejected photos warning */}
+
+        {/* Rejected photos warning banner */}
         {photos.some((p: any) => p.review_status === 'rejected') && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-500" />
               <span className="text-sm font-medium text-red-700 dark:text-red-400">Some photos were rejected by admin</span>
             </div>
-            <p className="text-xs text-red-600 dark:text-red-400/70 mt-1">Please upload replacement photos using the Upload button above.</p>
+            <p className="text-xs text-red-600 dark:text-red-400/70 mt-1">Click the rejected photo to upload a replacement.</p>
           </div>
         )}
+
         {photos.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {photos.map((photo: any, idx: number) => (
-              <div key={idx} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                <div className="aspect-square">
+              <div key={photo.id || idx} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="aspect-square relative">
                   <img
                     src={photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : undefined)}
                     alt={`Photo ${idx + 1}`}
                     className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                   />
+
+                  {/* Desktop rejected overlay */}
+                  {photo.review_status === 'rejected' && (
+                    <div className="absolute inset-0 bg-red-900/70 flex flex-col items-center justify-center gap-1 p-2">
+                      <XCircle className="w-6 h-6 text-red-400" />
+                      <span className="text-xs font-semibold text-red-300">Rejected</span>
+                      {photo.rejection_reason && (
+                        <span className="text-[11px] text-red-200 text-center line-clamp-2">
+                          {photo.rejection_reason}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => photoFileRefs.current[photo.id]?.click()}
+                        disabled={uploading}
+                        className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-[#00E87B] text-[#0A1628] hover:bg-[#00E87B]/90 disabled:opacity-50 transition-colors"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Click to Replace
+                      </button>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        ref={el => { photoFileRefs.current[photo.id] = el }}
+                        onChange={e => handleReplacePhoto(e.target.files, photo.id, photo.photo_type || 'general')}
+                      />
+                    </div>
+                  )}
                 </div>
+
                 {((photo.ai_analysis_status === 'completed' && photo.ai_labels) || photo.ai_analysis_status === 'processing' || (photo.ai_share_of_voice != null && photo.ai_share_of_voice > 0) || photo.board_condition) && (
                   <div className="p-2 space-y-1 bg-gray-50 dark:bg-gray-700/50">
                     {photo.ai_analysis_status === 'completed' && photo.ai_labels && (() => {

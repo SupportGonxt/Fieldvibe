@@ -6,7 +6,8 @@ import {
   Box, Stepper, Step, StepLabel, Button, Paper, Typography, Alert,
   TextField, FormControl, InputLabel, Select, MenuItem, CircularProgress,
   Card, CardContent, Chip, IconButton, FormControlLabel, Switch, Divider,
-  Grid, Autocomplete, Radio, RadioGroup, Checkbox, FormGroup, FormLabel, FormHelperText
+  Grid, Autocomplete, Radio, RadioGroup, Checkbox, FormGroup, FormLabel, FormHelperText,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material'
 import { CloudUpload as UploadIcon } from '@mui/icons-material'
 import {
@@ -18,7 +19,8 @@ import {
   Warning as WarningIcon,
   ArrowBack as BackIcon,
   ArrowForward as NextIcon,
-  Send as SubmitIcon
+  Send as SubmitIcon,
+  AddBusiness as AddStoreIcon
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
@@ -198,6 +200,10 @@ export default function VisitCreate() {
   const [customQuestionValues, setCustomQuestionValues] = useState<Record<string, string>>({})
   const [storeRevisitCheck, setStoreRevisitCheck] = useState<{ can_visit: boolean; message: string; days_since?: number } | null>(null)
   const [duplicateCheck, setDuplicateCheck] = useState<{ has_duplicates: boolean; duplicates: Array<{ field: string; value: string }> } | null>(null)
+  const [newStoreDialogOpen, setNewStoreDialogOpen] = useState(false)
+  const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '', contact_person: '', contact_phone: '' })
+  const [newStoreFormError, setNewStoreFormError] = useState('')
+  const [savingNewStore, setSavingNewStore] = useState(false)
 
   // Individual fields
   const [individualFirstName, setIndividualFirstName] = useState('')
@@ -1154,40 +1160,128 @@ export default function VisitCreate() {
               The same store cannot be visited within 30 days.
             </Typography>
             <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block' }}>* Required fields</Typography>
-            <Autocomplete
-              freeSolo
-              options={customers}
-              getOptionLabel={(c) => typeof c === 'string' ? c : (c.name || c.business_name || c.code || 'Unknown')}
-              value={selectedCustomer ? (customers.find(c => c.id === selectedCustomer) || null) : (newStoreName || null)}
-              onChange={async (_e, newValue) => {
-                if (typeof newValue === 'string') {
-                  // User typed a new store name
-                  setSelectedCustomer('')
-                  setNewStoreName(newValue)
-                  setStoreRevisitCheck(null)
-                } else if (newValue) {
-                  // User selected an existing customer
-                  setSelectedCustomer(newValue.id)
-                  setNewStoreName('')
-                  setStoreRevisitCheck(null)
-                  await checkStoreRevisit(newValue.id)
-                } else {
-                  setSelectedCustomer('')
-                  setNewStoreName('')
-                  setStoreRevisitCheck(null)
-                }
-              }}
-              onInputChange={(_e, value, reason) => {
-                if (reason === 'input' && !customers.find(c => (c.name || c.business_name || '') === value)) {
-                  setNewStoreName(value)
-                  setSelectedCustomer('')
-                }
-              }}
-              renderInput={(params) => (
-                <TextField {...params} label="Search existing store or type new name *" fullWidth required={!newStoreName} helperText={showValidation && !selectedCustomer && !newStoreName ? 'Please select or type a store name' : (newStoreName && !selectedCustomer ? `New store "${newStoreName}" will be created` : 'Search by store name or type a new one')} error={showValidation && !selectedCustomer && !newStoreName} />
-              )}
-              sx={{ mb: 2 }}
-            />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mb: 2 }}>
+              <Autocomplete
+                freeSolo
+                options={customers}
+                getOptionLabel={(c) => typeof c === 'string' ? c : (c.name || c.business_name || c.code || 'Unknown')}
+                value={selectedCustomer ? (customers.find(c => c.id === selectedCustomer) || null) : (newStoreName || null)}
+                onChange={async (_e, newValue) => {
+                  if (typeof newValue === 'string') {
+                    setSelectedCustomer('')
+                    setNewStoreName(newValue)
+                    setStoreRevisitCheck(null)
+                  } else if (newValue) {
+                    setSelectedCustomer(newValue.id)
+                    setNewStoreName('')
+                    setStoreRevisitCheck(null)
+                    await checkStoreRevisit(newValue.id)
+                  } else {
+                    setSelectedCustomer('')
+                    setNewStoreName('')
+                    setStoreRevisitCheck(null)
+                  }
+                }}
+                onInputChange={(_e, value, reason) => {
+                  if (reason === 'input' && !customers.find(c => (c.name || c.business_name || '') === value)) {
+                    setNewStoreName(value)
+                    setSelectedCustomer('')
+                  }
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Search existing store *" fullWidth required={!newStoreName} helperText={showValidation && !selectedCustomer && !newStoreName ? 'Please select or enter a store' : (newStoreName && !selectedCustomer ? `New store "${newStoreName}" will be created` : 'Search by store name')} error={showValidation && !selectedCustomer && !newStoreName} />
+                )}
+                sx={{ flex: 1 }}
+              />
+              <Button
+                variant="outlined"
+                startIcon={<AddStoreIcon />}
+                onClick={() => {
+                  setNewStoreForm({ name: newStoreName, address: '', contact_person: '', contact_phone: '' })
+                  setNewStoreFormError('')
+                  setNewStoreDialogOpen(true)
+                }}
+                sx={{ mt: 0.5, whiteSpace: 'nowrap', height: 56 }}
+              >
+                Add New
+              </Button>
+            </Box>
+
+            {/* Add New Store Dialog */}
+            <Dialog open={newStoreDialogOpen} onClose={() => setNewStoreDialogOpen(false)} maxWidth="sm" fullWidth>
+              <DialogTitle>Add New Store</DialogTitle>
+              <DialogContent>
+                {newStoreFormError && <Alert severity="error" sx={{ mb: 2 }}>{newStoreFormError}</Alert>}
+                <TextField
+                  label="Store Name *"
+                  value={newStoreForm.name}
+                  onChange={e => setNewStoreForm(f => ({ ...f, name: e.target.value }))}
+                  fullWidth
+                  required
+                  sx={{ mt: 1, mb: 2 }}
+                  autoFocus
+                />
+                <TextField
+                  label="Address"
+                  value={newStoreForm.address}
+                  onChange={e => setNewStoreForm(f => ({ ...f, address: e.target.value }))}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  label="Contact Person"
+                  value={newStoreForm.contact_person}
+                  onChange={e => setNewStoreForm(f => ({ ...f, contact_person: e.target.value }))}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  label="Contact Phone"
+                  value={newStoreForm.contact_phone}
+                  onChange={e => setNewStoreForm(f => ({ ...f, contact_phone: e.target.value }))}
+                  fullWidth
+                />
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setNewStoreDialogOpen(false)} disabled={savingNewStore}>Cancel</Button>
+                <Button
+                  variant="contained"
+                  disabled={savingNewStore || !newStoreForm.name.trim()}
+                  onClick={async () => {
+                    if (!newStoreForm.name.trim()) { setNewStoreFormError('Store name is required'); return; }
+                    setSavingNewStore(true)
+                    setNewStoreFormError('')
+                    try {
+                      const res = await apiClient.post('/customers', {
+                        name: newStoreForm.name.trim(),
+                        address: newStoreForm.address.trim() || undefined,
+                        contact_person: newStoreForm.contact_person.trim() || undefined,
+                        contact_phone: newStoreForm.contact_phone.trim() || undefined,
+                        customer_type: 'SHOP',
+                        type: 'retail',
+                      })
+                      const newId = res.data?.data?.id
+                      if (!newId) throw new Error('No ID returned')
+                      // Add to local list and auto-select
+                      const newCustomer = { id: newId, name: newStoreForm.name.trim(), address: newStoreForm.address.trim() || undefined }
+                      setCustomers(prev => [newCustomer, ...prev])
+                      setSelectedCustomer(newId)
+                      setNewStoreName('')
+                      setStoreRevisitCheck(null)
+                      setNewStoreDialogOpen(false)
+                      await checkStoreRevisit(newId)
+                    } catch (err: unknown) {
+                      setNewStoreFormError(extractErrorMessage(err))
+                    } finally {
+                      setSavingNewStore(false)
+                    }
+                  }}
+                >
+                  {savingNewStore ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
+                  {savingNewStore ? 'Saving...' : 'Save Store'}
+                </Button>
+              </DialogActions>
+            </Dialog>
 
             {storeRevisitCheck && !storeRevisitCheck.can_visit && (
               <Alert severity="error" sx={{ mt: 2 }} icon={<WarningIcon />}>
