@@ -61,7 +61,22 @@ export default function VisitDetail() {
       formData.append('visit_id', id)
       formData.append('photo_type', photoType)
       formData.append('replace_photo_id', photoId)
-      await tradeMarketingService.uploadPhoto(formData)
+      const newPhoto = await tradeMarketingService.uploadPhoto(formData)
+      // Optimistically update: remove old rejected photo, add new pending one immediately
+      setVisit((prev: any) => {
+        if (!prev) return prev
+        const filtered = (prev.photos || []).filter((p: any) => p.id !== photoId)
+        const added = newPhoto?.id ? [{
+          id: newPhoto.id,
+          r2_url: newPhoto.r2_url,
+          photo_url: newPhoto.r2_url,
+          thumbnail_url: newPhoto.thumbnail_url || null,
+          photo_type: photoType,
+          review_status: 'pending',
+          captured_at: new Date().toISOString(),
+        }, ...filtered] : filtered
+        return { ...prev, photos: added }
+      })
       toast.success('Photo replaced — pending admin review')
       loadVisit()
     } catch {
