@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../../store/auth.store'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
+import { photoReviewService } from '../../services/insights.service'
 
 // Lazy load non-critical sections (code splitting)
 const PerformanceSection = lazy(() => import('./PerformanceSection'))
@@ -112,6 +113,26 @@ interface PerfSummary {
 }
 
 export default function AgentDashboard() {
+  // Rejected photos KPI state (must be inside component)
+  const [rejectedPhotoCount, setRejectedPhotoCount] = useState<number>(0)
+  const [rejectedPhotoLoading, setRejectedPhotoLoading] = useState<boolean>(false)
+  const [rejectedVisitIds, setRejectedVisitIds] = useState<string[]>([])
+
+  // Fetch rejected photos needing reupload
+  useEffect(() => {
+    let mounted = true
+    setRejectedPhotoLoading(true)
+    photoReviewService.getNeedsReupload().then((res: any) => {
+      if (!mounted) return
+      // getNeedsReupload returns visit rows (each with .id = visit ID, and .rejected_count)
+      const items = Array.isArray(res) ? res : Array.isArray(res?.photos) ? res.photos : []
+      const totalRejected = items.reduce((n: number, v: any) => n + (v.rejected_count || 1), 0)
+      setRejectedPhotoCount(totalRejected)
+      const visitIds = [...new Set(items.map((v: any) => v.id).filter(Boolean))] as string[]
+      setRejectedVisitIds(visitIds)
+    }).catch(() => { setRejectedPhotoCount(0); setRejectedVisitIds([]) }).finally(() => setRejectedPhotoLoading(false))
+    return () => { mounted = false }
+  }, [])
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [perfSummary, setPerfSummary] = useState<PerfSummary | null>(null)
@@ -455,6 +476,33 @@ export default function AgentDashboard() {
           <Plus className="w-4 h-4" />
           Start New Visit
         </button>
+      </div>
+
+      {/* Rejected Photos KPI */}
+      <div className="px-5 mb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard
+            icon={<X className="w-5 h-5" />}
+            label="Rejected Photos"
+            value={rejectedPhotoCount}
+            color="bg-red-500"
+          />
+          <button
+            onClick={() => {
+              if (rejectedVisitIds.length === 1) {
+                navigate(`/agent/visits/${rejectedVisitIds[0]}`)
+              } else {
+                navigate('/agent/visits?filter=rejected_photos')
+              }
+            }}
+            className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+            disabled={rejectedPhotoLoading || rejectedPhotoCount === 0}
+            style={{ opacity: rejectedPhotoCount === 0 ? 0.5 : 1 }}
+          >
+            <X className="w-4 h-4" />
+            {rejectedPhotoLoading ? 'Checking...' : rejectedPhotoCount > 0 ? `View ${rejectedPhotoCount} Rejected` : 'No Rejected Photos'}
+          </button>
+        </div>
       </div>
 
       <div className="px-5 mb-4">
