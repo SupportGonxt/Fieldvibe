@@ -13720,6 +13720,15 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
     const offset = (pageNum - 1) * limitNum;
     const reqUrl = c.req.url;
 
+    // Ensure required columns exist (idempotent — silently skips if already present)
+    await Promise.all([
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'").run().catch(() => {}),
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT").run().catch(() => {}),
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT").run().catch(() => {}),
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT").run().catch(() => {}),
+      db.prepare("ALTER TABLE visits ADD COLUMN visit_target_type TEXT").run().catch(() => {}),
+    ]);
+
     // ── Query 1: proper visit_photos records ──
     let where = 'WHERE vp.tenant_id = ?';
     const params = [tenantId];
