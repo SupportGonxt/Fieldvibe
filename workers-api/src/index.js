@@ -13470,11 +13470,12 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
     if (!object) return;
     let imageBytes = new Uint8Array(await object.arrayBuffer());
 
-    // Llama Vision 128K context window: each image byte ≈ 1.5-2 tokens
-    // 128K tokens - ~3K for prompt/output = ~125K tokens for image ≈ ~80KB max
-    const MAX_AI_IMAGE_BYTES = 80000;
+    // Vision encoder tokenizes the image into a fixed number of visual tokens
+    // independent of raw byte size, so the 128K text context is not the constraint.
+    // Cap is a safety valve against runaway payloads; frontend compresses to ~1MB.
+    const MAX_AI_IMAGE_BYTES = 5_000_000;
     if (imageBytes.length > MAX_AI_IMAGE_BYTES) {
-      await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image ' + Math.round(imageBytes.length/1024) + 'KB exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB limit for 128K context window', photoId).run();
+      await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image ' + Math.round(imageBytes.length/1024) + 'KB exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB safety cap', photoId).run();
       return;
     }
 
@@ -14201,7 +14202,7 @@ api.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
       FROM visit_photos vp
       WHERE vp.tenant_id = ?
         AND vp.r2_key IS NOT NULL
-        AND (vp.ai_analysis_status IS NULL OR vp.ai_analysis_status = '' OR vp.ai_analysis_status = 'pending')
+        AND (vp.ai_analysis_status IS NULL OR vp.ai_analysis_status = '' OR vp.ai_analysis_status = 'pending' OR vp.ai_analysis_status = 'skipped')
         AND NOT EXISTS (
           SELECT 1 FROM visit_photos vp2
           WHERE vp2.tenant_id = vp.tenant_id
@@ -14227,7 +14228,7 @@ api.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
 
     // Count total pending for progress info
     const pendingCount = await db.prepare(
-      `SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending')`
+      `SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending' OR ai_analysis_status = 'skipped')`
     ).bind(tenantId).first();
 
     // Mark all as processing
@@ -14266,7 +14267,7 @@ api.get('/visit-photos/ai-status', authMiddleware, async (c) => {
       db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'completed'").bind(tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'processing'").bind(tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND ai_analysis_status = 'failed'").bind(tenantId).first(),
-      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending')").bind(tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_photos WHERE tenant_id = ? AND r2_key IS NOT NULL AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending' OR ai_analysis_status = 'skipped')").bind(tenantId).first(),
     ]);
 
     return c.json({
