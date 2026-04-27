@@ -10749,8 +10749,27 @@ api.put('/sales/orders/:id/status', requireRole('admin', 'manager'), async (c) =
       await db.prepare('INSERT INTO stock_movements (id, tenant_id, product_id, movement_type, quantity, reference_type, reference_id, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(smId, tenantId, item.product_id, 'ADJUSTMENT_UP', item.quantity, 'ORDER_CANCEL', id, 'Order cancelled - stock returned', userId).run();
       await db.prepare('UPDATE stock_levels SET quantity = quantity + ? WHERE tenant_id = ? AND product_id = ?').bind(item.quantity, tenantId, item.product_id).run();
     }
-    // Void commissions
-    await db.prepare("UPDATE commission_earnings SET status = 'voided' WHERE source_id = ? AND tenant_id = ?").bind(id, tenantId).run();
+    // Reverse commissions: pending/disputed -> rejected; approved/paid -> reversed (with sibling
+    // negative-amount audit row). Mirrors the behaviour of /sales-orders/:id/cancel so both cancel
+    // paths produce the same commission ledger.
+    try {
+      const earnings = await db.prepare("SELECT id, earner_id, source_type, source_id, rule_id, rate, base_amount, amount, status FROM commission_earnings WHERE tenant_id = ? AND source_id = ? AND status IN ('pending', 'disputed', 'approved', 'paid')").bind(tenantId, id).all();
+      for (const e of (earnings.results || [])) {
+        if (e.status === 'pending' || e.status === 'disputed') {
+          await db.prepare("UPDATE commission_earnings SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind('Auto: order cancelled', userId, e.id, tenantId).run();
+        } else {
+          const reversalId = uuidv4();
+          await db.batch([
+            db.prepare("INSERT INTO commission_earnings (id, tenant_id, earner_id, source_type, source_id, rule_id, rate, base_amount, amount, status, reversal_of, reversal_reason, reversed_by, reversed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'reversed', ?, ?, ?, datetime('now'), datetime('now'))").bind(
+              reversalId, tenantId, e.earner_id, e.source_type, e.source_id, e.rule_id, e.rate, e.base_amount, -Math.abs(e.amount || 0), e.id, 'Auto: order cancelled', userId
+            ),
+            db.prepare("UPDATE commission_earnings SET status = 'reversed', reversal_reason = ?, reversed_by = ?, reversed_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind('Auto: order cancelled', userId, e.id, tenantId)
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error('Commission auto-reverse failed in transitions for order', id, err && err.message);
+    }
     // Restore customer balance
     if (order.payment_method === 'CREDIT' || order.payment_method === 'credit') {
       await db.prepare('UPDATE customers SET outstanding_balance = outstanding_balance - ? WHERE id = ?').bind(order.total_amount, order.customer_id).run();
@@ -12364,8 +12383,8 @@ api.get('/process/audit', requireRole('admin'), async (c) => {
       status: 'implemented'
     },
     commissions: {
-      forward: ['pending -> approved -> paid'],
-      reverse: ['voided (on order cancel)'],
+      forward: ['pending -> approved -> paid', 'pending -> disputed (agent) -> approved | rejected'],
+      reverse: ['rejected (manager, with reason)', 'reversed (sibling negative-amount row, on order cancel or manual reversal)'],
       status: 'implemented'
     },
     trade_promotions: {
@@ -15452,7 +15471,7 @@ api.get('/workflow/processes', authMiddleware, async (c) => {
     sales_order: { forward: ['draft -> CONFIRMED', 'CONFIRMED -> PROCESSING', 'PROCESSING -> READY', 'READY -> DISPATCHED', 'DISPATCHED -> DELIVERED', 'DELIVERED -> COMPLETED'], reverse: ['Any -> CANCELLED'], status: 'implemented' },
     van_sales: { forward: ['load -> in_field', 'in_field -> sell', 'in_field -> returned'], reverse: ['Stock discrepancy detection', 'Cash reconciliation'], status: 'implemented' },
     returns: { forward: ['PENDING -> PROCESSED', 'PENDING -> REJECTED'], reverse: ['Stock return', 'Credit note creation'], status: 'implemented' },
-    commissions: { forward: ['pending -> approved -> paid'], reverse: ['voided (on cancel)'], status: 'implemented' },
+    commissions: { forward: ['pending -> approved -> paid', 'pending -> disputed -> approved | rejected'], reverse: ['rejected (manager)', 'reversed (auto on order cancel, or manual)'], status: 'implemented' },
     inventory: { forward: ['PURCHASE_IN, TRANSFER_IN, ADJUSTMENT_UP'], reverse: ['SALE_OUT, TRANSFER_OUT, ADJUSTMENT_DOWN'], status: 'implemented' },
   }});
 });
