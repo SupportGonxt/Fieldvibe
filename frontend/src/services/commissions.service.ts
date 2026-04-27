@@ -306,6 +306,42 @@ class CommissionsService {
     }
   }
 
+  // The /commission-earnings/* endpoints are the post-audit commission lifecycle surface
+  // (dispute / reverse / reject with reason). They live alongside the older /commissions/*
+  // family until that one is consolidated; both target commission_earnings rows.
+  async getMyCommissionEarnings(status?: string): Promise<any[]> {
+    try {
+      const params: Record<string, string> = {}
+      if (status) params.status = status
+      const response = await apiClient.get('/commission-earnings/my', { params })
+      const data = response.data?.data
+      if (Array.isArray(data)) return data
+      if (Array.isArray(data?.earnings)) return data.earnings
+      return []
+    } catch (error) {
+      console.error('Failed to fetch my commission earnings:', error)
+      throw error
+    }
+  }
+
+  async disputeCommissionEarning(id: string, reason: string): Promise<void> {
+    try {
+      await apiClient.post(`/commission-earnings/${id}/dispute`, { reason })
+    } catch (error) {
+      console.error('Failed to dispute commission earning:', error)
+      throw error
+    }
+  }
+
+  async reverseCommissionEarning(id: string, reason: string): Promise<void> {
+    try {
+      await apiClient.post(`/commission-earnings/${id}/reverse`, { reason })
+    } catch (error) {
+      console.error('Failed to reverse commission earning:', error)
+      throw error
+    }
+  }
+
   async getCommissionStatsSummary(): Promise<CommissionStatsSummary> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/stats`)

@@ -4174,6 +4174,26 @@ api.put('/commission-earnings/:id/reject', requireRole('admin', 'manager'), asyn
   return c.json({ success: true, message: 'Commission rejected' });
 });
 
+// Earnings owned by the authenticated user. Used by the agent dispute UI on the dashboard.
+api.get('/commission-earnings/my', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const { status, limit } = c.req.query();
+  const limitNum = Math.min(parseInt(limit) || 50, 200);
+  let where = 'WHERE ce.tenant_id = ? AND ce.earner_id = ?';
+  const params = [tenantId, userId];
+  if (status) { where += ' AND ce.status = ?'; params.push(status); }
+  const rows = await db.prepare(
+    "SELECT ce.id, ce.source_type, ce.source_id, ce.rate, ce.base_amount, ce.amount, ce.status, " +
+    "ce.dispute_reason, ce.disputed_at, ce.rejection_reason, ce.reversal_reason, " +
+    "ce.created_at, ce.approved_at, cr.name as rule_name " +
+    "FROM commission_earnings ce LEFT JOIN commission_rules cr ON ce.rule_id = cr.id " +
+    where + ' ORDER BY ce.created_at DESC LIMIT ?'
+  ).bind(...params, limitNum).all();
+  return c.json({ success: true, data: rows.results || [] });
+});
+
 // Agent-initiated dispute on a pending earning. Manager then approves or rejects.
 api.post('/commission-earnings/:id/dispute', authMiddleware, async (c) => {
   const db = c.env.DB;
