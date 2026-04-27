@@ -18819,6 +18819,48 @@ api.get('/pricing/customer-prices', async (c) => {
   return c.json({ success: true, data: prices });
 });
 
+// Drain AI photo analysis backlog: each cron tick processes up to AI_DRAIN_BATCH_SIZE photos
+// from any tenant whose photos are pending. Bounded so a backlog spike can't blow Worker CPU
+// or Workers AI quota in a single tick.
+const AI_DRAIN_BATCH_SIZE = 25;
+async function drainAiBacklog(env) {
+  try {
+    const photos = await env.DB.prepare(
+      "SELECT id, r2_key, tenant_id, visit_id, photo_type FROM visit_photos " +
+      "WHERE r2_key IS NOT NULL " +
+      "AND (ai_analysis_status IS NULL OR ai_analysis_status = '' OR ai_analysis_status = 'pending' OR ai_analysis_status = 'skipped') " +
+      "AND NOT EXISTS (SELECT 1 FROM visit_photos vp2 WHERE vp2.tenant_id = visit_photos.tenant_id AND vp2.photo_hash = visit_photos.photo_hash AND vp2.photo_hash IS NOT NULL AND vp2.photo_hash != '' AND vp2.ai_analysis_status = 'completed' AND vp2.id != visit_photos.id) " +
+      "ORDER BY created_at DESC LIMIT ?"
+    ).bind(AI_DRAIN_BATCH_SIZE).all();
+    const list = photos.results || [];
+    if (list.length === 0) return;
+    for (const p of list) {
+      await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'processing' WHERE id = ?").bind(p.id).run();
+    }
+    // Fire and let the scheduled handler's ctx.waitUntil run them in the background.
+    await Promise.all(list.map(p =>
+      analyzePhotoWithAI(env, p.id, p.r2_key, p.tenant_id, p.visit_id, p.photo_type || 'general')
+        .catch(err => console.error('drainAiBacklog: analysis failed for', p.id, err && err.message))
+    ));
+  } catch (err) {
+    console.error('drainAiBacklog: top-level error', err && err.message);
+  }
+}
+
+// Reset stuck 'processing' rows older than 30 minutes back to 'pending' so they get retried.
+async function reapStuckAiProcessing(db) {
+  try {
+    await db.prepare(
+      "UPDATE visit_photos SET ai_analysis_status = 'pending' " +
+      "WHERE ai_analysis_status = 'processing' " +
+      "AND (ai_processed_at IS NULL OR ai_processed_at < datetime('now', '-30 minutes')) " +
+      "AND created_at < datetime('now', '-30 minutes')"
+    ).run();
+  } catch (err) {
+    console.error('reapStuckAiProcessing failed', err && err.message);
+  }
+}
+
 export default {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
@@ -18832,5 +18874,10 @@ export default {
     if (day === 1 && hour === 5) await generateAgingReport(env.DB);
     // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
     if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
+    // Reap stuck rows first so they re-enter the drain queue this tick.
+    await reapStuckAiProcessing(env.DB);
+    // Drain pending AI analysis on every tick. Bounded by AI_DRAIN_BATCH_SIZE; the existing
+    // 14-cron schedule means roughly 14 * BATCH photos per day = 350/day at the current setting.
+    ctx.waitUntil(drainAiBacklog(env));
   },
 };
