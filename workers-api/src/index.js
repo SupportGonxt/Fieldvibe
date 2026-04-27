@@ -18145,12 +18145,76 @@ api.post('/van-sales/bulk', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 api.get('/van-sales/cash-reconciliation', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { status, agent_id, limit = '100' } = c.req.query();
+    const limitNum = Math.min(parseInt(limit) || 100, 500);
+    let where = 'WHERE vr.tenant_id = ?';
+    const params = [tenantId];
+    if (status) { where += ' AND vr.status = ?'; params.push(status); }
+    if (agent_id) { where += ' AND vsl.agent_id = ?'; params.push(agent_id); }
+    const rows = await db.prepare(
+      "SELECT vr.*, vsl.vehicle_reg, vsl.agent_id, " +
+      "u.first_name || ' ' || u.last_name as agent_name " +
+      "FROM van_reconciliations vr " +
+      "LEFT JOIN van_stock_loads vsl ON vr.van_stock_load_id = vsl.id " +
+      "LEFT JOIN users u ON vsl.agent_id = u.id " +
+      where + ' ORDER BY vr.created_at DESC LIMIT ?'
+    ).bind(...params, limitNum).all();
+    const data = rows.results || [];
+    return c.json({ success: true, data, total: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 api.get('/van-sales/cash-reconciliation/:id', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const id = c.req.param('id');
+    const row = await db.prepare(
+      "SELECT vr.*, vsl.vehicle_reg, vsl.agent_id, vsl.warehouse_id, " +
+      "u.first_name || ' ' || u.last_name as agent_name " +
+      "FROM van_reconciliations vr " +
+      "LEFT JOIN van_stock_loads vsl ON vr.van_stock_load_id = vsl.id " +
+      "LEFT JOIN users u ON vsl.agent_id = u.id " +
+      "WHERE vr.id = ? AND vr.tenant_id = ?"
+    ).bind(id, tenantId).first();
+    if (!row) return c.json({ success: false, message: 'Cash reconciliation not found' }, 404);
+    return c.json({ success: true, data: row });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+// Persist a cash reconciliation submitted from the van-sales create flow. The form supplies
+// expected_cash/actual_cash and either van_stock_load_id or van_id; we resolve van_id to the
+// most recent active load for that van so the row joins correctly to the van_stock_loads chain.
+api.post('/van-sales/cash-reconciliation', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    let loadId = body.van_stock_load_id || body.load_id || null;
+    if (!loadId && body.van_id) {
+      const active = await db.prepare(
+        "SELECT id FROM van_stock_loads WHERE tenant_id = ? AND vehicle_reg IN (SELECT registration_number FROM vans WHERE id = ? AND tenant_id = ?) " +
+        "AND status NOT IN ('returned', 'reconciled') ORDER BY load_date DESC LIMIT 1"
+      ).bind(tenantId, body.van_id, tenantId).first();
+      loadId = active?.id || null;
+    }
+    if (!loadId) return c.json({ success: false, message: 'van_stock_load_id (or a van_id with an open load) is required' }, 400);
+    const expected = Number(body.cash_expected ?? body.expected_cash ?? 0) || 0;
+    const actual = Number(body.cash_actual ?? body.actual_cash ?? 0) || 0;
+    const variance = actual - expected;
+    const id = uuidv4();
+    await db.prepare(
+      'INSERT INTO van_reconciliations (id, tenant_id, van_stock_load_id, cash_expected, cash_actual, variance, denominations, status, notes, created_at) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))'
+    ).bind(
+      id, tenantId, loadId, expected, actual, variance,
+      body.denominations ? JSON.stringify(body.denominations) : null,
+      'pending', body.notes || null
+    ).run();
+    return c.json({ success: true, data: { id, van_stock_load_id: loadId, cash_expected: expected, cash_actual: actual, variance, status: 'pending' } }, 201);
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 api.post('/van-sales/create', authMiddleware, async (c) => {
   try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
