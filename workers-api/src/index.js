@@ -4932,26 +4932,33 @@ api.post('/invoices/create', authMiddleware, async (c) => {
   try {
     const batchStatements = [];
     let subtotal = 0;
+    let taxTotal = 0;
 
-    // Resolve items
+    // Resolve items — unit_price is treated as tax-exclusive; tax derived from products.tax_rate
     const resolvedItems = [];
     for (const item of (body.items || [])) {
       const product = await db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?').bind(item.product_id, tenantId).first();
       const unitPrice = item.unit_price || (product ? product.price : 0) || 0;
       const qty = item.quantity || 1;
       const lineTotal = unitPrice * qty;
+      const taxRate = (item.tax_rate != null) ? item.tax_rate : (product && product.tax_rate != null ? product.tax_rate : 0);
+      const lineTax = lineTotal * (taxRate / 100);
       subtotal += lineTotal;
+      taxTotal += lineTax;
       resolvedItems.push({ product_id: item.product_id, quantity: qty, unit_price: unitPrice, line_total: lineTotal });
     }
 
-    batchStatements.push(db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, order_type, status, subtotal, total_amount, payment_method, payment_status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(id, tenantId, invoiceNum, userId, body.customer_id, 'invoice', 'CONFIRMED', subtotal, subtotal, body.payment_method || 'CASH', 'PENDING', body.notes || null));
+    const discountAmount = Number(body.discount_amount) || 0;
+    const totalAmount = subtotal + taxTotal - discountAmount;
+
+    batchStatements.push(db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, agent_id, customer_id, order_type, status, subtotal, tax_amount, discount_amount, total_amount, payment_method, payment_status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"), datetime("now"))').bind(id, tenantId, invoiceNum, userId, body.customer_id, 'invoice', 'CONFIRMED', subtotal, taxTotal, discountAmount, totalAmount, body.payment_method || 'CASH', 'PENDING', body.notes || null));
 
     for (const item of resolvedItems) {
       batchStatements.push(db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?)').bind(uuidv4(), id, item.product_id, item.quantity, item.unit_price, item.line_total));
     }
 
     await db.batch(batchStatements);
-    return c.json({ success: true, data: { id, invoice_number: invoiceNum, total_amount: subtotal } }, 201);
+    return c.json({ success: true, data: { id, invoice_number: invoiceNum, subtotal, tax_amount: taxTotal, discount_amount: discountAmount, total_amount: totalAmount } }, 201);
   } catch (error) {
     return c.json({ success: false, message: 'Invoice creation failed: ' + error.message }, 500);
   }
@@ -5110,24 +5117,52 @@ api.post('/sales/returns/create', authMiddleware, async (c) => {
   const returnNum = 'RET-' + Date.now().toString(36).toUpperCase();
 
   try {
-    const batchStatements = [];
-    let totalAmount = 0;
-
-    batchStatements.push(db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, reason, status, net_credit_amount, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))').bind(returnId, tenantId, body.order_id || null, returnNum, body.reason || 'Customer return', 'PENDING', 0, userId));
-
+    // Resolve items first so we can compute totals before INSERT (single source of truth in one row).
+    let totalCreditAmount = 0;
+    let taxTotal = 0;
+    const resolvedItems = [];
     for (const item of (body.items || [])) {
       const product = await db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?').bind(item.product_id, tenantId).first();
       const unitPrice = item.unit_price || (product ? product.price : 0) || 0;
       const qty = item.quantity || 1;
-      totalAmount += unitPrice * qty;
       const lineCredit = unitPrice * qty;
-      batchStatements.push(db.prepare('INSERT INTO return_items (id, return_id, product_id, quantity, condition, unit_price, line_credit) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), returnId, item.product_id, qty, item.condition || item.reason || 'good', unitPrice, lineCredit));
+      const taxRate = (item.tax_rate != null) ? item.tax_rate : (product && product.tax_rate != null ? product.tax_rate : 0);
+      const lineTax = lineCredit * (taxRate / 100);
+      totalCreditAmount += lineCredit;
+      taxTotal += lineTax;
+      resolvedItems.push({
+        product_id: item.product_id,
+        quantity: qty,
+        condition: item.condition || item.reason || 'good',
+        unit_price: unitPrice,
+        line_credit: lineCredit,
+        original_order_item_id: item.original_order_item_id || null
+      });
     }
 
-    batchStatements.push(db.prepare('UPDATE returns SET net_credit_amount = ? WHERE id = ?').bind(totalAmount, returnId));
+    // Restock fee: accept either a flat amount or a percentage of total_credit_amount.
+    let restockFee = 0;
+    if (body.restock_fee_pct != null) {
+      restockFee = totalCreditAmount * (Number(body.restock_fee_pct) / 100);
+    } else if (body.restock_fee != null) {
+      restockFee = Number(body.restock_fee) || 0;
+    }
+    const netCreditAmount = totalCreditAmount + taxTotal - restockFee;
+
+    const batchStatements = [];
+    batchStatements.push(db.prepare('INSERT INTO returns (id, tenant_id, original_order_id, return_number, return_type, reason, status, total_credit_amount, tax_amount, restock_fee, net_credit_amount, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))').bind(
+      returnId, tenantId, body.order_id || null, returnNum,
+      body.return_type || 'PARTIAL',
+      body.reason || 'Customer return', 'PENDING',
+      totalCreditAmount, taxTotal, restockFee, netCreditAmount,
+      userId
+    ));
+    for (const item of resolvedItems) {
+      batchStatements.push(db.prepare('INSERT INTO return_items (id, return_id, product_id, quantity, condition, unit_price, line_credit, original_order_item_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), returnId, item.product_id, item.quantity, item.condition, item.unit_price, item.line_credit, item.original_order_item_id));
+    }
 
     await db.batch(batchStatements);
-    return c.json({ success: true, data: { id: returnId, return_number: returnNum, total_amount: totalAmount } }, 201);
+    return c.json({ success: true, data: { id: returnId, return_number: returnNum, total_credit_amount: totalCreditAmount, tax_amount: taxTotal, restock_fee: restockFee, net_credit_amount: netCreditAmount } }, 201);
   } catch (error) {
     return c.json({ success: false, message: 'Return creation failed: ' + error.message }, 500);
   }
