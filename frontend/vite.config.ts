@@ -30,10 +30,19 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        // Don't precache big chunks; let runtime caching handle JS lazily so first
-        // install isn't a giant download.
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // Precache only the app shell (index.html + the entry chunk + global CSS +
+        // PWA icons). Lazy route chunks are NOT precached — they're CacheFirst'd at
+        // runtime when the user first visits each route. This drops the initial PWA
+        // install from ~5MB (precaching every chunk) to ~300KB shell only.
+        globPatterns: [
+          'index.html',
+          'assets/index-*.js',
+          'assets/index-*.css',
+          'manifest.webmanifest',
+          'icon-*.png',
+          'favicon.{ico,svg}',
+        ],
+        maximumFileSizeToCacheInBytes: 1024 * 1024,
         runtimeCaching: [
           {
             // Production API origin
