@@ -26,4 +26,5 @@ export const marketingService = {
   updateActivation: (id: number | string, data: any) => api.put(`/activations/${id}`, data),
   
   getAgents: () => api.get('/field-agents'),
+  getCustomers: () => api.get('/customers'),
 }
