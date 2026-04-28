@@ -10280,11 +10280,64 @@ api.delete('/trade-marketing/campaigns/:id', authMiddleware, async (c) => {
 api.get('/trade-marketing/board-installations', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  return c.json({ data: [] });
+  const { customer_id, brand_id, status, limit = 200 } = c.req.query();
+  let where = 'WHERE bi.tenant_id = ?';
+  const params = [tenantId];
+  if (customer_id) { where += ' AND bi.customer_id = ?'; params.push(customer_id); }
+  if (brand_id) { where += ' AND bi.brand_id = ?'; params.push(brand_id); }
+  if (status) { where += ' AND bi.status = ?'; params.push(status); }
+  const limitNum = Math.min(parseInt(limit) || 200, 500);
+  const rows = await db.prepare(
+    "SELECT bi.*, c.name as customer_name, b.name as brand_name, " +
+    "u.first_name || ' ' || u.last_name as installed_by_name " +
+    "FROM board_installations bi " +
+    "LEFT JOIN customers c ON bi.customer_id = c.id " +
+    "LEFT JOIN brands b ON bi.brand_id = b.id " +
+    "LEFT JOIN users u ON bi.installed_by = u.id " +
+    where + ' ORDER BY bi.installed_at DESC, bi.created_at DESC LIMIT ?'
+  ).bind(...params, limitNum).all();
+  return c.json({ success: true, data: rows.results || [] });
 });
 
 api.post('/trade-marketing/board-installations', authMiddleware, async (c) => {
-  return c.json({ success: false, message: 'Board installation recorded' }, 201);
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  if (!body.customer_id) return c.json({ success: false, message: 'customer_id is required' }, 400);
+  const id = uuidv4();
+  await db.prepare(
+    'INSERT INTO board_installations (id, tenant_id, customer_id, visit_id, brand_id, board_type, condition, location_description, placement_position, installed_at, installed_by, photo_id, status, notes) ' +
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'active'), ?)"
+  ).bind(
+    id, tenantId, body.customer_id, body.visit_id || null, body.brand_id || null,
+    body.board_type || 'signage', body.condition || 'good',
+    body.location_description || null, body.placement_position || null,
+    body.installed_at || new Date().toISOString(),
+    body.installed_by || userId, body.photo_id || null,
+    body.status || null, body.notes || null
+  ).run();
+  return c.json({ success: true, data: { id }, message: 'Board installation recorded' }, 201);
+});
+
+api.put('/trade-marketing/board-installations/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  await db.prepare(
+    'UPDATE board_installations SET ' +
+    'condition = COALESCE(?, condition), location_description = COALESCE(?, location_description), ' +
+    'placement_position = COALESCE(?, placement_position), status = COALESCE(?, status), ' +
+    "removed_at = CASE WHEN ? = 'removed' THEN datetime('now') ELSE removed_at END, " +
+    "notes = COALESCE(?, notes), updated_at = datetime('now') " +
+    'WHERE id = ? AND tenant_id = ?'
+  ).bind(
+    body.condition || null, body.location_description || null,
+    body.placement_position || null, body.status || null, body.status || null,
+    body.notes || null, id, tenantId
+  ).run();
+  return c.json({ success: true, message: 'Board installation updated' });
 });
 
 api.get('/trade-marketing/activations', authMiddleware, async (c) => {
@@ -10314,15 +10367,55 @@ api.get('/trade-marketing/stats', authMiddleware, async (c) => {
 });
 
 api.get('/trade-marketing/promoters', authMiddleware, async (c) => {
-  return c.json({ data: [] });
+  // Promoters are users tagged with role 'promoter' or 'field_marketing'
+  // (decision doc option B). Tenant-scoped.
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const rows = await db.prepare(
+    "SELECT id, first_name, last_name, email, phone, role, status, is_active, created_at " +
+    "FROM users WHERE tenant_id = ? AND role IN ('promoter', 'field_marketing') AND COALESCE(is_active, 1) = 1 " +
+    "ORDER BY first_name, last_name"
+  ).bind(tenantId).all();
+  return c.json({ success: true, data: rows.results || [] });
 });
 
-api.delete('/trade-marketing/promoters/:id', authMiddleware, async (c) => {
-  return c.json({ success: true, message: 'Promoter removed' });
+api.delete('/trade-marketing/promoters/:id', requireRole('admin', 'manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  // Soft-deactivate: don't delete the user record, just clear the promoter role.
+  await db.prepare(
+    "UPDATE users SET role = 'agent', updated_at = datetime('now') " +
+    "WHERE id = ? AND tenant_id = ? AND role IN ('promoter', 'field_marketing')"
+  ).bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Promoter role removed' });
 });
 
 api.get('/trade-marketing/merchandising-compliance', authMiddleware, async (c) => {
-  return c.json({ data: [] });
+  // Compliance score per customer, derived from visit_photos.ai_compliance_score
+  // (decision doc option B — no separate compliance table).
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { customer_id, period_start, period_end, limit = 100 } = c.req.query();
+  let where = 'WHERE vp.tenant_id = ? AND vp.ai_compliance_score IS NOT NULL';
+  const params = [tenantId];
+  if (customer_id) { where += ' AND v.customer_id = ?'; params.push(customer_id); }
+  if (period_start) { where += ' AND vp.created_at >= ?'; params.push(period_start); }
+  if (period_end) { where += ' AND vp.created_at <= ?'; params.push(period_end); }
+  const limitNum = Math.min(parseInt(limit) || 100, 500);
+  const rows = await db.prepare(
+    'SELECT v.customer_id, c.name as customer_name, ' +
+    'COUNT(vp.id) as photos_audited, ' +
+    'AVG(vp.ai_compliance_score) as avg_compliance_score, ' +
+    'MIN(vp.ai_compliance_score) as min_score, ' +
+    'MAX(vp.ai_compliance_score) as max_score, ' +
+    'MAX(vp.created_at) as last_audited_at ' +
+    'FROM visit_photos vp ' +
+    'JOIN visits v ON vp.visit_id = v.id AND v.tenant_id = vp.tenant_id ' +
+    'LEFT JOIN customers c ON v.customer_id = c.id ' +
+    where + ' GROUP BY v.customer_id, c.name ORDER BY avg_compliance_score ASC LIMIT ?'
+  ).bind(...params, limitNum).all();
+  return c.json({ success: true, data: rows.results || [] });
 });
 
 api.get('/trade-marketing/analytics', authMiddleware, async (c) => {
@@ -15609,10 +15702,27 @@ api.get('/trade-marketing/promotions', authMiddleware, async (c) => {
 });
 
 api.get('/trade-marketing/channel-partners', authMiddleware, async (c) => {
+  // Channel partners are customers tagged with a partner_type (decision doc option B).
+  // partner_type is a free-text value at the application layer; common values include
+  // 'wholesaler', 'distributor', 'sub_distributor', 'reseller'.
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const partners = await db.prepare("SELECT * FROM customers WHERE tenant_id = ? AND customer_type = 'partner' ORDER BY name").bind(tenantId).all();
+  const { partner_type } = c.req.query();
+  let where = 'WHERE tenant_id = ? AND partner_type IS NOT NULL';
+  const params = [tenantId];
+  if (partner_type) { where += ' AND partner_type = ?'; params.push(partner_type); }
+  const partners = await db.prepare("SELECT id, name, code, partner_type, status, phone, email, address, created_at FROM customers " + where + " ORDER BY name").bind(...params).all();
   return c.json({ success: true, data: partners.results || [] });
+});
+
+api.put('/trade-marketing/channel-partners/:id', requireRole('admin', 'manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  // partner_type=null promotes a customer back to non-partner.
+  await db.prepare("UPDATE customers SET partner_type = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(body.partner_type || null, id, tenantId).run();
+  return c.json({ success: true, message: body.partner_type ? 'Channel partner updated' : 'Customer demoted from channel partner' });
 });
 
 api.get('/trade-marketing/competitor-analysis', authMiddleware, async (c) => {
