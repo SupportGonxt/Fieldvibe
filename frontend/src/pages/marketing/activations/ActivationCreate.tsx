@@ -1,108 +1,140 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import TransactionForm from '../../../components/transactions/TransactionForm'
 import { marketingService } from '../../../services/marketing.service'
 
+interface Option {
+  value: string
+  label: string
+}
+
 export default function ActivationCreate() {
   const navigate = useNavigate()
-  const [agents, setAgents] = useState([])
+  const [searchParams] = useSearchParams()
+  const [agents, setAgents] = useState<Option[]>([])
+  const [campaigns, setCampaigns] = useState<Option[]>([])
+  const [customers, setCustomers] = useState<Option[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadAgents()
+    loadOptions()
   }, [])
 
-  const loadAgents = async () => {
+  const loadOptions = async () => {
+    setLoading(true)
     try {
-      const response = await marketingService.getAgents()
-      const rawAgents = response.data?.data || response.data || []
-      setAgents(Array.isArray(rawAgents) ? rawAgents : [])
+      const [agentsRes, campaignsRes, customersRes] = await Promise.allSettled([
+        marketingService.getAgents(),
+        marketingService.getCampaigns(),
+        marketingService.getCustomers(),
+      ])
+      if (agentsRes.status === 'fulfilled') {
+        const list = agentsRes.value?.data?.data || agentsRes.value?.data || []
+        setAgents((Array.isArray(list) ? list : []).map((a: any) => ({
+          value: String(a.id),
+          label: a.name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || a.id,
+        })))
+      }
+      if (campaignsRes.status === 'fulfilled') {
+        const list = campaignsRes.value?.data?.data || campaignsRes.value?.data?.campaigns || campaignsRes.value?.data || []
+        setCampaigns((Array.isArray(list) ? list : []).map((c: any) => ({
+          value: String(c.id),
+          label: c.name || c.title || c.id,
+        })))
+      }
+      if (customersRes.status === 'fulfilled') {
+        const list = customersRes.value?.data?.data || customersRes.value?.data?.customers || customersRes.value?.data || []
+        setCustomers((Array.isArray(list) ? list : []).map((c: any) => ({
+          value: String(c.id),
+          label: c.name || c.id,
+        })))
+      }
     } catch (error) {
-      console.error('Failed to load agents:', error)
+      console.error('Failed to load activation form options:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const fields = [
     {
-      name: 'activation_code',
-      label: 'Activation Code',
-      type: 'text' as const,
-      required: true,
-      placeholder: 'e.g., ACT2025001'
-    },
-    {
-      name: 'activation_name',
+      name: 'name',
       label: 'Activation Name',
       type: 'text' as const,
       required: true,
-      placeholder: 'e.g., Store Activation - Mall of Africa'
+      placeholder: 'e.g., Mall of Africa weekend demo',
     },
     {
-      name: 'activation_type',
-      label: 'Activation Type',
+      name: 'campaign_id',
+      label: 'Campaign',
       type: 'select' as const,
       required: true,
-      options: [
-        { value: 'sampling', label: 'Product Sampling' },
-        { value: 'demonstration', label: 'Product Demonstration' },
-        { value: 'merchandising', label: 'Merchandising' },
-        { value: 'brand_visibility', label: 'Brand Visibility' },
-        { value: 'consumer_engagement', label: 'Consumer Engagement' }
-      ]
+      options: [{ value: '', label: loading ? 'Loading…' : 'Select a campaign' }, ...campaigns],
     },
     {
-      name: 'activation_date',
-      label: 'Activation Date',
-      type: 'date' as const,
-      required: true
-    },
-    {
-      name: 'location',
-      label: 'Location',
-      type: 'text' as const,
-      required: true,
-      placeholder: 'e.g., Sandton City Mall'
+      name: 'customer_id',
+      label: 'Customer / Store (optional)',
+      type: 'select' as const,
+      options: [{ value: '', label: loading ? 'Loading…' : 'No customer' }, ...customers],
     },
     {
       name: 'agent_id',
       label: 'Assigned Agent',
       type: 'select' as const,
-      required: true,
-      options: agents.map((a: any) => ({
-        value: a.id.toString(),
-        label: a.name
-      }))
+      options: [{ value: '', label: loading ? 'Loading…' : 'Assign later' }, ...agents],
     },
     {
-      name: 'description',
-      label: 'Activation Description',
-      type: 'textarea' as const,
-      required: true,
-      placeholder: 'Describe the activation activities...'
+      name: 'location_description',
+      label: 'Location',
+      type: 'text' as const,
+      placeholder: 'e.g., Sandton City Mall, ground floor',
     },
     {
-      name: 'notes',
-      label: 'Notes',
-      type: 'textarea' as const,
-      placeholder: 'Add activation notes...'
-    }
+      name: 'scheduled_start',
+      label: 'Scheduled Start',
+      type: 'date' as const,
+      required: true,
+    },
+    {
+      name: 'scheduled_end',
+      label: 'Scheduled End',
+      type: 'date' as const,
+    },
   ]
 
+  // Prefill from query params (e.g. ?brand_id=... is unused server-side but ?campaign_id= is honoured).
+  const initialData = (() => {
+    const v: Record<string, any> = {}
+    const cid = searchParams.get('campaign_id')
+    if (cid) v.campaign_id = cid
+    return v
+  })()
+
   const handleSubmit = async (data: any) => {
+    // Strip empty strings so the backend's COALESCE / nullable defaults take effect.
+    const payload: Record<string, any> = {}
+    for (const [k, val] of Object.entries(data)) {
+      if (val !== '' && val != null) payload[k] = val
+    }
+    if (!payload.campaign_id) {
+      throw new Error('Campaign is required')
+    }
     try {
-      await marketingService.createActivation(data)
+      await marketingService.createActivation(payload)
       navigate('/marketing/activations')
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to create activation')
+      throw new Error(error?.response?.data?.message || error?.message || 'Failed to create activation')
     }
   }
 
   return (
     <TransactionForm
-      title="Create Marketing Activation"
+      title="Schedule Brand Activation"
       fields={fields}
+      initialData={initialData}
       onSubmit={handleSubmit}
       onCancel={() => navigate('/marketing/activations')}
-      submitLabel="Create Activation"
+      submitLabel="Schedule Activation"
     />
   )
 }
