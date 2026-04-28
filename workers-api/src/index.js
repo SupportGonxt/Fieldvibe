@@ -5276,18 +5276,27 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const role = c.get('role');
   const userId = c.get('userId');
-  const { page = '1', limit = '20', status, agent_id, date, visit_type, company_id, team_lead_id } = c.req.query();
+  const { page = '1', limit = '20', status, agent_id, date, visit_type, company_id } = c.req.query();
   const offset = (parseInt(page) - 1) * parseInt(limit);
   let where = 'WHERE v.tenant_id = ?';
   const params = [tenantId];
-  if (role === 'agent' || role === 'field_agent' || role === 'sales_rep') { where += ' AND v.agent_id = ?'; params.push(userId); }
-  if (status) { where += ' AND v.status = ?'; params.push(status); }
-  if (team_lead_id) {
-    where += ' AND v.agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1)';
-    params.push(tenantId, team_lead_id);
-  } else if (agent_id) {
-    where += ' AND v.agent_id = ?'; params.push(agent_id === 'me' ? userId : agent_id);
+  if (role === 'agent' || role === 'field_agent' || role === 'sales_rep') {
+    // Agents always see only their own visits
+    where += ' AND v.agent_id = ?'; params.push(userId);
+  } else if (role === 'team_lead') {
+    if (agent_id && agent_id !== 'me') {
+      // Team lead drilling into a specific agent's visits
+      where += ' AND v.agent_id = ?'; params.push(agent_id);
+    } else {
+      // Team lead overview (agent_id absent or "me"): show all agents assigned to this team lead
+      where += ' AND v.agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1)';
+      params.push(tenantId, userId);
+    }
+  } else if (agent_id && agent_id !== 'me') {
+    // Manager/admin viewing a specific agent
+    where += ' AND v.agent_id = ?'; params.push(agent_id);
   }
+  if (status) { where += ' AND v.status = ?'; params.push(status); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
   if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
   if (company_id) { where += ' AND v.company_id = ?'; params.push(company_id); }
