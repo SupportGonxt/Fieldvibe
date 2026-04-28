@@ -5,22 +5,29 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { vanSalesService } from '../../../services/van-sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 
+const STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  closed: 'bg-blue-100 text-blue-800',
+  approved: 'bg-green-100 text-green-800',
+  reconciled: 'bg-green-100 text-green-800',
+}
+
 export default function CashReconciliationList() {
   const navigate = useNavigate()
-  const [reconciliations, setReconciliations] = useState([])
+  const [reconciliations, setReconciliations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadReconciliations()
-  }, [])
+  useEffect(() => { loadReconciliations() }, [])
 
   const loadReconciliations = async () => {
     setLoading(true)
     try {
       const response = await vanSalesService.getCashReconciliations()
-      setReconciliations(Array.isArray(response.data) ? response.data : (response.data?.data || []))
+      const list = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || [])
+      setReconciliations(Array.isArray(list) ? list : [])
     } catch (error) {
       console.error('Failed to load reconciliations:', error)
+      setReconciliations([])
     } finally {
       setLoading(false)
     }
@@ -28,72 +35,70 @@ export default function CashReconciliationList() {
 
   const columns = [
     {
-      key: 'reconciliation_number',
-      label: 'Reconciliation #',
+      key: 'id',
+      label: 'Reconciliation ID',
       sortable: true,
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/van-sales/cash-reconciliation/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium"
+          className="text-primary-600 hover:text-primary-800 font-medium text-xs"
         >
-          {value}
+          {String(value || '').slice(0, 8)}…
         </button>
-      )
+      ),
     },
     {
-      key: 'reconciliation_date',
+      key: 'created_at',
       label: 'Date',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: string) => (value ? formatDate(value) : '—'),
     },
     {
-      key: 'van_number',
+      key: 'vehicle_reg',
       label: 'Van',
-      sortable: true
+      sortable: true,
+      render: (value: string) => value || '—',
     },
     {
-      key: 'driver_name',
-      label: 'Driver',
-      sortable: true
+      key: 'agent_name',
+      label: 'Agent',
+      sortable: true,
+      render: (value: string) => value || '—',
     },
     {
-      key: 'expected_cash',
+      key: 'cash_expected',
       label: 'Expected',
       sortable: true,
-      render: (value: number) => formatCurrency(value)
+      render: (value: number, row: any) => formatCurrency(Number(value ?? row.expected_cash ?? 0)),
     },
     {
-      key: 'actual_cash',
+      key: 'cash_actual',
       label: 'Actual',
       sortable: true,
-      render: (value: number) => formatCurrency(value)
+      render: (value: number, row: any) => formatCurrency(Number(value ?? row.actual_cash ?? 0)),
     },
     {
       key: 'variance',
       label: 'Variance',
       sortable: true,
-      render: (value: number) => (
-        <span className={value !== 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
-          {formatCurrency(value)}
-        </span>
-      )
+      render: (value: number) => {
+        const v = Number(value || 0)
+        return (
+          <span className={v !== 0 ? (v < 0 ? 'text-red-600 font-medium' : 'text-amber-700 font-medium') : 'text-green-600'}>
+            {formatCurrency(v)}
+          </span>
+        )
+      },
     },
     {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: string) => {
-        const colors: Record<string, string> = {
-          pending: 'bg-yellow-100 text-yellow-800',
-          reconciled: 'bg-green-100 text-green-800',
-          variance: 'bg-red-100 text-red-800'
-        }
-        return (
-          <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[value] || colors.pending}`}>
-            {value}
-          </span>
-        )
-      }
+      render: (value: string) => (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${STATUS_COLORS[value] || 'bg-gray-100 text-gray-800'}`}>
+          {String(value || '').toLowerCase()}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -106,8 +111,8 @@ export default function CashReconciliationList() {
         >
           <Eye className="w-4 h-4" />
         </button>
-      )
-    }
+      ),
+    },
   ]
 
   return (
