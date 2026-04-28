@@ -45,7 +45,7 @@ export default function AgentVisits() {
     try {
       const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Visits timeout')), 15000))
       const visitsUrl = user?.role === 'team_lead'
-        ? '/field-operations/visits?limit=200'
+        ? `/field-operations/visits?limit=200&team_lead_id=${user.id}`
         : '/field-operations/visits?limit=100&agent_id=me'
       const visitsPromise = apiClient.get(visitsUrl, { signal })
       const rejectedPromise = photoReviewService.getNeedsReupload().catch(() => [])

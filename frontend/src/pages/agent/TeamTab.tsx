@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield, Store, AlertCircle } from 'lucide-react'
+import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield, Store, AlertCircle } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 
 type Period = 'day' | 'week' | 'month' | 'prior_month'
@@ -493,7 +493,10 @@ export default function TeamTab() {
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
                         {(agent.rejected_photos || 0) > 0 && (
-                          <span className="flex-shrink-0 flex items-center gap-0.5 bg-red-500/20 border border-red-500/30 rounded-full px-1.5 py-0.5">
+                          <span
+                            onClick={(e) => { e.stopPropagation(); navigate(`/agent/agent-detail/${agent.id}?filter=rejected_photos`) }}
+                            className="flex-shrink-0 flex items-center gap-0.5 bg-red-500/20 border border-red-500/30 rounded-full px-1.5 py-0.5 cursor-pointer"
+                          >
                             <AlertCircle className="w-2.5 h-2.5 text-red-400" />
                             <span className="text-[9px] font-bold text-red-400">{agent.rejected_photos}</span>
                           </span>
