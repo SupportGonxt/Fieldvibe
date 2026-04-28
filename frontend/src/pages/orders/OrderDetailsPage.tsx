@@ -62,6 +62,9 @@ export default function OrderDetailsPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
   const [availableTransitions, setAvailableTransitions] = useState<Array<{ status: string; label: string }>>([])
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelTargetStatus, setCancelTargetStatus] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
   const [statusHistory, setStatusHistory] = useState<any[]>([])
   const [transitioning, setTransitioning] = useState(false)
 
@@ -190,11 +193,21 @@ export default function OrderDetailsPage() {
   const handleDownload = () => {
   }
 
-  const updateOrderStatus = async (newStatus: string) => {
+  const updateOrderStatus = async (newStatus: string, providedNotes?: string) => {
     if (!id || transitioning) return
+    // Cancel transitions: collect a reason from the user; the backend uses it to
+    // tag the audit log entry and the auto-reversal reason on every commission tied
+    // to this order. Skip the prompt when a reason is already supplied.
+    const isCancel = newStatus.toLowerCase().includes('cancel') || newStatus.toLowerCase().includes('reject')
+    if (isCancel && providedNotes == null) {
+      setCancelTargetStatus(newStatus)
+      setCancelReason('')
+      setShowCancelModal(true)
+      return
+    }
     try {
       setTransitioning(true)
-      const result = await ordersService.transitionOrderStatus(id, newStatus)
+      const result = await ordersService.transitionOrderStatus(id, newStatus, providedNotes)
       setOrder({ ...order!, status: result.new_status as any })
       setAvailableTransitions(result.allowed_transitions?.map((s: string) => ({ status: s, label: s.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) })) || [])
       await loadStatusHistory()
@@ -591,6 +604,55 @@ export default function OrderDetailsPage() {
               </div>
               <button onClick={() => toast.success('Delivery note download started')} className="btn btn-secondary flex items-center gap-2">
                 <Download className="w-4 h-4" /> Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelModal && cancelTargetStatus && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="text-lg font-medium text-gray-900">Cancel order</h3>
+              <button
+                onClick={() => { setShowCancelModal(false); setCancelTargetStatus(null); setCancelReason('') }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Cancelling this order will return stock to inventory and auto-reverse any commissions tied to it. The reason is recorded on the audit log and on every reversed commission.
+            </p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Reason for cancellation (required)"
+              className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 mb-4"
+              rows={4}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowCancelModal(false); setCancelTargetStatus(null); setCancelReason('') }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Keep order
+              </button>
+              <button
+                onClick={() => {
+                  if (!cancelReason.trim() || !cancelTargetStatus) return
+                  const status = cancelTargetStatus
+                  const note = cancelReason.trim()
+                  setShowCancelModal(false)
+                  setCancelTargetStatus(null)
+                  setCancelReason('')
+                  updateOrderStatus(status, note)
+                }}
+                disabled={!cancelReason.trim() || transitioning}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {transitioning ? 'Cancelling…' : 'Cancel order'}
               </button>
             </div>
           </div>

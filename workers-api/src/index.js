@@ -10773,17 +10773,18 @@ api.put('/sales/orders/:id/status', requireRole('admin', 'manager'), async (c) =
     // negative-amount audit row). Mirrors the behaviour of /sales-orders/:id/cancel so both cancel
     // paths produce the same commission ledger.
     try {
+      const cancelReason = 'Auto: order cancelled' + ((reason && String(reason).trim()) ? ' — ' + String(reason).trim() : '');
       const earnings = await db.prepare("SELECT id, earner_id, source_type, source_id, rule_id, rate, base_amount, amount, status FROM commission_earnings WHERE tenant_id = ? AND source_id = ? AND status IN ('pending', 'disputed', 'approved', 'paid')").bind(tenantId, id).all();
       for (const e of (earnings.results || [])) {
         if (e.status === 'pending' || e.status === 'disputed') {
-          await db.prepare("UPDATE commission_earnings SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind('Auto: order cancelled', userId, e.id, tenantId).run();
+          await db.prepare("UPDATE commission_earnings SET status = 'rejected', rejection_reason = ?, approved_by = ?, approved_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(cancelReason, userId, e.id, tenantId).run();
         } else {
           const reversalId = uuidv4();
           await db.batch([
             db.prepare("INSERT INTO commission_earnings (id, tenant_id, earner_id, source_type, source_id, rule_id, rate, base_amount, amount, status, reversal_of, reversal_reason, reversed_by, reversed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'reversed', ?, ?, ?, datetime('now'), datetime('now'))").bind(
-              reversalId, tenantId, e.earner_id, e.source_type, e.source_id, e.rule_id, e.rate, e.base_amount, -Math.abs(e.amount || 0), e.id, 'Auto: order cancelled', userId
+              reversalId, tenantId, e.earner_id, e.source_type, e.source_id, e.rule_id, e.rate, e.base_amount, -Math.abs(e.amount || 0), e.id, cancelReason, userId
             ),
-            db.prepare("UPDATE commission_earnings SET status = 'reversed', reversal_reason = ?, reversed_by = ?, reversed_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind('Auto: order cancelled', userId, e.id, tenantId)
+            db.prepare("UPDATE commission_earnings SET status = 'reversed', reversal_reason = ?, reversed_by = ?, reversed_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(cancelReason, userId, e.id, tenantId)
           ]);
         }
       }
