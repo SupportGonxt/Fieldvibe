@@ -66,20 +66,23 @@ const queryClient = new QueryClient({
 // vite.config.ts means VitePWA does not auto-inject; we control timing here.
 // Wrapped in load+idle so it never delays first interactive frame.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // Snapshot whether the page is ALREADY controlled by an SW before we
+  // register. If it isn't (first-ever install), the controllerchange that
+  // clientsClaim fires is benign — we must NOT reload, or we'd wipe whatever
+  // the user is typing (especially on the login form).
+  const hadControllerOnLoad = !!navigator.serviceWorker.controller
+
   const register = () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
-      // Reload the tab when a brand-new SW takes control. With skipWaiting+
-      // clientsClaim in the SW, this happens shortly after a new deploy. The
-      // listener fires once per controller change (i.e. once per upgrade),
-      // not on the very first install — `controller` was null until then.
       let refreshing = false
       navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // Only reload on a genuine update (post-deploy), not on first install.
+        if (!hadControllerOnLoad) return
         if (refreshing) return
         refreshing = true
         window.location.reload()
       })
-      // Optional: poll for SW updates every hour for users who keep the tab
-      // open all day.
+      // Poll for SW updates every hour for users who keep the tab open all day.
       if (reg && reg.update) {
         setInterval(() => { try { reg.update() } catch (_) { /* ignore */ } }, 60 * 60 * 1000)
       }
