@@ -333,11 +333,44 @@ class CommissionsService {
     }
   }
 
+  async approveCommissionEarning(id: string): Promise<void> {
+    try {
+      await apiClient.put(`/commission-earnings/${id}/approve`)
+    } catch (error) {
+      console.error('Failed to approve commission earning:', error)
+      throw error
+    }
+  }
+
+  async rejectCommissionEarning(id: string, reason: string): Promise<void> {
+    try {
+      await apiClient.put(`/commission-earnings/${id}/reject`, { reason })
+    } catch (error) {
+      console.error('Failed to reject commission earning:', error)
+      throw error
+    }
+  }
+
   async reverseCommissionEarning(id: string, reason: string): Promise<void> {
     try {
       await apiClient.post(`/commission-earnings/${id}/reverse`, { reason })
     } catch (error) {
       console.error('Failed to reverse commission earning:', error)
+      throw error
+    }
+  }
+
+  async listCommissionEarnings(params: { status?: string; earner_id?: string; limit?: number; page?: number } = {}): Promise<{ earnings: any[]; total: number; totalAmount: number }> {
+    try {
+      const response = await apiClient.get('/commission-earnings', { params })
+      const data = response.data?.data || {}
+      return {
+        earnings: data.earnings || [],
+        total: data.pagination?.total || 0,
+        totalAmount: data.totalAmount || 0,
+      }
+    } catch (error) {
+      console.error('Failed to list commission earnings:', error)
       throw error
     }
   }

@@ -118,6 +118,7 @@ const CommissionLedgerDetail = lazyWithRetry(() => import('./pages/field-operati
 const CommissionLedgerList = lazyWithRetry(() => import('./pages/field-operations/commission-ledger/CommissionLedgerList'))
 const CommissionPaymentPage = lazyWithRetry(() => import('./pages/commissions/CommissionPaymentPage').then(m => ({ default: m.CommissionPaymentPage })))
 const MyCommissionEarningsPage = lazyWithRetry(() => import('./pages/commissions/MyCommissionEarningsPage'))
+const CommissionDisputesPage = lazyWithRetry(() => import('./pages/commissions/CommissionDisputesPage'))
 const CommissionPayoutDetail = lazyWithRetry(() => import('./pages/finance/commission-payouts/CommissionPayoutDetail'))
 const CommissionPayoutsList = lazyWithRetry(() => import('./pages/finance/commission-payouts/CommissionPayoutsList'))
 const CommissionReportsPage = lazyWithRetry(() => import('./pages/commissions/CommissionReportsPage').then(m => ({ default: m.CommissionReportsPage })))
@@ -801,6 +802,7 @@ function App() {
             {/* Commission Routes */}
             <Route path="commissions" element={<PageLoader><CommissionDashboardPage /></PageLoader>} />
             <Route path="commissions/my" element={<PageLoader><MyCommissionEarningsPage /></PageLoader>} />
+            <Route path="commissions/disputes" element={<PageLoader><CommissionDisputesPage /></PageLoader>} />
             <Route path="commissions/create" element={<PageLoader><CommissionCreate /></PageLoader>} />
             <Route path="commissions/:id" element={<PageLoader><CommissionDetail /></PageLoader>} />
             <Route path="commissions/:id/edit" element={<PageLoader><CommissionEdit /></PageLoader>} />
