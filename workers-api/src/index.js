@@ -5281,6 +5281,10 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   let where = 'WHERE v.tenant_id = ?';
   const params = [tenantId];
   if (role === 'agent') { where += ' AND v.agent_id = ?'; params.push(userId); }
+  if (role === 'team_lead' && !agent_id) {
+    where += ' AND v.agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND (team_lead_id = ? OR id = ?) AND is_active = 1)';
+    params.push(tenantId, userId, userId);
+  }
   if (status) { where += ' AND v.status = ?'; params.push(status); }
   if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id === 'me' ? userId : agent_id); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }

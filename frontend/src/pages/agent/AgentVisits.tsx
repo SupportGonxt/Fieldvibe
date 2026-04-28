@@ -3,6 +3,7 @@ import { photoReviewService } from '../../services/insights.service'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
 import { toast } from 'react-hot-toast'
 
 interface Visit {
@@ -24,6 +25,7 @@ interface Visit {
 
 export default function AgentVisits() {
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
   const [searchParams] = useSearchParams()
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,7 +44,10 @@ export default function AgentVisits() {
     setError(false)
     try {
       const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Visits timeout')), 15000))
-      const visitsPromise = apiClient.get('/field-operations/visits?limit=100&agent_id=me', { signal })
+      const visitsUrl = user?.role === 'team_lead'
+        ? '/field-operations/visits?limit=200'
+        : '/field-operations/visits?limit=100&agent_id=me'
+      const visitsPromise = apiClient.get(visitsUrl, { signal })
       const rejectedPromise = photoReviewService.getNeedsReupload().catch(() => [])
       const [res, rejectedRes] = await Promise.all([Promise.race([visitsPromise, timeoutPromise]), rejectedPromise])
       const json = (res as any).data
@@ -82,7 +87,7 @@ export default function AgentVisits() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user?.role])
 
   useEffect(() => {
     const abortController = new AbortController()
