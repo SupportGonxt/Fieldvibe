@@ -1,7 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+// vite-plugin-pwa intentionally not imported. The autoUpdate workbox SW we
+// deployed earlier today appears to be breaking field-ops login. Until that's
+// diagnosed properly, we ship a no-op SW from /public/sw.js that unregisters
+// itself, so any browser still holding the previous SW gets cleaned up.
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -9,114 +12,8 @@ export default defineConfig({
   // Do NOT override VITE_* env vars in the define block - let Vite handle them
   plugins: [
     react(),
-    // PWA: silent auto-update.
-    // - registerType 'autoUpdate' + skipWaiting + clientsClaim = new SW activates on
-    //   the next page load with no user prompt (per user preference).
-    // - cleanupOutdatedCaches sweeps stale precache entries each activation, which
-    //   addresses the original "stale cache" concern that led to the SW being disabled.
-    // - API requests use NetworkFirst with a 10s timeout so spotty mobile networks
-    //   fall back to cache instead of spinning. Cache TTL on API is 5 min — short
-    //   enough that data feels fresh, long enough to survive a brief drop.
-    // - Static JS/CSS/fonts are CacheFirst (immutable hashed filenames).
-    // - Images are CacheFirst with a 7-day TTL and a 200-entry cap so the cache
-    //   doesn't grow unbounded for agents who upload lots of photos.
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'fieldvibe-icon.svg'],
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
-        // Precache only the app shell (index.html + the entry chunk + global CSS +
-        // PWA icons). Lazy route chunks are NOT precached — they're CacheFirst'd at
-        // runtime when the user first visits each route. This drops the initial PWA
-        // install from ~5MB (precaching every chunk) to ~300KB shell only.
-        globPatterns: [
-          'index.html',
-          'assets/index-*.js',
-          'assets/index-*.css',
-          'manifest.webmanifest',
-          'icon-*.png',
-          'favicon.{ico,svg}',
-        ],
-        maximumFileSizeToCacheInBytes: 1024 * 1024,
-        runtimeCaching: [
-          {
-            // Production API origin
-            urlPattern: ({ url }) => url.origin === 'https://fieldvibe-api.vantax.co.za' && url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 10,
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 5 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Same-origin /api/* (covers preview env and reverse-proxied dev)
-            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 10,
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 5 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Image / photo R2 fetches (admin photo review etc.) — long cache, capped.
-            urlPattern: /\.(?:png|jpe?g|gif|webp|svg)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'image-cache',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /\.(?:js|css|woff2?)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
-      manifest: {
-        name: 'FieldVibe',
-        short_name: 'FieldVibe',
-        description: 'Field Operations & Sales Intelligence Platform',
-        theme_color: '#0A0F1C',
-        background_color: '#ffffff',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
-        icons: [
-          { src: '/icon-72x72.png',   sizes: '72x72',   type: 'image/png' },
-          { src: '/icon-96x96.png',   sizes: '96x96',   type: 'image/png' },
-          { src: '/icon-128x128.png', sizes: '128x128', type: 'image/png' },
-          { src: '/icon-144x144.png', sizes: '144x144', type: 'image/png' },
-          { src: '/icon-152x152.png', sizes: '152x152', type: 'image/png' },
-          { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: '/icon-384x384.png', sizes: '384x384', type: 'image/png' },
-          { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-        ],
-      },
-    }),
+    // PWA disabled (kill switch). See public/sw.js for the no-op SW that replaces
+    // the previous workbox SW and unregisters itself.
   ],
   resolve: {
     alias: {
