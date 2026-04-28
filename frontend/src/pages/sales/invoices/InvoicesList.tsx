@@ -5,24 +5,36 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { salesService } from '../../../services/sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 
+const STATUS_COLORS: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-800',
+  CONFIRMED: 'bg-blue-100 text-blue-800',
+  PROCESSING: 'bg-blue-100 text-blue-800',
+  COMPLETED: 'bg-green-100 text-green-800',
+  CANCELLED: 'bg-gray-200 text-gray-800',
+}
+const PAYMENT_COLORS: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  PARTIAL: 'bg-amber-100 text-amber-800',
+  PAID: 'bg-green-100 text-green-800',
+}
+
 export default function InvoicesList() {
   const navigate = useNavigate()
-  const [invoices, setInvoices] = useState([])
+  const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadInvoices()
-  }, [])
+  useEffect(() => { loadInvoices() }, [])
 
   const loadInvoices = async () => {
     setLoading(true)
     try {
       const response = await salesService.getInvoices()
-      // API returns { success: true, data: [...] }, axios wraps it in response.data
-      const invoices = response.data?.data || response.data?.invoices || response.data || []
-      setInvoices(Array.isArray(invoices) ? invoices : [])
+      const list = response.data?.data || response.data?.invoices || response.data || []
+      setInvoices(Array.isArray(list) ? list : [])
     } catch (error) {
       console.error('Failed to load invoices:', error)
+      setInvoices([])
     } finally {
       setLoading(false)
     }
@@ -30,7 +42,7 @@ export default function InvoicesList() {
 
   const columns = [
     {
-      key: 'invoice_number',
+      key: 'order_number',
       label: 'Invoice #',
       sortable: true,
       render: (value: string, row: any) => (
@@ -38,56 +50,54 @@ export default function InvoicesList() {
           onClick={() => navigate(`/sales/invoices/${row.id}`)}
           className="text-primary-600 hover:text-primary-800 font-medium"
         >
-          {value}
+          {value || row.invoice_number || '—'}
         </button>
-      )
+      ),
     },
     {
-      key: 'invoice_date',
-      label: 'Date',
+      key: 'created_at',
+      label: 'Issued',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: string) => (value ? formatDate(value) : '—'),
     },
+    { key: 'customer_name', label: 'Customer', sortable: true },
     {
-      key: 'customer_name',
-      label: 'Customer',
-      sortable: true
-    },
-    {
-      key: 'order_number',
-      label: 'Order #',
-      sortable: true
-    },
-    {
-      key: 'invoice_amount',
-      label: 'Amount',
+      key: 'subtotal',
+      label: 'Subtotal',
       sortable: true,
-      render: (value: number) => formatCurrency(value)
+      render: (value: number) => formatCurrency(Number(value || 0)),
     },
     {
-      key: 'due_date',
-      label: 'Due Date',
+      key: 'tax_amount',
+      label: 'Tax',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: number) => formatCurrency(Number(value || 0)),
+    },
+    {
+      key: 'total_amount',
+      label: 'Total',
+      sortable: true,
+      render: (value: number, row: any) => formatCurrency(Number(value ?? row.invoice_amount ?? 0)),
     },
     {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: string) => {
-        const colors: Record<string, string> = {
-          draft: 'bg-gray-100 text-gray-800',
-          sent: 'bg-blue-100 text-blue-800',
-          paid: 'bg-green-100 text-green-800',
-          overdue: 'bg-red-100 text-red-800',
-          cancelled: 'bg-gray-100 text-gray-800'
-        }
-        return (
-          <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[value] || colors.draft}`}>
-            {value}
-          </span>
-        )
-      }
+      render: (value: string) => (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${STATUS_COLORS[value] || 'bg-gray-100 text-gray-800'}`}>
+          {String(value || '').toLowerCase()}
+        </span>
+      ),
+    },
+    {
+      key: 'payment_status',
+      label: 'Payment',
+      sortable: true,
+      render: (value: string) => (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${PAYMENT_COLORS[value] || 'bg-gray-100 text-gray-800'}`}>
+          {String(value || '').toLowerCase()}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -100,8 +110,8 @@ export default function InvoicesList() {
         >
           <Eye className="w-4 h-4" />
         </button>
-      )
-    }
+      ),
+    },
   ]
 
   return (

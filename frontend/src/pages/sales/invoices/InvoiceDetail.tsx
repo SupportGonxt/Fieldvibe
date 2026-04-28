@@ -8,22 +8,28 @@ import { salesService } from '../../../services/sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import type { DocumentData } from '../../../utils/pdf/document-generator'
 
+const STATUS_COLOR: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
+  draft: 'gray',
+  CONFIRMED: 'yellow',
+  PROCESSING: 'yellow',
+  COMPLETED: 'green',
+  CANCELLED: 'gray',
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams()
   const [invoice, setInvoice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadInvoice()
-  }, [id])
+  useEffect(() => { loadInvoice() }, [id])
 
   const loadInvoice = async () => {
     setLoading(true)
     setError(null)
     try {
       const response = await salesService.getInvoice(String(id))
-      setInvoice(response.data)
+      setInvoice(response.data?.data || response.data)
     } catch (err: any) {
       console.error('Failed to load invoice:', err)
       setError(err.message || 'Failed to load invoice details')
@@ -39,67 +45,53 @@ export default function InvoiceDetail() {
       </div>
     )
   }
-
   if (error) {
     return <ErrorState title="Failed to load invoice" message={error} onRetry={loadInvoice} />
   }
-
   if (!invoice) {
     return <ErrorState title="Invoice not found" message="The invoice you are looking for does not exist or has been deleted." />
   }
 
-  const fields = [
-    { label: 'Invoice Number', value: invoice.invoice_number },
-    { label: 'Invoice Date', value: formatDate(invoice.invoice_date) },
-    { label: 'Customer', value: invoice.customer_name },
-    { label: 'Order Number', value: invoice.order_number },
-    { label: 'Invoice Amount', value: formatCurrency(invoice.invoice_amount) },
-    { label: 'Due Date', value: formatDate(invoice.due_date) },
-    { label: 'Status', value: invoice.status },
-    { label: 'Payment Status', value: invoice.payment_status },
-    { label: 'Amount Paid', value: formatCurrency(invoice.amount_paid || 0) },
-    { label: 'Balance Due', value: formatCurrency(invoice.balance_due || invoice.invoice_amount) },
-    { label: 'Notes', value: invoice.notes },
-    { label: 'Created By', value: invoice.created_by },
-    { label: 'Created At', value: formatDate(invoice.created_at) }
-  ]
+  const subtotal = Number(invoice.subtotal ?? 0)
+  const tax = Number(invoice.tax_amount ?? 0)
+  const discount = Number(invoice.discount_amount ?? 0)
+  const total = Number(invoice.total_amount ?? invoice.invoice_amount ?? subtotal + tax - discount)
+  const status: string = invoice.status || ''
+  const paymentStatus: string = invoice.payment_status || 'pending'
 
-  const statusColor = {
-    draft: 'gray',
-    sent: 'blue',
-    paid: 'green',
-    overdue: 'red',
-    cancelled: 'gray'
-  }[invoice.status] as 'green' | 'yellow' | 'red' | 'gray'
+  const fields = [
+    { label: 'Invoice / Order #', value: invoice.order_number || invoice.invoice_number || '—' },
+    { label: 'Issued', value: invoice.created_at ? formatDate(invoice.created_at) : '—' },
+    { label: 'Customer', value: invoice.customer_name || '—' },
+    { label: 'Subtotal', value: formatCurrency(subtotal) },
+    { label: 'Tax', value: formatCurrency(tax) },
+    { label: 'Discount', value: discount ? `-${formatCurrency(discount)}` : formatCurrency(0) },
+    { label: 'Total', value: formatCurrency(total) },
+    { label: 'Status', value: String(status).toLowerCase() },
+    { label: 'Payment Status', value: String(paymentStatus).toLowerCase() },
+    { label: 'Payment Method', value: invoice.payment_method || '—' },
+    { label: 'Notes', value: invoice.notes || '—' },
+  ]
 
   const documentData: DocumentData = {
     type: 'invoice',
-    number: invoice.invoice_number || `INV-${id}`,
-    date: invoice.invoice_date || new Date().toISOString(),
-    due_date: invoice.due_date,
-    status: invoice.status,
+    number: invoice.order_number || invoice.invoice_number || `INV-${id}`,
+    date: invoice.created_at || new Date().toISOString(),
+    status,
     company: { name: 'Fieldvibe', email: 'sales@fieldvibe.com' },
-    customer: {
-      name: invoice.customer_name || 'Customer',
-      address: invoice.customer_address,
-      phone: invoice.customer_phone,
-      email: invoice.customer_email,
-    },
+    customer: { name: invoice.customer_name || 'Customer' },
     items: (invoice.items || []).map((item: any) => ({
       description: item.product_name || item.description || 'Item',
       sku: item.sku || item.product_code,
       quantity: item.quantity || 0,
       unit_price: item.unit_price || 0,
-      discount: item.discount,
-      tax: item.tax,
-      total: item.total || (item.quantity || 0) * (item.unit_price || 0),
+      total: item.line_total ?? item.total ?? (item.quantity || 0) * (item.unit_price || 0),
     })),
-    subtotal: invoice.subtotal || invoice.invoice_amount || 0,
-    tax_total: invoice.tax_total || 0,
-    discount_total: invoice.discount_total,
-    total: invoice.invoice_amount || 0,
+    subtotal,
+    tax_total: tax,
+    discount_total: discount || undefined,
+    total,
     notes: invoice.notes,
-    payment_terms: invoice.payment_terms,
   }
 
   return (
@@ -108,12 +100,12 @@ export default function InvoiceDetail() {
         <DocumentActions documentData={documentData} />
       </div>
       <TransactionDetail
-        title={`Invoice ${invoice.invoice_number}`}
+        title={`Invoice ${invoice.order_number || invoice.invoice_number || ''}`}
         fields={fields}
         auditTrail={invoice.audit_trail || []}
         backPath="/sales/invoices"
-        status={invoice.status}
-        statusColor={statusColor}
+        status={status}
+        statusColor={STATUS_COLOR[status] || 'gray'}
       />
     </div>
   )

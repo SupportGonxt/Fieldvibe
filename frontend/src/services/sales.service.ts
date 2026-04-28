@@ -37,8 +37,13 @@ export const salesService = {
   getCreditNotes: () => api.get('/credit-notes/list'),
   getCreditNote: (id: string) => api.get(`/credit-notes/${id}`),
   createCreditNote: (data: any) => api.post('/credit-notes/create', data),
-  transitionCreditNote: (id: string, new_status: string, notes?: string) => 
+  transitionCreditNote: (id: string, new_status: string, notes?: string) =>
     api.post(`/credit-notes/${id}/transition`, { new_status, notes }),
+  // Apply: optional `amount` lets caller choose how much of the credit to apply against the order.
+  // Without it, backend applies min(remaining_balance, order_outstanding).
+  applyCreditNote: (id: string, order_id: string, amount?: number) =>
+    api.post(`/credit-notes/${id}/apply`, amount != null ? { order_id, amount } : { order_id }),
+  voidCreditNote: (id: string) => api.put(`/credit-notes/${id}/void`),
   
   // Returns - use authoritative endpoints with server-side pricing
   getReturns: () => api.get('/sales/returns'),
