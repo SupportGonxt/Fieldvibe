@@ -198,23 +198,30 @@ class VanSalesService extends ApiService {
     return response.data.data || response.data
   }
 
+  // Van CRUD lives at /vans (not /van-sales/vans) — those are the real endpoints
+  // backed by the `vans` table. /van-sales/vans is the list view used by drop-downs.
   async getVan(id: string) {
-    const response = await this.get(`${this.baseUrl}/vans/${id}`)
+    const response = await this.get(`/vans/${id}`)
     return response.data.data || response.data
   }
 
   async createVan(van: Partial<Van>) {
-    const response = await this.post(`${this.baseUrl}/vans`, van)
+    const response = await this.post(`/vans`, van)
     return response.data.data || response.data
   }
 
   async updateVan(id: string, van: Partial<Van>) {
-    const response = await this.put(`${this.baseUrl}/vans/${id}`, van)
+    const response = await this.put(`/vans/${id}`, van)
     return response.data.data || response.data
   }
 
   async deleteVan(id: string) {
-    const response = await this.delete(`${this.baseUrl}/vans/${id}`)
+    const response = await this.delete(`/vans/${id}`)
+    return response.data.data || response.data
+  }
+
+  async assignVanDriver(vanId: string, driver_id: string) {
+    const response = await this.post(`/vans/${vanId}/assign-driver`, { driver_id })
     return response.data.data || response.data
   }
 

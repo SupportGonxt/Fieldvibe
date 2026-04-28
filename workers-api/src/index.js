@@ -5761,8 +5761,16 @@ api.get('/field-operations/visits/export', authMiddleware, async (c) => {
 api.get('/van-sales/vans', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const vans = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.email, u.phone FROM users u WHERE u.tenant_id = ? AND u.role IN ('van_sales', 'agent') AND u.is_active = 1").bind(tenantId).all();
-  return c.json(vans.results || []);
+  // Returns rows from the `vans` table (vehicles), joined with assigned driver name.
+  // Was previously returning USERS filtered by role — confusing the UI which expected
+  // van_number / registration / driver_name fields.
+  const vans = await db.prepare(
+    "SELECT v.id, v.name, v.registration_number, v.driver_id, v.status, v.created_at, " +
+    "u.first_name || ' ' || u.last_name as driver_name " +
+    "FROM vans v LEFT JOIN users u ON v.driver_id = u.id " +
+    "WHERE v.tenant_id = ? ORDER BY v.name"
+  ).bind(tenantId).all();
+  return c.json({ success: true, data: vans.results || [] });
 });
 
 api.get('/van-sales/routes', authMiddleware, async (c) => {
@@ -6882,6 +6890,20 @@ api.post('/vans/:vanId/assign-driver', authMiddleware, async (c) => {
   const body = await c.req.json();
   await db.prepare("UPDATE vans SET driver_id = ? WHERE id = ? AND tenant_id = ?").bind(body.driver_id, vanId, tenantId).run();
   return c.json({ success: true, message: 'Driver assigned' });
+});
+
+api.delete('/vans/:id', requireRole('admin', 'manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  // Don't hard-delete if there are loads referencing it; soft-retire instead.
+  const refCount = await db.prepare('SELECT COUNT(*) as c FROM van_stock_loads WHERE tenant_id = ? AND vehicle_reg IN (SELECT registration_number FROM vans WHERE id = ? AND tenant_id = ?)').bind(tenantId, id, tenantId).first();
+  if ((refCount?.c || 0) > 0) {
+    await db.prepare("UPDATE vans SET status = 'retired' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
+    return c.json({ success: true, message: 'Van retired (had load history)' });
+  }
+  await db.prepare('DELETE FROM vans WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Van deleted' });
 });
 
 // ==================== COMMISSION ADDITIONAL ROUTES ====================

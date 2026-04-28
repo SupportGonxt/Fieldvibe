@@ -33,8 +33,9 @@ export default function CashReconciliationCreate() {
       type: 'select' as const,
       required: true,
       options: vans.map((v: any) => ({
-        value: v.id.toString(),
-        label: `${v.van_number} - ${v.driver_name}`
+        value: String(v.id),
+        // Schema fields: name + registration_number; driver_name comes from join.
+        label: [v.name, v.registration_number, v.driver_name].filter(Boolean).join(' — '),
       }))
     },
     {
