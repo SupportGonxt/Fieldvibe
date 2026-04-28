@@ -8,22 +8,30 @@ import { salesService } from '../../../services/sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 import type { DocumentData } from '../../../utils/pdf/document-generator'
 
+const STATUS_COLOR: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
+  PENDING: 'yellow',
+  pending: 'yellow',
+  PROCESSED: 'green',
+  processed: 'green',
+  APPROVED: 'green',
+  REJECTED: 'red',
+  rejected: 'red',
+}
+
 export default function SalesReturnDetail() {
   const { id } = useParams()
   const [returnData, setReturnData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadReturn()
-  }, [id])
+  useEffect(() => { loadReturn() }, [id])
 
   const loadReturn = async () => {
     setLoading(true)
     setError(null)
     try {
       const response = await salesService.getReturn(String(id))
-      setReturnData(response.data)
+      setReturnData(response.data?.data || response.data)
     } catch (err: any) {
       console.error('Failed to load return:', err)
       setError(err.message || 'Failed to load return details')
@@ -39,57 +47,52 @@ export default function SalesReturnDetail() {
       </div>
     )
   }
-
   if (error) {
     return <ErrorState title="Failed to load return" message={error} onRetry={loadReturn} />
   }
-
   if (!returnData) {
     return <ErrorState title="Return not found" message="The return you are looking for does not exist or has been deleted." />
   }
 
-  const fields = [
-    { label: 'Return Number', value: returnData.return_number },
-    { label: 'Return Date', value: formatDate(returnData.return_date) },
-    { label: 'Customer', value: returnData.customer_name },
-    { label: 'Order Number', value: returnData.order_number },
-    { label: 'Return Amount', value: formatCurrency(returnData.return_amount) },
-    { label: 'Reason', value: returnData.reason },
-    { label: 'Status', value: returnData.status },
-    { label: 'Approved By', value: returnData.approved_by || '-' },
-    { label: 'Approved Date', value: returnData.approved_date ? formatDate(returnData.approved_date) : '-' },
-    { label: 'Processed Date', value: returnData.processed_date ? formatDate(returnData.processed_date) : '-' },
-    { label: 'Notes', value: returnData.notes },
-    { label: 'Created By', value: returnData.created_by },
-    { label: 'Created At', value: formatDate(returnData.created_at) }
-  ]
+  const totalCredit = Number(returnData.total_credit_amount ?? returnData.return_amount ?? 0)
+  const tax = Number(returnData.tax_amount ?? 0)
+  const restockFee = Number(returnData.restock_fee ?? 0)
+  const netCredit = Number(returnData.net_credit_amount ?? Math.max(0, totalCredit + tax - restockFee))
+  const status: string = returnData.status || ''
 
-  const statusColor = {
-    pending: 'yellow',
-    approved: 'green',
-    rejected: 'red',
-    processed: 'blue'
-  }[returnData.status] as 'green' | 'yellow' | 'red' | 'gray'
+  const fields = [
+    { label: 'Return Number', value: returnData.return_number || '—' },
+    { label: 'Date', value: returnData.created_at ? formatDate(returnData.created_at) : '—' },
+    { label: 'Customer', value: returnData.customer_name || '—' },
+    { label: 'Order Number', value: returnData.order_number || '—' },
+    { label: 'Return Type', value: returnData.return_type || 'PARTIAL' },
+    { label: 'Gross Credit', value: formatCurrency(totalCredit) },
+    { label: 'Tax', value: formatCurrency(tax) },
+    { label: 'Restock Fee', value: restockFee ? `-${formatCurrency(restockFee)}` : formatCurrency(0) },
+    { label: 'Net Credit', value: formatCurrency(netCredit) },
+    { label: 'Reason', value: returnData.reason || '—' },
+    { label: 'Status', value: String(status).toLowerCase() },
+    { label: 'Approved By', value: returnData.approved_by || '—' },
+    { label: 'Notes', value: returnData.notes || '—' },
+  ]
 
   const documentData: DocumentData = {
     type: 'sales_return',
     number: returnData.return_number || `SR-${id}`,
-    date: returnData.return_date || new Date().toISOString(),
-    status: returnData.status,
+    date: returnData.created_at || new Date().toISOString(),
+    status,
     company: { name: 'Fieldvibe', email: 'sales@fieldvibe.com' },
-    customer: {
-      name: returnData.customer_name || 'Customer',
-    },
+    customer: { name: returnData.customer_name || 'Customer' },
     items: (returnData.items || []).map((item: any) => ({
       description: item.product_name || item.description || 'Item',
       sku: item.sku || item.product_code,
       quantity: item.quantity || 0,
       unit_price: item.unit_price || 0,
-      total: item.total || (item.quantity || 0) * (item.unit_price || 0),
+      total: item.line_credit ?? item.total ?? (item.quantity || 0) * (item.unit_price || 0),
     })),
-    subtotal: returnData.return_amount || 0,
-    tax_total: returnData.tax_total || 0,
-    total: returnData.return_amount || 0,
+    subtotal: totalCredit,
+    tax_total: tax,
+    total: netCredit,
     reason: returnData.reason,
     notes: returnData.notes,
     po_number: returnData.order_number,
@@ -101,12 +104,12 @@ export default function SalesReturnDetail() {
         <DocumentActions documentData={documentData} />
       </div>
       <TransactionDetail
-        title={`Sales Return ${returnData.return_number}`}
+        title={`Sales Return ${returnData.return_number || ''}`}
         fields={fields}
         auditTrail={returnData.audit_trail || []}
         backPath="/sales/returns"
-        status={returnData.status}
-        statusColor={statusColor}
+        status={status}
+        statusColor={STATUS_COLOR[status] || 'gray'}
       />
     </>
   )

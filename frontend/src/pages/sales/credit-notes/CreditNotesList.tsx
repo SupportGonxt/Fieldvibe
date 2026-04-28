@@ -5,9 +5,21 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { salesService } from '../../../services/sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 
+const STATUS_COLORS: Record<string, string> = {
+  ISSUED: 'bg-green-100 text-green-800',
+  PARTIALLY_APPLIED: 'bg-amber-100 text-amber-800',
+  FULLY_APPLIED: 'bg-blue-100 text-blue-800',
+  VOIDED: 'bg-gray-200 text-gray-800',
+  // legacy / mixed-case forms — match anything the backend has historically returned
+  issued: 'bg-green-100 text-green-800',
+  partially_applied: 'bg-amber-100 text-amber-800',
+  fully_applied: 'bg-blue-100 text-blue-800',
+  voided: 'bg-gray-200 text-gray-800',
+}
+
 export default function CreditNotesList() {
   const navigate = useNavigate()
-  const [creditNotes, setCreditNotes] = useState([])
+  const [creditNotes, setCreditNotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,11 +30,11 @@ export default function CreditNotesList() {
     setLoading(true)
     try {
       const response = await salesService.getCreditNotes()
-      // API returns { success: true, data: [...] }, axios wraps it in response.data
-      const creditNotes = response.data?.data || response.data?.credit_notes || response.data || []
-      setCreditNotes(Array.isArray(creditNotes) ? creditNotes : [])
+      const list = response.data?.data || response.data?.credit_notes || response.data || []
+      setCreditNotes(Array.isArray(list) ? list : [])
     } catch (error) {
       console.error('Failed to load credit notes:', error)
+      setCreditNotes([])
     } finally {
       setLoading(false)
     }
@@ -30,7 +42,7 @@ export default function CreditNotesList() {
 
   const columns = [
     {
-      key: 'credit_note_number',
+      key: 'credit_number',
       label: 'Credit Note #',
       sortable: true,
       render: (value: string, row: any) => (
@@ -38,53 +50,47 @@ export default function CreditNotesList() {
           onClick={() => navigate(`/sales/credit-notes/${row.id}`)}
           className="text-primary-600 hover:text-primary-800 font-medium"
         >
-          {value}
+          {value || row.credit_note_number || '—'}
         </button>
-      )
+      ),
     },
     {
-      key: 'credit_note_date',
-      label: 'Date',
+      key: 'created_at',
+      label: 'Issued',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: string) => (value ? formatDate(value) : '—'),
     },
+    { key: 'customer_name', label: 'Customer', sortable: true },
     {
-      key: 'customer_name',
-      label: 'Customer',
-      sortable: true
-    },
-    {
-      key: 'invoice_number',
-      label: 'Invoice #',
-      sortable: true
-    },
-    {
-      key: 'credit_amount',
-      label: 'Amount',
+      key: 'amount',
+      label: 'Total',
       sortable: true,
-      render: (value: number) => formatCurrency(value)
+      render: (value: number, row: any) => formatCurrency(Number(value ?? row.credit_amount ?? 0)),
     },
     {
-      key: 'reason',
-      label: 'Reason',
-      sortable: true
+      key: 'remaining_balance',
+      label: 'Remaining',
+      sortable: true,
+      render: (value: number, row: any) => {
+        // Backend may return null for older rows; fall back to amount - applied_amount.
+        const remaining = value != null
+          ? Number(value)
+          : Number(row.amount || 0) - Number(row.applied_amount || 0)
+        return formatCurrency(remaining)
+      },
     },
     {
       key: 'status',
       label: 'Status',
       sortable: true,
       render: (value: string) => {
-        const colors: Record<string, string> = {
-          draft: 'bg-gray-100 text-gray-800',
-          issued: 'bg-green-100 text-green-800',
-          applied: 'bg-blue-100 text-blue-800'
-        }
+        const klass = STATUS_COLORS[value] || 'bg-gray-100 text-gray-800'
         return (
-          <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[value] || colors.draft}`}>
-            {value}
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${klass}`}>
+            {String(value || '').replace(/_/g, ' ').toLowerCase()}
           </span>
         )
-      }
+      },
     },
     {
       key: 'actions',
@@ -97,8 +103,8 @@ export default function CreditNotesList() {
         >
           <Eye className="w-4 h-4" />
         </button>
-      )
-    }
+      ),
+    },
   ]
 
   return (

@@ -5,24 +5,32 @@ import TransactionList from '../../../components/transactions/TransactionList'
 import { salesService } from '../../../services/sales.service'
 import { formatCurrency, formatDate } from '../../../utils/format'
 
+const STATUS_COLORS: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  PROCESSED: 'bg-blue-100 text-blue-800',
+  processed: 'bg-blue-100 text-blue-800',
+  APPROVED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-800',
+  rejected: 'bg-red-100 text-red-800',
+}
+
 export default function SalesReturnsList() {
   const navigate = useNavigate()
-  const [returns, setReturns] = useState([])
+  const [returns, setReturns] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadReturns()
-  }, [])
+  useEffect(() => { loadReturns() }, [])
 
   const loadReturns = async () => {
     setLoading(true)
     try {
       const response = await salesService.getReturns()
-      // API returns { success: true, data: [...] }, axios wraps in response.data
-      const returnsData = response.data?.data || response.data || []
-      setReturns(Array.isArray(returnsData) ? returnsData : [])
+      const list = response.data?.data || response.data || []
+      setReturns(Array.isArray(list) ? list : [])
     } catch (error) {
       console.error('Failed to load returns:', error)
+      setReturns([])
     } finally {
       setLoading(false)
     }
@@ -38,54 +46,45 @@ export default function SalesReturnsList() {
           onClick={() => navigate(`/sales/returns/${row.id}`)}
           className="text-primary-600 hover:text-primary-800 font-medium"
         >
-          {value}
+          {value || '—'}
         </button>
-      )
+      ),
     },
     {
-      key: 'return_date',
+      key: 'created_at',
       label: 'Date',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: string) => (value ? formatDate(value) : '—'),
     },
+    { key: 'customer_name', label: 'Customer', sortable: true },
+    { key: 'order_number', label: 'Order #', sortable: true },
     {
-      key: 'customer_name',
-      label: 'Customer',
-      sortable: true
-    },
-    {
-      key: 'order_number',
-      label: 'Order #',
-      sortable: true
-    },
-    {
-      key: 'return_amount',
-      label: 'Amount',
+      key: 'total_credit_amount',
+      label: 'Gross',
       sortable: true,
-      render: (value: number) => formatCurrency(value)
+      render: (value: number, row: any) => formatCurrency(Number(value ?? row.return_amount ?? 0)),
     },
     {
-      key: 'reason',
-      label: 'Reason',
-      sortable: true
+      key: 'restock_fee',
+      label: 'Restock fee',
+      sortable: true,
+      render: (value: number) => formatCurrency(Number(value || 0)),
+    },
+    {
+      key: 'net_credit_amount',
+      label: 'Net credit',
+      sortable: true,
+      render: (value: number) => formatCurrency(Number(value || 0)),
     },
     {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (value: string) => {
-        const colors: Record<string, string> = {
-          pending: 'bg-yellow-100 text-yellow-800',
-          approved: 'bg-green-100 text-green-800',
-          rejected: 'bg-red-100 text-red-800',
-          processed: 'bg-blue-100 text-blue-800'
-        }
-        return (
-          <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[value] || colors.pending}`}>
-            {value}
-          </span>
-        )
-      }
+      render: (value: string) => (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${STATUS_COLORS[value] || 'bg-gray-100 text-gray-800'}`}>
+          {String(value || '').toLowerCase()}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -98,8 +97,8 @@ export default function SalesReturnsList() {
         >
           <Eye className="w-4 h-4" />
         </button>
-      )
-    }
+      ),
+    },
   ]
 
   return (

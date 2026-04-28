@@ -35,6 +35,7 @@ export default function SalesReturnCreate() {
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0])
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
+  const [restockFeePct, setRestockFeePct] = useState<string>('')
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [totals, setTotals] = useState<LineItemsTotals>({ subtotal: 0, discount_amount: 0, tax_amount: 0, total_amount: 0, item_count: 0 })
 
@@ -87,7 +88,8 @@ export default function SalesReturnCreate() {
 
     try {
       setSaving(true)
-      const returnData = {
+      const restockPctNum = restockFeePct.trim() ? Number(restockFeePct) : undefined
+      const returnData: Record<string, any> = {
         order_id: selectedOrder,
         return_date: returnDate,
         reason,
@@ -101,7 +103,10 @@ export default function SalesReturnCreate() {
         })),
         subtotal: totals.subtotal,
         tax_amount: totals.tax_amount,
-        total_amount: totals.total_amount
+        total_amount: totals.total_amount,
+      }
+      if (restockPctNum != null && Number.isFinite(restockPctNum) && restockPctNum > 0) {
+        returnData.restock_fee_pct = restockPctNum
       }
 
       await salesService.createReturn(returnData)
@@ -187,6 +192,20 @@ export default function SalesReturnCreate() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Return notes..." className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 hover:border-gray-300 transition-colors" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Restock Fee %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={restockFeePct}
+                  onChange={(e) => setRestockFeePct(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 hover:border-gray-300 transition-colors"
+                />
+                <p className="text-xs text-gray-500 mt-1">Optional. Deducted from gross credit before calculating net credit.</p>
               </div>
             </div>
           </div>
