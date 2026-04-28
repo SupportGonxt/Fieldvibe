@@ -159,19 +159,15 @@ export default defineConfig({
     sourcemap: true,
     // T-20: Strip console.log/warn from production builds
     minify: 'esbuild',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          ui: ['@mui/material', '@mui/icons-material', 'lucide-react'],
-          charts: ['recharts'],
-          maps: ['@react-google-maps/api'],
-          utils: ['axios', 'date-fns', 'clsx', 'tailwind-merge']
-        }
-      }
-    },
-    chunkSizeWarningLimit: 1000
+    // No manualChunks: every Route in App.tsx already uses lazyWithRetry, which
+    // creates a per-route chunk via dynamic import. Hand-rolled manualChunks
+    // collapsed all of @mui, lucide, recharts, framer-motion, leaflet, google-maps,
+    // dnd-kit etc. into a single 'ui' chunk that loaded on every route — meaning
+    // a field-ops agent paid the bundle cost of admin-only deps. Letting Rollup
+    // split naturally pushes those deps into the dynamic chunks of the routes
+    // that actually import them.
+    rollupOptions: {},
+    chunkSizeWarningLimit: 1500,
   },
   esbuild: {
     // T-20: Drop console.log and console.warn in production
