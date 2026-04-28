@@ -1,10 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
-// vite-plugin-pwa intentionally not imported. The autoUpdate workbox SW we
-// deployed earlier today appears to be breaking field-ops login. Until that's
-// diagnosed properly, we ship a no-op SW from /public/sw.js that unregisters
-// itself, so any browser still holding the previous SW gets cleaned up.
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -12,8 +9,131 @@ export default defineConfig({
   // Do NOT override VITE_* env vars in the define block - let Vite handle them
   plugins: [
     react(),
-    // PWA disabled (kill switch). See public/sw.js for the no-op SW that replaces
-    // the previous workbox SW and unregisters itself.
+    // Full PWA. The previous attempt (earlier today) had three failure modes
+    // each addressed below:
+    //   1. Stale precached index.html served by NavigationRoute meant users saw
+    //      old chunk hashes after deploys. -> Index.html is NOT precached;
+    //      navigation uses NetworkFirst so an online user always gets fresh HTML.
+    //   2. The inline cleanup script in index.html unregistered every SW on
+    //      every load. -> Removed in this same commit.
+    //   3. injectRegister:'auto' fought against the cleanup script via a
+    //      register/unregister loop. -> injectRegister:false; main.tsx
+    //      registers the SW once after first paint.
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: false,
+      includeAssets: ['favicon.ico', 'favicon.svg', 'fieldvibe-icon.svg'],
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        // Precache ONLY static, non-versioned assets. Hashed JS/CSS are
+        // CacheFirst at runtime — hash in filename guarantees safety. HTML
+        // is never precached so a deploy is always visible immediately on
+        // refresh.
+        globPatterns: [
+          'manifest.webmanifest',
+          'icon-*.png',
+          'favicon.{ico,svg}',
+          'fieldvibe-*.svg',
+        ],
+        maximumFileSizeToCacheInBytes: 1024 * 1024,
+        runtimeCaching: [
+          {
+            // Navigations: try the network for ~3s, then fall back to a cached
+            // copy of the last index.html we saw. Ensures users see fresh code
+            // when online; offline still loads the app shell.
+            urlPattern: ({ request, sameOrigin }) => sameOrigin && request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'navigation-cache',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Production API origin — NetworkFirst, GET only (Workbox default).
+            // POST /auth/login etc. pass through to network unmodified.
+            urlPattern: ({ url }) => url.origin === 'https://fieldvibe-api.vantax.co.za' && url.pathname.startsWith('/api/'),
+            handler: 'NetworkFirst',
+            method: 'GET',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 5 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/api/'),
+            handler: 'NetworkFirst',
+            method: 'GET',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 5 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            // Hashed JS/CSS in /assets/ — immutable; safe to CacheFirst with a
+            // long TTL. Cleared on activate via cleanupOutdatedCaches.
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /^\/assets\/.+\.(?:js|css|woff2?)$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-assets-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            // Photos / icons — long TTL, capped entries so the cache doesn't
+            // grow unbounded for agents who upload many photos.
+            urlPattern: ({ url }) => /\.(?:png|jpe?g|gif|webp|svg|ico)$/i.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'image-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
+        // Critical: never let the SW intercept /api/ navigation fallback or
+        // /auth/* navigation fallback. Auth pages must always come from the
+        // network.
+        navigateFallback: undefined,
+      },
+      manifest: {
+        name: 'FieldVibe',
+        short_name: 'FieldVibe',
+        description: 'Field Operations & Sales Intelligence Platform',
+        theme_color: '#0A0F1C',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          { src: '/icon-72x72.png',   sizes: '72x72',   type: 'image/png' },
+          { src: '/icon-96x96.png',   sizes: '96x96',   type: 'image/png' },
+          { src: '/icon-128x128.png', sizes: '128x128', type: 'image/png' },
+          { src: '/icon-144x144.png', sizes: '144x144', type: 'image/png' },
+          { src: '/icon-152x152.png', sizes: '152x152', type: 'image/png' },
+          { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: '/icon-384x384.png', sizes: '384x384', type: 'image/png' },
+          { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
+      },
+    }),
   ],
   resolve: {
     alias: {
@@ -62,6 +182,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // emptyOutDir prevents leftover chunks from prior builds polluting the
+    // workbox precache (this was the cause of three different index-*.js
+    // hashes appearing in the deployed sw.js earlier today).
+    emptyOutDir: true,
     sourcemap: true,
     // T-20: Strip console.log/warn from production builds
     minify: 'esbuild',
