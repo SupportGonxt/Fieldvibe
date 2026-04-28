@@ -1614,6 +1614,13 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
       targetsByAgent.set(t.agent_id, { target_visits: t.target_visits || 0, target_registrations: t.target_registrations || 0 });
     }
 
+    // Fetch rejected photo counts for all team members in one query
+    const rejectedPhotosByAgent = new Map();
+    const rejQuery = await db.prepare(`SELECT v.agent_id, COUNT(vp.id) as rejected_count FROM visit_photos vp JOIN visits v ON vp.visit_id = v.id WHERE v.tenant_id = ? AND v.agent_id IN (${placeholders}) AND vp.review_status = 'rejected' GROUP BY v.agent_id`).bind(tenantId, ...memberIds).all().catch(() => ({ results: [] }));
+    for (const row of (rejQuery.results || [])) {
+      rejectedPhotosByAgent.set(row.agent_id, row.rejected_count || 0);
+    }
+
     // Build agent stats from bulk results (0 additional D1 queries for visit counts)
     const agentStats = await Promise.all((teamMembers.results || []).map(async (member) => {
       const counts = bulkCounts.get(member.id) || { today_visits: 0, month_visits: 0, today_individual: 0, today_store: 0, month_individual: 0, month_store: 0, week_visits: 0, week_individual: 0, week_store: 0, prior_month_visits: 0, prior_month_individual: 0, prior_month_store: 0 };
@@ -1658,6 +1665,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         target_stores: tr,
         actual_stores: ar,
         achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
+        rejected_photos: rejectedPhotosByAgent.get(member.id) || 0,
       };
     }));
 
