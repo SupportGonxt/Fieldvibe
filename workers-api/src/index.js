@@ -2699,6 +2699,38 @@ app.post('/api/auth/change-password', authMiddleware, rateLimiter(5, 900000), as
 // ==================== PROTECTED API ROUTES ====================
 const api = new Hono();
 api.use('*', authMiddleware);
+
+// ==================== PAYMENT LEDGER HELPER (item #3) ====================
+// Writes a RECEIPT + APPLICATION pair to payment_ledger to mirror a payments INSERT.
+// Best-effort: a ledger failure must NEVER fail the payments write that drives
+// existing dashboards. The opt-in /admin/payments/backfill-ledger endpoint can
+// repair any gaps after the fact.
+async function writePaymentLedgerEntries(db, { tenantId, paymentId, salesOrderId, amount, userId, notes, currency }) {
+  try {
+    if (!tenantId || !paymentId || amount == null) return;
+    const amt = Number(amount) || 0;
+    if (!Number.isFinite(amt) || amt === 0) return;
+    const cur = currency || 'ZAR';
+    const receiptId = uuidv4();
+    const stmts = [
+      db.prepare(
+        'INSERT INTO payment_ledger (id, tenant_id, payment_id, sales_order_id, entry_type, direction, amount, currency, notes, created_by) ' +
+        "VALUES (?, ?, ?, NULL, 'RECEIPT', 'CREDIT', ?, ?, ?, ?)"
+      ).bind(receiptId, tenantId, paymentId, Math.abs(amt), cur, notes || null, userId || 'system'),
+    ];
+    if (salesOrderId) {
+      stmts.push(
+        db.prepare(
+          'INSERT INTO payment_ledger (id, tenant_id, payment_id, sales_order_id, entry_type, direction, amount, currency, notes, created_by) ' +
+          "VALUES (?, ?, ?, ?, 'APPLICATION', 'CREDIT', ?, ?, ?, ?)"
+        ).bind(uuidv4(), tenantId, paymentId, salesOrderId, Math.abs(amt), cur, notes || null, userId || 'system'),
+      );
+    }
+    await db.batch(stmts);
+  } catch (err) {
+    console.error('payment_ledger write failed for payment', paymentId, err && err.message);
+  }
+}
 // General API rate limiting (100 req/min)
 api.use('*', rateLimiter(100, 60000));
 
@@ -3671,9 +3703,12 @@ api.get('/payments', async (c) => {
 api.post('/payments', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
   await db.prepare("INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, 'completed')").bind(id, tenantId, body.sales_order_id, body.amount, body.method || 'cash', body.reference || null).run();
+  // Mirror to the payment_ledger for the item-#3 ledger view. Best-effort.
+  await writePaymentLedgerEntries(db, { tenantId, paymentId: id, salesOrderId: body.sales_order_id, amount: body.amount, userId, notes: body.reference || null });
   // Update order payment status
   const order = await db.prepare('SELECT total_amount FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(body.sales_order_id, tenantId).first();
   const totalPaid = await db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE sales_order_id = ? AND tenant_id = ?').bind(body.sales_order_id, tenantId).first();
@@ -3682,6 +3717,96 @@ api.post('/payments', async (c) => {
     await db.prepare("UPDATE sales_orders SET payment_status = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(newStatus, body.sales_order_id, tenantId).run();
   }
   return c.json({ success: true, data: { id }, message: 'Payment recorded' }, 201);
+});
+
+// ==================== PAYMENT LEDGER (item #3) ====================
+// Read-only ledger endpoints. All writes happen via writePaymentLedgerEntries
+// alongside the existing payments inserts. The legacy /payments + sales_orders
+// payment_status flow remains the source of truth; this is a parallel view
+// suitable for finance reporting and future reversal flows.
+api.get('/payment-ledger', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { sales_order_id, payment_id, entry_type, limit = 100, page = 1 } = c.req.query();
+  let where = 'WHERE tenant_id = ?';
+  const params = [tenantId];
+  if (sales_order_id) { where += ' AND sales_order_id = ?'; params.push(sales_order_id); }
+  if (payment_id) { where += ' AND payment_id = ?'; params.push(payment_id); }
+  if (entry_type) { where += ' AND entry_type = ?'; params.push(entry_type); }
+  const limitNum = Math.min(parseInt(limit) || 100, 500);
+  const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limitNum;
+  const rows = await db.prepare('SELECT * FROM payment_ledger ' + where + ' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?').bind(...params, limitNum, offset).all();
+  return c.json({ success: true, data: rows.results || [] });
+});
+
+api.get('/sales-orders/:id/ledger', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const order = await db.prepare('SELECT total_amount FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (!order) return c.json({ success: false, message: 'Order not found' }, 404);
+  const rows = await db.prepare('SELECT * FROM payment_ledger WHERE tenant_id = ? AND sales_order_id = ? ORDER BY created_at ASC, id ASC').bind(tenantId, id).all();
+  const list = rows.results || [];
+  let applied = 0;
+  for (const r of list) {
+    if (r.entry_type === 'APPLICATION') applied += Number(r.amount || 0);
+    if (r.entry_type === 'REVERSAL') applied -= Number(r.amount || 0);
+  }
+  return c.json({
+    success: true,
+    data: {
+      total_amount: Number(order.total_amount || 0),
+      applied,
+      outstanding: Math.max(0, Number(order.total_amount || 0) - applied),
+      entries: list,
+    },
+  });
+});
+
+// One-shot backfill admin endpoint: walks every payments row and inserts the
+// matching RECEIPT + APPLICATION pair into payment_ledger if not already present.
+// Idempotent — checks for an existing RECEIPT row keyed by payment_id before writing.
+api.post('/admin/payments/backfill-ledger', requireRole('admin', 'super_admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const { limit = 200 } = c.req.query();
+  const batch = Math.min(parseInt(limit) || 200, 500);
+
+  const payments = await db.prepare(
+    'SELECT p.id, p.sales_order_id, p.amount, p.reference, p.created_at FROM payments p ' +
+    'WHERE p.tenant_id = ? ' +
+    'AND NOT EXISTS (SELECT 1 FROM payment_ledger pl WHERE pl.payment_id = p.id AND pl.entry_type = "RECEIPT") ' +
+    'ORDER BY p.created_at ASC LIMIT ?'
+  ).bind(tenantId, batch).all();
+
+  const list = payments.results || [];
+  let inserted = 0;
+  for (const p of list) {
+    await writePaymentLedgerEntries(db, {
+      tenantId,
+      paymentId: p.id,
+      salesOrderId: p.sales_order_id,
+      amount: p.amount,
+      userId,
+      notes: p.reference || 'Backfilled from payments table',
+    });
+    inserted += 1;
+  }
+
+  const remainingR = await db.prepare(
+    'SELECT COUNT(*) as c FROM payments p WHERE p.tenant_id = ? ' +
+    'AND NOT EXISTS (SELECT 1 FROM payment_ledger pl WHERE pl.payment_id = p.id AND pl.entry_type = "RECEIPT")'
+  ).bind(tenantId).first();
+
+  return c.json({
+    success: true,
+    data: {
+      processed: inserted,
+      remaining: remainingR?.c || 0,
+      done: (remainingR?.c || 0) === 0,
+    },
+  });
 });
 
 // ==================== WAREHOUSES & STOCK ====================
@@ -5171,6 +5296,7 @@ api.post('/sales/payments', authMiddleware, async (c) => {
       const linkedOrder = await db.prepare('SELECT id FROM sales_orders WHERE id = ? AND tenant_id = ?').bind(linkedOrderId, tenantId).first();
       if (!linkedOrder) return c.json({ success: false, message: 'Order not found or access denied' }, 404);
       await db.prepare('INSERT INTO payments (id, tenant_id, sales_order_id, amount, method, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(paymentId, tenantId, linkedOrderId, body.amount, body.method || 'cash', body.reference || null, 'completed').run();
+      await writePaymentLedgerEntries(db, { tenantId, paymentId, salesOrderId: linkedOrderId, amount: body.amount, userId, notes: body.reference || null });
     } else {
       return c.json({ success: false, message: 'order_id or sales_order_id is required — payments must be linked to an order' }, 400);
     }
