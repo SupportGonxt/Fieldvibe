@@ -434,14 +434,12 @@ const GoldrushIndividualReport: React.FC = () => {
                         <span className={`font-medium ${ind.goldrush_id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
                           {ind.goldrush_id || '—'}
                         </span>
-                        <button onClick={() => handleEditGoldrushId(ind)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Goldrush ID">
+                        <button onClick={() => handleEditGoldrushId(ind)} className="p-1 text-gray-400 hover:text-blue-600" title="Edit Goldrush ID">
                           <Edit2 className="w-3 h-3" />
                         </button>
-                        {ind.goldrush_id && (
-                          <button onClick={() => handleOpenReject(ind)} className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Reject Goldrush ID">
-                            <Ban className="w-3 h-3" />
-                          </button>
-                        )}
+                        <button onClick={() => handleOpenReject(ind)} className="p-1 text-gray-400 hover:text-red-600" title="Reject Goldrush ID">
+                          <Ban className="w-3 h-3" />
+                        </button>
                       </div>
                     )}
                   </td>
