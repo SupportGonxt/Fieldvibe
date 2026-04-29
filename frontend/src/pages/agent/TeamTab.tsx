@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield, Store } from 'lucide-react'
+import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield, Store, AlertCircle } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 
 type Period = 'day' | 'week' | 'month' | 'prior_month'
@@ -29,6 +29,7 @@ interface AgentStat {
   target_stores: number
   actual_stores: number
   achievement: number
+  rejected_photos?: number
 }
 
 interface CommissionRule {
@@ -489,7 +490,18 @@ export default function TeamTab() {
                       <span className="text-xs font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
+                        {(agent.rejected_photos || 0) > 0 && (
+                          <span
+                            onClick={(e) => { e.stopPropagation(); navigate(`/agent/agent-detail/${agent.id}?filter=rejected_photos`) }}
+                            className="flex-shrink-0 flex items-center gap-0.5 bg-red-500/20 border border-red-500/30 rounded-full px-1.5 py-0.5 cursor-pointer"
+                          >
+                            <AlertCircle className="w-2.5 h-2.5 text-red-400" />
+                            <span className="text-[9px] font-bold text-red-400">{agent.rejected_photos}</span>
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-500">{getAgentPeriod(agent, period).individual} individual · {getAgentPeriod(agent, period).store} store ({periodLabel(period).toLowerCase()})</p>
                     </div>
                     <div className="text-right mr-1">
@@ -553,6 +565,15 @@ export default function TeamTab() {
                           <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: '#8B5CF6' }} />
                         </div>
                       </div>
+                      {/* Rejected photos alert */}
+                      {(agent.rejected_photos || 0) > 0 && (
+                        <div className="mt-2 flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          <p className="text-xs text-red-300 flex-1">
+                            <span className="font-bold">{agent.rejected_photos}</span> rejected {agent.rejected_photos === 1 ? 'photo' : 'photos'} — agent needs to re-upload
+                          </p>
+                        </div>
+                      )}
                       {/* Drill-down button */}
                       <button
                         onClick={() => navigate(`/agent/agent-detail/${agent.id}`)}

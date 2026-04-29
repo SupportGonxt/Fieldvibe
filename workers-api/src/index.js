@@ -1614,6 +1614,13 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
       targetsByAgent.set(t.agent_id, { target_visits: t.target_visits || 0, target_registrations: t.target_registrations || 0 });
     }
 
+    // Fetch rejected photo counts for all team members in one query
+    const rejectedPhotosByAgent = new Map();
+    const rejQuery = await db.prepare(`SELECT v.agent_id, COUNT(vp.id) as rejected_count FROM visit_photos vp JOIN visits v ON vp.visit_id = v.id WHERE v.tenant_id = ? AND v.agent_id IN (${placeholders}) AND vp.review_status = 'rejected' GROUP BY v.agent_id`).bind(tenantId, ...memberIds).all().catch(() => ({ results: [] }));
+    for (const row of (rejQuery.results || [])) {
+      rejectedPhotosByAgent.set(row.agent_id, row.rejected_count || 0);
+    }
+
     // Build agent stats from bulk results (0 additional D1 queries for visit counts)
     const agentStats = await Promise.all((teamMembers.results || []).map(async (member) => {
       const counts = bulkCounts.get(member.id) || { today_visits: 0, month_visits: 0, today_individual: 0, today_store: 0, month_individual: 0, month_store: 0, week_visits: 0, week_individual: 0, week_store: 0, prior_month_visits: 0, prior_month_individual: 0, prior_month_store: 0 };
@@ -1658,6 +1665,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         target_stores: tr,
         actual_stores: ar,
         achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
+        rejected_photos: rejectedPhotosByAgent.get(member.id) || 0,
       };
     }));
 
@@ -5588,9 +5596,23 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
   const offset = (parseInt(page) - 1) * parseInt(limit);
   let where = 'WHERE v.tenant_id = ?';
   const params = [tenantId];
-  if (role === 'agent') { where += ' AND v.agent_id = ?'; params.push(userId); }
+  if (role === 'agent' || role === 'field_agent' || role === 'sales_rep') {
+    // Agents always see only their own visits
+    where += ' AND v.agent_id = ?'; params.push(userId);
+  } else if (role === 'team_lead') {
+    if (agent_id && agent_id !== 'me') {
+      // Team lead drilling into a specific agent's visits
+      where += ' AND v.agent_id = ?'; params.push(agent_id);
+    } else {
+      // Team lead overview (agent_id absent or "me"): show all agents assigned to this team lead
+      where += ' AND v.agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1)';
+      params.push(tenantId, userId);
+    }
+  } else if (agent_id && agent_id !== 'me') {
+    // Manager/admin viewing a specific agent
+    where += ' AND v.agent_id = ?'; params.push(agent_id);
+  }
   if (status) { where += ' AND v.status = ?'; params.push(status); }
-  if (agent_id) { where += ' AND v.agent_id = ?'; params.push(agent_id === 'me' ? userId : agent_id); }
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
   if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
   if (company_id) { where += ' AND v.company_id = ?'; params.push(company_id); }
@@ -14209,6 +14231,15 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
     const reqUrl = c.req.url;
+
+    // Ensure required columns exist (idempotent — silently skips if already present)
+    await Promise.all([
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'").run().catch(() => {}),
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN rejection_reason TEXT").run().catch(() => {}),
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_by TEXT").run().catch(() => {}),
+      db.prepare("ALTER TABLE visit_photos ADD COLUMN reviewed_at TEXT").run().catch(() => {}),
+      db.prepare("ALTER TABLE visits ADD COLUMN visit_target_type TEXT").run().catch(() => {}),
+    ]);
 
     // ── Query 1: proper visit_photos records ──
     let where = 'WHERE vp.tenant_id = ?';
