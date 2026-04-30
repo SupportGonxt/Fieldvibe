@@ -8784,9 +8784,9 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
     try {
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, visit_target_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-        body.visit_target_type || 'customer', now,
+        body.visit_target_type || 'customer', body.visit_target_type || 'customer', now,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
         brandId, companyId,
         body.individual_first_name || null, body.individual_last_name || null,

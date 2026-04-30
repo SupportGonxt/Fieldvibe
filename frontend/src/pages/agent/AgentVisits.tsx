@@ -112,7 +112,7 @@ export default function AgentVisits() {
         return false
       }
       if (typeFilter !== 'all') {
-        const vType = (v.visit_target_type || v.visit_type || '').toLowerCase()
+        const vType = (v.visit_type || '').toLowerCase()
         if (vType !== typeFilter) return false
       }
       if (search) {
@@ -126,8 +126,8 @@ export default function AgentVisits() {
   }, [visits, filter, typeFilter, search])
 
   // Count by type
-  const storeCount = useMemo(() => visits.filter(v => (v.visit_target_type || v.visit_type || '').toLowerCase() === 'store').length, [visits])
-  const individualCount = useMemo(() => visits.filter(v => (v.visit_target_type || v.visit_type || '').toLowerCase() === 'individual').length, [visits])
+  const storeCount = useMemo(() => visits.filter(v => (v.visit_type || '').toLowerCase() === 'store').length, [visits])
+  const individualCount = useMemo(() => visits.filter(v => (v.visit_type || '').toLowerCase() === 'individual').length, [visits])
   const rejectedVisitsCount = useMemo(() => visits.filter(v => v.has_rejected_photos).length, [visits])
   const rejectedGoldrushCount = useMemo(() => visits.filter(v => v.has_rejected_goldrush_id).length, [visits])
 
@@ -150,7 +150,7 @@ export default function AgentVisits() {
   }
 
   const typeIcon = (visit: Visit) => {
-    const type = (visit.visit_target_type || visit.visit_type || '').toLowerCase()
+    const type = (visit.visit_type || '').toLowerCase()
     if (type === 'store') return <Store className="w-3 h-3 text-purple-400" />
     if (type === 'individual') return <User className="w-3 h-3 text-cyan-400" />
     return null
@@ -318,7 +318,7 @@ export default function AgentVisits() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-500 flex items-center gap-1">
                       {typeIcon(visit)}
-                      {(visit.visit_target_type || visit.visit_type || 'visit').charAt(0).toUpperCase() + (visit.visit_target_type || visit.visit_type || 'visit').slice(1)}
+                      {(visit.visit_type || 'visit').charAt(0).toUpperCase() + (visit.visit_type || 'visit').slice(1)}
                     </span>
                     <span className="text-[8px] text-gray-600">&bull;</span>
                     <span className="text-xs text-gray-500 flex items-center gap-1">
