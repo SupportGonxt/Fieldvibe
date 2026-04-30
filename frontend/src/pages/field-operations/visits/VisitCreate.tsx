@@ -181,10 +181,16 @@ export default function VisitCreate() {
   const preselectedType = searchParams.get('type') as 'individual' | 'store' | null
   const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | ''>(preselectedType || '')
 
-  // Sync visitTargetType if URL param changes without unmounting
+  // Sync visitTargetType if URL param changes without unmounting.
+  // When the type param is removed (e.g. agent taps "New" from a ?type=store URL),
+  // reset to '' so the agent must re-select — prevents the previous type from persisting.
   useEffect(() => {
-    if (preselectedType && preselectedType !== visitTargetType) {
-      setVisitTargetType(preselectedType)
+    if (preselectedType) {
+      if (preselectedType !== visitTargetType) {
+        setVisitTargetType(preselectedType)
+      }
+    } else {
+      setVisitTargetType('')
     }
   }, [preselectedType])
 
@@ -787,7 +793,7 @@ export default function VisitCreate() {
         return true
       }
       case 'photo': return photos.length > 0
-      case 'review': return true
+      case 'review': return visitTargetType === 'individual' || visitTargetType === 'store'
       default: return true
     }
   }
@@ -860,6 +866,11 @@ export default function VisitCreate() {
   // Final submit
   const handleSubmit = async () => {
     if (submitting) return // Prevent double-click
+    if (visitTargetType !== 'individual' && visitTargetType !== 'store') {
+      setError('Please go back and select a visit type (Individual or Store/Business).')
+      toast.error('Visit type not selected.')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -1853,7 +1864,11 @@ export default function VisitCreate() {
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary">Visit Type</Typography>
-          <Chip label={visitTargetType === 'individual' ? 'Individual' : 'Store / Business'} color="primary" variant="outlined" />
+          <Chip
+            label={visitTargetType === 'individual' ? 'Individual' : visitTargetType === 'store' ? 'Store / Business' : '⚠ No type selected'}
+            color={visitTargetType === 'individual' || visitTargetType === 'store' ? 'primary' : 'error'}
+            variant="outlined"
+          />
         </Box>
 
         {selectedCompany && (

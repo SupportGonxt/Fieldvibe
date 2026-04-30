@@ -6,7 +6,7 @@ import { tradeMarketingService } from '../../../services/insights.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X, Sparkles, Loader2, Upload, AlertTriangle } from 'lucide-react'
+import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X, Sparkles, Loader2, Upload, AlertTriangle, Ban } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function VisitDetail() {
@@ -87,25 +87,33 @@ export default function VisitDetail() {
     }
   }
 
-  const getGoldrushId = (v: any): string => {
+  const parseIndividualCfv = (v: any): Record<string, any> => {
     const individuals = v?.individuals || []
-    if (individuals.length > 0) {
-      try {
-        const cfv = typeof individuals[0].custom_field_values === 'string'
-          ? JSON.parse(individuals[0].custom_field_values)
-          : individuals[0].custom_field_values || {}
-        return cfv.goldrush_id || ''
-      } catch { return '' }
-    }
-    return ''
+    if (individuals.length === 0) return {}
+    try {
+      return typeof individuals[0].custom_field_values === 'string'
+        ? JSON.parse(individuals[0].custom_field_values)
+        : individuals[0].custom_field_values || {}
+    } catch { return {} }
   }
+
+  const getGoldrushId = (v: any): string => parseIndividualCfv(v).goldrush_id || ''
+  const getGoldrushRejected = (v: any): boolean => {
+    const val = parseIndividualCfv(v).goldrush_id_rejected
+    return val === true || val === 'true' || val === 1
+  }
+  const getGoldrushRejectionReason = (v: any): string => parseIndividualCfv(v).goldrush_id_rejection_reason || ''
 
   const handleSaveGoldrushId = async () => {
     if (!id) return
     setSavingGoldrushId(true)
     try {
       await fieldOperationsService.updateVisit(id, {
-        custom_field_values: { goldrush_id: goldrushIdValue.trim() }
+        custom_field_values: {
+          goldrush_id: goldrushIdValue.trim(),
+          goldrush_id_rejected: false,
+          goldrush_id_rejection_reason: '',
+        }
       })
       toast.success('Goldrush ID updated')
       setEditingGoldrushId(false)
@@ -116,6 +124,13 @@ export default function VisitDetail() {
       setSavingGoldrushId(false)
     }
   }
+
+  // Pre-fill goldrush ID value when visit loads and the ID is rejected
+  useEffect(() => {
+    if (visit && getGoldrushRejected(visit)) {
+      setGoldrushIdValue(getGoldrushId(visit))
+    }
+  }, [visit])
 
   // Detect mobile context by checking if path starts with /agent/
   const isMobileContext = location.pathname.startsWith('/agent/')
@@ -304,40 +319,74 @@ export default function VisitDetail() {
                   )}
                 </div>
               ))}
-              {/* Goldrush ID edit */}
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Goldrush ID</span>
-                {editingGoldrushId ? (
-                  <div className="flex items-center gap-1">
+              {/* Goldrush ID — with rejection state */}
+              {getGoldrushRejected(visit) && !editingGoldrushId && (
+                <div className="rounded-xl bg-orange-500/10 border border-orange-500/30 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Ban className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-orange-400">Goldrush ID Rejected</span>
+                  </div>
+                  {getGoldrushRejectionReason(visit) && (
+                    <p className="text-xs text-orange-300/80 mb-2">{getGoldrushRejectionReason(visit)}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mb-2">Please enter the correct Goldrush ID below.</p>
+                  <div className="flex items-center gap-2">
                     <input
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       value={goldrushIdValue}
                       onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-[#00E87B]"
-                      placeholder="Numeric ID"
-                      autoFocus
-                      onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(); if (e.key === 'Escape') setEditingGoldrushId(false); }}
+                      className="flex-1 px-3 py-2 text-sm bg-white/10 border border-orange-500/40 rounded-lg text-white placeholder-gray-500 focus:ring-1 focus:ring-orange-400"
+                      placeholder="Enter correct ID"
+                      onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId() }}
                     />
-                    <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId} className="p-1 text-[#00E87B] disabled:opacity-50">
+                    <button
+                      onClick={handleSaveGoldrushId}
+                      disabled={savingGoldrushId || !goldrushIdValue.trim()}
+                      className="px-3 py-2 bg-[#00E87B] text-[#0A1628] text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1"
+                    >
                       <Save className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => setEditingGoldrushId(false)} className="p-1 text-gray-500">
-                      <X className="w-3.5 h-3.5" />
+                      {savingGoldrushId ? 'Saving...' : 'Submit'}
                     </button>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <span className={`text-sm ${getGoldrushId(visit) ? 'text-blue-400' : 'text-gray-600'}`}>
-                      {getGoldrushId(visit) || '—'}
-                    </span>
-                    <button onClick={() => { setGoldrushIdValue(getGoldrushId(visit)); setEditingGoldrushId(true); }} className="p-1 text-gray-500 hover:text-[#00E87B]">
-                      <Edit2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
+              {!getGoldrushRejected(visit) && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Goldrush ID</span>
+                  {editingGoldrushId ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={goldrushIdValue}
+                        onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
+                        className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-[#00E87B]"
+                        placeholder="Numeric ID"
+                        autoFocus
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(); if (e.key === 'Escape') setEditingGoldrushId(false); }}
+                      />
+                      <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId} className="p-1 text-[#00E87B] disabled:opacity-50">
+                        <Save className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setEditingGoldrushId(false)} className="p-1 text-gray-500">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className={`text-sm ${getGoldrushId(visit) ? 'text-blue-400' : 'text-gray-600'}`}>
+                        {getGoldrushId(visit) || '—'}
+                      </span>
+                      <button onClick={() => { setGoldrushIdValue(getGoldrushId(visit)); setEditingGoldrushId(true); }} className="p-1 text-gray-500 hover:text-[#00E87B]">
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

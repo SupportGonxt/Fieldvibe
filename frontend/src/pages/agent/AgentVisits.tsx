@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { photoReviewService } from '../../services/insights.service'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw, Ban } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { toast } from 'react-hot-toast'
@@ -21,6 +21,7 @@ interface Visit {
   thumbnail_url?: string | null
   rejected_photo_count?: number
   has_rejected_photos?: boolean
+  has_rejected_goldrush_id?: boolean
 }
 
 export default function AgentVisits() {
@@ -30,7 +31,7 @@ export default function AgentVisits() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const validFilters = ['all', 'completed', 'in_progress', 'pending', 'rejected_photos'] as const
+  const validFilters = ['all', 'completed', 'in_progress', 'pending', 'rejected_photos', 'rejected_goldrush'] as const
   type FilterType = typeof validFilters[number]
   const urlFilter = searchParams.get('filter') as FilterType | null
   const [filter, setFilter] = useState<FilterType>(
@@ -47,16 +48,20 @@ export default function AgentVisits() {
       const visitsUrl = '/field-operations/visits?limit=200&agent_id=me'
       const visitsPromise = apiClient.get(visitsUrl, { signal })
       const rejectedPromise = photoReviewService.getNeedsReupload().catch(() => [])
-      const [res, rejectedRes] = await Promise.all([Promise.race([visitsPromise, timeoutPromise]), rejectedPromise])
+      const rejectedGoldrushPromise = apiClient.get('/agent/goldrush-rejected').catch(() => ({ data: { data: [] } }))
+      const [res, rejectedRes, goldrushRes] = await Promise.all([Promise.race([visitsPromise, timeoutPromise]), rejectedPromise, rejectedGoldrushPromise])
       const json = (res as any).data
       // Response format: {data: [...], total: N} (no success field)
       const data = json.data || json
       const visitList = (Array.isArray(data) ? data : data?.results || data?.visits || []) as Visit[]
       const rejectedItems = Array.isArray(rejectedRes) ? rejectedRes : (rejectedRes as any)?.photos || []
       const rejectedIdSet = new Set(rejectedItems.map((p: any) => p.id || p.visit_id).filter(Boolean))
+      const goldrushItems = (goldrushRes as any)?.data?.data || []
+      const rejectedGoldrushIdSet = new Set(goldrushItems.map((g: any) => g.visit_id).filter(Boolean))
       setVisits(visitList.map((v: Visit) => ({
         ...v,
         has_rejected_photos: rejectedIdSet.has(v.id) || (Number(v.rejected_photo_count || 0) > 0),
+        has_rejected_goldrush_id: rejectedGoldrushIdSet.has(v.id),
       })))
       setError(false)
     } catch (err: unknown) {
@@ -101,11 +106,13 @@ export default function AgentVisits() {
     return visits.filter(v => {
       if (filter === 'rejected_photos') {
         if (!v.has_rejected_photos) return false
+      } else if (filter === 'rejected_goldrush') {
+        if (!v.has_rejected_goldrush_id) return false
       } else if (filter !== 'all' && v.status !== filter) {
         return false
       }
       if (typeFilter !== 'all') {
-        const vType = (v.visit_target_type || v.visit_type || '').toLowerCase()
+        const vType = (v.visit_type || '').toLowerCase()
         if (vType !== typeFilter) return false
       }
       if (search) {
@@ -119,9 +126,10 @@ export default function AgentVisits() {
   }, [visits, filter, typeFilter, search])
 
   // Count by type
-  const storeCount = useMemo(() => visits.filter(v => (v.visit_target_type || v.visit_type || '').toLowerCase() === 'store').length, [visits])
-  const individualCount = useMemo(() => visits.filter(v => (v.visit_target_type || v.visit_type || '').toLowerCase() === 'individual').length, [visits])
+  const storeCount = useMemo(() => visits.filter(v => (v.visit_type || '').toLowerCase() === 'store').length, [visits])
+  const individualCount = useMemo(() => visits.filter(v => (v.visit_type || '').toLowerCase() === 'individual').length, [visits])
   const rejectedVisitsCount = useMemo(() => visits.filter(v => v.has_rejected_photos).length, [visits])
+  const rejectedGoldrushCount = useMemo(() => visits.filter(v => v.has_rejected_goldrush_id).length, [visits])
 
   const statusIcon = (status: string) => {
     switch (status) {
@@ -142,7 +150,7 @@ export default function AgentVisits() {
   }
 
   const typeIcon = (visit: Visit) => {
-    const type = (visit.visit_target_type || visit.visit_type || '').toLowerCase()
+    const type = (visit.visit_type || '').toLowerCase()
     if (type === 'store') return <Store className="w-3 h-3 text-purple-400" />
     if (type === 'individual') return <User className="w-3 h-3 text-cyan-400" />
     return null
@@ -213,12 +221,14 @@ export default function AgentVisits() {
 
         {/* Status filters */}
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {(['all', 'completed', 'in_progress', 'pending', 'rejected_photos'] as const).map((f) => (
+          {(['all', 'completed', 'in_progress', 'pending', 'rejected_photos', 'rejected_goldrush'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                filter === f ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400 border border-white/10'
+                filter === f
+                  ? f === 'rejected_goldrush' ? 'bg-orange-500 text-white' : 'bg-white/20 text-white'
+                  : 'bg-white/5 text-gray-400 border border-white/10'
               }`}
             >
               {f === 'all'
@@ -227,7 +237,9 @@ export default function AgentVisits() {
                   ? 'In Progress'
                   : f === 'rejected_photos'
                     ? `Rejected Photos (${rejectedVisitsCount})`
-                    : f.charAt(0).toUpperCase() + f.slice(1)}
+                    : f === 'rejected_goldrush'
+                      ? `Rejected GR ID (${rejectedGoldrushCount})`
+                      : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
@@ -287,18 +299,26 @@ export default function AgentVisits() {
                   <p className="text-sm font-medium text-white truncate">
                     {visit.customer_name || (visit.individual_name ? `${visit.individual_name}${visit.individual_surname ? ' ' + visit.individual_surname : ''}` : 'Visit')}
                   </p>
-                  {visit.has_rejected_photos && (
-                    <div className="mt-1">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
-                        <XCircle className="w-3 h-3" />
-                        Rejected photo{(visit.rejected_photo_count || 0) > 1 ? 's' : ''}
-                      </span>
+                  {(visit.has_rejected_photos || visit.has_rejected_goldrush_id) && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {visit.has_rejected_photos && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
+                          <XCircle className="w-3 h-3" />
+                          Rejected photo{(visit.rejected_photo_count || 0) > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {visit.has_rejected_goldrush_id && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                          <Ban className="w-3 h-3" />
+                          Rejected GR ID
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-gray-500 flex items-center gap-1">
                       {typeIcon(visit)}
-                      {(visit.visit_target_type || visit.visit_type || 'visit').charAt(0).toUpperCase() + (visit.visit_target_type || visit.visit_type || 'visit').slice(1)}
+                      {(visit.visit_type || 'visit').charAt(0).toUpperCase() + (visit.visit_type || 'visit').slice(1)}
                     </span>
                     <span className="text-[8px] text-gray-600">&bull;</span>
                     <span className="text-xs text-gray-500 flex items-center gap-1">

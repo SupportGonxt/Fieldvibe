@@ -776,7 +776,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND visit_date >= ?) as week_visits,
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND LOWER(visit_type) = 'store' AND visit_date >= ?) as week_regs,
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND visit_date >= ? AND visit_date < ?) as prior_month_visits,
-        (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date < ?) as prior_month_individual,
+        (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND LOWER(visit_type) != 'store' AND visit_date >= ? AND visit_date < ?) as prior_month_individual,
         (SELECT COUNT(*) FROM visits WHERE tenant_id = ? AND ${dashAgentFilter} AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date < ?) as prior_month_store
     `;
     const countsResult = await db.prepare(countsQuery).bind(
@@ -823,7 +823,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
       if (vt === 'store') {
         perCompanyActuals[cid].today_store_visits += item.today_count || 0;
         perCompanyActuals[cid].month_store_visits += item.month_count || 0;
-      } else if (vt === 'individual') {
+      } else {
+        // All non-store visits (individual, customer, etc.) count as individual — matches team-lead counting logic
         perCompanyActuals[cid].today_individual_visits += item.today_count || 0;
         perCompanyActuals[cid].month_individual_visits += item.month_count || 0;
       }
@@ -932,8 +933,8 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
     // Compute week type-filtered counts from weekVisitsByCompany
     let totalWeekIndividual = 0, totalWeekStore = 0;
     for (const wv of (weekVisitsByCompany.results || [])) {
-      if ((wv.visit_type || '').toLowerCase() === 'individual') totalWeekIndividual += wv.count || 0;
       if ((wv.visit_type || '').toLowerCase() === 'store') totalWeekStore += wv.count || 0;
+      else totalWeekIndividual += wv.count || 0;
     }
 
     // Batch 3: Resolve working days configs for all companies in 1 query (was 4*N sequential queries)
@@ -966,7 +967,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         if (wv.company_id === ctr.company_id) {
           weekTotalVisits += wv.count || 0;
           if ((wv.visit_type || '').toLowerCase() === 'store') weekStoreVisits += wv.count || 0;
-          if ((wv.visit_type || '').toLowerCase() === 'individual') weekIndividualVisits += wv.count || 0;
+          else weekIndividualVisits += wv.count || 0;
         }
       }
       // Use new per-role fields first, fall back to legacy fields
@@ -1615,8 +1616,9 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
     }
 
     // Fetch rejected photo counts for all team members in one query
+    // Excludes photos already re-uploaded (newer pending photo of same type exists)
     const rejectedPhotosByAgent = new Map();
-    const rejQuery = await db.prepare(`SELECT v.agent_id, COUNT(vp.id) as rejected_count FROM visit_photos vp JOIN visits v ON vp.visit_id = v.id WHERE v.tenant_id = ? AND v.agent_id IN (${placeholders}) AND vp.review_status = 'rejected' GROUP BY v.agent_id`).bind(tenantId, ...memberIds).all().catch(() => ({ results: [] }));
+    const rejQuery = await db.prepare(`SELECT v.agent_id, COUNT(vp.id) as rejected_count FROM visit_photos vp JOIN visits v ON vp.visit_id = v.id WHERE v.tenant_id = ? AND v.agent_id IN (${placeholders}) AND vp.review_status = 'rejected' AND NOT EXISTS (SELECT 1 FROM visit_photos newer WHERE newer.visit_id = vp.visit_id AND newer.tenant_id = vp.tenant_id AND newer.photo_type = vp.photo_type AND newer.review_status = 'pending' AND datetime(newer.created_at) > datetime(vp.created_at)) GROUP BY v.agent_id`).bind(tenantId, ...memberIds).all().catch(() => ({ results: [] }));
     for (const row of (rejQuery.results || [])) {
       rejectedPhotosByAgent.set(row.agent_id, row.rejected_count || 0);
     }
@@ -2449,6 +2451,42 @@ app.post('/api/agent/change-pin', authMiddleware, async (c) => {
     console.error('Change PIN error:', error);
     return c.json({ success: false, message: 'Failed to change PIN' }, 500);
   }
+});
+
+// Agent/TeamLead: Get visits with rejected Goldrush IDs
+app.get('/api/agent/goldrush-rejected', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+
+    let agentFilter;
+    const binds = [tenantId];
+
+    if (role === 'team_lead') {
+      // Team leads see their own visits plus all their team members' visits
+      agentFilter = `v.agent_id IN (SELECT id FROM users WHERE (id = ? OR team_lead_id = ?) AND tenant_id = ? AND is_active = 1)`;
+      binds.push(userId, userId, tenantId);
+    } else {
+      agentFilter = `v.agent_id = ?`;
+      binds.push(userId);
+    }
+
+    const result = await db.prepare(`
+      SELECT v.id as visit_id, v.visit_date, v.individual_name, v.agent_id,
+        JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id') as goldrush_id,
+        JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id_rejection_reason') as rejection_reason
+      FROM visits v
+      JOIN visit_individuals vi ON vi.visit_id = v.id AND vi.tenant_id = v.tenant_id
+      WHERE v.tenant_id = ? AND ${agentFilter}
+        AND (JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id_rejected') = 1
+          OR JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id_rejected') = 'true')
+      ORDER BY v.created_at DESC
+    `).bind(...binds).all();
+    const data = result.results || [];
+    return c.json({ success: true, data, count: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
 // Manager/Admin: Get list of agents with PIN status
@@ -8760,9 +8798,9 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
     try {
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, visit_target_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-        body.visit_target_type || 'customer', now,
+        body.visit_target_type || 'customer', body.visit_target_type || 'customer', now,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
         brandId, companyId,
         body.individual_first_name || null, body.individual_last_name || null,
@@ -16830,6 +16868,8 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       let likes_goldrush = '';
       let platform_suggestions = '';
       let gave_brand_info = '';
+      let goldrush_id_rejected = false;
+      let goldrush_id_rejection_reason = '';
       let id_passport_photo = '';
       let shop_exterior_photo = '';
       let ad_board_photo = '';
@@ -16861,6 +16901,8 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         likes_goldrush = responses.likes_goldrush || '';
         platform_suggestions = responses.platform_suggestions || '';
         gave_brand_info = responses.gave_brand_info || '';
+        goldrush_id_rejected = customFields.goldrush_id_rejected === true || customFields.goldrush_id_rejected === 'true';
+        goldrush_id_rejection_reason = customFields.goldrush_id_rejection_reason || '';
         // Extract questionnaire image URLs from Goldrush Individual Visit process steps
         id_passport_photo = responses.id_passport_photo || '';
         shop_exterior_photo = responses.shop_exterior_photo || '';
@@ -16892,6 +16934,8 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         email: row.email,
         product_app_player_id: row.product_app_player_id,
         goldrush_id,
+        goldrush_id_rejected,
+        goldrush_id_rejection_reason,
         converted: row.converted === 1 ? 1 : (consumer_converted === 'Yes' ? 1 : 0),
         conversion_date: row.conversion_date,
         agent_name: row.agent_name,

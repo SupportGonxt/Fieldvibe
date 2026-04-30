@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, RefreshCw } from 'lucide-react'
+import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, RefreshCw, Ban, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -18,6 +18,8 @@ interface GoldrushIndividual {
   email: string
   product_app_player_id: string
   goldrush_id: string
+  goldrush_id_rejected: boolean
+  goldrush_id_rejection_reason: string
   thumbnail_url: string
   has_photos: boolean
   converted: number
@@ -51,6 +53,9 @@ const GoldrushIndividualReport: React.FC = () => {
   const [photoModalVisitId, setPhotoModalVisitId] = useState<string | null>(null)
   const [photoModalPhotos, setPhotoModalPhotos] = useState<Array<{ id: string; photo_type: string; label?: string; r2_url: string }>>([])
   const [photoModalLoading, setPhotoModalLoading] = useState(false)
+  const [rejectModal, setRejectModal] = useState<{ ind: GoldrushIndividual } | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejecting, setRejecting] = useState(false)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -110,6 +115,52 @@ const GoldrushIndividualReport: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingId(null)
     setEditValue('')
+  }
+
+  const handleOpenReject = (ind: GoldrushIndividual) => {
+    setRejectModal({ ind })
+    setRejectReason('')
+  }
+
+  const handleConfirmReject = async () => {
+    if (!rejectModal) return
+    const { ind } = rejectModal
+    if (!ind.visit_id) {
+      toast.error('Cannot reject: no visit linked to this record')
+      return
+    }
+    setRejecting(true)
+    try {
+      await fieldOperationsService.updateVisit(ind.visit_id, {
+        custom_field_values: {
+          goldrush_id_rejected: true,
+          goldrush_id_rejection_reason: rejectReason.trim(),
+        }
+      })
+      toast.success('Goldrush ID rejected')
+      setRejectModal(null)
+      queryClient.invalidateQueries({ queryKey: ['goldrush-individuals'] })
+    } catch {
+      toast.error('Failed to reject Goldrush ID')
+    } finally {
+      setRejecting(false)
+    }
+  }
+
+  const handleUnreject = async (ind: GoldrushIndividual) => {
+    if (!ind.visit_id) return
+    try {
+      await fieldOperationsService.updateVisit(ind.visit_id, {
+        custom_field_values: {
+          goldrush_id_rejected: false,
+          goldrush_id_rejection_reason: '',
+        }
+      })
+      toast.success('Rejection removed')
+      queryClient.invalidateQueries({ queryKey: ['goldrush-individuals'] })
+    } catch {
+      toast.error('Failed to remove rejection')
+    }
   }
 
   const dateParams = startDate || endDate
@@ -365,13 +416,29 @@ const GoldrushIndividualReport: React.FC = () => {
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                    ) : ind.goldrush_id_rejected ? (
+                      <div className="flex items-center gap-1.5">
+                        <div>
+                          <span className="line-through text-gray-400 dark:text-gray-500 font-medium text-xs">{ind.goldrush_id || '—'}</span>
+                          <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Rejected</span>
+                          {ind.goldrush_id_rejection_reason && (
+                            <p className="text-xs text-gray-400 mt-0.5 max-w-[140px] truncate" title={ind.goldrush_id_rejection_reason}>{ind.goldrush_id_rejection_reason}</p>
+                          )}
+                        </div>
+                        <button onClick={() => handleUnreject(ind)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove rejection">
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1">
                         <span className={`font-medium ${ind.goldrush_id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
                           {ind.goldrush_id || '—'}
                         </span>
-                        <button onClick={() => handleEditGoldrushId(ind)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Goldrush ID">
+                        <button onClick={() => handleEditGoldrushId(ind)} className="p-1 text-gray-400 hover:text-blue-600" title="Edit Goldrush ID">
                           <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button onClick={() => handleOpenReject(ind)} className="p-1 text-gray-400 hover:text-red-600" title="Reject Goldrush ID">
+                          <Ban className="w-3 h-3" />
                         </button>
                       </div>
                     )}
@@ -401,6 +468,48 @@ const GoldrushIndividualReport: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Reject Goldrush ID Modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setRejectModal(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <Ban className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Reject Goldrush ID</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  Rejecting <span className="font-medium text-gray-700 dark:text-gray-300">{rejectModal.ind.goldrush_id}</span> for{' '}
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{rejectModal.ind.first_name} {rejectModal.ind.last_name}</span>
+                </p>
+              </div>
+            </div>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Reason <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="e.g. Duplicate ID, Invalid number..."
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setRejectModal(null)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">
+                Cancel
+              </button>
+              <button onClick={handleConfirmReject} disabled={rejecting} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg flex items-center gap-2">
+                <Ban className="w-4 h-4" />
+                {rejecting ? 'Rejecting...' : 'Reject ID'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Photo Expand Modal */}
       {expandedPhoto && (

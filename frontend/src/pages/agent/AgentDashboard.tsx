@@ -5,7 +5,7 @@ import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
   Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap, Download, X,
-  DollarSign, Flame, BarChart3
+  DollarSign, Flame, BarChart3, Ban
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
@@ -118,6 +118,10 @@ export default function AgentDashboard() {
   const [rejectedPhotoLoading, setRejectedPhotoLoading] = useState<boolean>(false)
   const [rejectedVisitIds, setRejectedVisitIds] = useState<string[]>([])
 
+  // Rejected Goldrush ID KPI state
+  const [rejectedGoldrushCount, setRejectedGoldrushCount] = useState<number>(0)
+  const [rejectedGoldrushLoading, setRejectedGoldrushLoading] = useState<boolean>(false)
+
   // Fetch rejected photos needing reupload
   useEffect(() => {
     let mounted = true
@@ -131,6 +135,18 @@ export default function AgentDashboard() {
       const visitIds = [...new Set(items.map((v: any) => v.id).filter(Boolean))] as string[]
       setRejectedVisitIds(visitIds)
     }).catch(() => { setRejectedPhotoCount(0); setRejectedVisitIds([]) }).finally(() => setRejectedPhotoLoading(false))
+    return () => { mounted = false }
+  }, [])
+
+  // Fetch visits with rejected Goldrush IDs
+  useEffect(() => {
+    let mounted = true
+    setRejectedGoldrushLoading(true)
+    apiClient.get('/agent/goldrush-rejected').then((res: any) => {
+      if (!mounted) return
+      const count = res.data?.count || res.data?.data?.length || 0
+      setRejectedGoldrushCount(count)
+    }).catch(() => setRejectedGoldrushCount(0)).finally(() => { if (mounted) setRejectedGoldrushLoading(false) })
     return () => { mounted = false }
   }, [])
   const navigate = useNavigate()
@@ -501,6 +517,27 @@ export default function AgentDashboard() {
           >
             <X className="w-4 h-4" />
             {rejectedPhotoLoading ? 'Checking...' : rejectedPhotoCount > 0 ? `View ${rejectedPhotoCount} Rejected` : 'No Rejected Photos'}
+          </button>
+        </div>
+      </div>
+
+      {/* Rejected Goldrush ID KPI */}
+      <div className="px-5 mb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard
+            icon={<Ban className="w-5 h-5" />}
+            label="Rejected Goldrush ID"
+            value={rejectedGoldrushCount}
+            color="bg-orange-500"
+          />
+          <button
+            onClick={() => navigate('/agent/visits?filter=rejected_goldrush')}
+            className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+            disabled={rejectedGoldrushLoading || rejectedGoldrushCount === 0}
+            style={{ opacity: rejectedGoldrushCount === 0 ? 0.5 : 1 }}
+          >
+            <Ban className="w-4 h-4" />
+            {rejectedGoldrushLoading ? 'Checking...' : rejectedGoldrushCount > 0 ? `View ${rejectedGoldrushCount} Rejected` : 'No Rejected IDs'}
           </button>
         </div>
       </div>
