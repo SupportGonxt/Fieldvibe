@@ -2453,23 +2453,37 @@ app.post('/api/agent/change-pin', authMiddleware, async (c) => {
   }
 });
 
-// Agent: Get visits with rejected Goldrush IDs for the current agent
+// Agent/TeamLead: Get visits with rejected Goldrush IDs
 app.get('/api/agent/goldrush-rejected', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const userId = c.get('userId');
+    const role = c.get('role');
+
+    let agentFilter;
+    const binds = [tenantId];
+
+    if (role === 'team_lead') {
+      // Team leads see their own visits plus all their team members' visits
+      agentFilter = `v.agent_id IN (SELECT id FROM users WHERE (id = ? OR team_lead_id = ?) AND tenant_id = ? AND is_active = 1)`;
+      binds.push(userId, userId, tenantId);
+    } else {
+      agentFilter = `v.agent_id = ?`;
+      binds.push(userId);
+    }
+
     const result = await db.prepare(`
-      SELECT v.id as visit_id, v.visit_date, v.individual_name,
+      SELECT v.id as visit_id, v.visit_date, v.individual_name, v.agent_id,
         JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id') as goldrush_id,
         JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id_rejection_reason') as rejection_reason
       FROM visits v
       JOIN visit_individuals vi ON vi.visit_id = v.id AND vi.tenant_id = v.tenant_id
-      WHERE v.tenant_id = ? AND v.agent_id = ?
+      WHERE v.tenant_id = ? AND ${agentFilter}
         AND (JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id_rejected') = 1
           OR JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id_rejected') = 'true')
       ORDER BY v.created_at DESC
-    `).bind(tenantId, userId).all();
+    `).bind(...binds).all();
     const data = result.results || [];
     return c.json({ success: true, data, count: data.length });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
