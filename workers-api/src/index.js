@@ -17188,6 +17188,313 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
+// ==================== GOLDRUSH INSIGHTS (aggregated for client-grade reports) ====================
+// Two endpoints: one for individuals (consumers), one for stores. Both run on top
+// of the same data the existing /goldrush-individuals and /goldrush-stores pages
+// fetch row-by-row, but compute aggregations server-side so the frontend can
+// render charts / KPIs without shipping every row to the browser.
+
+api.get('/field-ops/reports/goldrush-individuals/insights', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+
+    const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+    if (!goldrush) return c.json({ success: true, data: emptyIndividualInsights() });
+    const goldrushId = goldrush.id;
+
+    let dateFilter = '';
+    const binds = [tenantId, goldrushId];
+    if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }
+    if (endDate)   { dateFilter += ' AND v.visit_date <= ?'; binds.push(endDate); }
+
+    // Single read, walk results in JS for the various aggregations. The dataset
+    // (Goldrush individuals over a date range) is bounded — typically a few
+    // hundred rows per month.
+    const rows = await db.prepare(
+      `SELECT v.id, v.visit_date, v.created_at, v.latitude as lat, v.longitude as lng,
+              u.first_name || ' ' || u.last_name as agent_name,
+              vi.custom_field_values,
+              (SELECT vr.responses FROM visit_responses vr
+                 WHERE vr.visit_id = v.id
+                   AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')
+                 LIMIT 1) as questionnaire_responses
+         FROM visits v
+         LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
+         LEFT JOIN users u ON v.agent_id = u.id
+         WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'${dateFilter}
+         ORDER BY v.visit_date ASC LIMIT 20000`
+    ).bind(...binds).all();
+
+    const list = rows.results || [];
+    const totals = { individuals: list.length, converted: 0, with_id: 0, with_suggestion: 0 };
+    const byDate = new Map();
+    const byAgent = new Map();
+    const radio = (k) => ({ key: k, yes: 0, no: 0, other: 0 });
+    const likesGoldrush = radio('likes_goldrush');
+    const usedBefore = radio('used_goldrush_before');
+    const bettingElsewhere = radio('betting_elsewhere');
+    const goldrushComparison = radio('goldrush_comparison');
+    const giveBrandInfo = radio('gave_brand_info');
+    const isInterested = radio('is_the_customer_interested');
+    const competitorCounts = new Map();
+    const productInterestCounts = new Map();
+    const suggestionsTop = []; // first ~50 non-empty suggestions
+    let geo = { lat_min: null, lat_max: null, lng_min: null, lng_max: null, with_gps: 0 };
+
+    function bumpRadio(target, val) {
+      if (val == null || val === '') return;
+      const s = String(val).toLowerCase().trim();
+      if (s === 'yes' || s === 'true' || s === '1') target.yes += 1;
+      else if (s === 'no' || s === 'false' || s === '0') target.no += 1;
+      else target.other += 1;
+    }
+    function bumpMap(map, key) {
+      if (!key) return;
+      const k = String(key).trim();
+      if (!k) return;
+      map.set(k, (map.get(k) || 0) + 1);
+    }
+    function mergeJson(a, b) {
+      const out = {};
+      try { if (a) Object.assign(out, typeof a === 'string' ? JSON.parse(a) : a); } catch {}
+      try { if (b) Object.assign(out, typeof b === 'string' ? JSON.parse(b) : b); } catch {}
+      return out;
+    }
+
+    for (const r of list) {
+      const f = mergeJson(r.custom_field_values, r.questionnaire_responses);
+      const day = (r.visit_date || (r.created_at || '').slice(0, 10)) || '';
+      if (day) {
+        const d = byDate.get(day) || { date: day, visits: 0, conversions: 0 };
+        d.visits += 1;
+        if (Number(f.converted) === 1 || String(f.converted).toLowerCase() === 'true' || String(f.consumer_converted).toLowerCase() === 'yes') d.conversions += 1;
+        byDate.set(day, d);
+      }
+      if (r.agent_name) {
+        const a = byAgent.get(r.agent_name) || { agent: r.agent_name, visits: 0, conversions: 0 };
+        a.visits += 1;
+        if (Number(f.converted) === 1 || String(f.consumer_converted).toLowerCase() === 'yes') a.conversions += 1;
+        byAgent.set(r.agent_name, a);
+      }
+      if (Number(f.converted) === 1 || String(f.consumer_converted).toLowerCase() === 'yes') totals.converted += 1;
+      if (f.goldrush_id && String(f.goldrush_id).trim()) totals.with_id += 1;
+      if (f.platform_suggestions && String(f.platform_suggestions).trim()) {
+        totals.with_suggestion += 1;
+        if (suggestionsTop.length < 50) suggestionsTop.push({ visit_id: r.id, agent: r.agent_name, suggestion: String(f.platform_suggestions).slice(0, 280) });
+      }
+      bumpRadio(likesGoldrush, f.likes_goldrush);
+      bumpRadio(usedBefore, f.used_goldrush_before);
+      bumpRadio(bettingElsewhere, f.betting_elsewhere);
+      bumpRadio(goldrushComparison, f.goldrush_comparison);
+      bumpRadio(giveBrandInfo, f.gave_brand_info);
+      bumpRadio(isInterested, f.is_the_customer_interested);
+      // Competitor company is sometimes a string, sometimes comma-joined.
+      const comp = f.competitor_company || f.who_is_competitor;
+      if (comp) {
+        if (Array.isArray(comp)) comp.forEach(c => bumpMap(competitorCounts, c));
+        else if (typeof comp === 'string') {
+          comp.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(c => bumpMap(competitorCounts, c));
+        }
+      }
+      const prod = f.which_products_interest_you;
+      if (prod) {
+        if (Array.isArray(prod)) prod.forEach(p => bumpMap(productInterestCounts, p));
+        else if (typeof prod === 'string') prod.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(p => bumpMap(productInterestCounts, p));
+      }
+      if (r.lat != null && r.lng != null) {
+        geo.with_gps += 1;
+        geo.lat_min = geo.lat_min == null ? r.lat : Math.min(geo.lat_min, r.lat);
+        geo.lat_max = geo.lat_max == null ? r.lat : Math.max(geo.lat_max, r.lat);
+        geo.lng_min = geo.lng_min == null ? r.lng : Math.min(geo.lng_min, r.lng);
+        geo.lng_max = geo.lng_max == null ? r.lng : Math.max(geo.lng_max, r.lng);
+      }
+    }
+
+    const visitsOverTime = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+    const topAgents = Array.from(byAgent.values()).map(a => ({ ...a, conversion_rate: a.visits ? Math.round((a.conversions / a.visits) * 1000) / 10 : 0 })).sort((a, b) => b.visits - a.visits).slice(0, 15);
+    const conversion_rate = totals.individuals ? Math.round((totals.converted / totals.individuals) * 1000) / 10 : 0;
+
+    return c.json({ success: true, data: {
+      filters: { startDate: startDate || null, endDate: endDate || null },
+      totals: { ...totals, conversion_rate },
+      visitsOverTime,
+      topAgents,
+      satisfaction: { likes_goldrush: likesGoldrush, used_goldrush_before: usedBefore, betting_elsewhere: bettingElsewhere, goldrush_comparison: goldrushComparison, gave_brand_info: giveBrandInfo, is_the_customer_interested: isInterested },
+      competitors: Array.from(competitorCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      productInterest: Array.from(productInterestCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      suggestionsTop,
+      geo,
+    } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+api.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+
+    const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+    if (!goldrush) return c.json({ success: true, data: emptyStoreInsights() });
+    const goldrushId = goldrush.id;
+
+    let dateFilter = '';
+    const binds = [tenantId, goldrushId];
+    if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }
+    if (endDate)   { dateFilter += ' AND v.visit_date <= ?'; binds.push(endDate); }
+
+    // Pull store visits + linked store_custom_questions responses + AI photo
+    // aggregates per visit. AI rollup is computed via correlated subqueries so
+    // this stays O(1) round-trips.
+    const rows = await db.prepare(
+      `SELECT v.id, v.visit_date, v.created_at, v.customer_id,
+              c.name as store_name,
+              u.first_name || ' ' || u.last_name as agent_name,
+              (SELECT vr.responses FROM visit_responses vr
+                 WHERE vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
+                   AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_responses,
+              (SELECT vr.responses FROM visit_responses vr
+                 WHERE vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
+                   AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses,
+              (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id) as photo_count,
+              (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_analysis_status = 'completed') as ai_done,
+              (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_analysis_status = 'failed') as ai_failed,
+              (SELECT MAX(vp.ai_share_of_voice) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_share_of_voice IS NOT NULL) as ai_max_sov,
+              (SELECT AVG(vp.ai_compliance_score) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_compliance_score IS NOT NULL) as ai_avg_compliance,
+              (SELECT GROUP_CONCAT(vp.ai_brands_detected, '|') FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_brands_detected IS NOT NULL) as ai_brands_concat
+         FROM visits v
+         LEFT JOIN customers c ON v.customer_id = c.id
+         LEFT JOIN users u ON v.agent_id = u.id
+         WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'${dateFilter}
+         ORDER BY v.visit_date ASC LIMIT 20000`
+    ).bind(...binds).all();
+
+    const list = rows.results || [];
+    const totals = {
+      stores_visited: list.length,
+      unique_stores: new Set(list.map(r => r.customer_id).filter(Boolean)).size,
+      with_photos: 0, with_ai_completed: 0, with_ai_failed: 0,
+      with_stock: 0, with_advertising: 0, board_installed: 0,
+      with_competitors: 0,
+    };
+    const byDate = new Map();
+    const radio = (k) => ({ key: k, yes: 0, no: 0, other: 0 });
+    const stocksProduct = radio('stocks_product');
+    const hasAdvertising = radio('has_advertising');
+    const competitorsInStore = radio('competitors_in_store');
+    const boardInstalled = radio('board_installed');
+    const competitorBrandCounts = new Map();
+    const stockSourceCounts = new Map();
+    const adBrandCounts = new Map();
+    const aiBrandCounts = new Map();
+    const sovOverTime = new Map(); // date -> {date, samples, sum, avg, max}
+    const complianceOverTime = new Map();
+    const topStores = new Map(); // store_name -> {name, visits}
+
+    function bumpRadio(target, val) {
+      if (val == null || val === '') return;
+      const s = String(val).toLowerCase().trim();
+      if (s === 'yes' || s === 'true' || s === '1') target.yes += 1;
+      else if (s === 'no' || s === 'false' || s === '0') target.no += 1;
+      else target.other += 1;
+    }
+    function bumpMap(map, key) {
+      if (!key) return;
+      const k = String(key).trim();
+      if (!k) return;
+      map.set(k, (map.get(k) || 0) + 1);
+    }
+    function mergeJson(a, b) {
+      const out = {};
+      try { if (a) Object.assign(out, typeof a === 'string' ? JSON.parse(a) : a); } catch {}
+      try { if (b) Object.assign(out, typeof b === 'string' ? JSON.parse(b) : b); } catch {}
+      return out;
+    }
+
+    for (const r of list) {
+      const f = mergeJson(r.store_responses, r.questionnaire_responses);
+      const day = (r.visit_date || (r.created_at || '').slice(0, 10)) || '';
+
+      if (day) {
+        const d = byDate.get(day) || { date: day, visits: 0 };
+        d.visits += 1;
+        byDate.set(day, d);
+      }
+      if (r.photo_count > 0) totals.with_photos += 1;
+      if (r.ai_done > 0) totals.with_ai_completed += 1;
+      if (r.ai_failed > 0) totals.with_ai_failed += 1;
+      bumpRadio(stocksProduct, f.stocks_product);
+      bumpRadio(hasAdvertising, f.has_advertising);
+      bumpRadio(competitorsInStore, f.competitors_in_store);
+      bumpRadio(boardInstalled, f.board_installed);
+      if (String(f.stocks_product).toLowerCase() === 'yes') totals.with_stock += 1;
+      if (String(f.has_advertising).toLowerCase() === 'yes') totals.with_advertising += 1;
+      if (String(f.board_installed).toLowerCase() === 'yes') totals.board_installed += 1;
+      if (String(f.competitors_in_store).toLowerCase() === 'yes') totals.with_competitors += 1;
+      const comp = f.who_is_competitor;
+      if (comp) {
+        if (Array.isArray(comp)) comp.forEach(x => bumpMap(competitorBrandCounts, x));
+        else String(comp).split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(x => bumpMap(competitorBrandCounts, x));
+      }
+      if (f.stock_source) bumpMap(stockSourceCounts, f.stock_source);
+      if (f.other_ad_brands) {
+        const ab = f.other_ad_brands;
+        if (Array.isArray(ab)) ab.forEach(x => bumpMap(adBrandCounts, x));
+        else String(ab).split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(x => bumpMap(adBrandCounts, x));
+      }
+      if (r.ai_brands_concat) {
+        const all = String(r.ai_brands_concat).split('|').filter(Boolean);
+        for (const seg of all) {
+          try {
+            const arr = JSON.parse(seg);
+            if (Array.isArray(arr)) arr.forEach(b => { if (b && b.name) bumpMap(aiBrandCounts, b.name); });
+          } catch {}
+        }
+      }
+      if (r.ai_max_sov != null && day) {
+        const s = sovOverTime.get(day) || { date: day, samples: 0, sum: 0, max: 0 };
+        s.samples += 1; s.sum += Number(r.ai_max_sov || 0); s.max = Math.max(s.max, Number(r.ai_max_sov || 0));
+        sovOverTime.set(day, s);
+      }
+      if (r.ai_avg_compliance != null && day) {
+        const s = complianceOverTime.get(day) || { date: day, samples: 0, sum: 0 };
+        s.samples += 1; s.sum += Number(r.ai_avg_compliance || 0);
+        complianceOverTime.set(day, s);
+      }
+      if (r.store_name) {
+        const t = topStores.get(r.store_name) || { name: r.store_name, visits: 0 };
+        t.visits += 1; topStores.set(r.store_name, t);
+      }
+    }
+
+    const sov = Array.from(sovOverTime.values()).map(s => ({ date: s.date, avg_share_of_voice: s.samples ? Math.round((s.sum / s.samples) * 10) / 10 : 0, max_share_of_voice: s.max })).sort((a, b) => a.date.localeCompare(b.date));
+    const compliance = Array.from(complianceOverTime.values()).map(s => ({ date: s.date, avg_compliance: s.samples ? Math.round((s.sum / s.samples) * 10) / 10 : 0 })).sort((a, b) => a.date.localeCompare(b.date));
+
+    return c.json({ success: true, data: {
+      filters: { startDate: startDate || null, endDate: endDate || null },
+      totals,
+      visitsOverTime: Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date)),
+      stocksProduct, hasAdvertising, competitorsInStore, boardInstalled,
+      competitors: Array.from(competitorBrandCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      stockSources: Array.from(stockSourceCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      adBrands: Array.from(adBrandCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      aiBrandsDetected: Array.from(aiBrandCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20),
+      shareOfVoice: sov,
+      compliance,
+      topStores: Array.from(topStores.values()).sort((a, b) => b.visits - a.visits).slice(0, 20),
+    } });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+function emptyIndividualInsights() {
+  return { totals: { individuals: 0, converted: 0, with_id: 0, with_suggestion: 0, conversion_rate: 0 }, visitsOverTime: [], topAgents: [], satisfaction: {}, competitors: [], productInterest: [], suggestionsTop: [], geo: { with_gps: 0 } };
+}
+function emptyStoreInsights() {
+  return { totals: { stores_visited: 0, unique_stores: 0, with_photos: 0, with_ai_completed: 0, with_ai_failed: 0, with_stock: 0, with_advertising: 0, board_installed: 0, with_competitors: 0 }, visitsOverTime: [], stocksProduct: {}, hasAdvertising: {}, competitorsInStore: {}, boardInstalled: {}, competitors: [], stockSources: [], adBrands: [], aiBrandsDetected: [], shareOfVoice: [], compliance: [], topStores: [] };
+}
+
 // Shops analytics (customer/store analytics)
 api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
   try {

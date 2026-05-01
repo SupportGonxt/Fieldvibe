@@ -434,6 +434,8 @@ const VisitsList = lazyWithRetry(() => import('./pages/field-operations/visits/V
 const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/operations/FieldOpsComprehensiveReport'))
 const GoldrushIndividualReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualReport'))
 const GoldrushStoreReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreReport'))
+const GoldrushIndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualInsights'))
+const GoldrushStoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreInsights'))
 
 // T-21: Suspense fallback for lazy-loaded pages
 function PageLoader({ children }: { children: React.ReactNode }) {
@@ -1092,6 +1094,8 @@ function App() {
             {/* Goldrush custom reports — kept as-is */}
             <Route path="field-operations/reports/goldrush-individuals" element={<PageLoader><GoldrushIndividualReport /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores" element={<PageLoader><GoldrushStoreReport /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><GoldrushIndividualInsights /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><GoldrushStoreInsights /></PageLoader>} />
 
             {/* Mobile More Menu */}
             <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
