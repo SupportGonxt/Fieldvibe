@@ -14019,10 +14019,11 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
     if (!object) return;
     let imageBytes = new Uint8Array(await object.arrayBuffer());
 
-    // Vision encoder tokenizes the image into a fixed number of visual tokens
-    // independent of raw byte size, so the 128K text context is not the constraint.
-    // Cap is a safety valve against runaway payloads; frontend compresses to ~1MB.
-    const MAX_AI_IMAGE_BYTES = 5_000_000;
+    // Hard cap as defence-in-depth. With image_url + base64 (below) the model
+    // tokenizes images via its visual encoder (~1.1K tokens regardless of size),
+    // so the byte size doesn't blow the context window — it just bounds the
+    // request payload itself.
+    const MAX_AI_IMAGE_BYTES = 4_000_000;
     if (imageBytes.length > MAX_AI_IMAGE_BYTES) {
       await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image ' + Math.round(imageBytes.length/1024) + 'KB exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB safety cap', photoId).run();
       return;
@@ -14043,11 +14044,30 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
       prompt = 'Describe what you see in this image. Identify any brands, products, retail elements, boards, or signage. Return JSON: { board_detected: true/false, brands: [], description: "" }';
     }
 
+    // ROOT-CAUSE FIX: previously passed `image: Array.from(imageBytes)` which
+    // serialised the binary as a JSON number array. Workers AI tokenised that
+    // as TEXT — at ~2 tokens/byte, every photo blew the 128K context window
+    // (errors looked like "5021: tokens (235112) exceeded limit (128000)").
+    //
+    // The right format for Llama 3.2 Vision is `type: 'image_url'` with a
+    // base64 data URL. The vision encoder consumes a fixed ~1.1K visual
+    // tokens regardless of byte size, so a 1MB photo costs the same as a
+    // 100KB photo in tokens.
+    const contentType = (object && object.httpMetadata && object.httpMetadata.contentType) || 'image/jpeg';
+    // btoa can't take giant strings on Workers — chunk to keep it stable.
+    let binStr = '';
+    const CHUNK = 32768;
+    for (let i = 0; i < imageBytes.length; i += CHUNK) {
+      binStr += String.fromCharCode.apply(null, imageBytes.subarray(i, i + CHUNK));
+    }
+    const dataUrl = `data:${contentType};base64,${btoa(binStr)}`;
+
     const aiResponse = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       messages: [{ role: 'user', content: [
         { type: 'text', text: prompt },
-        { type: 'image', image: Array.from(imageBytes) }
-      ]}]
+        { type: 'image_url', image_url: { url: dataUrl } },
+      ]}],
+      max_tokens: 800,
     });
 
     const responseText = aiResponse?.response || '';
