@@ -14599,7 +14599,7 @@ api.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     const bucket = c.env.UPLOADS;
     if (!bucket) return c.json({ success: false, message: 'R2 bucket not configured' }, 500);
 
@@ -14716,7 +14716,7 @@ api.post('/visit-photos/fix-urls', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     const reqUrl = c.req.url;
     // Fix visit_photos.r2_url entries with old format
     const badPhotos = await db.prepare("SELECT id, r2_url, r2_key FROM visit_photos WHERE tenant_id = ? AND r2_url LIKE '%fieldvibe-uploads%r2.dev%' LIMIT 200").bind(tenantId).all();
@@ -14771,7 +14771,7 @@ api.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
 
     const { limit: batchLimit, photo_type: filterPhotoType, visit_id: filterVisitId } = c.req.query();
     const maxBatch = Math.min(parseInt(batchLimit) || 20, 50); // Max 50 per batch to avoid Worker timeout
