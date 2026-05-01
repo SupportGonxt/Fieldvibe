@@ -219,7 +219,7 @@ export default function GoldrushIndividualInsights() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 flex flex-wrap items-end gap-4 print:hidden">
-        <DateRangePresets startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e) }} />
+        <DateRangePresets startDate={startDate} endDate={endDate} onStartDateChange={setStartDate} onEndDateChange={setEndDate} />
         <div className="text-xs text-gray-500 ml-auto">
           {data.filters.startDate ? `From ${data.filters.startDate}` : 'All time'}
           {data.filters.endDate ? ` to ${data.filters.endDate}` : ''}
