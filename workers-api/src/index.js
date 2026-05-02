@@ -14181,14 +14181,34 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
       sovPct = totalFacings > 0 ? Math.round((brandFacings / totalFacings) * 1000) / 10 : 0;
     }
 
+    // Coerce values for D1 bind. The model occasionally returns a nested
+    // object instead of a number for compliance_score (e.g. {value: 75}).
+    // D1 only accepts primitives — passing an object throws
+    // "D1_TYPE_ERROR: Type 'object' not supported for value '[object Object]'"
+    // and we lose the analysis. Normalise here.
+    function toFloatOrNull(v) {
+      if (v == null) return null;
+      if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+      if (typeof v === 'string') { const n = parseFloat(v); return Number.isFinite(n) ? n : null; }
+      if (typeof v === 'object') {
+        // Try common keys.
+        const candidate = v.value ?? v.score ?? v.percent ?? v.percentage;
+        if (candidate != null) return toFloatOrNull(candidate);
+      }
+      return null;
+    }
+    const complianceScore = toFloatOrNull(parsed.compliance_score);
+    const aiBrandsJson = JSON.stringify(Array.isArray(parsed.brands) ? parsed.brands : []);
+    const aiLabelsJson = JSON.stringify(parsed || {});
+
     await env.DB.prepare(`UPDATE visit_photos SET ai_analysis_status = 'completed',
       ai_brands_detected = ?, ai_share_of_voice = ?, ai_facing_count = ?,
       ai_competitor_facings = ?, ai_compliance_score = ?, ai_labels = ?,
       ai_raw_response = ?, ai_processed_at = datetime('now')
       WHERE id = ?`).bind(
-      JSON.stringify(parsed.brands || []), sovPct, brandFacings,
-      totalFacings - brandFacings, parsed.compliance_score || null,
-      JSON.stringify(parsed), responseText, photoId).run();
+      aiBrandsJson, sovPct, brandFacings,
+      totalFacings - brandFacings, complianceScore,
+      aiLabelsJson, responseText, photoId).run();
 
     // If AI detected a board, update the board_installed field in store custom questions
     if (parsed.board_detected === true || (responseText && responseText.toLowerCase().includes('board_detected') && responseText.toLowerCase().includes('true'))) {
