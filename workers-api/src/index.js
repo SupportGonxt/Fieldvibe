@@ -15572,6 +15572,114 @@ api.get('/reports/anomalies', requireRole('admin', 'manager'), async (c) => {
 });
 
 // Admin routes
+// Email subscription CRUD for scheduled reports (super_admin/admin only).
+// Used to register Goldrush staff to receive the weekly Monday email.
+api.get('/admin/report-email-subscriptions', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const { report_key } = c.req.query();
+  let where = 'WHERE tenant_id = ?';
+  const params = [tenantId];
+  if (report_key) { where += ' AND report_key = ?'; params.push(report_key); }
+  const rows = await db.prepare(
+    'SELECT id, report_key, recipient_email, recipient_name, is_active, last_sent_at, last_sent_status, last_sent_error, created_at ' +
+    'FROM report_email_subscriptions ' + where + ' ORDER BY report_key, recipient_email'
+  ).bind(...params).all();
+  return c.json({ success: true, data: rows.results || [] });
+});
+
+api.post('/admin/report-email-subscriptions', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const body = await c.req.json();
+  if (!body.recipient_email || typeof body.recipient_email !== 'string') {
+    return c.json({ success: false, message: 'recipient_email is required' }, 400);
+  }
+  const reportKey = body.report_key || 'goldrush-weekly';
+  const id = uuidv4();
+  try {
+    await db.prepare(
+      'INSERT INTO report_email_subscriptions (id, tenant_id, report_key, recipient_email, recipient_name, is_active, created_by) ' +
+      'VALUES (?, ?, ?, ?, ?, COALESCE(?, 1), ?)'
+    ).bind(id, tenantId, reportKey, body.recipient_email.trim().toLowerCase(), body.recipient_name || null, body.is_active != null ? (body.is_active ? 1 : 0) : null, userId).run();
+    return c.json({ success: true, data: { id } }, 201);
+  } catch (e) {
+    if (String(e.message || '').includes('UNIQUE')) {
+      return c.json({ success: false, message: 'This email is already subscribed to that report' }, 409);
+    }
+    return c.json({ success: false, message: e.message }, 500);
+  }
+});
+
+api.put('/admin/report-email-subscriptions/:id', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  await db.prepare(
+    'UPDATE report_email_subscriptions SET ' +
+    'recipient_name = COALESCE(?, recipient_name), is_active = COALESCE(?, is_active), updated_at = datetime("now") ' +
+    'WHERE id = ? AND tenant_id = ?'
+  ).bind(body.recipient_name || null, body.is_active != null ? (body.is_active ? 1 : 0) : null, id, tenantId).run();
+  return c.json({ success: true, message: 'Subscription updated' });
+});
+
+api.delete('/admin/report-email-subscriptions/:id', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare('DELETE FROM report_email_subscriptions WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  return c.json({ success: true, message: 'Subscription removed' });
+});
+
+// Manual trigger: useful for verifying the full email pipeline without
+// waiting for Monday 5am. Runs the same code path the cron uses but ONLY
+// for subscriptions belonging to the requesting tenant.
+api.post('/admin/report-email-subscriptions/send-weekly-now', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const end = new Date();
+  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const startStr = start.toISOString().slice(0, 10);
+  const endStr = end.toISOString().slice(0, 10);
+  const subs = await db.prepare(
+    "SELECT s.id, s.tenant_id, s.recipient_email, s.recipient_name, t.name as tenant_name " +
+    "FROM report_email_subscriptions s LEFT JOIN tenants t ON s.tenant_id = t.id " +
+    "WHERE s.is_active = 1 AND s.report_key = 'goldrush-weekly' AND s.tenant_id = ?"
+  ).bind(tenantId).all();
+  const list = subs.results || [];
+  const results = [];
+  for (const sub of list) {
+    try {
+      const [individuals, stores] = await Promise.all([
+        computeGoldrushIndividualInsights(db, sub.tenant_id, startStr, endStr),
+        computeGoldrushStoreInsights(db, sub.tenant_id, startStr, endStr),
+      ]);
+      if (!individuals && !stores) {
+        await db.prepare("UPDATE report_email_subscriptions SET last_sent_at = datetime('now'), last_sent_status = 'skipped', last_sent_error = 'No Goldrush company configured' WHERE id = ?").bind(sub.id).run();
+        results.push({ id: sub.id, email: sub.recipient_email, status: 'skipped' });
+        continue;
+      }
+      const html = buildGoldrushWeeklyHtml({
+        tenantName: sub.tenant_name, startDate: startStr, endDate: endStr,
+        individuals, stores, recipientName: sub.recipient_name,
+      });
+      await sendEmailViaMailChannels(c.env, {
+        to: sub.recipient_email, toName: sub.recipient_name,
+        subject: `Goldrush weekly — ${startStr} to ${endStr}`, html,
+      });
+      await db.prepare("UPDATE report_email_subscriptions SET last_sent_at = datetime('now'), last_sent_status = 'sent', last_sent_error = NULL WHERE id = ?").bind(sub.id).run();
+      results.push({ id: sub.id, email: sub.recipient_email, status: 'sent' });
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message).slice(0, 300) : 'send failed';
+      await db.prepare("UPDATE report_email_subscriptions SET last_sent_at = datetime('now'), last_sent_status = 'failed', last_sent_error = ? WHERE id = ?").bind(msg, sub.id).run();
+      results.push({ id: sub.id, email: sub.recipient_email, status: 'failed', error: msg });
+    }
+  }
+  return c.json({ success: true, data: { sent: results.filter(r => r.status === 'sent').length, total: results.length, results } });
+});
+
 api.get('/admin/settings', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -19792,6 +19900,263 @@ async function generateAgingReport(db) {
   } catch (e) { console.error('generateAgingReport error:', e); }
 }
 
+// ==================== WEEKLY GOLDRUSH EMAIL ====================
+// Pulls report_email_subscriptions, recomputes the same insights data the
+// /goldrush-individuals/insights and /goldrush-stores/insights endpoints
+// return, formats it as a self-contained HTML email, and sends via
+// MailChannels. Runs from the Monday 5am UTC cron tick.
+
+const MAIL_FROM_EMAIL   = 'reports@fieldvibe.vantax.co.za'
+const MAIL_FROM_NAME    = 'FieldVibe Reports'
+const MAIL_REPLY_TO     = 'support@fieldvibe.vantax.co.za'
+
+async function sendEmailViaMailChannels(env, { to, toName, subject, html, fromEmail, fromName }) {
+  const body = {
+    personalizations: [{ to: [{ email: to, name: toName || undefined }] }],
+    from: { email: fromEmail || MAIL_FROM_EMAIL, name: fromName || MAIL_FROM_NAME },
+    reply_to: { email: MAIL_REPLY_TO },
+    subject,
+    content: [{ type: 'text/html', value: html }],
+  };
+  const res = await fetch('https://api.mailchannels.net/tx/v1/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`MailChannels ${res.status}: ${t.slice(0, 300)}`);
+  }
+}
+
+function htmlEscape(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function tableHtml(headers, rows) {
+  const th = headers.map(h => `<th style="background:#0F172A;color:#fff;padding:8px;text-align:left;font-size:12px;font-weight:600;border-bottom:2px solid #0EA5E9">${htmlEscape(h)}</th>`).join('');
+  const trs = rows.map((r, i) => {
+    const bg = i % 2 ? '#F8FAFC' : '#FFFFFF';
+    const tds = r.map(c => `<td style="padding:8px;border-bottom:1px solid #E2E8F0;font-size:12px;color:#1F2937">${htmlEscape(c)}</td>`).join('');
+    return `<tr style="background:${bg}">${tds}</tr>`;
+  }).join('');
+  return `<table style="border-collapse:collapse;width:100%;margin:8px 0 18px;font-family:Helvetica,Arial,sans-serif"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+function kpiHtml(rows) {
+  return `<table style="border-collapse:collapse;width:100%;margin:8px 0 18px;font-family:Helvetica,Arial,sans-serif">${rows.map(([k, v]) =>
+    `<tr><td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:13px;color:#475569;width:60%">${htmlEscape(k)}</td><td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:14px;color:#0F172A;font-weight:600;text-align:right">${htmlEscape(v)}</td></tr>`
+  ).join('')}</table>`;
+}
+
+// Computes the same payload the GET /goldrush-individuals/insights endpoint
+// returns, but invokable from cron without HTTP.
+async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDate) {
+  const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+  if (!goldrush) return null;
+  const goldrushId = goldrush.id;
+  let dateFilter = '';
+  const binds = [tenantId, goldrushId];
+  if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }
+  if (endDate)   { dateFilter += ' AND v.visit_date <= ?'; binds.push(endDate); }
+  const rows = await db.prepare(
+    `SELECT v.id, v.visit_date, v.created_at, vi.custom_field_values,
+            (SELECT vr.responses FROM visit_responses vr
+               WHERE vr.visit_id = v.id
+                 AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')
+               LIMIT 1) as questionnaire_responses,
+            u.first_name || ' ' || u.last_name as agent_name
+       FROM visits v
+       LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
+       LEFT JOIN users u ON v.agent_id = u.id
+       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'${dateFilter}
+       ORDER BY v.visit_date ASC LIMIT 20000`
+  ).bind(...binds).all();
+  const list = rows.results || [];
+  const totals = { individuals: list.length, converted: 0, with_id: 0, with_suggestion: 0 };
+  const byAgent = new Map();
+  const competitorCounts = new Map();
+  for (const r of list) {
+    let f = {};
+    try { if (r.custom_field_values) Object.assign(f, typeof r.custom_field_values === 'string' ? JSON.parse(r.custom_field_values) : r.custom_field_values); } catch {}
+    try { if (r.questionnaire_responses) Object.assign(f, typeof r.questionnaire_responses === 'string' ? JSON.parse(r.questionnaire_responses) : r.questionnaire_responses); } catch {}
+    if (Number(f.converted) === 1 || String(f.consumer_converted).toLowerCase() === 'yes') totals.converted += 1;
+    if (f.goldrush_id && String(f.goldrush_id).trim()) totals.with_id += 1;
+    if (f.platform_suggestions && String(f.platform_suggestions).trim()) totals.with_suggestion += 1;
+    if (r.agent_name) {
+      const a = byAgent.get(r.agent_name) || { agent: r.agent_name, visits: 0, conversions: 0 };
+      a.visits += 1;
+      if (Number(f.converted) === 1 || String(f.consumer_converted).toLowerCase() === 'yes') a.conversions += 1;
+      byAgent.set(r.agent_name, a);
+    }
+    const comp = f.competitor_company || f.who_is_competitor;
+    if (comp) {
+      if (Array.isArray(comp)) comp.forEach(x => { if (x) competitorCounts.set(x, (competitorCounts.get(x) || 0) + 1); });
+      else String(comp).split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(x => competitorCounts.set(x, (competitorCounts.get(x) || 0) + 1));
+    }
+  }
+  return {
+    totals: { ...totals, conversion_rate: totals.individuals ? Math.round((totals.converted / totals.individuals) * 1000) / 10 : 0 },
+    topAgents: Array.from(byAgent.values()).map(a => ({ ...a, conversion_rate: a.visits ? Math.round((a.conversions / a.visits) * 1000) / 10 : 0 })).sort((a, b) => b.visits - a.visits).slice(0, 10),
+    competitors: Array.from(competitorCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+  };
+}
+
+async function computeGoldrushStoreInsights(db, tenantId, startDate, endDate) {
+  const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+  if (!goldrush) return null;
+  const goldrushId = goldrush.id;
+  let dateFilter = '';
+  const binds = [tenantId, goldrushId];
+  if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }
+  if (endDate)   { dateFilter += ' AND v.visit_date <= ?'; binds.push(endDate); }
+  const rows = await db.prepare(
+    `SELECT v.id, v.customer_id, c.name as store_name,
+            (SELECT vr.responses FROM visit_responses vr
+               WHERE vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
+                 AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_responses,
+            (SELECT MAX(vp.ai_share_of_voice) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_share_of_voice IS NOT NULL) as ai_max_sov,
+            (SELECT AVG(vp.ai_compliance_score) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_compliance_score IS NOT NULL) as ai_avg_compliance,
+            (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id) as photo_count,
+            (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_analysis_status = 'completed') as ai_done
+       FROM visits v
+       LEFT JOIN customers c ON v.customer_id = c.id
+       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'${dateFilter}
+       ORDER BY v.visit_date ASC LIMIT 20000`
+  ).bind(...binds).all();
+  const list = rows.results || [];
+  const totals = { stores_visited: list.length, unique_stores: new Set(list.map(r => r.customer_id).filter(Boolean)).size, with_photos: 0, with_ai_completed: 0, with_stock: 0, with_advertising: 0, board_installed: 0, with_competitors: 0 };
+  const sovList = []; const complianceList = [];
+  const topStores = new Map();
+  for (const r of list) {
+    if (r.photo_count > 0) totals.with_photos += 1;
+    if (r.ai_done > 0) totals.with_ai_completed += 1;
+    if (r.ai_max_sov != null) sovList.push(Number(r.ai_max_sov));
+    if (r.ai_avg_compliance != null) complianceList.push(Number(r.ai_avg_compliance));
+    let f = {};
+    try { if (r.store_responses) Object.assign(f, typeof r.store_responses === 'string' ? JSON.parse(r.store_responses) : r.store_responses); } catch {}
+    if (String(f.stocks_product).toLowerCase() === 'yes') totals.with_stock += 1;
+    if (String(f.has_advertising).toLowerCase() === 'yes') totals.with_advertising += 1;
+    if (String(f.board_installed).toLowerCase() === 'yes') totals.board_installed += 1;
+    if (String(f.competitors_in_store).toLowerCase() === 'yes') totals.with_competitors += 1;
+    if (r.store_name) {
+      const t = topStores.get(r.store_name) || { name: r.store_name, visits: 0 };
+      t.visits += 1; topStores.set(r.store_name, t);
+    }
+  }
+  const avgSov = sovList.length ? Math.round((sovList.reduce((a, b) => a + b, 0) / sovList.length) * 10) / 10 : 0;
+  const avgCompliance = complianceList.length ? Math.round((complianceList.reduce((a, b) => a + b, 0) / complianceList.length) * 10) / 10 : 0;
+  return {
+    totals,
+    avgSov,
+    avgCompliance,
+    topStores: Array.from(topStores.values()).sort((a, b) => b.visits - a.visits).slice(0, 10),
+  };
+}
+
+function buildGoldrushWeeklyHtml({ tenantName, startDate, endDate, individuals, stores, recipientName }) {
+  const periodLabel = `${startDate} to ${endDate}`;
+  const greeting = recipientName ? `Hi ${htmlEscape(recipientName)},` : 'Hello,';
+
+  let body = `<div style="font-family:Helvetica,Arial,sans-serif;color:#0F172A;max-width:680px;margin:0 auto;padding:0 16px">
+    <div style="background:#0A0F1C;color:#fff;padding:18px 16px;border-radius:6px 6px 0 0">
+      <div style="font-size:18px;font-weight:bold">FieldVibe — Goldrush weekly report</div>
+      <div style="font-size:12px;color:#A0AEC0;margin-top:2px">${htmlEscape(tenantName || 'FieldVibe')} · Period: ${htmlEscape(periodLabel)}</div>
+    </div>
+    <div style="padding:18px 16px;background:#fff;border:1px solid #E2E8F0;border-top:0;border-radius:0 0 6px 6px">
+      <p style="font-size:14px;margin:0 0 14px">${greeting}</p>
+      <p style="font-size:14px;margin:0 0 14px">Here is the Goldrush activity summary for the past week.</p>`;
+
+  if (individuals) {
+    body += `<h2 style="font-size:16px;color:#0F172A;margin:20px 0 4px">Consumers</h2>` + kpiHtml([
+      ['Individuals visited',  individuals.totals.individuals],
+      ['Converted',            individuals.totals.converted],
+      ['Conversion rate',      `${individuals.totals.conversion_rate}%`],
+      ['Customers with Goldrush ID', individuals.totals.with_id],
+      ['Customers with feedback',    individuals.totals.with_suggestion],
+    ]);
+    if (individuals.topAgents.length) {
+      body += `<h3 style="font-size:14px;color:#0F172A;margin:14px 0 4px">Top agents</h3>` +
+        tableHtml(['Agent', 'Visits', 'Conversions', 'Conv %'],
+          individuals.topAgents.map(a => [a.agent, a.visits, a.conversions, a.conversion_rate + '%']));
+    }
+    if (individuals.competitors.length) {
+      body += `<h3 style="font-size:14px;color:#0F172A;margin:14px 0 4px">Top competitors mentioned</h3>` +
+        tableHtml(['Competitor', 'Mentions'], individuals.competitors.map(c => [c.name, c.count]));
+    }
+  }
+
+  if (stores) {
+    const t = stores.totals;
+    body += `<h2 style="font-size:16px;color:#0F172A;margin:20px 0 4px">Stores</h2>` + kpiHtml([
+      ['Store visits',                t.stores_visited],
+      ['Unique stores',               t.unique_stores],
+      ['Stores stocking product',     t.with_stock],
+      ['Stores with advertising',     t.with_advertising],
+      ['Stores with board installed', t.board_installed],
+      ['Stores with photos',          t.with_photos],
+      ['Stores with AI analysis',     t.with_ai_completed],
+      ['Avg AI share of voice',       `${stores.avgSov}%`],
+      ['Avg AI compliance score',     stores.avgCompliance],
+    ]);
+    if (stores.topStores.length) {
+      body += `<h3 style="font-size:14px;color:#0F172A;margin:14px 0 4px">Top stores by visits</h3>` +
+        tableHtml(['Store', 'Visits'], stores.topStores.map(s => [s.name, s.visits]));
+    }
+  }
+
+  body += `<p style="font-size:12px;color:#64748B;margin:24px 0 0">This is an automated report from FieldVibe.<br>Login to <a href="https://fieldvibe.vantax.co.za" style="color:#0EA5E9">fieldvibe.vantax.co.za</a> for the full interactive dashboard with charts and PDF download.</p>`;
+  body += `</div></div>`;
+  return body;
+}
+
+async function sendWeeklyGoldrushReports(env) {
+  const db = env.DB;
+  // 7-day window ending today (UTC).
+  const end = new Date();
+  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const startStr = start.toISOString().slice(0, 10);
+  const endStr   = end.toISOString().slice(0, 10);
+
+  const subs = await db.prepare(
+    "SELECT s.id, s.tenant_id, s.recipient_email, s.recipient_name, t.name as tenant_name " +
+    "FROM report_email_subscriptions s LEFT JOIN tenants t ON s.tenant_id = t.id " +
+    "WHERE s.is_active = 1 AND s.report_key = 'goldrush-weekly'"
+  ).all();
+
+  const list = subs.results || [];
+  for (const sub of list) {
+    try {
+      const [individuals, stores] = await Promise.all([
+        computeGoldrushIndividualInsights(db, sub.tenant_id, startStr, endStr),
+        computeGoldrushStoreInsights(db, sub.tenant_id, startStr, endStr),
+      ]);
+      // If neither has Goldrush configured for the tenant, skip silently.
+      if (!individuals && !stores) {
+        await db.prepare("UPDATE report_email_subscriptions SET last_sent_at = datetime('now'), last_sent_status = 'skipped', last_sent_error = 'No Goldrush company configured' WHERE id = ?").bind(sub.id).run();
+        continue;
+      }
+      const html = buildGoldrushWeeklyHtml({
+        tenantName: sub.tenant_name,
+        startDate: startStr,
+        endDate: endStr,
+        individuals,
+        stores,
+        recipientName: sub.recipient_name,
+      });
+      const subject = `Goldrush weekly — ${startStr} to ${endStr}`;
+      await sendEmailViaMailChannels(env, {
+        to: sub.recipient_email,
+        toName: sub.recipient_name,
+        subject,
+        html,
+      });
+      await db.prepare("UPDATE report_email_subscriptions SET last_sent_at = datetime('now'), last_sent_status = 'sent', last_sent_error = NULL WHERE id = ?").bind(sub.id).run();
+    } catch (e) {
+      const msg = (e && e.message) ? String(e.message).slice(0, 300) : 'send failed';
+      await db.prepare("UPDATE report_email_subscriptions SET last_sent_at = datetime('now'), last_sent_status = 'failed', last_sent_error = ? WHERE id = ?").bind(msg, sub.id).run();
+    }
+  }
+}
+
 // ==================== DYNAMIC PRICING (SECTION 1) ====================
 async function resolvePrice(db, tenantId, productId, customerId, quantity) {
   if (customerId) {
@@ -19879,6 +20244,7 @@ export default {
     if (hour === 16) await checkStaleVanLoads(env.DB);
     if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);
     if (day === 1 && hour === 5) await generateAgingReport(env.DB);
+    if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
     // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
     if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
     // Reap stuck rows first so they re-enter the drain queue this tick.
