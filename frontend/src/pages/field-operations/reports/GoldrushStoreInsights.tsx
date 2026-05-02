@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
@@ -7,6 +7,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Download, FileDown, Store, Image as ImageIcon, ShieldCheck, AlertTriangle, RefreshCw, ExternalLink, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
+import { captureCharts } from '../../../utils/capture-chart'
 
 interface YesNoBucket { key: string; yes: number; no: number; other: number }
 interface StoreInsights {
@@ -47,6 +48,12 @@ export default function GoldrushStoreInsights() {
   const [error, setError] = useState<string | null>(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [pdfWorking, setPdfWorking] = useState(false)
+  const visitsRef     = useRef<HTMLDivElement>(null)
+  const sovRef        = useRef<HTMLDivElement>(null)
+  const complianceRef = useRef<HTMLDivElement>(null)
+  const aiBrandsRef   = useRef<HTMLDivElement>(null)
+  const competitorsRef= useRef<HTMLDivElement>(null)
 
   const load = async () => {
     setLoading(true)
@@ -121,8 +128,19 @@ export default function GoldrushStoreInsights() {
     URL.revokeObjectURL(url)
     toast.success('CSV exported')
   }
-  const downloadPDF = () => {
-    if (!data) return
+  const downloadPDF = async () => {
+    if (!data || pdfWorking) return
+    setPdfWorking(true)
+    let charts: Record<string, string | null> = {}
+    try {
+      charts = await captureCharts([
+        { key: 'visits',     el: visitsRef.current },
+        { key: 'sov',        el: sovRef.current },
+        { key: 'compliance', el: complianceRef.current },
+        { key: 'aiBrands',   el: aiBrandsRef.current },
+        { key: 'competitors',el: competitorsRef.current },
+      ])
+    } catch { /* best-effort */ }
     const period = `${data.filters.startDate || 'all time'} → ${data.filters.endDate || 'today'}`
     const sections: Parameters<typeof buildInsightsPDF>[0]['sections'] = []
     const t = data.totals
@@ -147,6 +165,9 @@ export default function GoldrushStoreInsights() {
       sections.push({ kind: 'paragraph', title: 'AI photo failures', text: `${t.with_ai_failed} store visits have one or more photos whose AI analysis failed. The hourly cron retries failures automatically. If the count stays high, check the ai_raw_response field on visit_photos.` })
     }
 
+    if (charts.visits) {
+      sections.push({ kind: 'image', title: 'Store visits over time', dataUrl: charts.visits })
+    }
     if (data.visitsOverTime.length) {
       sections.push({
         kind: 'table',
@@ -170,6 +191,9 @@ export default function GoldrushStoreInsights() {
       columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
     })
 
+    if (charts.sov) {
+      sections.push({ kind: 'image', title: 'AI share of voice over time', dataUrl: charts.sov })
+    }
     if (data.shareOfVoice.length) {
       sections.push({
         kind: 'table',
@@ -178,6 +202,9 @@ export default function GoldrushStoreInsights() {
         rows: data.shareOfVoice.map(s => [s.date, s.avg_share_of_voice, s.max_share_of_voice]),
         columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
       })
+    }
+    if (charts.compliance) {
+      sections.push({ kind: 'image', title: 'AI compliance score over time', dataUrl: charts.compliance })
     }
     if (data.compliance.length) {
       sections.push({
@@ -188,6 +215,9 @@ export default function GoldrushStoreInsights() {
         columnStyles: { 1: { halign: 'right' } },
       })
     }
+    if (charts.aiBrands) {
+      sections.push({ kind: 'image', title: 'AI-detected brands on shelf', dataUrl: charts.aiBrands })
+    }
     if (data.aiBrandsDetected.length) {
       sections.push({
         kind: 'table',
@@ -196,6 +226,9 @@ export default function GoldrushStoreInsights() {
         rows: data.aiBrandsDetected.map(b => [b.name, b.count]),
         columnStyles: { 1: { halign: 'right' } },
       })
+    }
+    if (charts.competitors) {
+      sections.push({ kind: 'image', title: 'Competitors in store', dataUrl: charts.competitors })
     }
     if (data.competitors.length) {
       sections.push({
@@ -246,6 +279,7 @@ export default function GoldrushStoreInsights() {
       footer: 'FieldVibe — Goldrush insights — confidential',
     })
     toast.success('PDF downloaded')
+    setPdfWorking(false)
   }
   const printPDF = () => window.print()
 
@@ -276,7 +310,7 @@ export default function GoldrushStoreInsights() {
         <div className="flex gap-2 print:hidden">
           <button onClick={load} className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 inline-flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Refresh</button>
           <button onClick={exportCSV} className="px-3 py-2 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800 inline-flex items-center gap-1"><Download className="w-4 h-4" /> CSV</button>
-          <button onClick={downloadPDF} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center gap-1"><FileDown className="w-4 h-4" /> PDF</button>
+          <button onClick={downloadPDF} disabled={pdfWorking} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"><FileDown className="w-4 h-4" /> {pdfWorking ? 'Building…' : 'PDF'}</button>
           <button onClick={printPDF} title="Open the browser print dialog instead of downloading a PDF" className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 inline-flex items-center gap-1">Print</button>
           <Link to="/field-operations/reports/goldrush-stores" className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 inline-flex items-center gap-1"><ExternalLink className="w-4 h-4" /> Open detail report</Link>
         </div>
@@ -311,6 +345,7 @@ export default function GoldrushStoreInsights() {
       {/* Visits over time */}
       <Card title="Store visits over time" subtitle="Daily store-visit volume">
         {data.visitsOverTime.length === 0 ? <Empty msg="No store visits in this period." /> : (
+          <div ref={visitsRef}>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={data.visitsOverTime} margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -320,6 +355,7 @@ export default function GoldrushStoreInsights() {
               <Area type="monotone" dataKey="visits" stroke={ACCENT} fill={ACCENT} fillOpacity={0.18} />
             </AreaChart>
           </ResponsiveContainer>
+          </div>
         )}
       </Card>
 
@@ -327,6 +363,7 @@ export default function GoldrushStoreInsights() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="AI share of voice over time" subtitle="Daily avg + max share-of-voice from on-shelf photo analysis">
           {data.shareOfVoice.length === 0 ? <Empty msg="No AI photo analysis yet for this period." /> : (
+            <div ref={sovRef}>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data.shareOfVoice}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -338,10 +375,12 @@ export default function GoldrushStoreInsights() {
                 <Line type="monotone" dataKey="max_share_of_voice" name="Max SoV %" stroke={ORANGE}    strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           )}
         </Card>
         <Card title="AI compliance over time" subtitle="Daily avg compliance score from photo analysis">
           {data.compliance.length === 0 ? <Empty msg="No compliance signals yet." /> : (
+            <div ref={complianceRef}>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={data.compliance}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -351,6 +390,7 @@ export default function GoldrushStoreInsights() {
                 <Line type="monotone" dataKey="avg_compliance" name="Avg compliance" stroke={GREEN} strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           )}
         </Card>
       </div>
@@ -359,6 +399,7 @@ export default function GoldrushStoreInsights() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="AI-detected brands on shelf" subtitle="Brands recognised by photo analysis (top 20)">
           {data.aiBrandsDetected.length === 0 ? <Empty msg="No AI brand detections yet." /> : (
+            <div ref={aiBrandsRef}>
             <ResponsiveContainer width="100%" height={Math.max(220, data.aiBrandsDetected.length * 22)}>
               <BarChart data={data.aiBrandsDetected} layout="vertical" margin={{ top: 4, right: 16, left: 80, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
@@ -368,10 +409,12 @@ export default function GoldrushStoreInsights() {
                 <Bar dataKey="count" fill={ACCENT} />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </Card>
         <Card title="Competitors in store" subtitle="Survey + AI signals combined (agent-reported)">
           {data.competitors.length === 0 ? <Empty msg="No competitor data." /> : (
+            <div ref={competitorsRef}>
             <ResponsiveContainer width="100%" height={Math.max(220, data.competitors.length * 22)}>
               <BarChart data={data.competitors} layout="vertical" margin={{ top: 4, right: 16, left: 80, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
@@ -381,6 +424,7 @@ export default function GoldrushStoreInsights() {
                 <Bar dataKey="count" fill={RED} />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </Card>
       </div>

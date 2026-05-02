@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
@@ -7,6 +7,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Download, FileDown, Users, CheckCircle2, BadgeCheck, MessageSquareText, RefreshCw, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
+import { captureCharts } from '../../../utils/capture-chart'
 
 interface YesNoBucket { key: string; yes: number; no: number; other: number }
 interface Insights {
@@ -39,6 +40,10 @@ export default function GoldrushIndividualInsights() {
   const [error, setError] = useState<string | null>(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [pdfWorking, setPdfWorking] = useState(false)
+  const visitsOverTimeRef = useRef<HTMLDivElement>(null)
+  const competitorsRef    = useRef<HTMLDivElement>(null)
+  const productInterestRef= useRef<HTMLDivElement>(null)
 
   const load = async () => {
     setLoading(true)
@@ -103,8 +108,19 @@ export default function GoldrushIndividualInsights() {
     toast.success('CSV exported')
   }
 
-  const downloadPDF = () => {
-    if (!data) return
+  const downloadPDF = async () => {
+    if (!data || pdfWorking) return
+    setPdfWorking(true)
+    let charts: Record<string, string | null> = {}
+    try {
+      charts = await captureCharts([
+        { key: 'visits',     el: visitsOverTimeRef.current },
+        { key: 'competitors',el: competitorsRef.current },
+        { key: 'products',   el: productInterestRef.current },
+      ])
+    } catch {
+      // chart capture is best-effort
+    }
     const period = `${data.filters.startDate || 'all time'} → ${data.filters.endDate || 'today'}`
     const sections: Parameters<typeof buildInsightsPDF>[0]['sections'] = []
 
@@ -116,6 +132,9 @@ export default function GoldrushIndividualInsights() {
       ['Left a suggestion',       data.totals.with_suggestion],
     ]})
 
+    if (charts.visits) {
+      sections.push({ kind: 'image', title: 'Visits and conversions over time', dataUrl: charts.visits })
+    }
     if (data.visitsOverTime.length) {
       sections.push({
         kind: 'table',
@@ -151,6 +170,9 @@ export default function GoldrushIndividualInsights() {
       })
     }
 
+    if (charts.competitors) {
+      sections.push({ kind: 'image', title: 'Competitors mentioned', dataUrl: charts.competitors })
+    }
     if (data.competitors.length) {
       sections.push({
         kind: 'table',
@@ -161,6 +183,9 @@ export default function GoldrushIndividualInsights() {
       })
     }
 
+    if (charts.products) {
+      sections.push({ kind: 'image', title: 'Product interest', dataUrl: charts.products })
+    }
     if (data.productInterest.length) {
       sections.push({
         kind: 'table',
@@ -193,6 +218,7 @@ export default function GoldrushIndividualInsights() {
       footer: 'FieldVibe — Goldrush insights — confidential',
     })
     toast.success('PDF downloaded')
+    setPdfWorking(false)
   }
   const printPDF = () => window.print()
 
@@ -212,7 +238,7 @@ export default function GoldrushIndividualInsights() {
         <div className="flex gap-2 print:hidden">
           <button onClick={load} className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 inline-flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Refresh</button>
           <button onClick={exportCSV} className="px-3 py-2 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800 inline-flex items-center gap-1"><Download className="w-4 h-4" /> CSV</button>
-          <button onClick={downloadPDF} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center gap-1"><FileDown className="w-4 h-4" /> PDF</button>
+          <button onClick={downloadPDF} disabled={pdfWorking} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"><FileDown className="w-4 h-4" /> {pdfWorking ? 'Building…' : 'PDF'}</button>
           <button onClick={printPDF} title="Open the browser print dialog instead of downloading a PDF" className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 inline-flex items-center gap-1">Print</button>
           <Link to="/field-operations/reports/goldrush-individuals" className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50 inline-flex items-center gap-1"><ExternalLink className="w-4 h-4" /> Open detail report</Link>
         </div>
@@ -238,6 +264,7 @@ export default function GoldrushIndividualInsights() {
       {/* Visits over time */}
       <Card title="Visits & conversions over time" subtitle="Daily volume + conversions by date">
         {data.visitsOverTime.length === 0 ? <Empty msg="No visits in this period." /> : (
+          <div ref={visitsOverTimeRef}>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={data.visitsOverTime} margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -249,6 +276,7 @@ export default function GoldrushIndividualInsights() {
               <Line type="monotone" dataKey="conversions" stroke={ACCENT_2} strokeWidth={2} dot={false} name="Conversions" />
             </LineChart>
           </ResponsiveContainer>
+          </div>
         )}
       </Card>
 
@@ -279,6 +307,7 @@ export default function GoldrushIndividualInsights() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="Competitors mentioned" subtitle="From customer answers (top 20)">
           {data.competitors.length === 0 ? <Empty msg="No competitor mentions." /> : (
+            <div ref={competitorsRef}>
             <ResponsiveContainer width="100%" height={Math.max(220, data.competitors.length * 22)}>
               <BarChart data={data.competitors} layout="vertical" margin={{ top: 4, right: 16, left: 60, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
@@ -288,10 +317,12 @@ export default function GoldrushIndividualInsights() {
                 <Bar dataKey="count" fill="#ef4444" />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </Card>
         <Card title="Product interest" subtitle="Top items from 'which products interest you'">
           {data.productInterest.length === 0 ? <Empty msg="No product interest captured." /> : (
+            <div ref={productInterestRef}>
             <ResponsiveContainer width="100%" height={Math.max(220, data.productInterest.length * 22)}>
               <BarChart data={data.productInterest} layout="vertical" margin={{ top: 4, right: 16, left: 60, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
@@ -301,6 +332,7 @@ export default function GoldrushIndividualInsights() {
                 <Bar dataKey="count" fill={ACCENT} />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
         </Card>
       </div>

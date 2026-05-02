@@ -5,6 +5,7 @@ export type PDFSection =
   | { kind: 'kv'; title: string; rows: Array<[string, string | number]> }
   | { kind: 'table'; title: string; head: string[]; rows: Array<Array<string | number>>; columnStyles?: Record<number, any> }
   | { kind: 'paragraph'; title?: string; text: string }
+  | { kind: 'image'; title?: string; dataUrl: string; widthPt?: number; heightPt?: number }
   | { kind: 'spacer'; size?: number }
 
 interface BuildOpts {
@@ -97,6 +98,41 @@ export function buildInsightsPDF(opts: BuildOpts) {
         alternateRowStyles: { fillColor: ROW_ALT },
       })
       y = (doc as any).lastAutoTable.finalY + 12
+      continue
+    }
+    if (sec.kind === 'image') {
+      // Compute target size that fits the column width while preserving aspect.
+      const maxW = pageWidth - margin * 2
+      const w = Math.min(sec.widthPt || maxW, maxW)
+      // If caller didn't supply a height, attempt to read the source; jsPDF's
+      // getImageProperties handles base64 data URLs.
+      let h = sec.heightPt
+      if (!h) {
+        try {
+          const props = (doc as any).getImageProperties(sec.dataUrl)
+          if (props && props.width && props.height) {
+            h = (props.height / props.width) * w
+          }
+        } catch {
+          // unknown — fall back to 4:3
+          h = w * 0.65
+        }
+      }
+      // Page-break if we'd run off the bottom.
+      if (y + (h || 200) > 780) { doc.addPage(); y = 50 }
+      if (sec.title) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(12)
+        doc.setTextColor(...BRAND_PRIMARY)
+        doc.text(sec.title, margin, y)
+        y += 12
+      }
+      try {
+        doc.addImage(sec.dataUrl, 'PNG', margin, y, w, h || 200, undefined, 'FAST')
+      } catch {
+        // bad data URL — skip silently rather than crash the whole PDF
+      }
+      y += (h || 200) + 14
       continue
     }
     if (sec.kind === 'table') {
