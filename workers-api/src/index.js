@@ -14029,22 +14029,88 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
       return;
     }
 
-    let prompt = '';
-    if (photoType === 'shelf' || photoType === 'compliance') {
-      prompt = 'Analyze this retail shelf photo. List every brand visible, count the number of product facings per brand, identify shelf position (eye level, top, middle, bottom), detect any out-of-stock gaps, and estimate the share of voice percentage for each brand. Return JSON: { brands: [{name, facings, position}], total_facings, gaps_detected, dominant_brand, compliance_issues: [] }';
-    } else if (photoType === 'competitor') {
-      prompt = 'Analyze this retail photo. Identify all competitor brands, products, pricing if visible, promotional materials, and shelf positioning. Return JSON: { competitors: [{brand, product, price_visible, shelf_position}], promotional_materials: [] }';
-    } else if (photoType === 'posm') {
-      prompt = 'Analyze this point-of-sale material photo. Identify the brand, material type (poster, standee, shelf talker, cooler branding, counter display), condition (good, damaged, faded, missing), and visibility score 0-100. Return JSON: { brand, material_type, condition, visibility_score, placement_quality }';
-    } else if (photoType === 'store_front') {
-      prompt = 'Describe this store front. Identify store type, visible signage, brand presence, and estimate foot traffic level. Return JSON: { store_type, signage: [], brand_visibility: [], estimated_traffic }';
-    } else if (photoType === 'board') {
-      prompt = 'Analyze this photo of a retail/store board or signage. Determine: 1) Is there a board/signage installed? 2) What brand is on the board? 3) What is the condition (good, damaged, faded)? 4) Is it clearly visible to customers? Return JSON: { board_detected: true/false, brand: "", condition: "good/damaged/faded", visibility: "high/medium/low", board_type: "signage/poster/banner/shelf_talker/other" }';
-    } else {
-      prompt = 'Describe what you see in this image. Identify any brands, products, retail elements, boards, or signage. Return JSON: { board_detected: true/false, brands: [], description: "" }';
-    }
+    // Per-photo-type prompts. Tuned for parseable JSON output:
+    //   - tight schema with example values
+    //   - "Output JSON only — no prose, no markdown, no code fences"
+    //   - empty-array fallbacks so a missing element doesn't break parsing
+    //   - same shape across photo_types where possible (brands[], description)
+    //     so downstream aggregation is consistent
+    const SHELF_PROMPT = `You are a retail-merchandising auditor. Analyse this on-shelf photo and return ONLY a JSON object — no prose, no markdown, no code fences.
+Schema:
+{
+  "brands": [ {"name": "Goldrush", "facings": 6, "position": "eye_level"} ],
+  "total_facings": 24,
+  "dominant_brand": "Goldrush",
+  "gaps_detected": false,
+  "compliance_score": 75,
+  "compliance_issues": ["empty middle shelf"],
+  "description": "Two shelves of mixed beverages with a Goldrush block on the left."
+}
+Rules: position must be one of eye_level | top | middle | bottom. compliance_score is 0–100. Return [] for arrays you cannot determine. Output JSON only.`;
 
-    // ROOT-CAUSE FIX: previously passed `image: Array.from(imageBytes)` which
+    const COMPETITOR_PROMPT = `You are a retail auditor identifying competitors. Return ONLY a JSON object — no prose, no markdown, no code fences.
+Schema:
+{
+  "brands": [ {"name": "BrandA", "facings": 4, "is_competitor": true, "position": "eye_level"} ],
+  "competitors": [ {"brand": "BrandA", "product": "drink", "price_visible": "R29.99", "shelf_position": "eye_level"} ],
+  "promotional_materials": ["BrandA shelf talker"],
+  "description": "Three competitor brands on the middle shelf."
+}
+Output JSON only. Empty arrays ([]) if you cannot determine.`;
+
+    const POSM_PROMPT = `You are a POS-material auditor. Return ONLY a JSON object — no prose, no markdown, no code fences.
+Schema:
+{
+  "brand": "Goldrush",
+  "material_type": "shelf_talker",
+  "condition": "good",
+  "visibility_score": 85,
+  "placement_quality": "good",
+  "description": "A Goldrush shelf talker mounted at eye level."
+}
+material_type ∈ poster | standee | shelf_talker | cooler | counter_display | banner | other. condition ∈ good | damaged | faded | missing. visibility_score 0–100. Output JSON only.`;
+
+    const STORE_FRONT_PROMPT = `You are a retail auditor describing a store exterior. Return ONLY a JSON object — no prose, no markdown, no code fences.
+Schema:
+{
+  "store_type": "convenience",
+  "signage": [ {"brand": "Goldrush", "type": "fascia", "condition": "good"} ],
+  "brand_visibility": [ {"brand": "Goldrush", "prominence": "high"} ],
+  "estimated_traffic": "medium",
+  "description": "Small informal convenience store with Goldrush fascia signage."
+}
+estimated_traffic ∈ low | medium | high. prominence ∈ low | medium | high. Output JSON only.`;
+
+    const BOARD_PROMPT = `You are a retail-marketing auditor analysing a board/signage photo. Return ONLY a JSON object — no prose, no markdown, no code fences.
+Schema:
+{
+  "board_detected": true,
+  "brand": "Goldrush",
+  "condition": "good",
+  "visibility": "high",
+  "board_type": "signage",
+  "description": "A Goldrush metal sign mounted on the front wall, clearly visible."
+}
+board_type ∈ signage | poster | banner | shelf_talker | other. condition ∈ good | damaged | faded. visibility ∈ low | medium | high. If no board is present, set board_detected false and brand "". Output JSON only.`;
+
+    const GENERIC_PROMPT = `You are a retail-marketing auditor. Return ONLY a JSON object — no prose, no markdown, no code fences.
+Schema:
+{
+  "board_detected": false,
+  "brands": [ {"name": "Goldrush", "context": "shelf"} ],
+  "competitors": [],
+  "description": "What you see in plain English, one or two sentences."
+}
+Output JSON only. Use empty arrays ([]) if you cannot determine.`;
+
+    let prompt = GENERIC_PROMPT;
+    if (photoType === 'shelf' || photoType === 'compliance') prompt = SHELF_PROMPT;
+    else if (photoType === 'competitor')  prompt = COMPETITOR_PROMPT;
+    else if (photoType === 'posm')        prompt = POSM_PROMPT;
+    else if (photoType === 'store_front') prompt = STORE_FRONT_PROMPT;
+    else if (photoType === 'board')       prompt = BOARD_PROMPT;
+
+    // ROOT-CAUSE FIX (earlier): previously passed `image: Array.from(imageBytes)` which
     // serialised the binary as a JSON number array. Workers AI tokenised that
     // as TEXT — at ~2 tokens/byte, every photo blew the 128K context window
     // (errors looked like "5021: tokens (235112) exceeded limit (128000)").
@@ -14063,16 +14129,48 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
     const dataUrl = `data:${contentType};base64,${btoa(binStr)}`;
 
     const aiResponse = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-      messages: [{ role: 'user', content: [
-        { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: dataUrl } },
-      ]}],
+      messages: [
+        { role: 'system', content: 'You are a strict retail-audit assistant. You always reply with ONLY a single JSON object that matches the schema given by the user. No prose, no markdown, no code fences, no explanations.' },
+        { role: 'user', content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ]},
+      ],
       max_tokens: 800,
+      temperature: 0,
     });
 
     const responseText = aiResponse?.response || '';
+    // Robust JSON extraction:
+    //   - strip markdown code fences if the model added them anyway
+    //   - find the largest balanced {...} block, not just the first one
+    //   - try the full text first, then progressively fall back
     let parsed = {};
-    try { parsed = JSON.parse(responseText.match(/\{[\s\S]*\}/)?.[0] || '{}'); } catch(e) {}
+    function extractJson(raw) {
+      if (!raw) return null;
+      let s = String(raw).trim();
+      // Strip ```json or ``` fences.
+      s = s.replace(/^```(?:json)?\s*|```\s*$/g, '').trim();
+      // Try direct parse.
+      try { return JSON.parse(s); } catch (_) {}
+      // Find the outermost {...} via brace counting.
+      const start = s.indexOf('{');
+      if (start === -1) return null;
+      let depth = 0;
+      for (let i = start; i < s.length; i++) {
+        const ch = s[i];
+        if (ch === '{') depth += 1;
+        else if (ch === '}') {
+          depth -= 1;
+          if (depth === 0) {
+            const candidate = s.slice(start, i + 1);
+            try { return JSON.parse(candidate); } catch (_) { /* fall through */ }
+          }
+        }
+      }
+      return null;
+    }
+    parsed = extractJson(responseText) || {};
 
     let sovPct = 0; let totalFacings = 0; let brandFacings = 0;
     if (parsed.brands && Array.isArray(parsed.brands)) {
