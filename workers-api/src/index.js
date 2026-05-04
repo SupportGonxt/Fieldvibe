@@ -16845,7 +16845,6 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       LEFT JOIN users u ON v.agent_id = u.id
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'${dateFilter.replace("DATE(ir.created_at)", "v.visit_date")}
       ORDER BY v.created_at DESC
-      LIMIT 5000
     `).bind(...binds).all();
 
     // Look up custom company questions with field_type='image' to extract photos from custom question responses
@@ -16999,7 +16998,6 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
       LEFT JOIN users u ON v.agent_id = u.id
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'${dateFilter}
       ORDER BY v.created_at DESC
-      LIMIT 5000
     `).bind(...binds).all();
 
     // Look up custom company questions with field_type='image' to extract photos
