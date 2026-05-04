@@ -17074,6 +17074,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     // Custom questions (like goldrush_id) are stored in visit_individuals.custom_field_values
     // Survey/questionnaire responses are stored in visit_responses.responses
     // Use correlated subqueries to avoid duplicate rows (same pattern as line 2762)
+    // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
       SELECT v.id, i.first_name, i.last_name, i.id_number, i.phone, i.email,
         (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
@@ -17089,7 +17090,10 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
       LEFT JOIN individuals i ON vi.individual_id = i.id
       LEFT JOIN users u ON v.agent_id = u.id
-      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'${dateFilter.replace("DATE(ir.created_at)", "v.visit_date")}
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001', 'agent-user-001', 'manager-user-001', 'e6c2898a-6420-4327-8000-e7857021a306')
+        AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za'))${dateFilter.replace("DATE(ir.created_at)", "v.visit_date")}
       ORDER BY v.created_at DESC
     `).bind(...binds).all();
 
@@ -17225,6 +17229,7 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
     if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
 
     // Get all store visits for Goldrush with agent name, customer info, and photos
+    // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
       SELECT v.id, v.visit_date, v.status, v.notes, v.latitude as gps_latitude, v.longitude as gps_longitude,
         v.created_at, v.customer_id,
@@ -17242,7 +17247,10 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
       FROM visits v
       LEFT JOIN customers c ON v.customer_id = c.id
       LEFT JOIN users u ON v.agent_id = u.id
-      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'${dateFilter}
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001', 'agent-user-001', 'manager-user-001', 'e6c2898a-6420-4327-8000-e7857021a306')
+        AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za'))${dateFilter}
       ORDER BY v.created_at DESC
     `).bind(...binds).all();
 
