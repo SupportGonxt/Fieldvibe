@@ -17067,8 +17067,12 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
     // company_id filter not applicable here - endpoint already scoped to Goldrush company
-    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
-    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+    if (startDate || endDate) {
+      const startD = startDate || new Date().toISOString().split('T')[0];
+      const endD = endDate || new Date().toISOString().split('T')[0];
+      dateFilter = " AND v.visit_date BETWEEN ? AND ?";
+      binds.push(startD, endD);
+    }
 
     // Get all individual registrations for Goldrush with agent name, custom field values, and survey responses
     // Custom questions (like goldrush_id) are stored in visit_individuals.custom_field_values
@@ -17225,8 +17229,12 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
-    if (startDate) { dateFilter += " AND v.visit_date >= ?"; binds.push(startDate); }
-    if (endDate) { dateFilter += " AND v.visit_date <= ?"; binds.push(endDate); }
+    if (startDate || endDate) {
+      const startD = startDate || new Date().toISOString().split('T')[0];
+      const endD = endDate || new Date().toISOString().split('T')[0];
+      dateFilter = " AND v.visit_date BETWEEN ? AND ?";
+      binds.push(startD, endD);
+    }
 
     // Get all store visits for Goldrush with agent name, customer info, and photos
     // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
