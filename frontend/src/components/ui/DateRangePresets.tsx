@@ -1,6 +1,6 @@
 import React from 'react'
 
-type PresetKey = 'today' | 'wtd' | 'mtd' | 'ytd' | 'custom'
+type PresetKey = 'today' | 'wtd' | 'mtd' | 'ytd' | 'alltime' | 'custom'
 
 interface DateRangePresetsProps {
   startDate: string
@@ -12,6 +12,10 @@ interface DateRangePresetsProps {
 function getPresetDates(preset: PresetKey): { start: string; end: string } | null {
   const now = new Date()
   const today = now.toISOString().split('T')[0]
+
+  if (preset === 'alltime') {
+    return null
+  }
 
   if (preset === 'today') {
     return { start: today, end: today }
@@ -39,7 +43,7 @@ function getPresetDates(preset: PresetKey): { start: string; end: string } | nul
 }
 
 function getActivePreset(startDate: string, endDate: string): PresetKey {
-  if (!startDate && !endDate) return 'custom'
+  if (!startDate && !endDate) return 'alltime'
 
   const presets: PresetKey[] = ['today', 'wtd', 'mtd', 'ytd']
   for (const preset of presets) {
@@ -60,6 +64,11 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
   const activePreset = getActivePreset(startDate, endDate)
 
   const handlePreset = (preset: PresetKey) => {
+    if (preset === 'alltime') {
+      onStartDateChange('')
+      onEndDateChange('')
+      return
+    }
     if (preset === 'custom') {
       onStartDateChange('')
       onEndDateChange('')
@@ -82,6 +91,7 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+        <button onClick={() => handlePreset('alltime')} className={btnClass('alltime')}>All Time</button>
         <button onClick={() => handlePreset('today')} className={btnClass('today')}>Today</button>
         <button onClick={() => handlePreset('wtd')} className={btnClass('wtd')}>Week to Date</button>
         <button onClick={() => handlePreset('mtd')} className={btnClass('mtd')}>Month to Date</button>
