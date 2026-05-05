@@ -16821,12 +16821,32 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
     // company_id filter not applicable here - endpoint already scoped to Goldrush company
-    if (startDate || endDate) {
-      const startD = startDate || new Date().toISOString().split('T')[0];
-      const endD = endDate || new Date().toISOString().split('T')[0];
+    // IMPORTANT: Only apply date filter if BOTH startDate AND endDate are provided
+    // If either is missing or empty, return ALL data (all-time behavior)
+    
+    // Handle both null and empty strings from query parameters
+    const hasStartDate = startDate && startDate.trim() !== '';
+    const hasEndDate = endDate && endDate.trim() !== '';
+    
+    if (hasStartDate && hasEndDate) {
       dateFilter = " AND v.visit_date BETWEEN ? AND ?";
-      binds.push(startD, endD);
+      binds.push(startDate, endDate);
+    } else if (hasStartDate && !hasEndDate) {
+      // If only start date provided, use it as start with today as end
+      const today = new Date().toISOString().split('T')[0];
+      dateFilter = " AND v.visit_date BETWEEN ? AND ?";
+      binds.push(startDate, today);
+    } else if (!hasStartDate && hasEndDate) {
+      // If only end date provided, use it as end with start of time as start (Jan 1, 2000)
+      dateFilter = " AND v.visit_date BETWEEN ? AND ?";
+      binds.push('2000-01-01', endDate);
     }
+    // If NEITHER startDate nor endDate provided, no date filter is applied (all-time)
+    
+    // DEBUG: Log what we received and what filter we're applying
+    console.log(`[GoldrushIndividuals] Query params - startDate: "${startDate}", endDate: "${endDate}"`);
+    console.log(`[GoldrushIndividuals] Applying dateFilter: "${dateFilter}"`);
+    console.log(`[GoldrushIndividuals] Total binds: ${binds.length}, values: [${binds.map(b => typeof b === 'string' ? `"${b}"` : b).join(', ')}]`);
 
     // Get all individual registrations for Goldrush with agent name, custom field values, and survey responses
     // Custom questions (like goldrush_id) are stored in visit_individuals.custom_field_values
@@ -16963,6 +16983,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       };
     });
 
+    console.log(`[GoldrushIndividuals] Returning ${data.length} records`);
     return c.json({ success: true, data, total: data.length });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });

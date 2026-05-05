@@ -56,6 +56,7 @@ const GoldrushIndividualReport: React.FC = () => {
   const [rejectModal, setRejectModal] = useState<{ ind: GoldrushIndividual } | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
+  const [exportingAllTime, setExportingAllTime] = useState(false)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -93,7 +94,10 @@ const GoldrushIndividualReport: React.FC = () => {
   const { data: individuals = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`)
+      const url = `/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`
+      console.log('[Goldrush] Query params:', { startDate, endDate, selectedCompany, dateParams, companyParam, fullUrl: url })
+      const res = await apiClient.get(url)
+      console.log('[Goldrush] Received', res.data?.data?.length, 'records')
       return (res.data?.data || []) as GoldrushIndividual[]
     },
     staleTime: 0,
@@ -264,6 +268,78 @@ const GoldrushIndividualReport: React.FC = () => {
     }
   }
 
+  const exportAllTimeReport = async () => {
+    setExportingAllTime(true)
+    try {
+      // Fetch all-time data (no date filters)
+      const companyOnlyParam = selectedCompany ? `?company_id=${selectedCompany}` : ''
+      const apiUrl = `/field-ops/reports/goldrush-individuals${companyOnlyParam}`
+      console.log('[Goldrush All-Time Export] Fetching from:', apiUrl)
+      
+      const res = await apiClient.get(apiUrl)
+      const allTimeData = (res.data?.data || []) as GoldrushIndividual[]
+      
+      if (allTimeData.length === 0) {
+        toast.error('No all-time data available to export')
+        return
+      }
+
+      const headers = [
+        'First Name', 'Last Name', 'ID Number', 'Phone', 'Email',
+        'Goldrush ID', 'Converted', 'Conversion Date', 'Agent',
+        'Gave Brand Info', 'Consumer Converted (Survey)', 'Betting Elsewhere',
+        'Competitor Company', 'Used Goldrush Before', 'Goldrush Comparison',
+        'Likes Goldrush', 'Platform Suggestions', 'Notes',
+        'GPS Latitude', 'GPS Longitude', 'Date Registered'
+      ]
+
+      const rows = allTimeData.map(ind => [
+        ind.first_name || '',
+        ind.last_name || '',
+        ind.id_number || '',
+        ind.phone || '',
+        ind.email || '',
+        ind.goldrush_id || '',
+        ind.converted ? 'Yes' : 'No',
+        ind.conversion_date || '',
+        ind.agent_name || '',
+        ind.gave_brand_info || '',
+        ind.consumer_converted || '',
+        ind.betting_elsewhere || '',
+        ind.competitor_company || '',
+        ind.used_goldrush_before || '',
+        ind.goldrush_comparison || '',
+        ind.likes_goldrush || '',
+        ind.platform_suggestions || '',
+        ind.notes || '',
+        ind.gps_latitude?.toString() || '',
+        ind.gps_longitude?.toString() || '',
+        ind.created_at || '',
+      ])
+
+      const csvContent = [
+        headers.map(h => `"${h}"`).join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+
+      // Use BOM for Excel compatibility with special characters
+      const BOM = '\uFEFF'
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `goldrush-individual-report-all-time-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(blobUrl)
+      toast.success(`Exported ${allTimeData.length} all-time records`)
+    } catch (error) {
+      console.error('[Goldrush All-Time Export] Error:', error)
+      toast.error('All-time export failed')
+    } finally {
+      setExportingAllTime(false)
+    }
+  }
+
   if (isLoading) return <LoadingSpinner />
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -307,7 +383,11 @@ const GoldrushIndividualReport: React.FC = () => {
           </button>
           <button onClick={exportToExcel} disabled={exporting || filtered.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
-            <Download className="h-4 w-4" /> Export Excel
+            <Download className="h-4 w-4" /> Export Filtered
+          </button>
+          <button onClick={exportAllTimeReport} disabled={exportingAllTime}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium">
+            <Download className="h-4 w-4" /> {exportingAllTime ? 'Exporting...' : 'Export All Time'}
           </button>
         </div>
       </div>
