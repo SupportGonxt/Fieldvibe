@@ -14,7 +14,7 @@ function getPresetDates(preset: PresetKey): { start: string; end: string } | nul
   const today = now.toISOString().split('T')[0]
 
   if (preset === 'alltime') {
-    return null
+    return { start: '2024-10-01', end: today }
   }
 
   if (preset === 'today') {
@@ -43,7 +43,9 @@ function getPresetDates(preset: PresetKey): { start: string; end: string } | nul
 }
 
 function getActivePreset(startDate: string, endDate: string): PresetKey {
-  if (!startDate && !endDate) return 'alltime'
+  const today = new Date().toISOString().split('T')[0]
+  
+  if (startDate === '2024-10-01' && endDate === today) return 'alltime'
 
   const presets: PresetKey[] = ['today', 'wtd', 'mtd', 'ytd']
   for (const preset of presets) {
@@ -64,11 +66,6 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
   const activePreset = getActivePreset(startDate, endDate)
 
   const handlePreset = (preset: PresetKey) => {
-    if (preset === 'alltime') {
-      onStartDateChange('')
-      onEndDateChange('')
-      return
-    }
     if (preset === 'custom') {
       onStartDateChange('')
       onEndDateChange('')
