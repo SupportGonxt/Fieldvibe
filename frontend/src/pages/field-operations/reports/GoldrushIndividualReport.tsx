@@ -86,6 +86,27 @@ const GoldrushIndividualReport: React.FC = () => {
 
   const companyParam = selectedCompany ? `${startDate || endDate ? '&' : '?'}company_id=${selectedCompany}` : ''
 
+  const dateParams = startDate || endDate
+    ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `${startDate ? '&' : ''}endDate=${endDate}` : ''}`
+    : ''
+
+  const { data: individuals = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
+    queryFn: async () => {
+      const res = await apiClient.get(`/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`)
+      return (res.data?.data || []) as GoldrushIndividual[]
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnMount: true,
+  })
+
+  // Force refetch when switching to "all time" (both dates empty)
+  useEffect(() => {
+    if (!startDate && !endDate) {
+      refetch()
+    }
+  }, [startDate, endDate, refetch])
+
   const handleEditGoldrushId = (ind: GoldrushIndividual) => {
     setEditingId(ind.id)
     setEditValue(ind.goldrush_id || '')
@@ -162,19 +183,6 @@ const GoldrushIndividualReport: React.FC = () => {
       toast.error('Failed to remove rejection')
     }
   }
-
-  const dateParams = startDate || endDate
-    ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `${startDate ? '&' : ''}endDate=${endDate}` : ''}`
-    : ''
-
-  const { data: individuals = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`)
-      return (res.data?.data || []) as GoldrushIndividual[]
-    },
-    staleTime: 1000 * 60 * 5,
-  })
 
   const filtered = individuals.filter(ind => {
     if (!search) return true

@@ -16851,7 +16851,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'
         AND v.agent_id NOT LIKE 'agent-test-%'
         AND v.agent_id NOT IN ('admin-user-001', 'agent-user-001', 'manager-user-001', 'e6c2898a-6420-4327-8000-e7857021a306')
-        AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za'))${dateFilter.replace("DATE(ir.created_at)", "v.visit_date")}
+        AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za'))${dateFilter}
       ORDER BY v.created_at DESC
     `).bind(...binds).all();
 
