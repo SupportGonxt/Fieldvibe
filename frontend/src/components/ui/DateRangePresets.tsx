@@ -1,12 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 type PresetKey = 'today' | 'wtd' | 'mtd' | 'ytd' | 'alltime' | 'custom'
 
 interface DateRangePresetsProps {
-  startDate: string | null
-  endDate: string | null
-  onStartDateChange: (date: string | null) => void
-  onEndDateChange: (date: string | null) => void
+  startDate: string
+  endDate: string
+  onStartDateChange: (date: string) => void
+  onEndDateChange: (date: string) => void
 }
 
 function getPresetDates(preset: PresetKey): { start: string; end: string } | null {
@@ -42,10 +42,9 @@ function getPresetDates(preset: PresetKey): { start: string; end: string } | nul
   return null
 }
 
-function getActivePreset(startDate: string | null, endDate: string | null): PresetKey {
+function getActivePreset(startDate: string, endDate: string): PresetKey {
   if (!startDate && !endDate) return 'alltime'
 
-  const today = new Date().toISOString().split('T')[0]
   const presets: PresetKey[] = ['today', 'wtd', 'mtd', 'ytd']
   for (const preset of presets) {
     const dates = getPresetDates(preset)
@@ -62,18 +61,28 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
   onStartDateChange,
   onEndDateChange,
 }) => {
-  const activePreset = getActivePreset(startDate, endDate)
+  const [activePreset, setActivePreset] = useState<PresetKey>(() =>
+    getActivePreset(startDate, endDate)
+  )
 
   const handlePreset = (preset: PresetKey) => {
+    setActivePreset(preset)
+
     if (preset === 'alltime') {
-      onStartDateChange(null)
-      onEndDateChange(null)
+      onStartDateChange('')
+      onEndDateChange('')
       return
     }
+
     if (preset === 'custom') {
-      // Don't clear dates - just show custom date inputs
+      const today = new Date().toISOString().split('T')[0]
+      if (!startDate && !endDate) {
+        onStartDateChange(today)
+        onEndDateChange(today)
+      }
       return
     }
+
     const dates = getPresetDates(preset)
     if (dates) {
       onStartDateChange(dates.start)
@@ -103,14 +112,14 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
           <input
             type="date"
             value={startDate || ''}
-            onChange={e => onStartDateChange(e.target.value || null)}
+            onChange={e => onStartDateChange(e.target.value || '')}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           />
           <span className="text-gray-500 text-sm">to</span>
           <input
             type="date"
             value={endDate || ''}
-            onChange={e => onEndDateChange(e.target.value || null)}
+            onChange={e => onEndDateChange(e.target.value || '')}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           />
         </div>
