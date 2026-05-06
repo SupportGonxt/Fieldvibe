@@ -71,8 +71,7 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
       return
     }
     if (preset === 'custom') {
-      onStartDateChange(null)
-      onEndDateChange(null)
+      // Don't clear dates - just show custom date inputs
       return
     }
     const dates = getPresetDates(preset)

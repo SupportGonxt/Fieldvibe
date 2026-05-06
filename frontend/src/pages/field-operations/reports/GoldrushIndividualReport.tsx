@@ -85,30 +85,27 @@ const GoldrushIndividualReport: React.FC = () => {
     }
   }, [companies, selectedCompany])
 
-  const companyParam = selectedCompany ? `${startDate || endDate ? '&' : '?'}company_id=${selectedCompany}` : ''
-
-  const dateParams = startDate || endDate
-    ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `${startDate ? '&' : ''}endDate=${endDate}` : ''}`
-    : ''
+  const buildQueryUrl = () => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('startDate', startDate)
+    if (endDate) params.append('endDate', endDate)
+    if (selectedCompany) params.append('company_id', selectedCompany)
+    const queryString = params.toString()
+    return `/field-ops/reports/goldrush-individuals${queryString ? '?' + queryString : ''}`
+  }
 
   const { data: individuals = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
     queryFn: async () => {
-      const url = `/field-ops/reports/goldrush-individuals${dateParams}${companyParam}`
-      console.log('[Goldrush] Query params:', { startDate, endDate, selectedCompany, dateParams, companyParam, fullUrl: url })
+      const url = buildQueryUrl()
+      console.log('[Goldrush] Fetching from:', url)
       const res = await apiClient.get(url)
       console.log('[Goldrush] Received', res.data?.data?.length, 'records')
       return (res.data?.data || []) as GoldrushIndividual[]
     },
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 60000, // 1 minute cache to reduce API calls
+    gcTime: 5 * 60 * 1000, // Keep data for 5 minutes
   })
-
-  // Invalidate and refetch when date filter changes
-  useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ['goldrush-individuals'] })
-    refetch()
-  }, [startDate, endDate, selectedCompany, queryClient, refetch])
 
   const handleEditGoldrushId = (ind: GoldrushIndividual) => {
     setEditingId(ind.id)
