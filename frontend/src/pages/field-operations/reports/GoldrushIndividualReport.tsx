@@ -41,8 +41,22 @@ interface GoldrushIndividual {
 
 const GoldrushIndividualReport: React.FC = () => {
   const queryClient = useQueryClient()
-const [startDate, setStartDate] = useState<string>('')
-const [endDate, setEndDate] = useState<string>('')
+  
+  // Initialize with Week to Date by default for better performance
+  const getWeekToDate = () => {
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    const dayOfWeek = now.getDay()
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + mondayOffset)
+    const mondayStr = monday.toISOString().split('T')[0]
+    return { start: mondayStr, end: today }
+  }
+  
+  const weekToDate = getWeekToDate()
+  const [startDate, setStartDate] = useState<string>(weekToDate.start)
+  const [endDate, setEndDate] = useState<string>(weekToDate.end)
   const [search, setSearch] = useState('')
   const [exporting, setExporting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
