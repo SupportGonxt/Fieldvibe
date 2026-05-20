@@ -9885,7 +9885,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...allIds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...allIds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${placeholders}) AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${placeholders}) AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
         ]);
         subordinates.push({ id: tl.id, agent_id: tl.id, agent_name: tl.first_name + ' ' + tl.last_name, email: tl.email, role: 'team_lead', agents_count: (teamAgentIds.results || []).length, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
@@ -9894,7 +9894,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
         ]);
         subordinates.push({ id: agent.id, agent_id: agent.id, agent_name: agent.first_name + ' ' + agent.last_name, email: agent.email, role: 'agent', visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
@@ -9907,7 +9907,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
         ]);
         agentPerf.push({ id: agent.id, agent_id: agent.id, agent_name: agent.first_name + ' ' + agent.last_name, email: agent.email, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
