@@ -286,8 +286,9 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
 
   const maxHourly = Math.max(...hourlyData.map(h => h.count), 1)
   const maxDaily = Math.max(...dailyData.map(d => d.count), 1)
-  const convTotal = (conversionStats?.converted_yes || 0) + (conversionStats?.converted_no || 0)
-  const convRate = convTotal > 0 ? ((conversionStats?.converted_yes || 0) / convTotal * 100).toFixed(1) : '0'
+  const convRate = (kpis?.total_individuals || 0) > 0
+    ? (((kpis?.conversions || 0) / (kpis?.total_individuals || 0)) * 100).toFixed(1)
+    : '0'
 
   return (
     <div className="space-y-6">
