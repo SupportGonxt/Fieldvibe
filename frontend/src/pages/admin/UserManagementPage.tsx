@@ -4,7 +4,6 @@ import { apiClient } from '../../services/api.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { useAuthStore } from '../../store/auth.store'
 
 interface User {
   id: string
@@ -32,7 +31,7 @@ interface FormData {
   phone: string
   role: string
   agent_type: string
-  tenant_id: string
+  company_id: string
 }
 
 const ROLES = [
@@ -54,9 +53,6 @@ const STATUSES = [
 ]
 
 export default function UserManagementPage() {
-  const { user: currentUser } = useAuthStore()
-  const isSuperAdmin = currentUser?.role === 'super_admin'
-
   const [companies, setCompanies] = useState<Company[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -88,7 +84,7 @@ export default function UserManagementPage() {
     phone: '',
     role: 'salesman',
     agent_type: 'field_ops',
-    tenant_id: ''
+    company_id: ''
   })
 
   const [editFormData, setEditFormData] = useState({
@@ -112,13 +108,11 @@ export default function UserManagementPage() {
   }, [searchTerm, roleFilter, statusFilter])
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      apiClient.get('/companies').then(res => {
-        const data = res.data?.data || []
-        setCompanies(Array.isArray(data) ? data : [])
-      }).catch(() => {})
-    }
-  }, [isSuperAdmin])
+    apiClient.get('/field-ops/companies').then(res => {
+      const data = res.data?.data || []
+      setCompanies(Array.isArray(data) ? data : [])
+    }).catch(() => {})
+  }, [])
 
   const fetchUsers = async () => {
     try {
@@ -151,14 +145,13 @@ export default function UserManagementPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isSuperAdmin && companies.length > 0 && !formData.tenant_id) {
-      showError('Please select a company')
-      return
-    }
     try {
-      const payload = { ...formData }
-      if (!payload.tenant_id) delete (payload as any).tenant_id
-      await apiClient.post('/users', payload)
+      const { company_id, ...userPayload } = formData
+      const res = await apiClient.post('/users', userPayload)
+      const newUserId = res.data?.data?.id
+      if (newUserId && company_id) {
+        await apiClient.post('/field-ops/agent-companies', { agent_id: newUserId, company_id })
+      }
       showSuccess('User created successfully')
       setShowCreateModal(false)
       resetForm()
@@ -254,7 +247,7 @@ export default function UserManagementPage() {
       phone: '',
       role: 'salesman',
       agent_type: 'field_ops',
-      tenant_id: ''
+      company_id: ''
     })
   }
 
@@ -606,17 +599,16 @@ export default function UserManagementPage() {
                     placeholder="Select department..."
                   />
                 </div>
-                {isSuperAdmin && companies.length > 0 && (
+                {companies.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Company <span className="text-red-500">*</span>
+                      Company
                     </label>
                     <SearchableSelect
                       options={companies.map(c => ({ value: c.id, label: c.name }))}
-                      value={formData.tenant_id}
-                      onChange={(val) => setFormData({ ...formData, tenant_id: val || '' })}
+                      value={formData.company_id}
+                      onChange={(val) => setFormData({ ...formData, company_id: val || '' })}
                       placeholder="Select company..."
-                      required
                     />
                   </div>
                 )}
