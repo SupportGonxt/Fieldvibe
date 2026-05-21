@@ -2798,8 +2798,11 @@ api.get('/users', requireRole('admin', 'manager'), async (c) => {
 
 api.post('/users', requireRole('admin'), async (c) => {
   const db = c.env.DB;
-  const tenantId = c.get('tenantId');
+  const contextTenantId = c.get('tenantId');
+  const role = c.get('role');
   const body = await c.req.json();
+  // Super admins can create users for any company by passing tenant_id in the body
+  const tenantId = (role === 'super_admin' && body.tenant_id) ? body.tenant_id : contextTenantId;
   const v = validate(createUserSchema, body);
   if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
