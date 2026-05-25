@@ -17453,6 +17453,117 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
+// ==================== STELLR REPORT ====================
+
+api.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate, company_id } = c.req.query();
+
+    // Find Stellr company — allow explicit company_id override, else look up by name
+    let stellrId = company_id || null;
+    if (!stellrId) {
+      const stellrCompany = await db.prepare(
+        "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%stellr%' AND tenant_id = ? LIMIT 1"
+      ).bind(tenantId).first();
+      if (!stellrCompany) {
+        return c.json({ success: true, data: [], total: 0, message: 'Stellr company not found' });
+      }
+      stellrId = stellrCompany.id;
+    }
+
+    let dateFilter = '';
+    const binds = [tenantId, stellrId];
+    if (startDate || endDate) {
+      const startD = startDate || new Date().toISOString().split('T')[0];
+      const endD = endDate || new Date().toISOString().split('T')[0];
+      dateFilter = " AND v.visit_date BETWEEN ? AND ?";
+      binds.push(startD, endD);
+    }
+
+    const result = await db.prepare(`
+      SELECT v.id, v.visit_date, v.status, v.notes, v.latitude as gps_latitude, v.longitude as gps_longitude,
+        v.created_at, v.customer_id,
+        c.name as store_name, c.address as store_address,
+        u.first_name || ' ' || u.last_name as agent_name,
+        (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
+        CASE WHEN EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id) THEN 1 ELSE 0 END as has_photos,
+        (SELECT GROUP_CONCAT(vr.responses, '|||') FROM visit_responses vr WHERE vr.visit_id = v.id) as all_responses
+      FROM visits v
+      LEFT JOIN customers c ON v.customer_id = c.id
+      LEFT JOIN users u ON v.agent_id = u.id
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001', 'agent-user-001', 'manager-user-001', 'e6c2898a-6420-4327-8000-e7857021a306')
+        AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za' AND u.email != 'luke.templeman@gonxt.tech'))${dateFilter}
+      ORDER BY v.created_at DESC
+    `).bind(...binds).all();
+
+    const reqUrl = c.req.url;
+    const isUrl = (v) => v && typeof v === 'string' && (v.startsWith('http://') || v.startsWith('https://'));
+
+    const data = (result.results || []).map(row => {
+      let product_range = '';
+      let stock_availability = '';
+      let shelf_position = '';
+      let pos_material = '';
+      let competitor_brands = '';
+      let pricing_compliance = '';
+      let brand_visibility = '';
+      let cooler_installed = '';
+      let outlet_type = '';
+
+      try {
+        let merged = {};
+        if (row.all_responses) {
+          for (const chunk of row.all_responses.split('|||')) {
+            try {
+              const parsed = typeof chunk === 'string' ? JSON.parse(chunk) : chunk;
+              if (parsed && typeof parsed === 'object') Object.assign(merged, parsed);
+            } catch {}
+          }
+        }
+        product_range       = merged.product_range || merged.products || '';
+        stock_availability  = merged.stock_availability || merged.stock_available || '';
+        shelf_position      = merged.shelf_position || merged.shelf_placement || '';
+        pos_material        = merged.pos_material || merged.pos || merged.point_of_sale || '';
+        competitor_brands   = merged.competitor_brands || merged.competitors || merged.competitors_in_store || '';
+        pricing_compliance  = merged.pricing_compliance || merged.pricing || '';
+        brand_visibility    = merged.brand_visibility || merged.visibility || '';
+        cooler_installed    = merged.cooler_installed || merged.cooler || '';
+        outlet_type         = merged.outlet_type || merged.store_type || merged.shop_type || '';
+      } catch {}
+
+      return {
+        id: row.id,
+        visit_date: row.visit_date,
+        status: row.status,
+        store_name: row.store_name || 'Unknown Store',
+        store_address: row.store_address || '',
+        agent_name: row.agent_name,
+        thumbnail_url: rewriteR2Url(row.thumbnail_url, reqUrl) || null,
+        has_photos: !!row.has_photos,
+        gps_latitude: row.gps_latitude,
+        gps_longitude: row.gps_longitude,
+        created_at: row.created_at,
+        notes: row.notes || '',
+        product_range,
+        stock_availability,
+        shelf_position,
+        pos_material,
+        competitor_brands,
+        pricing_compliance,
+        brand_visibility,
+        cooler_installed,
+        outlet_type,
+      };
+    });
+
+    return c.json({ success: true, data, total: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
 // ==================== GOLDRUSH INSIGHTS (aggregated for client-grade reports) ====================
 // Two endpoints: one for individuals (consumers), one for stores. Both run on top
 // of the same data the existing /goldrush-individuals and /goldrush-stores pages
