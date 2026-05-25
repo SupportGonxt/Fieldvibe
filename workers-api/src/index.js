@@ -17561,6 +17561,7 @@ api.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
         brand_visibility,
         cooler_installed,
         outlet_type,
+        raw_responses: merged,
       };
     });
 
