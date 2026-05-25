@@ -498,8 +498,11 @@ class FieldOperationsService extends ApiService {
   }
 
   // Real-time Operations
-  async getLiveAgentLocations() {
-    const response = await this.get(`${this.baseUrl}/live-locations`)
+  async getLiveAgentLocations(companyId?: string) {
+    const url = companyId
+      ? `${this.baseUrl}/live-locations?company_id=${companyId}`
+      : `${this.baseUrl}/live-locations`
+    const response = await this.get(url)
     return response.data?.data || response.data
   }
 
@@ -1053,8 +1056,8 @@ class FieldOperationsService extends ApiService {
   }
 
   // Alias for getLiveAgentLocations (called by LiveGPSTrackingPage)
-  async getLiveLocations() {
-    return this.getLiveAgentLocations()
+  async getLiveLocations(companyId?: string) {
+    return this.getLiveAgentLocations(companyId)
   }
 
   // Alias for getFieldAgents (called by VisitCreate, ProductDistributionCreate)

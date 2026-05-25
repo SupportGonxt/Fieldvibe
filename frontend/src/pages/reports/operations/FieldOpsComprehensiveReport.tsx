@@ -211,7 +211,7 @@ const FieldOpsComprehensiveReport: React.FC = () => {
         <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
       )}
       {activeTab === 'gps' && (
-        <GPSTrackingTab />
+        <GPSTrackingTab selectedCompany={selectedCompany} />
       )}
       {activeTab === 'export' && (
         <ExportTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
@@ -1695,10 +1695,10 @@ function BrandKPICard({ title, value, icon, bg }: { title: string; value: string
 
 // ─── GPS Tracking Tab (was LiveGPSTrackingPage) ─────────────────────────────
 
-function GPSTrackingTab() {
+function GPSTrackingTab({ selectedCompany }: { selectedCompany: string }) {
   const { data: locations, isLoading, isError } = useQuery({
-    queryKey: ['live-locations'],
-    queryFn: () => fieldOperationsService.getLiveLocations(),
+    queryKey: ['live-locations', selectedCompany],
+    queryFn: () => fieldOperationsService.getLiveLocations(selectedCompany || undefined),
     refetchInterval: 30000
   })
 
