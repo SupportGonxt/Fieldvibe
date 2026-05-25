@@ -9106,16 +9106,20 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
   }
   
   console.log(`[PERF] Query params: period=${period}, startD=${startD}, endD=${endD}, userId=${userId}, tenantId=${tenantId}, role=${role}`);
-  
+
+  const cWhere = company_id ? ' AND company_id = ?' : '';
+  const cWhereV = company_id ? ' AND v.company_id = ?' : '';
+  const cBind = company_id ? [company_id] : [];
+
   try {
     if (role === 'agent' || role === 'field_agent') {
       // Agent sees own performance
       const [visits, conversions, targets, individualVisits, storeVisits] = await Promise.all([
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed'").bind(userId, tenantId, startD, endD).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?").bind(userId, tenantId, startD, endD).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?${cWhereV}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
         db.prepare("SELECT * FROM daily_targets WHERE agent_id = ? AND tenant_id = ? AND target_date = ?").bind(userId, tenantId, today.toISOString().split('T')[0]).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual'").bind(userId, tenantId, startD, endD).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store'").bind(userId, tenantId, startD, endD).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
       ]);
       
       const visitCount = visits?.count || 0;
@@ -9145,10 +9149,10 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       const placeholders = agentIds.map(() => '?').join(',');
       
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders})${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
       ]);
       
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -9221,10 +9225,10 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       const placeholders = agentIds.map(() => '?').join(',');
       
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders})${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
       ]);
       
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -9280,10 +9284,10 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       const allAgents = await db.prepare(`SELECT id, first_name, last_name, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 AND (team_lead_id IS NULL OR team_lead_id NOT IN (${EXCLUDED_TL_IDS})) AND email != 'luke.templeman@gonxt.tech'`).bind(tenantId).all();
       
       const [allVisits, allConvs, allIndivVisits, allStoreVisits] = await Promise.all([
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' GROUP BY agent_id").bind(tenantId, startD, endD).all(),
-        db.prepare("SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? GROUP BY v.agent_id").bind(tenantId, startD, endD).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' GROUP BY agent_id").bind(tenantId, startD, endD).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' GROUP BY agent_id").bind(tenantId, startD, endD).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed'${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?${cWhereV} GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual'${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store'${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...cBind).all(),
       ]);
       
       const vMap = Object.fromEntries((allVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -17884,8 +17888,11 @@ api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
     if (startDate) { dateFilter += " AND v.visit_date >= ?"; dateBinds.push(startDate); }
     if (endDate) { dateFilter += " AND v.visit_date <= ?"; dateBinds.push(endDate); }
 
-    const totalResult = await db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first();
+    const totalResult = dateBinds.length > 0
+      ? await db.prepare(`SELECT COUNT(DISTINCT c.id) as count FROM customers c JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id WHERE c.tenant_id = ?${dateFilter}`).bind(tenantId, ...dateBinds).first()
+      : await db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first();
 
+    const havingClause = dateBinds.length > 0 ? 'HAVING total_checkins > 0' : '';
     const shops = await db.prepare(`
       SELECT c.id, c.name, c.address, c.latitude, c.longitude,
         COUNT(v.id) as total_checkins,
@@ -17896,6 +17903,7 @@ api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       LEFT JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id${dateFilter}
       WHERE c.tenant_id = ?
       GROUP BY c.id
+      ${havingClause}
       ORDER BY total_checkins DESC
       LIMIT ? OFFSET ?
     `).bind(...dateBinds, ...dateBinds, tenantId, parseInt(limit), offset).all();
@@ -18023,8 +18031,8 @@ api.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
       SELECT COUNT(*) as total_customers,
         SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
         0 as already_betting
-      FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual'
-    `).bind(tenantId).first();
+      FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual'${dateFilter}
+    `).bind(...binds).first();
 
     return c.json({ success: true, customers: customers.results || [], total: totalResult?.count || 0, stats: statsResult });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
