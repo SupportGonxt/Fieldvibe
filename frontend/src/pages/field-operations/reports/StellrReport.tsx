@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Store, Search, CheckCircle, AlertTriangle, RefreshCw, Camera, X } from 'lucide-react'
+import { Download, Store, Search, CheckCircle, AlertTriangle, RefreshCw, Camera, X, Eye, MapPin, User, Calendar, ClipboardList } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -21,7 +21,7 @@ interface StellrVisit {
   gps_longitude: number
   created_at: string
   notes: string
-  // Stellr questionnaire fields
+  // Mapped questionnaire fields
   product_range: string
   stock_availability: string
   shelf_position: string
@@ -31,6 +31,19 @@ interface StellrVisit {
   brand_visibility: string
   cooler_installed: string
   outlet_type: string
+  // Full raw questionnaire answers
+  raw_responses: Record<string, string>
+}
+
+function formatKey(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function isPhotoUrl(val: string): boolean {
+  if (!val || typeof val !== 'string') return false
+  return val.startsWith('http') || val.startsWith('data:image')
 }
 
 const StellrReport: React.FC = () => {
@@ -43,6 +56,7 @@ const StellrReport: React.FC = () => {
   const [photoModalVisitId, setPhotoModalVisitId] = useState<string | null>(null)
   const [photoModalPhotos, setPhotoModalPhotos] = useState<Array<{ id: string; photo_type: string; label?: string; r2_url: string }>>([])
   const [photoModalLoading, setPhotoModalLoading] = useState(false)
+  const [detailVisit, setDetailVisit] = useState<StellrVisit | null>(null)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -262,19 +276,17 @@ const StellrReport: React.FC = () => {
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Store</th>
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Agent</th>
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Outlet Type</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Product Range</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock Availability</th>
-                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">POS Material</th>
+                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock</th>
+                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">POS</th>
                 <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Cooler</th>
-                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Pricing</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Visit Date</th>
+                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-gray-400">
+                  <td colSpan={9} className="py-12 text-center text-gray-400">
                     {visits.length === 0 ? 'No Stellr visit records found' : 'No records match your search'}
                   </td>
                 </tr>
@@ -298,17 +310,16 @@ const StellrReport: React.FC = () => {
                         <Camera className="w-4 h-4 text-blue-500" />
                       </button>
                     ) : (
-                      <span className="text-gray-400 text-xs">No photo</span>
+                      <span className="text-gray-400 text-xs">—</span>
                     )}
                   </td>
                   <td className="py-3 px-4">
                     <p className="text-gray-900 dark:text-white font-medium whitespace-nowrap">{v.store_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]">{v.store_address || ''}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[180px]">{v.store_address || ''}</p>
                   </td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{v.agent_name || '—'}</td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{v.outlet_type || '—'}</td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{v.product_range || '—'}</td>
-                  <td className="py-3 px-4 whitespace-nowrap">
+                  <td className="py-3 px-4 text-center">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       v.stock_availability === 'Yes' || v.stock_availability === 'Available'
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -337,20 +348,16 @@ const StellrReport: React.FC = () => {
                       {v.cooler_installed || 'N/A'}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      v.pricing_compliance === 'Yes' || v.pricing_compliance === 'Compliant'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : v.pricing_compliance
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                    }`}>
-                      {v.pricing_compliance || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{v.competitor_brands || '—'}</td>
                   <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {v.visit_date || (v.created_at ? new Date(v.created_at).toLocaleDateString() : '—')}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <button
+                      onClick={() => setDetailVisit(v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 text-xs font-medium transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> View
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -363,6 +370,158 @@ const StellrReport: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Visit Detail Modal */}
+      {detailVisit && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setDetailVisit(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">{detailVisit.store_name}</h2>
+                {detailVisit.store_address && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3.5 h-3.5" /> {detailVisit.store_address}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setDetailVisit(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+              {/* Visit Info */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Agent</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{detailVisit.agent_name || '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Visit Date</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {detailVisit.visit_date || (detailVisit.created_at ? new Date(detailVisit.created_at).toLocaleDateString() : '—')}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Store className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                      detailVisit.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : detailVisit.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                    }`}>
+                      {detailVisit.status || '—'}
+                    </span>
+                  </div>
+                </div>
+                {(detailVisit.gps_latitude || detailVisit.gps_longitude) && (
+                  <div className="flex items-center gap-2 col-span-2 sm:col-span-3">
+                    <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">GPS</p>
+                      <p className="text-sm text-gray-900 dark:text-white">
+                        {Number(detailVisit.gps_latitude).toFixed(6)}, {Number(detailVisit.gps_longitude).toFixed(6)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Questionnaire Answers */}
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  <ClipboardList className="w-4 h-4" /> Questionnaire Answers
+                </h3>
+                {detailVisit.raw_responses && Object.keys(detailVisit.raw_responses).length > 0 ? (
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    {Object.entries(detailVisit.raw_responses)
+                      .filter(([, val]) => val !== null && val !== undefined && val !== '' && !isPhotoUrl(String(val)))
+                      .map(([key, val]) => (
+                        <div key={key} className="flex items-start px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                          <span className="text-xs text-gray-500 dark:text-gray-400 w-48 shrink-0 pt-0.5">{formatKey(key)}</span>
+                          <span className="text-sm text-gray-900 dark:text-white flex-1 break-words">{String(val)}</span>
+                        </div>
+                      ))}
+                    {Object.entries(detailVisit.raw_responses).filter(([, val]) => val !== null && val !== undefined && val !== '' && !isPhotoUrl(String(val))).length === 0 && (
+                      <p className="px-4 py-4 text-sm text-gray-400 text-center">No questionnaire answers recorded</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">No questionnaire answers recorded</p>
+                )}
+              </div>
+
+              {/* Photo thumbnails from raw_responses */}
+              {detailVisit.raw_responses && Object.entries(detailVisit.raw_responses).some(([, v]) => isPhotoUrl(String(v))) && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <Camera className="w-4 h-4" /> Photos in Questionnaire
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {Object.entries(detailVisit.raw_responses)
+                      .filter(([, v]) => isPhotoUrl(String(v)))
+                      .map(([key, url]) => (
+                        <div key={key}>
+                          <button onClick={() => setExpandedPhoto(String(url))} className="block w-full">
+                            <img
+                              src={String(url)}
+                              alt={formatKey(key)}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+                            />
+                          </button>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-center truncate">{formatKey(key)}</p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {detailVisit.notes && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Notes</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30 rounded-lg px-4 py-3">{detailVisit.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0 flex gap-3 justify-end">
+              {detailVisit.has_photos && (
+                <button
+                  onClick={() => { setDetailVisit(null); handleViewPhotos(detailVisit.id) }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 text-sm font-medium"
+                >
+                  <Camera className="w-4 h-4" /> View All Photos
+                </button>
+              )}
+              <button
+                onClick={() => setDetailVisit(null)}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Photo Expand Modal */}
       {expandedPhoto && (
