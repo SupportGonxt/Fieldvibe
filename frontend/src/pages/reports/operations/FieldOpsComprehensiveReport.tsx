@@ -205,7 +205,7 @@ const FieldOpsComprehensiveReport: React.FC = () => {
         <IndividualsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
       )}
       {activeTab === 'performance' && (
-        <PerformanceTab />
+        <PerformanceTab selectedCompany={selectedCompany} />
       )}
       {activeTab === 'brand' && (
         <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
@@ -1182,19 +1182,20 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
 
 // ─── Performance Tab (was FieldOpsPerformancePage) ──────────────────────────
 
-function PerformanceTab() {
+function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
   const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'custom'>('month')
   const [dateRange, setDateRange] = useState({ start_date: today, end_date: today })
 
   const { data: performance, isLoading, isError } = useQuery({
-    queryKey: ['field-ops-performance', timePeriod, dateRange],
+    queryKey: ['field-ops-performance', timePeriod, dateRange, selectedCompany],
     queryFn: async () => {
       const params = {
         period: timePeriod === 'custom' ? undefined : timePeriod,
         start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
-        end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
+        end_date: timePeriod === 'custom' ? dateRange.end_date : undefined,
+        company_id: selectedCompany || undefined,
       }
       return fieldOperationsService.getPerformance(params)
     },
@@ -1210,6 +1211,9 @@ function PerformanceTab() {
       } else {
         params.append('start_date', dateRange.start_date)
         params.append('end_date', dateRange.end_date)
+      }
+      if (selectedCompany) {
+        params.append('company_id', selectedCompany)
       }
       const endpoint = format === 'excel' ? '/field-ops/performance/export-excel' : '/field-ops/performance/export'
       const response = await fieldOperationsService.get(`${endpoint}?${params.toString()}`, { responseType: 'blob' })

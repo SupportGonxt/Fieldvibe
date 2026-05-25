@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import { apiClient } from '../../../services/api.service'
 import { tradeMarketingService } from '../../../services/insights.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
@@ -25,6 +26,13 @@ export default function VisitDetail() {
   const desktopFileInputRef = useRef<HTMLInputElement>(null)
   const rejectedPhotosSectionRef = useRef<HTMLDivElement>(null)
   const photoFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const formatCoordinate = (value: unknown): string | null => {
+    if (value === null || value === undefined || value === '') return null
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return null
+    return numericValue.toFixed(4)
+  }
 
   const handlePhotoUpload = async (files: FileList | null, photoType: string = 'general') => {
     if (!files || files.length === 0 || !id) return
@@ -154,7 +162,14 @@ export default function VisitDetail() {
       const response = await fieldOperationsService.getVisit(id!)
       setVisit(response.data || response)
     } catch (error) {
-      console.error('Failed to load visit:', error)
+      // Fallback for environments where /field-operations/visits/:id is not mounted.
+      try {
+        const fallback = await apiClient.get(`/visits/${id}`)
+        const payload = fallback?.data?.data || fallback?.data
+        setVisit(payload)
+      } catch (fallbackError) {
+        console.error('Failed to load visit:', fallbackError)
+      }
     } finally {
       setLoading(false)
     }
@@ -275,7 +290,12 @@ export default function VisitDetail() {
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">GPS</span>
                 <span className="text-sm text-white">
-                  {(visit.checkin_latitude || visit.latitude)?.toFixed(4)}, {(visit.checkin_longitude || visit.longitude)?.toFixed(4)}
+                  {(() => {
+                    const lat = formatCoordinate(visit.checkin_latitude || visit.latitude)
+                    const lng = formatCoordinate(visit.checkin_longitude || visit.longitude)
+                    if (!lat || !lng) return 'Unavailable'
+                    return `${lat}, ${lng}`
+                  })()}
                 </span>
               </div>
             )}
