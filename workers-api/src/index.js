@@ -9742,23 +9742,38 @@ api.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
       for (const id of ids) { tv += (xlTargetMap[id]||{}).target_visits||0; ts += (xlTargetMap[id]||{}).target_stores||0; }
       return { target_visits: tv, target_stores: ts };
     };
-    // Build hierarchy using filtered agents
+    // Build hierarchy using filtered agents and team leads only
+    // A team lead is included if they are in the company filter, or if they manage at least one filtered agent
+    const filteredAgentSet = new Set(filteredAgentResults.map(a => a.id));
+    const effectiveTLResults = exportCompanyUserIds
+      ? (allTeamLeads.results || []).filter(tl =>
+          exportCompanyUserIds.has(tl.id) ||
+          filteredAgentResults.some(a => a.team_lead_id === tl.id)
+        )
+      : (allTeamLeads.results || []);
+    const effectiveTLSet = new Set(effectiveTLResults.map(tl => tl.id));
     const managers = (allManagers.results || []).map(m => {
-      const tls = (allTeamLeads.results || []).filter(t => t.manager_id === m.id);
+      const tls = effectiveTLResults.filter(t => t.manager_id === m.id);
       const directAgents = filteredAgentResults.filter(a => a.manager_id === m.id && (!a.team_lead_id || a.team_lead_id === ''));
-      const allMgrIds = [m.id];
+      const allMgrIds = [];
+      // Only include manager's own visits if they are in the company filter
+      if (!exportCompanyUserIds || exportCompanyUserIds.has(m.id)) allMgrIds.push(m.id);
       const teamLeads = tls.map(tl => {
         const agents = filteredAgentResults.filter(a => a.team_lead_id === tl.id);
-        const tlIds = [tl.id, ...agents.map(a => a.id)];
+        // Include TL's own visits only if TL is in the company filter
+        const tlIds = [...(exportCompanyUserIds && !exportCompanyUserIds.has(tl.id) ? [] : [tl.id]), ...agents.map(a => a.id)];
         allMgrIds.push(...tlIds);
         return { ...tl, name: tl.first_name + ' ' + tl.last_name, agents: agents.map(a => ({ ...a, name: a.first_name + ' ' + a.last_name, ...sumIds([a.id]), ...sumTargets([a.id]) })), ...sumIds(tlIds), ...sumTargets(tlIds) };
       });
       allMgrIds.push(...directAgents.map(a => a.id));
       const dAgents = directAgents.map(a => ({ ...a, name: a.first_name + ' ' + a.last_name, ...sumIds([a.id]), ...sumTargets([a.id]) }));
       return { ...m, name: m.first_name + ' ' + m.last_name, teamLeads, directAgents: dAgents, ...sumIds(allMgrIds), ...sumTargets(allMgrIds), totalTLs: tls.length, totalAgents: filteredAgentResults.filter(a => tls.some(t => t.id === a.team_lead_id) || (a.manager_id === m.id)).length };
-    });
-    // Grand totals
-    const allIds = [...(allManagers.results||[]).map(m=>m.id), ...(allTeamLeads.results||[]).map(t=>t.id), ...filteredAgentResults.map(a=>a.id)];
+    }).filter(m => m.teamLeads.length > 0 || m.directAgents.length > 0);
+    // Grand totals — only sum IDs that belong to the selected company
+    const grandAgentIds = filteredAgentResults.map(a => a.id);
+    const grandTLIds = effectiveTLResults.filter(tl => !exportCompanyUserIds || exportCompanyUserIds.has(tl.id)).map(tl => tl.id);
+    const grandMgrIds = (allManagers.results||[]).filter(m => !exportCompanyUserIds || exportCompanyUserIds.has(m.id)).map(m => m.id);
+    const allIds = [...grandMgrIds, ...grandTLIds, ...grandAgentIds];
     const grand = { ...sumIds(allIds), ...sumTargets(allIds) };
     const periodLabel = period === 'day' ? 'Today' : period === 'week' ? 'Week to Date' : period === 'month' ? 'Month to Date' : `${startD} to ${endD}`;
 
