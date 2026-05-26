@@ -179,6 +179,11 @@ export default function AgentDashboard() {
     return { dailyIndivTarget, dailyStoreTarget, monthIndivTarget, monthStoreTarget, weekIndivTarget, weekIndivActual, monthIndivActual, monthStoreActual }
   }, [data])
 
+  const isStellr = useMemo(() => {
+    if (!data?.companies) return false
+    return data.companies.some(c => c.name?.toLowerCase().includes('stellr'))
+  }, [data?.companies])
+
   // Memoize data destructuring to reduce repeated property access
   const dataProps = useMemo(() => {
     if (!data) return null
@@ -477,13 +482,15 @@ export default function AgentDashboard() {
             <Store className="w-4 h-4" />
             Store Visit
           </button>
-          <button
-            onClick={() => navigate('/agent/visits/create?type=individual')}
-            className="py-3.5 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white font-bold rounded-2xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
-          >
-            <User className="w-4 h-4" />
-            Individual Visit
-          </button>
+          {!isStellr && (
+            <button
+              onClick={() => navigate('/agent/visits/create?type=individual')}
+              className="py-3.5 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white font-bold rounded-2xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+            >
+              <User className="w-4 h-4" />
+              Individual Visit
+            </button>
+          )}
         </div>
         <button
           onClick={() => navigate('/agent/visits/create')}
@@ -495,61 +502,65 @@ export default function AgentDashboard() {
       </div>
 
       {/* Rejected Photos KPI */}
-      <div className="px-5 mb-4">
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            icon={<X className="w-5 h-5" />}
-            label="Rejected Photos"
-            value={rejectedPhotoCount}
-            color="bg-red-500"
-          />
-          <button
-            onClick={() => {
-              if (rejectedVisitIds.length === 1) {
-                navigate(`/agent/visits/${rejectedVisitIds[0]}`)
-              } else {
-                navigate('/agent/visits?filter=rejected_photos')
-              }
-            }}
-            className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
-            disabled={rejectedPhotoLoading || rejectedPhotoCount === 0}
-            style={{ opacity: rejectedPhotoCount === 0 ? 0.5 : 1 }}
-          >
-            <X className="w-4 h-4" />
-            {rejectedPhotoLoading ? 'Checking...' : rejectedPhotoCount > 0 ? `View ${rejectedPhotoCount} Rejected` : 'No Rejected Photos'}
-          </button>
+      {!isStellr && (
+        <div className="px-5 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              icon={<X className="w-5 h-5" />}
+              label="Rejected Photos"
+              value={rejectedPhotoCount}
+              color="bg-red-500"
+            />
+            <button
+              onClick={() => {
+                if (rejectedVisitIds.length === 1) {
+                  navigate(`/agent/visits/${rejectedVisitIds[0]}`)
+                } else {
+                  navigate('/agent/visits?filter=rejected_photos')
+                }
+              }}
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              disabled={rejectedPhotoLoading || rejectedPhotoCount === 0}
+              style={{ opacity: rejectedPhotoCount === 0 ? 0.5 : 1 }}
+            >
+              <X className="w-4 h-4" />
+              {rejectedPhotoLoading ? 'Checking...' : rejectedPhotoCount > 0 ? `View ${rejectedPhotoCount} Rejected` : 'No Rejected Photos'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Rejected Goldrush ID KPI */}
-      <div className="px-5 mb-4">
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            icon={<Ban className="w-5 h-5" />}
-            label="Rejected Goldrush ID"
-            value={rejectedGoldrushCount}
-            color="bg-orange-500"
-          />
-          <button
-            onClick={() => navigate('/agent/visits?filter=rejected_goldrush')}
-            className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
-            disabled={rejectedGoldrushLoading || rejectedGoldrushCount === 0}
-            style={{ opacity: rejectedGoldrushCount === 0 ? 0.5 : 1 }}
-          >
-            <Ban className="w-4 h-4" />
-            {rejectedGoldrushLoading ? 'Checking...' : rejectedGoldrushCount > 0 ? `View ${rejectedGoldrushCount} Rejected` : 'No Rejected IDs'}
-          </button>
+      {!isStellr && (
+        <div className="px-5 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              icon={<Ban className="w-5 h-5" />}
+              label="Rejected Goldrush ID"
+              value={rejectedGoldrushCount}
+              color="bg-orange-500"
+            />
+            <button
+              onClick={() => navigate('/agent/visits?filter=rejected_goldrush')}
+              className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              disabled={rejectedGoldrushLoading || rejectedGoldrushCount === 0}
+              style={{ opacity: rejectedGoldrushCount === 0 ? 0.5 : 1 }}
+            >
+              <Ban className="w-4 h-4" />
+              {rejectedGoldrushLoading ? 'Checking...' : rejectedGoldrushCount > 0 ? `View ${rejectedGoldrushCount} Rejected` : 'No Rejected IDs'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="px-5 mb-4">
         <div className="grid grid-cols-2 gap-3">
           {/* Use memoized target calculations and data props */}
           {targets && dataProps && (
             <>
-              <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={dataProps.today_individual_visits} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-blue-500" />
+              {!isStellr && <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={dataProps.today_individual_visits} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-blue-500" />}
               <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={dataProps.today_store_visits} target={targets.dailyStoreTarget > 0 ? targets.dailyStoreTarget : undefined} color="bg-purple-500" />
-              <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={dataProps.month_individual_visits} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-emerald-500" />
+              {!isStellr && <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={dataProps.month_individual_visits} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-emerald-500" />}
               <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={dataProps.month_store_visits} target={targets.monthStoreTarget > 0 ? targets.monthStoreTarget : undefined} color="bg-amber-500" />
             </>
           )}

@@ -21,6 +21,7 @@ export default function VisitDetail() {
   const [goldrushIdValue, setGoldrushIdValue] = useState('')
   const [savingGoldrushId, setSavingGoldrushId] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const desktopFileInputRef = useRef<HTMLInputElement>(null)
@@ -139,6 +140,9 @@ export default function VisitDetail() {
       setGoldrushIdValue(getGoldrushId(visit))
     }
   }, [visit])
+
+  const formatRespKey = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const isPhotoUrl = (val: string) => typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))
 
   // Detect mobile context by checking if path starts with /agent/
   const isMobileContext = location.pathname.startsWith('/agent/')
@@ -613,26 +617,74 @@ export default function VisitDetail() {
             )}
           </div>
 
-          {/* Survey Responses */}
-          {responses.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                <FileText className="w-3 h-3" /> Survey Responses
-              </h3>
-              {responses.map((resp: any, idx: number) => {
-                let parsed: Record<string, string> = {}
-                try { parsed = typeof resp.responses === 'string' ? JSON.parse(resp.responses) : resp.responses || {} } catch { /* */ }
-                return (
-                  <div key={idx} className="space-y-2">
-                    {Object.entries(parsed).map(([key, value]) => (
-                      <div key={key} className="flex justify-between">
-                        <span className="text-xs text-gray-500">{key}</span>
-                        <span className="text-sm text-white">{String(value)}</span>
+          {/* Survey / Questionnaire Responses */}
+          {responses.length > 0 && (() => {
+            const allParsed: Record<string, string> = {}
+            for (const resp of responses) {
+              try {
+                const parsed = typeof resp.responses === 'string' ? JSON.parse(resp.responses) : resp.responses || {}
+                Object.assign(allParsed, parsed)
+              } catch { /* skip malformed */ }
+            }
+            const textEntries = Object.entries(allParsed).filter(([, v]) => v != null && String(v).trim() !== '' && !isPhotoUrl(String(v)))
+            const photoEntries = Object.entries(allParsed).filter(([, v]) => v != null && isPhotoUrl(String(v)))
+            if (textEntries.length === 0 && photoEntries.length === 0) return null
+            return (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <MessageSquare className="w-3 h-3" /> Questionnaire
+                </h3>
+
+                {/* Text answers */}
+                {textEntries.length > 0 && (
+                  <div className="space-y-2.5">
+                    {textEntries.map(([key, value]) => (
+                      <div key={key} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">{formatRespKey(key)}</p>
+                        <p className="text-sm text-white">{String(value)}</p>
                       </div>
                     ))}
                   </div>
-                )
-              })}
+                )}
+
+                {/* Photo answers */}
+                {photoEntries.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <Camera className="w-3 h-3" /> Photos
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {photoEntries.map(([key, url]) => (
+                        <div key={key}>
+                          <button
+                            onClick={() => setExpandedPhoto(String(url))}
+                            className="block w-full rounded-lg overflow-hidden border border-white/10 active:opacity-80 transition-opacity"
+                          >
+                            <img src={String(url)} alt={formatRespKey(key)} className="w-full h-28 object-cover" />
+                          </button>
+                          <p className="mt-1 text-[10px] text-gray-500 text-center truncate">{formatRespKey(key)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Photo lightbox */}
+          {expandedPhoto && (
+            <div
+              className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+              onClick={() => setExpandedPhoto(null)}
+            >
+              <img src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
+              <button
+                onClick={() => setExpandedPhoto(null)}
+                className="absolute top-4 right-4 p-2 bg-white/10 rounded-full text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           )}
 
