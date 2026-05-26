@@ -22,6 +22,7 @@ export default function VisitDetail() {
   const [savingGoldrushId, setSavingGoldrushId] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+  const [questionnaireDef, setQuestionnaireDef] = useState<{ id: string; name: string; questions: Array<{ key?: string; id?: string; label?: string; question?: string }> } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const desktopFileInputRef = useRef<HTMLInputElement>(null)
@@ -144,12 +145,35 @@ export default function VisitDetail() {
   const formatRespKey = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   const isPhotoUrl = (val: string) => typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))
 
+  const getLabelForKey = (key: string): string => {
+    if (questionnaireDef?.questions) {
+      const found = questionnaireDef.questions.find((q, idx) =>
+        (q.key || q.id || String(idx)) === key
+      )
+      if (found) return (found as any).label || (found as any).question || formatRespKey(key)
+    }
+    return formatRespKey(key)
+  }
+
   // Detect mobile context by checking if path starts with /agent/
   const isMobileContext = location.pathname.startsWith('/agent/')
 
   useEffect(() => {
     loadVisit()
   }, [id])
+
+  useEffect(() => {
+    if (!visit?.questionnaire_id) return
+    let mounted = true
+    apiClient.get(`/surveys/${visit.questionnaire_id}`)
+      .then((res: any) => {
+        if (!mounted) return
+        const q = res?.data?.data || res?.data
+        if (q?.id) setQuestionnaireDef(q)
+      })
+      .catch(() => {})
+    return () => { mounted = false }
+  }, [visit?.questionnaire_id])
 
   // Auto-scroll to rejected photos section if navigated here with ?scrollTo=rejected-photos
   useEffect(() => {
@@ -632,7 +656,7 @@ export default function VisitDetail() {
             return (
               <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <MessageSquare className="w-3 h-3" /> Questionnaire
+                  <MessageSquare className="w-3 h-3" /> {questionnaireDef?.name || 'Questionnaire'}
                 </h3>
 
                 {/* Text answers */}
@@ -640,7 +664,7 @@ export default function VisitDetail() {
                   <div className="space-y-2.5">
                     {textEntries.map(([key, value]) => (
                       <div key={key} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">{formatRespKey(key)}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">{getLabelForKey(key)}</p>
                         <p className="text-sm text-white">{String(value)}</p>
                       </div>
                     ))}
@@ -660,9 +684,9 @@ export default function VisitDetail() {
                             onClick={() => setExpandedPhoto(String(url))}
                             className="block w-full rounded-lg overflow-hidden border border-white/10 active:opacity-80 transition-opacity"
                           >
-                            <img src={String(url)} alt={formatRespKey(key)} className="w-full h-28 object-cover" />
+                            <img src={String(url)} alt={getLabelForKey(key)} className="w-full h-28 object-cover" />
                           </button>
-                          <p className="mt-1 text-[10px] text-gray-500 text-center truncate">{formatRespKey(key)}</p>
+                          <p className="mt-1 text-[10px] text-gray-500 text-center truncate">{getLabelForKey(key)}</p>
                         </div>
                       ))}
                     </div>
@@ -929,7 +953,7 @@ export default function VisitDetail() {
       {responses.length > 0 && (
         <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5" /> Survey Responses
+            <FileText className="w-5 h-5" /> {questionnaireDef?.name || 'Survey Responses'}
           </h3>
           {responses.map((resp: any, idx: number) => {
             let parsed: Record<string, string> = {}
@@ -938,7 +962,7 @@ export default function VisitDetail() {
               <div key={idx} className="space-y-2">
                 {Object.entries(parsed).map(([key, value]) => (
                   <div key={key} className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">{getLabelForKey(key)}</span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{String(value)}</span>
                   </div>
                 ))}
