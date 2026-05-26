@@ -212,7 +212,7 @@ const FieldOpsComprehensiveReport: React.FC = () => {
         <IndividualsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
       )}
       {activeTab === 'performance' && (
-        <PerformanceTab selectedCompany={selectedCompany} />
+        <PerformanceTab selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'brand' && (
         <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
@@ -912,7 +912,7 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{shop.name || 'Store Details'}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{shop.address || 'No address'}</p>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className={`grid gap-4 mb-6 ${isStellr ? 'grid-cols-2' : 'grid-cols-3'}`}>
             <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-2xl font-bold text-blue-600">{shopDetail.stats?.total_checkins || 0}</p>
               <p className="text-xs text-blue-700 dark:text-blue-400">Total Check-ins</p>
@@ -921,10 +921,12 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
               <p className="text-2xl font-bold text-green-600">{shopDetail.stats?.approved || 0}</p>
               <p className="text-xs text-green-700 dark:text-green-400">Approved</p>
             </div>
-            <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{shopDetail.stats?.conversions || 0}</p>
-              <p className="text-xs text-purple-700 dark:text-purple-400">Conversions</p>
-            </div>
+            {!isStellr && (
+              <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <p className="text-2xl font-bold text-purple-600">{shopDetail.stats?.conversions || 0}</p>
+                <p className="text-xs text-purple-700 dark:text-purple-400">Conversions</p>
+              </div>
+            )}
           </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Recent Check-ins</h3>
           <div className="overflow-x-auto">
@@ -935,7 +937,7 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Date</th>
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Agent</th>
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Status</th>
-                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Converted</th>
+                  {!isStellr && <th className="text-left py-2 px-3 text-gray-500 font-medium">Converted</th>}
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Notes</th>
                 </tr>
               </thead>
@@ -958,7 +960,7 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
                         {c.status}
                       </span>
                     </td>
-                    <td className="py-2 px-3">{c.converted ? <span className="text-green-600 font-medium">Yes</span> : <span className="text-gray-400">No</span>}</td>
+                    {!isStellr && <td className="py-2 px-3">{c.converted ? <span className="text-green-600 font-medium">Yes</span> : <span className="text-gray-400">No</span>}</td>}
                     <td className="py-2 px-3 text-gray-500 truncate max-w-[200px]">{c.responses || '-'}</td>
                   </tr>
                 ))}
@@ -1339,7 +1341,7 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
 
 // ─── Performance Tab (was FieldOpsPerformancePage) ──────────────────────────
 
-function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
+function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string; isStellr?: boolean }) {
   const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'custom'>('month')
@@ -1439,14 +1441,14 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
       {/* Team Lead View */}
       {role === 'team_lead' && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
             <PerfMetricCard title="Team Size" value={performance?.team_size || 0} icon={<Users className="w-6 h-6 text-blue-600" />} />
             <PerfMetricCard title="Total Visits" value={performance?.total_visits || 0} icon={<Target className="w-6 h-6 text-green-600" />} />
-            <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-purple-600" />} />
-            <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-6 h-6 text-orange-600" />} />
+            {!isStellr && <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-purple-600" />} />}
+            {!isStellr && <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-6 h-6 text-orange-600" />} />}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}>
+            {!isStellr && <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />}
             <PerfMetricCard title="Target (Store)" value={performance?.total_target_stores || 0} icon={<BarChart3 className="w-5 h-5 text-orange-600" />} />
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -1456,9 +1458,9 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
                 <thead><tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Store)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr></thead>
@@ -1467,9 +1469,9 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
                     <tr key={agent.agent_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{agent.agent_name}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.visits}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.individual_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.store_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.individual_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.store_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
                         <button onClick={() => navigate(`/field-operations/drill-down/${agent.agent_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
@@ -1479,7 +1481,7 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
                     </tr>
                   ))}
                   {(performance?.agents || []).length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No agent data available</td></tr>
+                    <tr><td colSpan={isStellr ? 4 : 7} className="px-4 py-8 text-center text-gray-500">No agent data available</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1505,15 +1507,15 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
       {/* Manager / Admin View */}
       {(role === 'manager' || role === 'admin') && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
             <PerfMetricCard title="Team Leads" value={performance?.total_team_leads || 0} icon={<Users className="w-6 h-6 text-blue-600" />} />
             <PerfMetricCard title="Total Agents" value={performance?.total_agents || 0} icon={<UserCheck className="w-6 h-6 text-green-600" />} />
             <PerfMetricCard title="Total Visits" value={performance?.total_visits || 0} icon={<Target className="w-6 h-6 text-purple-600" />} />
-            <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-indigo-600" />} />
+            {!isStellr && <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-indigo-600" />} />}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-5 h-5 text-orange-600" />} />
-            <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-1' : 'md:grid-cols-3'}`}>
+            {!isStellr && <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-5 h-5 text-orange-600" />} />}
+            {!isStellr && <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />}
             <PerfMetricCard title="Target (Store)" value={performance?.total_target_stores || 0} icon={<BarChart3 className="w-5 h-5 text-orange-600" />} />
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -1524,9 +1526,9 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team Lead</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Agents</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Store)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr></thead>
@@ -1536,9 +1538,9 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{team.team_lead_name}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.agent_count}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.visits}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.individual_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.store_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.individual_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.store_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
                         <button onClick={() => navigate(`/field-operations/drill-down/${team.team_lead_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
@@ -1548,7 +1550,7 @@ function PerformanceTab({ selectedCompany }: { selectedCompany: string }) {
                     </tr>
                   ))}
                   {(performance?.teams || []).length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No team data available</td></tr>
+                    <tr><td colSpan={isStellr ? 5 : 8} className="px-4 py-8 text-center text-gray-500">No team data available</td></tr>
                   )}
                 </tbody>
               </table>
