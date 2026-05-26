@@ -511,29 +511,31 @@ function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCom
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${!isStellr ? 'lg:grid-cols-2' : ''}`}>
         {/* Top Converting Agents */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Award className="h-5 w-5 text-yellow-500" /> Top Converting Agents
-          </h3>
-          <div className="space-y-4">
-            {topAgents.length === 0 ? (
-              <p className="text-gray-400 text-sm">No data available</p>
-            ) : topAgents.map((agent, i) => (
-              <div key={agent.agent_id} className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                  i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : i === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                }`}>{i + 1}</div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.agent_name || 'Unknown'}</p>
-                  <p className="text-xs text-gray-500">{agent.checkin_count} check-ins · {agent.conversions} conversions</p>
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Award className="h-5 w-5 text-yellow-500" /> Top Converting Agents
+            </h3>
+            <div className="space-y-4">
+              {topAgents.length === 0 ? (
+                <p className="text-gray-400 text-sm">No data available</p>
+              ) : topAgents.map((agent, i) => (
+                <div key={agent.agent_id} className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                    i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : i === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                  }`}>{i + 1}</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.agent_name || 'Unknown'}</p>
+                    <p className="text-xs text-gray-500">{agent.checkin_count} check-ins · {agent.conversions} conversions</p>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-600">{agent.conversion_rate}%</span>
                 </div>
-                <span className="text-sm font-bold text-emerald-600">{agent.conversion_rate}%</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Most Active Agents */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

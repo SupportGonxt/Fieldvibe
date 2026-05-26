@@ -16963,10 +16963,15 @@ api.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const { startDate, endDate, company_id } = c.req.query();
+
+    // agentFilter is applied only to the outer WHERE (not the correlated subquery which already scopes per-agent)
+    let agentFilter = '';
+    const agentBinds = [];
+    // dateFilter is applied to both outer WHERE and correlated subquery
     let dateFilter = '';
-    let regDateFilter = '';
     const dateBinds = [];
     const regBinds = [tenantId];
+
     // Scope by company via agent_company_links (handles companies with NULL visits.company_id, e.g. Goldrush)
     if (company_id) {
       const companyLinks = await db.prepare(
@@ -16977,24 +16982,19 @@ api.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
         return c.json({ success: true, data: [] });
       }
       const placeholders = agentIds.map(() => '?').join(',');
-      dateFilter += ` AND v.agent_id IN (${placeholders})`;
-      dateBinds.push(...agentIds);
+      agentFilter = ` AND v.agent_id IN (${placeholders})`;
+      agentBinds.push(...agentIds);
     }
     if (startDate) {
       dateFilter += " AND v.visit_date >= ?";
       dateBinds.push(startDate);
-      regDateFilter += " AND DATE(ir.created_at) >= ?";
-      regBinds.push(startDate);
     }
     if (endDate) {
       dateFilter += " AND v.visit_date <= ?";
       dateBinds.push(endDate);
-      regDateFilter += " AND DATE(ir.created_at) <= ?";
-      regBinds.push(endDate);
     }
 
-    // dateFilter is used twice (subquery + WHERE), so dateBinds must be spread twice
-    // Subquery uses v2 alias, so replace v. references for correct scoping
+    // subqueryDateFilter: date-only (no agent IN clause — correlated via v2.agent_id = v.agent_id)
     const subqueryDateFilter = dateFilter.replace(/v\./g, 'v2.');
     const agents = await db.prepare(`
       SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
@@ -17002,12 +17002,12 @@ api.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
         (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.agent_id = v.agent_id AND v2.tenant_id = v.tenant_id AND (COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.consumer_converted'), '')) = 'yes')${subqueryDateFilter}) as conversions
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
-      WHERE v.tenant_id = ?${dateFilter}
+      WHERE v.tenant_id = ?${agentFilter}${dateFilter}
         AND (u.email IS NULL OR u.email != 'luke.templeman@gonxt.tech')
       GROUP BY v.agent_id
       ORDER BY checkin_count DESC
       LIMIT 50
-    `).bind(...dateBinds, tenantId, ...dateBinds).all();
+    `).bind(...dateBinds, tenantId, ...agentBinds, ...dateBinds).all();
 
     const data = (agents.results || []).map(a => ({
       ...a,
