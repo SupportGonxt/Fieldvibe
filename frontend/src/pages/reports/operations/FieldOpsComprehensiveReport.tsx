@@ -215,13 +215,13 @@ const FieldOpsComprehensiveReport: React.FC = () => {
         <PerformanceTab selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'brand' && (
-        <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'gps' && (
         <GPSTrackingTab selectedCompany={selectedCompany} />
       )}
       {activeTab === 'export' && (
-        <ExportTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <ExportTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
     </div>
   )
@@ -750,25 +750,6 @@ function CheckinsTab({ startDate, endDate, selectedCompany, isStellr }: { startD
                 )}
               </div>
 
-              {/* Questionnaire Answers */}
-              <div>
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  <ClipboardList className="w-4 h-4" /> Questionnaire Answers
-                </h4>
-                {stellrTextEntries.length > 0 ? (
-                  <div className="divide-y divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    {stellrTextEntries.map(([key, val]) => (
-                      <div key={key} className="flex items-start px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 w-44 shrink-0 pt-0.5">{checkinFormatKey(key)}</span>
-                        <span className="text-sm text-gray-900 dark:text-white flex-1 break-words">{String(val)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">No questionnaire answers recorded</p>
-                )}
-              </div>
-
               {/* Photos from questionnaire */}
               {stellrPhotoEntries.length > 0 && (
                 <div>
@@ -1174,7 +1155,7 @@ function IndividualsTab({ startDate, endDate, selectedCompany }: { startDate: st
 
 // ─── Export Tab (was ReportsExport) ─────────────────────────────────────────
 
-function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompany }: TabProps) {
+function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
   const [exporting, setExporting] = useState(false)
 
   const { data: agentPerf = [] } = useQuery({
@@ -1217,7 +1198,12 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
     setExporting(true)
     try {
       if (type === 'checkins') {
-        const res = await apiClient.get(`/field-ops/reports/export/checkins?dummy=1${dateParams}${companyParam}`)
+        const parts: string[] = []
+        if (startDate) parts.push(`startDate=${startDate}`)
+        if (endDate) parts.push(`endDate=${endDate}`)
+        if (selectedCompany) parts.push(`company_id=${selectedCompany}`)
+        const qs = parts.length > 0 ? `?${parts.join('&')}` : ''
+        const res = await apiClient.get(`/field-ops/reports/export/checkins${qs}`)
         const data = res.data?.data || []
         if (data.length === 0) { toast.error('No data to export'); return }
         const headers = Object.keys(data[0])
@@ -1248,7 +1234,7 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
   return (
     <div className="space-y-6">
       {/* Export Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -1287,24 +1273,26 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
           </button>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <FileText className="h-6 w-6 text-purple-600" />
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <FileText className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Conversion Stats</h3>
+                <p className="text-xs text-gray-500">Overall conversion and betting metrics</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Conversion Stats</h3>
-              <p className="text-xs text-gray-500">Overall conversion and betting metrics</p>
-            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Summary of conversion rates: converted vs not converted, store visits vs non-store visits.
+            </p>
+            <button onClick={() => exportToCSV('conversions')} disabled={exporting}
+              className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-2.5 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
+              <Download className="h-4 w-4" /> Export Conversion CSV
+            </button>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Summary of conversion rates: converted vs not converted, store visits vs non-store visits.
-          </p>
-          <button onClick={() => exportToCSV('conversions')} disabled={exporting}
-            className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-2.5 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
-            <Download className="h-4 w-4" /> Export Conversion CSV
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Agent Performance Preview */}
@@ -1474,7 +1462,7 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
                       {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => navigate(`/field-operations/drill-down/${agent.agent_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                        <button onClick={() => navigate(`/field-operations/drill-down/${agent.agent_id}${isStellr ? '?stellr=1' : ''}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
                           Details <ChevronRight className="w-4 h-4" />
                         </button>
                       </td>
@@ -1543,7 +1531,7 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
                       {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => navigate(`/field-operations/drill-down/${team.team_lead_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                        <button onClick={() => navigate(`/field-operations/drill-down/${team.team_lead_id}${isStellr ? '?stellr=1' : ''}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
                           Drill Down <ChevronRight className="w-4 h-4" />
                         </button>
                       </td>
@@ -1614,7 +1602,7 @@ function PerfMetricCard({ title, value, icon }: { title: string; value: string |
 
 const BRAND_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6']
 
-function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: string; endDate: string; selectedCompany: string }) {
+function BrandInsightsTab({ startDate, endDate, selectedCompany, isStellr }: { startDate: string; endDate: string; selectedCompany: string; isStellr?: boolean }) {
   const effectiveStart = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const effectiveEnd = endDate || new Date().toISOString().split('T')[0]
 
@@ -1648,15 +1636,15 @@ function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: 
   return (
     <div className="space-y-6">
       {/* Summary KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${isStellr ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
         <BrandKPICard title="Total Visits" value={summary.total_visits || 0} icon={<Target className="w-5 h-5 text-blue-600" />} bg="bg-blue-100 dark:bg-blue-900/30" />
-        <BrandKPICard title="Total Individuals" value={summary.total_individuals || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
-        <BrandKPICard title="Total Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />
-        <BrandKPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />
+        {!isStellr && <BrandKPICard title="Total Individuals" value={summary.total_individuals || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />}
+        {!isStellr && <BrandKPICard title="Total Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />}
+        {!isStellr && <BrandKPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${!isStellr ? 'lg:grid-cols-2' : ''}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daily Visit Trends</h3>
@@ -1677,27 +1665,29 @@ function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: 
             <div className="h-64 flex items-center justify-center text-gray-400">No visit trend data available</div>
           )}
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
-            <PieChartIcon className="w-5 h-5 text-gray-400" />
-          </div>
-          {conversionsByDay.length > 0 ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={conversionsByDay}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
-                  <YAxis /><Tooltip /><Legend />
-                  <Bar dataKey="individuals" fill="#10B981" name="Individuals" />
-                  <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
-                </BarChart>
-              </ResponsiveContainer>
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
+              <PieChartIcon className="w-5 h-5 text-gray-400" />
             </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-400">No conversion data available</div>
-          )}
-        </div>
+            {conversionsByDay.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={conversionsByDay}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                    <YAxis /><Tooltip /><Legend />
+                    <Bar dataKey="individuals" fill="#10B981" name="Individuals" />
+                    <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-400">No conversion data available</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Visits by Hour */}
