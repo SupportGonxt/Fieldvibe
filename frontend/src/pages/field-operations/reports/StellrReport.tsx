@@ -4,7 +4,7 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Store, Search, CheckCircle, AlertTriangle, RefreshCw, Camera, X, Eye, MapPin, User, Calendar, ClipboardList } from 'lucide-react'
+import { Download, Store, Search, AlertTriangle, RefreshCw, Camera, X, Eye, MapPin, User, Calendar, ClipboardList } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
@@ -110,11 +110,6 @@ const StellrReport: React.FC = () => {
     )
   })
 
-  const totalWithPOS = visits.filter(v => v.pos_material === 'Yes').length
-  const totalWithCooler = visits.filter(v => v.cooler_installed === 'Yes').length
-  const totalPricingCompliant = visits.filter(v => v.pricing_compliance === 'Yes' || v.pricing_compliance === 'Compliant').length
-  const posRate = visits.length > 0 ? ((totalWithPOS / visits.length) * 100).toFixed(1) : '0'
-
   const exportToCSV = () => {
     setExporting(true)
     try {
@@ -167,6 +162,8 @@ const StellrReport: React.FC = () => {
       setExporting(false)
     }
   }
+
+  const totalAgents = new Set(visits.map(v => v.agent_name).filter(Boolean)).size
 
   if (isLoading) return <LoadingSpinner />
   if (isError) return (
@@ -222,7 +219,7 @@ const StellrReport: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Store className="h-4 w-4 text-blue-500" />
@@ -232,25 +229,10 @@ const StellrReport: React.FC = () => {
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="h-4 w-4 text-green-500" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">POS Material</span>
+            <User className="h-4 w-4 text-indigo-500" />
+            <span className="text-xs text-gray-500 dark:text-gray-400">Total Agents</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalWithPOS}</p>
-          <p className="text-xs text-gray-400 mt-1">{posRate}% coverage</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="h-4 w-4 text-purple-500" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Cooler Installed</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalWithCooler}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="h-4 w-4 text-emerald-500" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Pricing Compliant</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalPricingCompliant}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAgents}</p>
         </div>
       </div>
 
@@ -272,85 +254,25 @@ const StellrReport: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Photo</th>
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Store</th>
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Agent</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Outlet Type</th>
-                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock</th>
-                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">POS</th>
-                <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Cooler</th>
-                <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Visit Date</th>
                 <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-gray-400">
+                  <td colSpan={3} className="py-12 text-center text-gray-400">
                     {visits.length === 0 ? 'No Stellr visit records found' : 'No records match your search'}
                   </td>
                 </tr>
               ) : filtered.map((v) => (
                 <tr key={v.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="py-3 px-4">
-                    {v.thumbnail_url ? (
-                      <button onClick={() => setExpandedPhoto(v.thumbnail_url)} className="block">
-                        <img
-                          src={v.thumbnail_url}
-                          alt="Visit photo"
-                          className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
-                        />
-                      </button>
-                    ) : v.has_photos ? (
-                      <button
-                        onClick={() => handleViewPhotos(v.id)}
-                        className="inline-flex items-center justify-center w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors"
-                        title="Click to view photos"
-                      >
-                        <Camera className="w-4 h-4 text-blue-500" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
                     <p className="text-gray-900 dark:text-white font-medium whitespace-nowrap">{v.store_name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[180px]">{v.store_address || ''}</p>
                   </td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{v.agent_name || '—'}</td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{v.outlet_type || '—'}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      v.stock_availability === 'Yes' || v.stock_availability === 'Available'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : v.stock_availability
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                    }`}>
-                      {v.stock_availability || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      v.pos_material === 'Yes'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    }`}>
-                      {v.pos_material || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      v.cooler_installed === 'Yes'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-700 dark:bg-gray-700/30 dark:text-gray-400'
-                    }`}>
-                      {v.cooler_installed || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    {v.visit_date || (v.created_at ? new Date(v.created_at).toLocaleDateString() : '—')}
-                  </td>
                   <td className="py-3 px-4 text-center">
                     <button
                       onClick={() => setDetailVisit(v)}
