@@ -9167,7 +9167,9 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       await Promise.all(agentIds.map(async (aid) => {
         try {
           // Try monthly_targets first
-          const mt = await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
+          const mt = company_id
+            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
+            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
           if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
             agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
           } else {
@@ -9196,27 +9198,28 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
         };
       });
       
-      const totalV = agentPerformance.reduce((s, a) => s + a.visits, 0);
-      const totalIV = agentPerformance.reduce((s, a) => s + a.individual_visits, 0);
-      const totalSV = agentPerformance.reduce((s, a) => s + a.store_visits, 0);
-      const totalC = agentPerformance.reduce((s, a) => s + a.conversions, 0);
-      const totalTV = agentPerformance.reduce((s, a) => s + a.target_visits, 0);
-      const totalTS = agentPerformance.reduce((s, a) => s + a.target_stores, 0);
-      
-      return c.json({ 
-        role: 'team_lead', 
-        user_id: userId, 
+      const filteredAgentPerf = company_id ? agentPerformance.filter(a => a.visits > 0) : agentPerformance;
+      const totalV = filteredAgentPerf.reduce((s, a) => s + a.visits, 0);
+      const totalIV = filteredAgentPerf.reduce((s, a) => s + a.individual_visits, 0);
+      const totalSV = filteredAgentPerf.reduce((s, a) => s + a.store_visits, 0);
+      const totalC = filteredAgentPerf.reduce((s, a) => s + a.conversions, 0);
+      const totalTV = filteredAgentPerf.reduce((s, a) => s + a.target_visits, 0);
+      const totalTS = filteredAgentPerf.reduce((s, a) => s + a.target_stores, 0);
+
+      return c.json({
+        role: 'team_lead',
+        user_id: userId,
         period: { start: startD, end: endD, type: period || 'custom' },
-        team_size: agentIds.length, 
-        total_visits: totalV, 
+        team_size: filteredAgentPerf.length,
+        total_visits: totalV,
         total_individual_visits: totalIV,
         total_store_visits: totalSV,
-        total_individuals: totalIV, 
-        total_conversions: totalC, 
+        total_individuals: totalIV,
+        total_conversions: totalC,
         total_target_visits: totalTV,
         total_target_stores: totalTS,
-        conversion_rate: totalIV > 0 ? Math.round((totalC / totalIV) * 100) : 0, 
-        agents: agentPerformance 
+        conversion_rate: totalIV > 0 ? Math.round((totalC / totalIV) * 100) : 0,
+        agents: filteredAgentPerf
       });
     } else if (team_lead_id && (role === 'manager' || role === 'admin' || role === 'super_admin')) {
       // Manager drilling down into a specific team lead's agents
@@ -9241,7 +9244,9 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       const agentTargetMap = {};
       await Promise.all(agentIds.map(async (aid) => {
         try {
-          const mt = await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
+          const mt = company_id
+            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
+            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
           if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
             agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
           } else {
@@ -9304,7 +9309,9 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       const agentTargetMap = {};
       await Promise.all(allUserIds.map(async (aid) => {
         try {
-          const mt = await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
+          const mt = company_id
+            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
+            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
           if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
             agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
           } else {
@@ -9340,27 +9347,28 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
         };
       });
       
-      const grandVisits = allUserIds.reduce((s, id) => s + (vMap[id] || 0), 0);
-      const grandIndiv = allUserIds.reduce((s, id) => s + (iMap[id] || 0), 0);
-      const grandStore = allUserIds.reduce((s, id) => s + (sMap[id] || 0), 0);
-      const grandConvs = allUserIds.reduce((s, id) => s + (cMap[id] || 0), 0);
-      const grandTargetV = allUserIds.reduce((s, id) => s + ((agentTargetMap[id] || {}).target_visits || 0), 0);
-      const grandTargetS = allUserIds.reduce((s, id) => s + ((agentTargetMap[id] || {}).target_stores || 0), 0);
-      
-      return c.json({ 
-        role: 'manager', 
+      const filteredTeams = company_id ? teams.filter(t => t.visits > 0) : teams;
+      const grandVisits = filteredTeams.reduce((s, t) => s + t.visits, 0);
+      const grandIndiv = filteredTeams.reduce((s, t) => s + t.individual_visits, 0);
+      const grandStore = filteredTeams.reduce((s, t) => s + t.store_visits, 0);
+      const grandConvs = filteredTeams.reduce((s, t) => s + t.conversions, 0);
+      const grandTargetV = filteredTeams.reduce((s, t) => s + t.target_visits, 0);
+      const grandTargetS = filteredTeams.reduce((s, t) => s + t.target_stores, 0);
+
+      return c.json({
+        role: 'manager',
         period: { start: startD, end: endD, type: period || 'custom' },
-        total_team_leads: (allTeamLeads.results || []).length, 
-        total_agents: teams.reduce((s, t) => s + t.agent_count, 0),
-        total_visits: grandVisits, 
+        total_team_leads: filteredTeams.length,
+        total_agents: filteredTeams.reduce((s, t) => s + t.agent_count, 0),
+        total_visits: grandVisits,
         total_individual_visits: grandIndiv,
         total_store_visits: grandStore,
-        total_individuals: grandIndiv, 
-        total_conversions: grandConvs, 
+        total_individuals: grandIndiv,
+        total_conversions: grandConvs,
         total_target_visits: grandTargetV,
         total_target_stores: grandTargetS,
-        conversion_rate: grandIndiv > 0 ? Math.round((grandConvs / grandIndiv) * 100) : 0, 
-        teams 
+        conversion_rate: grandIndiv > 0 ? Math.round((grandConvs / grandIndiv) * 100) : 0,
+        teams: filteredTeams
       });
     }
   } catch (e) {
@@ -9468,7 +9476,9 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       const agentTargetMap = {};
       await Promise.all(agentIds.map(async (aid) => {
         try {
-          const mt = await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
+          const mt = company_id
+            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
+            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
           if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
             agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
           } else {
@@ -9522,7 +9532,9 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       const agentTargetMap = {};
       await Promise.all(allUserIds.map(async (aid) => {
         try {
-          const mt = await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
+          const mt = company_id
+            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
+            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
           if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
             agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
           } else {
@@ -17518,8 +17530,8 @@ api.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
       let cooler_installed = '';
       let outlet_type = '';
 
+      let merged = {};
       try {
-        let merged = {};
         if (row.all_responses) {
           for (const chunk of row.all_responses.split('|||')) {
             try {
@@ -17990,7 +18002,7 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
         (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.converted'), 0) = 1) as conversions
       FROM visits WHERE customer_id = ? AND tenant_id = ?
-    `).bind(shopId, tenantId, shopId, tenantId, shopId, tenantId).first();
+    `).bind(shopId, tenantId, shopId, tenantId).first();
 
     return c.json({ success: true, shop, checkins: processedCheckins, stats });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
