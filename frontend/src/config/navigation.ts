@@ -103,8 +103,7 @@ export const navigation: NavigationItem[] = [
       // ── Reports ──
       { name: 'Field Ops Report', href: '/reports/operations/field-ops', permission: 'view_field_reports', description: 'Comprehensive field ops analytics, check-ins, stores, individuals & export', group: 'Reports' },
       { name: 'Goldrush Individuals', href: '/field-operations/reports/goldrush-individuals', permission: 'view_field_reports', description: 'Goldrush individual report with questionnaire data', group: 'Reports' },
-      { name: 'Goldrush Stores', href: '/field-operations/reports/goldrush-stores', permission: 'view_field_reports', description: 'Goldrush store visit report with questionnaire data', group: 'Reports' },
-      { name: 'Stellr', href: '/field-operations/reports/stellr', permission: 'view_field_reports', description: 'Stellr store visit report with questionnaire data', group: 'Reports' },
+      { name: 'Stores Report', href: '/field-operations/reports/goldrush-stores', permission: 'view_field_reports', description: 'Store visit report with questionnaire data', group: 'Reports' },
     ],
   },
   {
