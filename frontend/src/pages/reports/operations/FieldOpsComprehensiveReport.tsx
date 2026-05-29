@@ -1384,6 +1384,17 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
     }
   }
 
+  const buildDrillDownUrl = (id: string) => {
+    const params = new URLSearchParams()
+    params.set('period', timePeriod)
+    if (timePeriod === 'custom') {
+      params.set('start_date', dateRange.start_date)
+      params.set('end_date', dateRange.end_date)
+    }
+    if (isStellr) params.set('stellr', '1')
+    return `/field-operations/drill-down/${id}?${params.toString()}`
+  }
+
   if (isLoading) return <LoadingSpinner />
   if (isError) return <ErrorBanner />
 
@@ -1464,7 +1475,7 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
                       {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => navigate(`/field-operations/drill-down/${agent.agent_id}${isStellr ? '?stellr=1' : ''}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                        <button onClick={() => navigate(buildDrillDownUrl(agent.agent_id))} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
                           Details <ChevronRight className="w-4 h-4" />
                         </button>
                       </td>
@@ -1533,7 +1544,7 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
                       {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => navigate(`/field-operations/drill-down/${team.team_lead_id}${isStellr ? '?stellr=1' : ''}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                        <button onClick={() => navigate(buildDrillDownUrl(team.team_lead_id))} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
                           Drill Down <ChevronRight className="w-4 h-4" />
                         </button>
                       </td>

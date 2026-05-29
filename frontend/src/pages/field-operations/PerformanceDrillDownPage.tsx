@@ -21,13 +21,39 @@ type TimePeriod = 'day' | 'week' | 'month' | 'custom'
 export default function PerformanceDrillDownPage() {
   const { userId } = useParams<{ userId: string }>()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isStellr = searchParams.get('stellr') === '1'
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('day')
-  const [dateRange, setDateRange] = useState({
-    start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0]
+
+  const urlPeriod = searchParams.get('period')
+  const initialPeriod: TimePeriod =
+    urlPeriod === 'day' || urlPeriod === 'week' || urlPeriod === 'month' || urlPeriod === 'custom'
+      ? urlPeriod
+      : 'month'
+  const [timePeriod, setTimePeriodState] = useState<TimePeriod>(initialPeriod)
+  const [dateRange, setDateRangeState] = useState({
+    start_date: searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end_date: searchParams.get('end_date') || new Date().toISOString().split('T')[0]
   })
+
+  const setTimePeriod = (p: TimePeriod) => {
+    setTimePeriodState(p)
+    const next = new URLSearchParams(searchParams)
+    next.set('period', p)
+    if (p !== 'custom') {
+      next.delete('start_date')
+      next.delete('end_date')
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  const setDateRange = (r: { start_date: string; end_date: string }) => {
+    setDateRangeState(r)
+    const next = new URLSearchParams(searchParams)
+    next.set('period', 'custom')
+    next.set('start_date', r.start_date)
+    next.set('end_date', r.end_date)
+    setSearchParams(next, { replace: true })
+  }
 
   const { data: drillDown, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['field-ops-drill-down', userId, timePeriod, dateRange],
@@ -290,7 +316,10 @@ export default function PerformanceDrillDownPage() {
                     {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.conversions || 0}</td>}
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => navigate(`/field-operations/drill-down/${sub.id || sub.agent_id}${isStellr ? '?stellr=1' : ''}`)}
+                        onClick={() => {
+                          const qs = searchParams.toString()
+                          navigate(`/field-operations/drill-down/${sub.id || sub.agent_id}${qs ? `?${qs}` : ''}`)
+                        }}
                         className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end"
                       >
                         Drill Down <ChevronRight className="w-4 h-4" />
