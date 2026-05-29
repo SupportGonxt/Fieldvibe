@@ -282,6 +282,12 @@ export default function VisitCreate() {
     }
   }
 
+  // Goldrush agents skip the Questionnaire/Survey chooser step
+  const isGoldrushAgent = useMemo(
+    () => companies.some(c => c.name?.toLowerCase().includes('goldrush')),
+    [companies]
+  )
+
   // Compute active steps: skip photo step for individual visits, skip empty steps
   const activeSteps = useMemo(() => {
     let steps: ProcessFlowStep[]
@@ -299,8 +305,8 @@ export default function VisitCreate() {
     }
 
     // For store visits, ensure the form_choice step appears right after visit_type
-    // even when the backend returns its own flow without it.
-    if (visitTargetType === 'store' && !steps.some(s => s.step_key === 'form_choice')) {
+    // even when the backend returns its own flow without it. Skipped for Goldrush agents.
+    if (visitTargetType === 'store' && !isGoldrushAgent && !steps.some(s => s.step_key === 'form_choice')) {
       const visitTypeIdx = steps.findIndex(s => s.step_key === 'visit_type')
       if (visitTypeIdx >= 0) {
         const baseOrder = steps[visitTypeIdx].step_order ?? visitTypeIdx + 1
@@ -313,15 +319,15 @@ export default function VisitCreate() {
     }
 
     return steps.filter(step => {
-      // form_choice is store-only
-      if (step.step_key === 'form_choice' && visitTargetType !== 'store') return false
+      // form_choice is store-only and hidden for Goldrush agents
+      if (step.step_key === 'form_choice' && (visitTargetType !== 'store' || isGoldrushAgent)) return false
       // Individual visits: no photo step
       if (step.step_key === 'photo' && visitTargetType === 'individual') return false
       // Skip survey step if no questionnaires available
       if (step.step_key === 'survey' && questionnaires.length === 0 && !surveyRequired) return false
       return true
     })
-  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
+  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired, isGoldrushAgent])
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
