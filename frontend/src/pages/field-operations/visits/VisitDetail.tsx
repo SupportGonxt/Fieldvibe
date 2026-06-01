@@ -187,17 +187,40 @@ export default function VisitDetail() {
   const loadVisit = async () => {
     setLoading(true)
     try {
-      const response = await fieldOperationsService.getVisit(id!)
-      setVisit(response.data || response)
-    } catch (error) {
-      // Fallback for environments where /field-operations/visits/:id is not mounted.
+      let payload: any = null
       try {
+        const response = await fieldOperationsService.getVisit(id!)
+        payload = response.data || response
+      } catch {
+        // Fallback for environments where /field-operations/visits/:id is not mounted.
         const fallback = await apiClient.get(`/visits/${id}`)
-        const payload = fallback?.data?.data || fallback?.data
-        setVisit(payload)
-      } catch (fallbackError) {
-        console.error('Failed to load visit:', fallbackError)
+        payload = fallback?.data?.data || fallback?.data
       }
+      // Merge in the complete photo list from /visits/:id/photos so the detail view
+      // includes back/front/board/custom-question photos that aren't in visit_photos.
+      try {
+        const photoRes = await apiClient.get(`/visits/${id}/photos`)
+        const extraPhotos = (photoRes?.data?.data || []) as Array<any>
+        if (Array.isArray(extraPhotos) && extraPhotos.length > 0 && payload) {
+          const existing = Array.isArray(payload.photos) ? payload.photos : []
+          const seen = new Set<string>()
+          for (const p of existing) {
+            const key = p?.id || p?.r2_url || p?.photo_url || p?.url
+            if (key) seen.add(String(key))
+          }
+          const merged = [...existing]
+          for (const p of extraPhotos) {
+            const key = p?.id || p?.r2_url || p?.photo_url || p?.url
+            if (!key || seen.has(String(key))) continue
+            seen.add(String(key))
+            merged.push(p)
+          }
+          payload = { ...payload, photos: merged }
+        }
+      } catch { /* ignore: detail view still renders with whatever photos came back */ }
+      setVisit(payload)
+    } catch (error) {
+      console.error('Failed to load visit:', error)
     } finally {
       setLoading(false)
     }

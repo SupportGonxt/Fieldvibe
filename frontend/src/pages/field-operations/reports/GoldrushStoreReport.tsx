@@ -589,8 +589,8 @@ const GoldrushStoreReport: React.FC = () => {
                         {s.thumbnail_url ? (
                           <button onClick={() => handleViewPhotos(s.id)} className="block relative group/photo" title="Click to view all photos">
                             <img src={s.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 group-hover/photo:opacity-80 transition-opacity" />
-                            <span className="absolute inset-0 flex items-center justify-center bg-black/40 rounded opacity-0 group-hover/photo:opacity-100 transition-opacity">
-                              <Camera className="w-4 h-4 text-white" />
+                            <span className="absolute -bottom-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white shadow ring-2 ring-white dark:ring-gray-800">
+                              <Camera className="w-2.5 h-2.5" />
                             </span>
                           </button>
                         ) : s.has_photos ? (
