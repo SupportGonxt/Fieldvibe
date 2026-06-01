@@ -96,10 +96,6 @@ const GoldrushStoreReport: React.FC = () => {
   const [migrating, setMigrating] = useState(false)
   const [migrationStatus, setMigrationStatus] = useState<{ migrated: number; skipped: number; total_remaining: number } | null>(null)
   const [detailVisit, setDetailVisit] = useState<StellrVisit | null>(null)
-  const [allPhotosOpen, setAllPhotosOpen] = useState(false)
-  const [allPhotos, setAllPhotos] = useState<Array<{ url: string; label: string; store: string; agent: string; visit_date: string; visit_id: string }>>([])
-  const [allPhotosLoading, setAllPhotosLoading] = useState(false)
-  const [allPhotosProgress, setAllPhotosProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 })
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -270,55 +266,6 @@ const GoldrushStoreReport: React.FC = () => {
     )
   })
 
-  const loadAllPhotos = async () => {
-    setAllPhotosOpen(true)
-    setAllPhotosLoading(true)
-    setAllPhotos([])
-    setAllPhotosProgress({ done: 0, total: filtered.length })
-    try {
-      const collected: Array<{ url: string; label: string; store: string; agent: string; visit_date: string; visit_id: string }> = []
-      const concurrency = 6
-      let cursor = 0
-      let done = 0
-      const worker = async () => {
-        while (cursor < filtered.length) {
-          const idx = cursor++
-          const s = filtered[idx]
-          try {
-            const res = await apiClient.get(`/visits/${s.id}/photos`)
-            const photos = (res.data?.data || []) as Array<{ id: string; photo_type?: string; label?: string; r2_url: string }>
-            for (const p of photos) {
-              if (!p.r2_url || !isPhotoUrl(p.r2_url)) continue
-              const rawLabel = p.label || p.photo_type || 'Photo'
-              collected.push({
-                url: p.r2_url,
-                label: formatKey(String(rawLabel)),
-                store: s.store_name || 'Unknown store',
-                agent: s.agent_name || '',
-                visit_date: s.visit_date || '',
-                visit_id: s.id,
-              })
-            }
-          } catch { /* skip failed visit */ }
-          done++
-          setAllPhotosProgress({ done, total: filtered.length })
-        }
-      }
-      await Promise.all(Array.from({ length: Math.min(concurrency, filtered.length) }, () => worker()))
-      // Sort: newest visit first, then by label within visit
-      collected.sort((a, b) => (b.visit_date || '').localeCompare(a.visit_date || '') || a.label.localeCompare(b.label))
-      setAllPhotos(collected)
-    } finally {
-      setAllPhotosLoading(false)
-    }
-  }
-
-  const closeAllPhotos = () => {
-    setAllPhotosOpen(false)
-    setAllPhotos([])
-    setAllPhotosProgress({ done: 0, total: 0 })
-  }
-
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes').length
   const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.ai_board_detected).length
   const totalAiAnalyzed = stores.filter(s => s.ai_status === 'completed' || s.ai_photos_analyzed > 0).length
@@ -464,14 +411,6 @@ const GoldrushStoreReport: React.FC = () => {
             className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
             <RefreshCw className="h-4 w-4" /> Refresh
           </button>
-          {!isStellr && (
-            <button onClick={loadAllPhotos} disabled={filtered.length === 0 || allPhotosLoading}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
-              title={filtered.length === 0 ? 'No visits in current filter' : `Load photos for ${filtered.length} visits`}>
-              {allPhotosLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-              View All Photos
-            </button>
-          )}
           <button
             onClick={isStellr ? exportStellrToCSV : exportToExcel}
             disabled={exporting || (isStellr ? stellrFiltered.length === 0 : filtered.length === 0)}
@@ -648,8 +587,11 @@ const GoldrushStoreReport: React.FC = () => {
                     <tr key={s.id} className="group border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="py-3 px-4">
                         {s.thumbnail_url ? (
-                          <button onClick={() => setExpandedPhoto(s.thumbnail_url)} className="block">
-                            <img src={s.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
+                          <button onClick={() => handleViewPhotos(s.id)} className="block relative group/photo" title="Click to view all photos">
+                            <img src={s.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 group-hover/photo:opacity-80 transition-opacity" />
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/40 rounded opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                              <Camera className="w-4 h-4 text-white" />
+                            </span>
                           </button>
                         ) : s.has_photos ? (
                           <button onClick={() => handleViewPhotos(s.id)} className="inline-flex items-center justify-center w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors" title="Click to view photos">
@@ -793,53 +735,6 @@ const GoldrushStoreReport: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
             <img src={expandedPhoto} alt="Visit photo expanded" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
-          </div>
-        </div>
-      )}
-
-      {/* All Photos Gallery Modal */}
-      {allPhotosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={closeAllPhotos}>
-          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between z-10">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">All Store Photos</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {allPhotosLoading
-                    ? `Loading ${allPhotosProgress.done}/${allPhotosProgress.total} visits · ${allPhotos.length} photos so far`
-                    : `${allPhotos.length} photos across ${filtered.length} visits`}
-                </p>
-              </div>
-              <button onClick={closeAllPhotos} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              {allPhotosLoading && allPhotos.length === 0 ? (
-                <div className="flex flex-col items-center py-12">
-                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
-                  <p className="text-sm text-gray-500">Loading photos…</p>
-                </div>
-              ) : !allPhotosLoading && allPhotos.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No photos available for the current filters</p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {allPhotos.map((photo, idx) => (
-                    <div key={`${photo.visit_id}-${photo.url}-${idx}`} className="relative group">
-                      <button onClick={() => setExpandedPhoto(photo.url)} className="block w-full">
-                        <img src={photo.url} alt={photo.label} loading="lazy" className="w-full h-40 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
-                      </button>
-                      <div className="mt-1.5 text-xs">
-                        <p className="text-gray-900 dark:text-white font-medium truncate" title={photo.store}>{photo.store}</p>
-                        <p className="text-gray-500 dark:text-gray-400 truncate">
-                          {photo.label}{photo.agent ? ` · ${photo.agent}` : ''}{photo.visit_date ? ` · ${photo.visit_date}` : ''}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
