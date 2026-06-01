@@ -96,6 +96,7 @@ const GoldrushStoreReport: React.FC = () => {
   const [migrating, setMigrating] = useState(false)
   const [migrationStatus, setMigrationStatus] = useState<{ migrated: number; skipped: number; total_remaining: number } | null>(null)
   const [detailVisit, setDetailVisit] = useState<StellrVisit | null>(null)
+  const [allPhotosOpen, setAllPhotosOpen] = useState(false)
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -266,6 +267,21 @@ const GoldrushStoreReport: React.FC = () => {
     )
   })
 
+  const allPhotos = filtered.flatMap(s => {
+    const items: Array<{ url: string; label: string; store: string; agent: string; visit_date: string }> = []
+    const push = (url: string | undefined | null, type: string) => {
+      if (url && isPhotoUrl(url)) {
+        items.push({ url, label: type, store: s.store_name || 'Unknown store', agent: s.agent_name || '', visit_date: s.visit_date || '' })
+      }
+    }
+    push(s.shop_exterior_photo, 'Shop Exterior')
+    push(s.ad_board_photo, 'Ad Board')
+    push(s.competitor_photo, 'Competitor')
+    // Fallback to thumbnail when none of the labelled photos exist
+    if (items.length === 0) push(s.thumbnail_url, 'Visit photo')
+    return items
+  })
+
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes').length
   const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.ai_board_detected).length
   const totalAiAnalyzed = stores.filter(s => s.ai_status === 'completed' || s.ai_photos_analyzed > 0).length
@@ -411,6 +427,13 @@ const GoldrushStoreReport: React.FC = () => {
             className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
             <RefreshCw className="h-4 w-4" /> Refresh
           </button>
+          {!isStellr && (
+            <button onClick={() => setAllPhotosOpen(true)} disabled={allPhotos.length === 0}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+              title={allPhotos.length === 0 ? 'No photos available' : `View ${allPhotos.length} photos`}>
+              <Camera className="h-4 w-4" /> View All Photos{allPhotos.length > 0 ? ` (${allPhotos.length})` : ''}
+            </button>
+          )}
           <button
             onClick={isStellr ? exportStellrToCSV : exportToExcel}
             disabled={exporting || (isStellr ? stellrFiltered.length === 0 : filtered.length === 0)}
@@ -732,6 +755,44 @@ const GoldrushStoreReport: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
             <img src={expandedPhoto} alt="Visit photo expanded" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+          </div>
+        </div>
+      )}
+
+      {/* All Photos Gallery Modal */}
+      {allPhotosOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setAllPhotosOpen(false)}>
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">All Store Photos</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{allPhotos.length} photos across {filtered.length} visits</p>
+              </div>
+              <button onClick={() => setAllPhotosOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              {allPhotos.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No photos available for the current filters</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {allPhotos.map((photo, idx) => (
+                    <div key={`${photo.url}-${idx}`} className="relative group">
+                      <button onClick={() => setExpandedPhoto(photo.url)} className="block w-full">
+                        <img src={photo.url} alt={photo.label} loading="lazy" className="w-full h-40 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
+                      </button>
+                      <div className="mt-1.5 text-xs">
+                        <p className="text-gray-900 dark:text-white font-medium truncate" title={photo.store}>{photo.store}</p>
+                        <p className="text-gray-500 dark:text-gray-400 truncate">
+                          {photo.label}{photo.agent ? ` · ${photo.agent}` : ''}{photo.visit_date ? ` · ${photo.visit_date}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
