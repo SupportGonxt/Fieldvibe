@@ -238,6 +238,9 @@ export default function VisitCreate() {
 
   // Step 4: Survey
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
+  // Tracks whether a questionnaire fetch has finished, so the "no survey for your
+  // company" message/block only shows once we actually know there are none.
+  const [questionnairesLoaded, setQuestionnairesLoaded] = useState(false)
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>('')
   const [surveyResponses, setSurveyResponses] = useState<Record<string, string>>({})
   const [surveyRequired, setSurveyRequired] = useState(false)
@@ -606,12 +609,15 @@ export default function VisitCreate() {
   }, [currentStepKey])
 
   const loadQuestionnaires = async (companyIdOverride?: string) => {
+    setQuestionnairesLoaded(false)
     try {
       const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
       const data = res?.data || res || []
       setQuestionnaires(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to load questionnaires:', err)
+    } finally {
+      setQuestionnairesLoaded(true)
     }
   }
 
@@ -782,6 +788,9 @@ export default function VisitCreate() {
         return false
       }
       case 'survey': {
+        // Survey visits cannot continue when the agent's company has no survey
+        // assigned — block here so they never reach Photo / Review & Submit.
+        if (visitTargetType === 'survey' && questionnairesLoaded && questionnaires.length === 0) return false
         if (surveyRequired && !skipSurvey) {
           if (!selectedQuestionnaire) return false
           if (Object.keys(surveyResponses).length === 0) return false
@@ -1623,9 +1632,18 @@ export default function VisitCreate() {
         <CardContent>
           <Typography variant="h6" gutterBottom>{stepTitle}</Typography>
           {visitTargetType === 'survey' && questionnaires.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No surveys yet
-            </Typography>
+            !questionnairesLoaded ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
+                <CircularProgress size={20} />
+                <Typography variant="body2" color="text.secondary">Loading surveys…</Typography>
+              </Box>
+            ) : (
+              <Alert severity="warning">
+                There is no survey currently available for your company. You cannot
+                continue this survey visit. Please go back and choose a different
+                visit type.
+              </Alert>
+            )
           ) : (
           <>
           {surveyRequired ? (
@@ -2111,7 +2129,7 @@ export default function VisitCreate() {
           <Button
             variant="contained"
             onClick={handleNext}
-            disabled={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey'))}
+            disabled={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) || (currentStepKey === 'survey' && visitTargetType === 'survey' && questionnairesLoaded && questionnaires.length === 0)}
             endIcon={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
             size={isMobileContext ? 'medium' : 'large'}
           >
