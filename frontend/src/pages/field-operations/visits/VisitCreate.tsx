@@ -310,10 +310,10 @@ export default function VisitCreate() {
       if (step.step_key === 'form_choice') return false
       // Individual visits: no photo step
       if (step.step_key === 'photo' && visitTargetType === 'individual') return false
-      // Survey visits always keep the survey step (it's the whole point of the visit)
-      if (step.step_key === 'survey' && visitTargetType === 'survey') return true
-      // Skip survey step if no questionnaires available
-      if (step.step_key === 'survey' && questionnaires.length === 0 && !surveyRequired) return false
+      // Surveys are only completed via the dedicated Survey visit type — never
+      // bundled into store or individual visits. The survey visit type always
+      // keeps the step (it's the entire purpose of the visit).
+      if (step.step_key === 'survey') return visitTargetType === 'survey'
       return true
     })
   }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
