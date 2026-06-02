@@ -153,7 +153,7 @@ router.get('/visits/:id', authMiddleware, async (c) => {
  */
 router.post('/visits/workflow', authMiddleware, validateRequest({
   body: {
-    visit_target_type: 'required|in:individual,store,customer',
+    visit_target_type: 'required|in:individual,store,customer,survey',
     visit_date: 'date',
     agent_id: 'uuid',
     customer_id: 'uuid',

@@ -21,7 +21,6 @@ import {
   ArrowForward as NextIcon,
   Send as SubmitIcon,
   AddBusiness as AddStoreIcon,
-  Assignment as QuestionnaireIcon,
   Poll as SurveyIcon
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
@@ -137,11 +136,10 @@ function isDuplicateFlowQuestion(q: CustomQuestion): boolean {
 const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
   { id: 's2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
-  { id: 's2_5', step_key: 'form_choice', step_label: 'Form Type', step_order: 3, is_required: 1, config: '{}' },
-  { id: 's3', step_key: 'details', step_label: 'Details', step_order: 4, is_required: 1, config: '{}' },
-  { id: 's4', step_key: 'survey', step_label: 'Survey', step_order: 5, is_required: 0, config: '{}' },
-  { id: 's5', step_key: 'photo', step_label: 'Photo Capture', step_order: 6, is_required: 1, config: '{}' },
-  { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 7, is_required: 1, config: '{}' },
+  { id: 's3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
+  { id: 's4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
+  { id: 's5', step_key: 'photo', step_label: 'Photo Capture', step_order: 5, is_required: 1, config: '{}' },
+  { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
 const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
@@ -151,6 +149,19 @@ const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
   { id: 'i4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
   { id: 'i5', step_key: 'review', step_label: 'Review & Submit', step_order: 5, is_required: 1, config: '{}' },
 ]
+
+const DEFAULT_SURVEY_STEPS: ProcessFlowStep[] = [
+  { id: 'sv1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
+  { id: 'sv2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
+  { id: 'sv3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
+  { id: 'sv4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 1, config: '{}' },
+  { id: 'sv5', step_key: 'photo', step_label: 'Photo Capture', step_order: 5, is_required: 1, config: '{}' },
+  { id: 'sv6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
+]
+
+// Pick the default step set for a given visit target type
+const defaultStepsForType = (t: string): ProcessFlowStep[] =>
+  t === 'store' ? DEFAULT_STORE_STEPS : t === 'survey' ? DEFAULT_SURVEY_STEPS : DEFAULT_INDIVIDUAL_STEPS
 
 export default function VisitCreate() {
   const navigate = useNavigate()
@@ -181,8 +192,8 @@ export default function VisitCreate() {
 
   // Step 2: Visit Type - pre-populate from URL ?type=store or ?type=individual
   const [searchParams] = useSearchParams()
-  const preselectedType = searchParams.get('type') as 'individual' | 'store' | null
-  const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | ''>(preselectedType || '')
+  const preselectedType = searchParams.get('type') as 'individual' | 'store' | 'survey' | null
+  const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | 'survey' | ''>(preselectedType || '')
 
   // Sync visitTargetType if URL param changes without unmounting.
   // When the type param is removed (e.g. agent taps "New" from a ?type=store URL),
@@ -196,11 +207,6 @@ export default function VisitCreate() {
       setVisitTargetType('')
     }
   }, [preselectedType])
-
-  // Clear form choice whenever visit type changes (only meaningful for store visits)
-  useEffect(() => {
-    if (visitTargetType !== 'store') setFormChoice('')
-  }, [visitTargetType])
 
   // Step 3: Details
   const [companies, setCompanies] = useState<Company[]>([])
@@ -227,7 +233,8 @@ export default function VisitCreate() {
   const [individualEmail, setIndividualEmail] = useState('')
 
   // Step: Form Choice (store visits only) — agent picks Questionnaire or Survey
-  const [formChoice, setFormChoice] = useState<'questionnaire' | 'survey' | ''>('')
+  // Form Type chooser removed — formChoice stays unset so survey step uses generic labels
+  const [formChoice] = useState<'questionnaire' | 'survey' | ''>('')
 
   // Step 4: Survey
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([])
@@ -269,24 +276,14 @@ export default function VisitCreate() {
           flowData.steps.sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order)
         )
       } else {
-        setProcessFlowSteps(
-          visitTargetType === 'store' ? DEFAULT_STORE_STEPS : DEFAULT_INDIVIDUAL_STEPS
-        )
+        setProcessFlowSteps(defaultStepsForType(visitTargetType))
       }
       setProcessFlowLoaded(true)
     } catch {
-      setProcessFlowSteps(
-        visitTargetType === 'store' ? DEFAULT_STORE_STEPS : DEFAULT_INDIVIDUAL_STEPS
-      )
+      setProcessFlowSteps(defaultStepsForType(visitTargetType))
       setProcessFlowLoaded(true)
     }
   }
-
-  // Goldrush agents skip the Questionnaire/Survey chooser step
-  const isGoldrushAgent = useMemo(
-    () => companies.some(c => c.name?.toLowerCase().includes('goldrush')),
-    [companies]
-  )
 
   // Compute active steps: skip photo step for individual visits, skip empty steps
   const activeSteps = useMemo(() => {
@@ -296,6 +293,7 @@ export default function VisitCreate() {
       // where user could skip to Submit before process flow API returns)
       if (visitTargetType === 'store') steps = DEFAULT_STORE_STEPS
       else if (visitTargetType === 'individual') steps = DEFAULT_INDIVIDUAL_STEPS
+      else if (visitTargetType === 'survey') steps = DEFAULT_SURVEY_STEPS
       else steps = [
         { step_key: 'gps', step_label: 'GPS Check-in', is_required: 1 },
         { step_key: 'visit_type', step_label: 'Visit Type', is_required: 1 },
@@ -304,30 +302,18 @@ export default function VisitCreate() {
       steps = processFlowSteps
     }
 
-    // For store visits, ensure the form_choice step appears right after visit_type
-    // even when the backend returns its own flow without it. Skipped for Goldrush agents.
-    if (visitTargetType === 'store' && !isGoldrushAgent && !steps.some(s => s.step_key === 'form_choice')) {
-      const visitTypeIdx = steps.findIndex(s => s.step_key === 'visit_type')
-      if (visitTypeIdx >= 0) {
-        const baseOrder = steps[visitTypeIdx].step_order ?? visitTypeIdx + 1
-        steps = [
-          ...steps.slice(0, visitTypeIdx + 1),
-          { id: 'inj_form_choice', step_key: 'form_choice', step_label: 'Form Type', step_order: baseOrder + 0.5, is_required: 1, config: '{}' } as ProcessFlowStep,
-          ...steps.slice(visitTypeIdx + 1),
-        ]
-      }
-    }
-
     return steps.filter(step => {
-      // form_choice is store-only and hidden for Goldrush agents
-      if (step.step_key === 'form_choice' && (visitTargetType !== 'store' || isGoldrushAgent)) return false
+      // Form Type chooser is no longer used — always hidden
+      if (step.step_key === 'form_choice') return false
       // Individual visits: no photo step
       if (step.step_key === 'photo' && visitTargetType === 'individual') return false
+      // Survey visits always keep the survey step (it's the whole point of the visit)
+      if (step.step_key === 'survey' && visitTargetType === 'survey') return true
       // Skip survey step if no questionnaires available
       if (step.step_key === 'survey' && questionnaires.length === 0 && !surveyRequired) return false
       return true
     })
-  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired, isGoldrushAgent])
+  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
@@ -766,9 +752,10 @@ export default function VisitCreate() {
   const canProceed = (): boolean => {
     switch (currentStepKey) {
       case 'gps': return !!gpsLocation
-      case 'visit_type': return visitTargetType === 'individual' || visitTargetType === 'store'
-      case 'form_choice': return formChoice === 'questionnaire' || formChoice === 'survey'
+      case 'visit_type': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       case 'details': {
+        // Survey visits only need a company/brand selected (to load the right questionnaire)
+        if (visitTargetType === 'survey') return true
         if (visitTargetType === 'individual') {
           if (!individualFirstName || !individualLastName) return false
           if (!individualIdNumber && !individualPhone) return false
@@ -831,7 +818,7 @@ export default function VisitCreate() {
         return true
       }
       case 'photo': return photos.length > 0
-      case 'review': return visitTargetType === 'individual' || visitTargetType === 'store'
+      case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
     }
   }
@@ -904,8 +891,8 @@ export default function VisitCreate() {
   // Final submit
   const handleSubmit = async () => {
     if (submitting) return // Prevent double-click
-    if (visitTargetType !== 'individual' && visitTargetType !== 'store') {
-      setError('Please go back and select a visit type (Individual or Store/Business).')
+    if (visitTargetType !== 'individual' && visitTargetType !== 'store' && visitTargetType !== 'survey') {
+      setError('Please go back and select a visit type (Individual, Store/Business, or Survey).')
       toast.error('Visit type not selected.')
       return
     }
@@ -1054,7 +1041,7 @@ export default function VisitCreate() {
         </Typography>
 
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
             <Card
               sx={{
                 cursor: 'pointer',
@@ -1075,7 +1062,7 @@ export default function VisitCreate() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
             <Card
               sx={{
                 cursor: 'pointer',
@@ -1092,6 +1079,27 @@ export default function VisitCreate() {
                 <Typography variant="h6">Store / Business</Typography>
                 <Typography variant="body2" color="text.secondary">
                   Visit a store - select customer, verify 30-day rule
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Card
+              sx={{
+                cursor: 'pointer',
+                border: visitTargetType === 'survey' ? 2 : 1,
+                borderColor: visitTargetType === 'survey' ? 'primary.main' : 'divider',
+                bgcolor: visitTargetType === 'survey' ? 'primary.50' : 'background.paper',
+                transition: 'all 0.2s',
+                '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
+              }}
+              onClick={() => setVisitTargetType('survey')}
+            >
+              <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                <SurveyIcon sx={{ fontSize: 48, color: visitTargetType === 'survey' ? 'primary.main' : 'text.secondary', mb: 2 }} />
+                <Typography variant="h6">Survey</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Complete a standalone survey or questionnaire
                 </Typography>
               </CardContent>
             </Card>
@@ -1123,6 +1131,12 @@ export default function VisitCreate() {
               ))}
             </Select>
           </FormControl>
+        )}
+
+        {visitTargetType === 'survey' && (
+          <Alert severity="info">
+            Select the company/brand for this survey, then continue to fill out the survey on the next step.
+          </Alert>
         )}
 
         {visitTargetType === 'individual' && (
@@ -1597,64 +1611,6 @@ export default function VisitCreate() {
     </Card>
   )
 
-  const renderFormChoiceStep = () => (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          Choose Form Type
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Pick what you'd like to capture for this store visit.
-        </Typography>
-
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
-            <Card
-              sx={{
-                cursor: 'pointer',
-                border: formChoice === 'questionnaire' ? 2 : 1,
-                borderColor: formChoice === 'questionnaire' ? 'primary.main' : 'divider',
-                bgcolor: formChoice === 'questionnaire' ? 'primary.50' : 'background.paper',
-                transition: 'all 0.2s',
-                '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
-              }}
-              onClick={() => setFormChoice('questionnaire')}
-            >
-              <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                <QuestionnaireIcon sx={{ fontSize: 48, color: formChoice === 'questionnaire' ? 'primary.main' : 'text.secondary', mb: 2 }} />
-                <Typography variant="h6">Questionnaire</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Fill out the brand questionnaire for this store
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Card
-              sx={{
-                cursor: 'pointer',
-                border: formChoice === 'survey' ? 2 : 1,
-                borderColor: formChoice === 'survey' ? 'primary.main' : 'divider',
-                bgcolor: formChoice === 'survey' ? 'primary.50' : 'background.paper',
-                transition: 'all 0.2s',
-                '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
-              }}
-              onClick={() => setFormChoice('survey')}
-            >
-              <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                <SurveyIcon sx={{ fontSize: 48, color: formChoice === 'survey' ? 'primary.main' : 'text.secondary', mb: 2 }} />
-                <Typography variant="h6">Survey</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Complete a customer survey for this store
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
-  )
-
   const renderSurveyStep = () => {
     const parsedQuestions: Array<{ id?: string; key?: string; question?: string; label?: string; type: string; options?: string[]; required?: boolean }> = selectedQuestionnaire
       ? (() => {
@@ -1965,8 +1921,8 @@ export default function VisitCreate() {
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary">Visit Type</Typography>
           <Chip
-            label={visitTargetType === 'individual' ? 'Individual' : visitTargetType === 'store' ? 'Store / Business' : '⚠ No type selected'}
-            color={visitTargetType === 'individual' || visitTargetType === 'store' ? 'primary' : 'error'}
+            label={visitTargetType === 'individual' ? 'Individual' : visitTargetType === 'store' ? 'Store / Business' : visitTargetType === 'survey' ? 'Survey' : '⚠ No type selected'}
+            color={visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey' ? 'primary' : 'error'}
             variant="outlined"
           />
         </Box>
@@ -2081,7 +2037,6 @@ export default function VisitCreate() {
     switch (currentStepKey) {
       case 'gps': return renderGpsStep()
       case 'visit_type': return renderVisitTypeStep()
-      case 'form_choice': return renderFormChoiceStep()
       case 'details': return renderDetailsStep()
       case 'survey': return renderSurveyStep()
       case 'photo': return renderPhotoStep()
