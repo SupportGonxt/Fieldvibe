@@ -611,7 +611,14 @@ export default function VisitCreate() {
   const loadQuestionnaires = async (companyIdOverride?: string) => {
     setQuestionnairesLoaded(false)
     try {
-      const res = await fieldOperationsService.getQuestionnaires({ visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' })
+      // For standalone survey visits, match the company's active surveys by
+      // company + module only. A survey's `visit_type` is its survey type
+      // (adhoc/customer/...), never the literal 'survey', so filtering by
+      // visit_type/target_type here would wrongly exclude every survey.
+      const filter = visitTargetType === 'survey'
+        ? { company_id: companyIdOverride || selectedCompany || undefined, module: 'field_ops' }
+        : { visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' }
+      const res = await fieldOperationsService.getQuestionnaires(filter)
       const data = res?.data || res || []
       setQuestionnaires(Array.isArray(data) ? data : [])
     } catch (err) {
