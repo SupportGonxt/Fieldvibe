@@ -6424,6 +6424,7 @@ api.get('/surveys', authMiddleware, async (c) => {
   const surveys = await db.prepare('SELECT * FROM questionnaires ' + where + ' ORDER BY created_at DESC LIMIT 500').bind(...params).all();
   const results = (surveys.results || []).map(q => {
     try { q.questions = JSON.parse(q.questions); } catch(e) {}
+    try { q.brand_ids = q.brand_ids ? JSON.parse(q.brand_ids) : (q.brand_id ? [q.brand_id] : []); } catch(e) { q.brand_ids = q.brand_id ? [q.brand_id] : []; }
     return { ...q, title: q.name, survey_type: q.visit_type || 'adhoc', response_count: 0, completion_rate: 0 };
   });
   return c.json({ success: true, data: results });
@@ -6469,6 +6470,8 @@ api.get('/surveys/:id', authMiddleware, async (c) => {
   const survey = await db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!survey) return c.json({ success: false, message: 'Survey not found' }, 404);
   try { survey.questions = JSON.parse(survey.questions); } catch(e) {}
+  // Expose brands as an array; fall back to the single brand_id for legacy rows.
+  try { survey.brand_ids = survey.brand_ids ? JSON.parse(survey.brand_ids) : (survey.brand_id ? [survey.brand_id] : []); } catch(e) { survey.brand_ids = survey.brand_id ? [survey.brand_id] : []; }
   const responses = await db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE visit_type = ? AND tenant_id = ?').bind(id, tenantId).all();
   return c.json({ ...survey, title: survey.name, survey_type: survey.visit_type || 'adhoc', response_count: responses.results?.[0]?.count || 0 });
 });
@@ -6481,11 +6484,17 @@ api.post('/surveys', authMiddleware, async (c) => {
   const name = body.title || body.name;
   if (!name) return c.json({ success: false, message: 'Survey title/name is required' }, 400);
   const isMandatory = body.is_mandatory ? 1 : 0;
-  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, brand_id, company_id, questions, is_default, is_active, is_mandatory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime("now"), datetime("now"))').bind(
+  // Support multiple brands via brand_ids (JSON array). Keep brand_id (single)
+  // populated with the first selected brand for backward compatibility.
+  const brandIds = Array.isArray(body.brand_ids)
+    ? body.brand_ids.filter(Boolean)
+    : (body.brand_id ? [body.brand_id] : []);
+  const primaryBrandId = brandIds[0] || null;
+  await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, brand_id, brand_ids, company_id, questions, is_default, is_active, is_mandatory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime("now"), datetime("now"))').bind(
     id, tenantId, name, body.module || 'field_ops',
     body.survey_type || body.visit_type || 'adhoc',
     body.target_type || 'both',
-    body.brand_id || null, body.company_id || null,
+    primaryBrandId, JSON.stringify(brandIds), body.company_id || null,
     JSON.stringify(body.questions || []), body.is_default ? 1 : 0,
     isMandatory
   ).run();
@@ -6497,13 +6506,27 @@ api.put('/surveys/:id', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const body = await c.req.json();
-  const existing = await db.prepare('SELECT id FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  const existing = await db.prepare('SELECT id, brand_id FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!existing) return c.json({ success: false, message: 'Survey not found' }, 404);
   const name = body.title || body.name || null;
-  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = COALESCE(?, brand_id), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), is_mandatory = COALESCE(?, is_mandatory), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
+  // If brand_ids is provided, treat it as the source of truth for the survey's
+  // brands (allows clearing all brands too); brand_id mirrors the first brand.
+  // When neither brand_ids nor brand_id is sent, leave the existing brands as-is
+  // so unrelated updates (status changes, archiving) don't wipe the brand link.
+  let primaryBrandId = existing.brand_id || null;
+  let brandIdsJson = null;
+  if (Array.isArray(body.brand_ids)) {
+    const brandIds = body.brand_ids.filter(Boolean);
+    brandIdsJson = JSON.stringify(brandIds);
+    primaryBrandId = brandIds[0] || null;
+  } else if (body.brand_id !== undefined) {
+    primaryBrandId = body.brand_id || null;
+    brandIdsJson = JSON.stringify(body.brand_id ? [body.brand_id] : []);
+  }
+  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = ?, brand_ids = COALESCE(?, brand_ids), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), is_mandatory = COALESCE(?, is_mandatory), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
     name, body.module || null, body.survey_type || body.visit_type || null,
     body.target_type || null,
-    body.brand_id || null, body.company_id || null,
+    primaryBrandId, brandIdsJson, body.company_id || null,
     body.questions ? JSON.stringify(body.questions) : null,
     body.status === 'archived' ? 0 : (body.is_active !== undefined ? (body.is_active ? 1 : 0) : null),
     body.is_mandatory !== undefined ? (body.is_mandatory ? 1 : 0) : null,

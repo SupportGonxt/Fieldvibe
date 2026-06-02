@@ -39,8 +39,11 @@ export default function BrandManagementPage() {
   const loadBrands = async () => {
     try {
       setLoading(true)
-      const response: any = await brandService.getBrands()
-      setBrands(Array.isArray(response.data) ? response.data : (response.data?.data || []))
+      // brandService.getBrands() already unwraps the response to a plain array
+      const data: any[] = await brandService.getBrands()
+      const list = Array.isArray(data) ? data : []
+      // Backend stores `status` ('active'|'inactive'); map it to the `active` flag used here
+      setBrands(list.map((b: any) => ({ ...b, active: b.active ?? b.status === 'active' })))
     } catch (error) {
       console.error('Failed to load brands:', error)
       toast.error('Failed to load brands')
@@ -95,8 +98,8 @@ export default function BrandManagementPage() {
   }
 
   const filteredBrands = brands.filter(brand =>
-    brand.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    brand.code.toLowerCase().includes(searchTerm.toLowerCase())
+    (brand.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (brand.code || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (loading) {
