@@ -6446,21 +6446,74 @@ api.get('/surveys/reports', authMiddleware, async (c) => {
   const surveys = await db.prepare('SELECT q.*, (SELECT COUNT(*) FROM visit_responses vr WHERE vr.visit_type = q.id AND vr.tenant_id = q.tenant_id) as response_count FROM questionnaires q WHERE q.tenant_id = ? AND q.is_active = 1 ORDER BY q.created_at DESC').bind(tenantId).all();
   return c.json({ success: true, data: (surveys.results || []).map(s => ({ id: s.id, name: s.name, title: s.name, type: s.visit_type, response_count: s.response_count, created_at: s.created_at })) });
 });
+// Build the WHERE clause + binds that scope visit_responses to *actual survey
+// responses submitted by agents*: a response belongs to a visit (vr.visit_id ->
+// visits.id) whose questionnaire_id identifies the survey. Store-level custom
+// question rows are excluded. Optionally filtered by date range and by the
+// survey's brand (questionnaires.brand_ids JSON array / legacy brand_id).
+function surveyResponseScope(tenantId, brandId, startDate, endDate) {
+  let where = "vr.tenant_id = ? AND v.questionnaire_id IS NOT NULL AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')";
+  const binds = [tenantId];
+  if (startDate && endDate) { where += ' AND date(vr.created_at) BETWEEN date(?) AND date(?)'; binds.push(startDate, endDate); }
+  if (brandId) { where += ' AND v.questionnaire_id IN (SELECT id FROM questionnaires WHERE tenant_id = ? AND (brand_id = ? OR brand_ids LIKE ?))'; binds.push(tenantId, brandId, `%"${brandId}"%`); }
+  return { where, binds };
+}
+// Visits that required a survey (the denominator for response rate).
+function surveyVisitScope(tenantId, brandId, startDate, endDate) {
+  let where = 'tenant_id = ? AND questionnaire_id IS NOT NULL';
+  const binds = [tenantId];
+  if (startDate && endDate) { where += ' AND date(created_at) BETWEEN date(?) AND date(?)'; binds.push(startDate, endDate); }
+  if (brandId) { where += ' AND questionnaire_id IN (SELECT id FROM questionnaires WHERE tenant_id = ? AND (brand_id = ? OR brand_ids LIKE ?))'; binds.push(tenantId, brandId, `%"${brandId}"%`); }
+  return { where, binds };
+}
+
 api.get('/surveys/stats', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId');
-  const [totalSurveys, activeSurveys, totalResponses, recentSurveys] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare('SELECT id, name, visit_type, is_active, created_at FROM questionnaires WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId).all()
+  const { brand_id: brandId, start_date: startDate, end_date: endDate } = c.req.query();
+  const sBrand = brandId ? ' AND (brand_id = ? OR brand_ids LIKE ?)' : '';
+  const sBrandBinds = brandId ? [brandId, `%"${brandId}"%`] : [];
+  const resp = surveyResponseScope(tenantId, brandId, startDate, endDate);
+  const vis = surveyVisitScope(tenantId, brandId, startDate, endDate);
+  const [totalSurveys, activeSurveys, totalResponses, respondedVisits, requiredVisits] = await Promise.all([
+    db.prepare(`SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?${sBrand}`).bind(tenantId, ...sBrandBinds).first(),
+    db.prepare(`SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1${sBrand}`).bind(tenantId, ...sBrandBinds).first(),
+    db.prepare(`SELECT COUNT(*) as count FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE ${resp.where}`).bind(...resp.binds).first(),
+    db.prepare(`SELECT COUNT(DISTINCT vr.visit_id) as count FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE ${resp.where}`).bind(...resp.binds).first(),
+    db.prepare(`SELECT COUNT(*) as count FROM visits WHERE ${vis.where}`).bind(...vis.binds).first()
   ]);
-  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, completed_surveys: (totalSurveys?.count || 0) - (activeSurveys?.count || 0), total_responses: totalResponses?.count || 0, average_completion_rate: 0, recent_surveys: (recentSurveys.results || []).map(s => ({ ...s, title: s.name })) } });
+  const required = requiredVisits?.count || 0;
+  const responseRate = required > 0 ? Math.round(((respondedVisits?.count || 0) / required) * 100) : 0;
+  return c.json({ success: true, data: {
+    total_surveys: totalSurveys?.count || 0,
+    active_surveys: activeSurveys?.count || 0,
+    completed_surveys: (totalSurveys?.count || 0) - (activeSurveys?.count || 0),
+    total_responses: totalResponses?.count || 0,
+    response_rate: responseRate,
+    average_completion_rate: responseRate,
+    surveys_growth: 0,
+    response_rate_change: 0
+  } });
 });
 api.get('/surveys/trends', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId');
-  const monthlyResponses = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM visit_responses WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
-  const monthlySurveys = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM questionnaires WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
-  return c.json({ success: true, data: { response_trends: monthlyResponses.results || [], survey_trends: monthlySurveys.results || [] } });
+  const { brand_id: brandId, start_date: startDate, end_date: endDate } = c.req.query();
+  const resp = surveyResponseScope(tenantId, brandId, startDate, endDate);
+  const vis = surveyVisitScope(tenantId, brandId, startDate, endDate);
+  const [daily, dailyResponded, dailyRequired] = await Promise.all([
+    db.prepare(`SELECT date(vr.created_at) as date, COUNT(*) as responses FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE ${resp.where} GROUP BY date(vr.created_at) ORDER BY date(vr.created_at) ASC LIMIT 120`).bind(...resp.binds).all(),
+    db.prepare(`SELECT date(vr.created_at) as date, COUNT(DISTINCT vr.visit_id) as responded FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE ${resp.where} GROUP BY date(vr.created_at)`).bind(...resp.binds).all(),
+    db.prepare(`SELECT date(created_at) as date, COUNT(*) as required FROM visits WHERE ${vis.where} GROUP BY date(created_at)`).bind(...vis.binds).all()
+  ]);
+  const requiredByDate = {};
+  (dailyRequired.results || []).forEach(r => { requiredByDate[r.date] = r.required; });
+  const responseRateTrends = (dailyResponded.results || []).map(r => ({
+    date: r.date,
+    response_rate: requiredByDate[r.date] > 0 ? Math.round((r.responded / requiredByDate[r.date]) * 100) : 0
+  }));
+  return c.json({ success: true, data: {
+    daily_responses: daily.results || [],
+    response_rate_trends: responseRateTrends
+  } });
 });
 
 api.get('/surveys/:id', authMiddleware, async (c) => {
@@ -19149,6 +19202,49 @@ api.post('/surveys/:surveyId/activate', authMiddleware, async (c) => {
 });
 api.get('/surveys/:surveyId/analytics', authMiddleware, async (c) => {
   const db = c.env.DB; const tenantId = c.get('tenantId'); const surveyId = c.req.param('surveyId');
+
+  // Dashboard-wide analytics: aggregate real survey responses submitted by agents
+  // across all surveys (optionally scoped by brand + date range).
+  if (surveyId === 'all') {
+    const { brand_id: brandId, start_date: startDate, end_date: endDate } = c.req.query();
+    const sBrand = brandId ? ' AND (q.brand_id = ? OR q.brand_ids LIKE ?)' : '';
+    const sBrandBinds = brandId ? [brandId, `%"${brandId}"%`] : [];
+    const resp = surveyResponseScope(tenantId, brandId, startDate, endDate);
+    const [types, recent, top, categories, byAgent] = await Promise.all([
+      // Survey types distribution (by visit type of the questionnaire)
+      db.prepare(`SELECT COALESCE(NULLIF(q.visit_type, ''), 'general') as name, COUNT(*) as count FROM questionnaires q WHERE q.tenant_id = ?${sBrand} GROUP BY name ORDER BY count DESC`).bind(tenantId, ...sBrandBinds).all(),
+      // Recent surveys with their real lifetime response counts
+      db.prepare(`SELECT q.id, q.name, q.visit_type, q.is_active, q.created_at,
+          (SELECT COUNT(DISTINCT vr.visit_id) FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE v.questionnaire_id = q.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')) as response_count
+        FROM questionnaires q WHERE q.tenant_id = ?${sBrand} ORDER BY q.created_at DESC LIMIT 5`).bind(tenantId, ...sBrandBinds).all(),
+      // Top surveys by number of responses
+      db.prepare(`SELECT q.id, q.name,
+          (SELECT COUNT(DISTINCT vr.visit_id) FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id WHERE v.questionnaire_id = q.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')) as response_count,
+          (SELECT COUNT(*) FROM visits v2 WHERE v2.questionnaire_id = q.id) as visit_count
+        FROM questionnaires q WHERE q.tenant_id = ?${sBrand} ORDER BY response_count DESC LIMIT 5`).bind(tenantId, ...sBrandBinds).all(),
+      // Performance grouped by survey category (visit type)
+      db.prepare(`SELECT COALESCE(NULLIF(q.visit_type, ''), 'general') as category,
+          COUNT(DISTINCT q.id) as survey_count,
+          COUNT(DISTINCT CASE WHEN (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') THEN vr.visit_id END) as total_responses,
+          COUNT(DISTINCT v.id) as visit_count
+        FROM questionnaires q
+        LEFT JOIN visits v ON v.questionnaire_id = q.id
+        LEFT JOIN visit_responses vr ON vr.visit_id = v.id
+        WHERE q.tenant_id = ?${sBrand} GROUP BY category`).bind(tenantId, ...sBrandBinds).all(),
+      // Responses submitted per agent (the people who actually completed surveys)
+      db.prepare(`SELECT COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), 'Unknown') as agent, COUNT(*) as responses
+        FROM visit_responses vr JOIN visits v ON vr.visit_id = v.id LEFT JOIN users u ON v.agent_id = u.id
+        WHERE ${resp.where} GROUP BY v.agent_id ORDER BY responses DESC LIMIT 10`).bind(...resp.binds).all()
+    ]);
+    return c.json({ success: true, data: {
+      survey_types_distribution: types.results || [],
+      recent_surveys: (recent.results || []).map(s => ({ id: s.id, title: s.name, type: s.visit_type || 'general', status: s.is_active ? 'active' : 'draft', response_count: s.response_count || 0 })),
+      top_surveys: (top.results || []).map(s => ({ id: s.id, title: s.name, response_count: s.response_count || 0, response_rate: s.visit_count > 0 ? Math.round((s.response_count / s.visit_count) * 100) : 0 })),
+      category_performance: (categories.results || []).map(cat => ({ category: cat.category, survey_count: cat.survey_count || 0, total_responses: cat.total_responses || 0, avg_response_rate: cat.visit_count > 0 ? Math.round((cat.total_responses / cat.visit_count) * 100) : 0 })),
+      responses_by_agent: (byAgent.results || []).map(a => ({ agent: a.agent, responses: a.responses || 0 }))
+    } });
+  }
+
   const [totalResponses, survey] = await Promise.all([
     db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE visit_type = ? AND tenant_id = ?').bind(surveyId, tenantId).first(),
     db.prepare('SELECT * FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(surveyId, tenantId).first()
