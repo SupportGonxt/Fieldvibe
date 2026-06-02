@@ -1133,12 +1133,6 @@ export default function VisitCreate() {
           </FormControl>
         )}
 
-        {visitTargetType === 'survey' && (
-          <Alert severity="info">
-            Select the company/brand for this survey, then continue to fill out the survey on the next step.
-          </Alert>
-        )}
-
         {visitTargetType === 'individual' && (
           <>
             <Typography variant="h6" gutterBottom>Individual Details</Typography>
@@ -1628,6 +1622,12 @@ export default function VisitCreate() {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>{stepTitle}</Typography>
+          {visitTargetType === 'survey' && questionnaires.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No surveys yet
+            </Typography>
+          ) : (
+          <>
           {surveyRequired ? (
             <Alert severity="info" sx={{ mb: 2 }}>
               {`A ${stepTitle.toLowerCase()} is required for this visit type and brand.`}
@@ -1750,6 +1750,8 @@ export default function VisitCreate() {
                 </Typography>
               )}
             </>
+          )}
+          </>
           )}
         </CardContent>
       </Card>
