@@ -1729,6 +1729,15 @@ export default function VisitCreate() {
                     // sees the raw id/key in place of the question.
                     const qLabel = q.label || q.question || q.question_text || q.question_label || qKey
                     const qType = q.type || q.question_type || 'text'
+                    const qOptions = Array.isArray(q.options) ? q.options : []
+                    const hasOptions = qOptions.length > 0
+                    // The field-ops survey builder has no dedicated multi-select type, so a
+                    // "tick all that apply" question is authored as multiple_choice. Treat
+                    // explicit multi types — and any option question whose text asks to
+                    // select multiple — as checkboxes; other option questions are single-select.
+                    const isMultiSelect = ['multiselect', 'multi_select', 'checkbox', 'checkboxes'].includes(qType)
+                      || /tick all|select all|choose all|all that apply/i.test(qLabel)
+                    const selectedOptions = (surveyResponses[qKey] || '').split(',').map(s => s.trim()).filter(Boolean)
                     const isRequired = !!q.required
                     const hasValue = !!surveyResponses[qKey]
                     return (
@@ -1741,20 +1750,7 @@ export default function VisitCreate() {
                           This field is required
                         </Typography>
                       )}
-                      {qType === 'select' && q.options ? (
-                        <FormControl fullWidth error={showValidation && isRequired && !hasValue}>
-                          <Select
-                            value={surveyResponses[qKey] || ''}
-                            onChange={(e) => setSurveyResponses(prev => ({ ...prev, [qKey]: e.target.value }))}
-                            displayEmpty
-                          >
-                            <MenuItem value="">Select an answer</MenuItem>
-                            {q.options.map(opt => (
-                              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      ) : qType === 'image' ? (
+                      {qType === 'image' ? (
                         <Box>
                           {surveyResponses[qKey] ? (
                             <Box sx={{ position: 'relative', display: 'inline-block' }}>
@@ -1778,13 +1774,48 @@ export default function VisitCreate() {
                             </Button>
                           )}
                         </Box>
-                      ) : qType === 'radio' && q.options ? (
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          {q.options.map(opt => (
+                      ) : hasOptions && isMultiSelect ? (
+                        // Multi-select: "tick all that apply" — stored as a comma-separated list
+                        <FormGroup>
+                          {qOptions.map(opt => (
+                            <FormControlLabel
+                              key={opt}
+                              control={
+                                <Checkbox
+                                  checked={selectedOptions.includes(opt)}
+                                  onChange={(e) => {
+                                    const next = e.target.checked
+                                      ? [...selectedOptions, opt]
+                                      : selectedOptions.filter(o => o !== opt)
+                                    setSurveyResponses(prev => ({ ...prev, [qKey]: next.join(',') }))
+                                  }}
+                                />
+                              }
+                              label={opt}
+                            />
+                          ))}
+                        </FormGroup>
+                      ) : hasOptions && qType === 'select' ? (
+                        <FormControl fullWidth error={showValidation && isRequired && !hasValue}>
+                          <Select
+                            value={surveyResponses[qKey] || ''}
+                            onChange={(e) => setSurveyResponses(prev => ({ ...prev, [qKey]: e.target.value }))}
+                            displayEmpty
+                          >
+                            <MenuItem value="">Select an answer</MenuItem>
+                            {qOptions.map(opt => (
+                              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : hasOptions ? (
+                        // Single-select option question (radio / multiple_choice)
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          {qOptions.map(opt => (
                             <Button
                               key={opt}
                               variant={surveyResponses[qKey] === opt ? 'contained' : 'outlined'}
-                              color={surveyResponses[qKey] === opt ? (opt === 'Yes' ? 'success' : 'error') : 'inherit'}
+                              color={surveyResponses[qKey] === opt ? (opt === 'Yes' ? 'success' : opt === 'No' ? 'error' : 'primary') : 'inherit'}
                               onClick={() => setSurveyResponses(prev => ({ ...prev, [qKey]: opt }))}
                               size="small"
                             >
