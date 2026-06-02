@@ -6429,6 +6429,39 @@ api.get('/surveys', authMiddleware, async (c) => {
   return c.json({ success: true, data: results });
 });
 
+// Static /surveys/* routes MUST be registered before /surveys/:id so the
+// param route doesn't shadow them (e.g. treating "stats" as a survey id → 404).
+api.get('/surveys/metrics', authMiddleware, async (c) => {
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const [totalSurveys, activeSurveys, totalResponses] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first()
+  ]);
+  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, total_responses: totalResponses?.count || 0, avg_completion_rate: totalSurveys?.count > 0 ? Math.round((totalResponses?.count || 0) / totalSurveys.count * 10) : 0 } });
+});
+api.get('/surveys/reports', authMiddleware, async (c) => {
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const surveys = await db.prepare('SELECT q.*, (SELECT COUNT(*) FROM visit_responses vr WHERE vr.visit_type = q.id AND vr.tenant_id = q.tenant_id) as response_count FROM questionnaires q WHERE q.tenant_id = ? AND q.is_active = 1 ORDER BY q.created_at DESC').bind(tenantId).all();
+  return c.json({ success: true, data: (surveys.results || []).map(s => ({ id: s.id, name: s.name, title: s.name, type: s.visit_type, response_count: s.response_count, created_at: s.created_at })) });
+});
+api.get('/surveys/stats', authMiddleware, async (c) => {
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const [totalSurveys, activeSurveys, totalResponses, recentSurveys] = await Promise.all([
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT id, name, visit_type, is_active, created_at FROM questionnaires WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId).all()
+  ]);
+  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, completed_surveys: (totalSurveys?.count || 0) - (activeSurveys?.count || 0), total_responses: totalResponses?.count || 0, average_completion_rate: 0, recent_surveys: (recentSurveys.results || []).map(s => ({ ...s, title: s.name })) } });
+});
+api.get('/surveys/trends', authMiddleware, async (c) => {
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const monthlyResponses = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM visit_responses WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
+  const monthlySurveys = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM questionnaires WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
+  return c.json({ success: true, data: { response_trends: monthlyResponses.results || [], survey_trends: monthlySurveys.results || [] } });
+});
+
 api.get('/surveys/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -19935,37 +19968,8 @@ api.get('/reports/:reportId', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// surveys additional routes (real implementations)
-api.get('/surveys/metrics', authMiddleware, async (c) => {
-  const db = c.env.DB; const tenantId = c.get('tenantId');
-  const [totalSurveys, activeSurveys, totalResponses] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first()
-  ]);
-  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, total_responses: totalResponses?.count || 0, avg_completion_rate: totalSurveys?.count > 0 ? Math.round((totalResponses?.count || 0) / totalSurveys.count * 10) : 0 } });
-});
-api.get('/surveys/reports', authMiddleware, async (c) => {
-  const db = c.env.DB; const tenantId = c.get('tenantId');
-  const surveys = await db.prepare('SELECT q.*, (SELECT COUNT(*) FROM visit_responses vr WHERE vr.visit_type = q.id AND vr.tenant_id = q.tenant_id) as response_count FROM questionnaires q WHERE q.tenant_id = ? AND q.is_active = 1 ORDER BY q.created_at DESC').bind(tenantId).all();
-  return c.json({ success: true, data: (surveys.results || []).map(s => ({ id: s.id, name: s.name, title: s.name, type: s.visit_type, response_count: s.response_count, created_at: s.created_at })) });
-});
-api.get('/surveys/stats', authMiddleware, async (c) => {
-  const db = c.env.DB; const tenantId = c.get('tenantId');
-  const [totalSurveys, activeSurveys, totalResponses, recentSurveys] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM questionnaires WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first(),
-    db.prepare('SELECT COUNT(*) as count FROM visit_responses WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare('SELECT id, name, visit_type, is_active, created_at FROM questionnaires WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId).all()
-  ]);
-  return c.json({ success: true, data: { total_surveys: totalSurveys?.count || 0, active_surveys: activeSurveys?.count || 0, completed_surveys: (totalSurveys?.count || 0) - (activeSurveys?.count || 0), total_responses: totalResponses?.count || 0, average_completion_rate: 0, recent_surveys: (recentSurveys.results || []).map(s => ({ ...s, title: s.name })) } });
-});
-api.get('/surveys/trends', authMiddleware, async (c) => {
-  const db = c.env.DB; const tenantId = c.get('tenantId');
-  const monthlyResponses = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM visit_responses WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
-  const monthlySurveys = await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM questionnaires WHERE tenant_id = ? GROUP BY month ORDER BY month DESC LIMIT 12").bind(tenantId).all();
-  return c.json({ success: true, data: { response_trends: monthlyResponses.results || [], survey_trends: monthlySurveys.results || [] } });
-});
+// surveys additional routes (metrics/reports/stats/trends) are registered earlier,
+// before /surveys/:id, so the param route doesn't shadow them.
 
 // van-sales additional routes (restored)
 api.get('/van-sales/:id', authMiddleware, async (c) => {
