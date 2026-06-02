@@ -22,7 +22,7 @@ export default function VisitDetail() {
   const [savingGoldrushId, setSavingGoldrushId] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
-  const [questionnaireDef, setQuestionnaireDef] = useState<{ id: string; name: string; questions: Array<{ key?: string; id?: string; label?: string; question?: string }> } | null>(null)
+  const [questionnaireDef, setQuestionnaireDef] = useState<{ id: string; name: string; questions: Array<{ key?: string; id?: string; label?: string; question?: string; question_text?: string; question_label?: string }> } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const desktopFileInputRef = useRef<HTMLInputElement>(null)
@@ -150,7 +150,13 @@ export default function VisitDetail() {
       const found = questionnaireDef.questions.find((q, idx) =>
         (q.key || q.id || String(idx)) === key
       )
-      if (found) return (found as any).label || (found as any).question || formatRespKey(key)
+      // Question text varies by which builder created the survey: SurveyBuilderPage
+      // uses label; the field-ops builder uses question_text/question_label. Check
+      // all of them so the detail view shows the question, not its id/key.
+      if (found) {
+        const f = found as any
+        return f.label || f.question || f.question_text || f.question_label || formatRespKey(key)
+      }
     }
     return formatRespKey(key)
   }
