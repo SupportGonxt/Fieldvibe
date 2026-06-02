@@ -317,20 +317,26 @@ export default function VisitCreate() {
       return true
     })
 
-    // Survey visits MUST include a survey step — it's the entire purpose of the
-    // visit. The resolved process flow often omits one: a survey visit looks up a
-    // flow assigned to 'survey'/'both', and when the company only has a store flow
-    // assigned it falls back to a default flow with no survey step. Inject one
-    // (before Photo/Review) so the survey questions always have somewhere to render.
-    if (visitTargetType === 'survey' && !filtered.some(s => s.step_key === 'survey')) {
-      const surveyStep: ProcessFlowStep = {
-        id: 'survey-injected', step_key: 'survey', step_label: 'Survey',
-        step_order: 0, is_required: 1, config: '{}'
+    // Survey visits MUST include the survey step (the whole purpose) and the
+    // board-placement photo step. The resolved process flow often omits them: a
+    // survey visit looks up a flow assigned to 'survey'/'both', and when the
+    // company only has a store flow assigned it falls back to a default flow with
+    // neither step. Inject any that are missing — survey first, then photo —
+    // immediately before Review so they always have somewhere to render.
+    if (visitTargetType === 'survey') {
+      const ensureBeforeReview = (key: string, label: string, required: number) => {
+        if (filtered.some(s => s.step_key === key)) return
+        const step: ProcessFlowStep = {
+          id: `${key}-injected`, step_key: key, step_label: label,
+          step_order: 0, is_required: required, config: '{}'
+        }
+        const reviewIdx = filtered.findIndex(s => s.step_key === 'review')
+        filtered = reviewIdx === -1
+          ? [...filtered, step]
+          : [...filtered.slice(0, reviewIdx), step, ...filtered.slice(reviewIdx)]
       }
-      const insertIdx = filtered.findIndex(s => s.step_key === 'photo' || s.step_key === 'review')
-      filtered = insertIdx === -1
-        ? [...filtered, surveyStep]
-        : [...filtered.slice(0, insertIdx), surveyStep, ...filtered.slice(insertIdx)]
+      ensureBeforeReview('survey', 'Survey', 1)
+      ensureBeforeReview('photo', 'Board Placement', 0)
     }
 
     return filtered
@@ -874,7 +880,9 @@ export default function VisitCreate() {
         }
         return true
       }
-      case 'photo': return photos.length > 0
+      // Board placement is optional on survey visits (agents may take photos but
+      // aren't forced to); store visits still require at least one photo.
+      case 'photo': return visitTargetType === 'survey' ? true : photos.length > 0
       case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
     }
@@ -1859,7 +1867,8 @@ export default function VisitCreate() {
         <Typography variant="h6" gutterBottom>Board Photo Capture</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
-          Duplicate photos are not allowed. <strong>At least one photo is required.</strong>
+          Duplicate photos are not allowed.{' '}
+          <strong>{visitTargetType === 'survey' ? 'Photos are optional for survey visits.' : 'At least one photo is required.'}</strong>
         </Typography>
 
         {/* Board Placement Questions */}
