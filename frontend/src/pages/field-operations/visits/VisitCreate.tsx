@@ -305,7 +305,7 @@ export default function VisitCreate() {
       steps = processFlowSteps
     }
 
-    return steps.filter(step => {
+    let filtered = steps.filter(step => {
       // Form Type chooser is no longer used — always hidden
       if (step.step_key === 'form_choice') return false
       // Individual visits: no photo step
@@ -316,6 +316,24 @@ export default function VisitCreate() {
       if (step.step_key === 'survey') return visitTargetType === 'survey'
       return true
     })
+
+    // Survey visits MUST include a survey step — it's the entire purpose of the
+    // visit. The resolved process flow often omits one: a survey visit looks up a
+    // flow assigned to 'survey'/'both', and when the company only has a store flow
+    // assigned it falls back to a default flow with no survey step. Inject one
+    // (before Photo/Review) so the survey questions always have somewhere to render.
+    if (visitTargetType === 'survey' && !filtered.some(s => s.step_key === 'survey')) {
+      const surveyStep: ProcessFlowStep = {
+        id: 'survey-injected', step_key: 'survey', step_label: 'Survey',
+        step_order: 0, is_required: 1, config: '{}'
+      }
+      const insertIdx = filtered.findIndex(s => s.step_key === 'photo' || s.step_key === 'review')
+      filtered = insertIdx === -1
+        ? [...filtered, surveyStep]
+        : [...filtered.slice(0, insertIdx), surveyStep, ...filtered.slice(insertIdx)]
+    }
+
+    return filtered
   }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
@@ -611,16 +629,39 @@ export default function VisitCreate() {
   const loadQuestionnaires = async (companyIdOverride?: string) => {
     setQuestionnairesLoaded(false)
     try {
-      // For standalone survey visits, match the company's active surveys by
-      // company + module only. A survey's `visit_type` is its survey type
-      // (adhoc/customer/...), never the literal 'survey', so filtering by
-      // visit_type/target_type here would wrongly exclude every survey.
+      // For standalone survey visits, surveys are assigned to companies via the
+      // `brand_ids` column (a JSON list of company ids). The backend can't filter
+      // inside that array, so fetch all active field_ops surveys and narrow to
+      // the agent's company client-side below. A survey's `visit_type` is its
+      // survey type (adhoc/customer/...), never the literal 'survey', so we don't
+      // filter by visit_type/target_type here.
       const filter = visitTargetType === 'survey'
-        ? { company_id: companyIdOverride || selectedCompany || undefined, module: 'field_ops' }
+        ? { module: 'field_ops' }
         : { visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' }
       const res = await fieldOperationsService.getQuestionnaires(filter)
       const data = res?.data || res || []
-      setQuestionnaires(Array.isArray(data) ? data : [])
+      let list = Array.isArray(data) ? data : []
+
+      // Survey visits: show only surveys assigned to the agent's company.
+      // Assignment lives in `brand_ids` (list of company ids); the legacy
+      // single `company_id` column is also honored for older surveys.
+      if (visitTargetType === 'survey') {
+        const cid = companyIdOverride || selectedCompany
+        if (cid) {
+          list = list.filter((q: Questionnaire & { brand_ids?: unknown; company_id?: string }) => {
+            let companyIds: string[] = []
+            try {
+              companyIds = Array.isArray(q.brand_ids)
+                ? q.brand_ids as string[]
+                : (typeof q.brand_ids === 'string' && q.brand_ids ? JSON.parse(q.brand_ids) : [])
+            } catch { companyIds = [] }
+            if (companyIds.map(String).includes(String(cid))) return true
+            if (q.company_id && String(q.company_id) === String(cid)) return true
+            return false
+          })
+        }
+      }
+      setQuestionnaires(list)
     } catch (err) {
       console.error('Failed to load questionnaires:', err)
     } finally {
@@ -1622,7 +1663,7 @@ export default function VisitCreate() {
   )
 
   const renderSurveyStep = () => {
-    const parsedQuestions: Array<{ id?: string; key?: string; question?: string; label?: string; type: string; options?: string[]; required?: boolean }> = selectedQuestionnaire
+    const parsedQuestions: Array<{ id?: string; key?: string; question?: string; label?: string; question_text?: string; question_label?: string; type?: string; question_type?: string; options?: string[]; required?: boolean }> = selectedQuestionnaire
       ? (() => {
           const q = questionnaires.find(qn => qn.id === selectedQuestionnaire)
           if (!q) return []
@@ -1653,17 +1694,10 @@ export default function VisitCreate() {
             )
           ) : (
           <>
-          {surveyRequired ? (
+          {surveyRequired && (
             <Alert severity="info" sx={{ mb: 2 }}>
               {`A ${stepTitle.toLowerCase()} is required for this visit type and brand.`}
             </Alert>
-          ) : (
-            <Box sx={{ mb: 2 }}>
-              <FormControlLabel
-                control={<Switch checked={skipSurvey} onChange={(e) => setSkipSurvey(e.target.checked)} />}
-                label={`Skip ${stepTitle.toLowerCase()} (optional for this visit)`}
-              />
-            </Box>
           )}
 
           {!skipSurvey && (
@@ -1689,7 +1723,12 @@ export default function VisitCreate() {
                 <Box>
                   {parsedQuestions.map((q, idx) => {
                     const qKey = q.key || q.id || String(idx)
-                    const qLabel = q.label || q.question || qKey
+                    // Question text and type vary by which builder created the survey:
+                    // SurveyBuilderPage uses label/type; the field-ops survey builder
+                    // uses question_text/question_type. Support both so the agent never
+                    // sees the raw id/key in place of the question.
+                    const qLabel = q.label || q.question || q.question_text || q.question_label || qKey
+                    const qType = q.type || q.question_type || 'text'
                     const isRequired = !!q.required
                     const hasValue = !!surveyResponses[qKey]
                     return (
@@ -1702,7 +1741,7 @@ export default function VisitCreate() {
                           This field is required
                         </Typography>
                       )}
-                      {q.type === 'select' && q.options ? (
+                      {qType === 'select' && q.options ? (
                         <FormControl fullWidth error={showValidation && isRequired && !hasValue}>
                           <Select
                             value={surveyResponses[qKey] || ''}
@@ -1715,7 +1754,7 @@ export default function VisitCreate() {
                             ))}
                           </Select>
                         </FormControl>
-                      ) : q.type === 'image' ? (
+                      ) : qType === 'image' ? (
                         <Box>
                           {surveyResponses[qKey] ? (
                             <Box sx={{ position: 'relative', display: 'inline-block' }}>
@@ -1739,7 +1778,7 @@ export default function VisitCreate() {
                             </Button>
                           )}
                         </Box>
-                      ) : q.type === 'radio' && q.options ? (
+                      ) : qType === 'radio' && q.options ? (
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           {q.options.map(opt => (
                             <Button
@@ -1756,8 +1795,8 @@ export default function VisitCreate() {
                       ) : (
                         <TextField
                           fullWidth
-                          multiline={q.type === 'textarea'}
-                          rows={q.type === 'textarea' ? 3 : 1}
+                          multiline={qType === 'textarea'}
+                          rows={qType === 'textarea' ? 3 : 1}
                           value={surveyResponses[qKey] || ''}
                           onChange={(e) => setSurveyResponses(prev => ({ ...prev, [qKey]: e.target.value }))}
                           placeholder="Enter your answer"

@@ -6484,17 +6484,18 @@ api.post('/surveys', authMiddleware, async (c) => {
   const name = body.title || body.name;
   if (!name) return c.json({ success: false, message: 'Survey title/name is required' }, 400);
   const isMandatory = body.is_mandatory ? 1 : 0;
-  // Support multiple brands via brand_ids (JSON array). Keep brand_id (single)
-  // populated with the first selected brand for backward compatibility.
-  const brandIds = Array.isArray(body.brand_ids)
+  // `brand_ids` holds the JSON list of COMPANY ids this survey is assigned to —
+  // the agent visit flow matches the agent's company against it. The legacy
+  // single `brand_id` column has a foreign key to brands(id), so it is left null
+  // (company ids are not brand ids and would violate that constraint).
+  const companyIds = Array.isArray(body.brand_ids)
     ? body.brand_ids.filter(Boolean)
-    : (body.brand_id ? [body.brand_id] : []);
-  const primaryBrandId = brandIds[0] || null;
+    : (body.company_id ? [body.company_id] : []);
   await db.prepare('INSERT INTO questionnaires (id, tenant_id, name, module, visit_type, target_type, brand_id, brand_ids, company_id, questions, is_default, is_active, is_mandatory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime("now"), datetime("now"))').bind(
     id, tenantId, name, body.module || 'field_ops',
     body.survey_type || body.visit_type || 'adhoc',
     body.target_type || 'both',
-    primaryBrandId, JSON.stringify(brandIds), body.company_id || null,
+    null, JSON.stringify(companyIds), body.company_id || null,
     JSON.stringify(body.questions || []), body.is_default ? 1 : 0,
     isMandatory
   ).run();
@@ -6509,24 +6510,19 @@ api.put('/surveys/:id', authMiddleware, async (c) => {
   const existing = await db.prepare('SELECT id, brand_id FROM questionnaires WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!existing) return c.json({ success: false, message: 'Survey not found' }, 404);
   const name = body.title || body.name || null;
-  // If brand_ids is provided, treat it as the source of truth for the survey's
-  // brands (allows clearing all brands too); brand_id mirrors the first brand.
-  // When neither brand_ids nor brand_id is sent, leave the existing brands as-is
-  // so unrelated updates (status changes, archiving) don't wipe the brand link.
-  let primaryBrandId = existing.brand_id || null;
+  // `brand_ids` is the source of truth for the survey's assigned COMPANY ids
+  // (allows clearing all assignments too). When brand_ids isn't sent, leave the
+  // existing assignment as-is so unrelated updates (status changes, archiving)
+  // don't wipe it. The legacy `brand_id` column (FK → brands) is always cleared
+  // since company ids are not brand ids.
   let brandIdsJson = null;
   if (Array.isArray(body.brand_ids)) {
-    const brandIds = body.brand_ids.filter(Boolean);
-    brandIdsJson = JSON.stringify(brandIds);
-    primaryBrandId = brandIds[0] || null;
-  } else if (body.brand_id !== undefined) {
-    primaryBrandId = body.brand_id || null;
-    brandIdsJson = JSON.stringify(body.brand_id ? [body.brand_id] : []);
+    brandIdsJson = JSON.stringify(body.brand_ids.filter(Boolean));
   }
-  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = ?, brand_ids = COALESCE(?, brand_ids), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), is_mandatory = COALESCE(?, is_mandatory), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
+  await db.prepare('UPDATE questionnaires SET name = COALESCE(?, name), module = COALESCE(?, module), visit_type = COALESCE(?, visit_type), target_type = COALESCE(?, target_type), brand_id = NULL, brand_ids = COALESCE(?, brand_ids), company_id = COALESCE(?, company_id), questions = COALESCE(?, questions), is_active = COALESCE(?, is_active), is_mandatory = COALESCE(?, is_mandatory), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(
     name, body.module || null, body.survey_type || body.visit_type || null,
     body.target_type || null,
-    primaryBrandId, brandIdsJson, body.company_id || null,
+    brandIdsJson, body.company_id || null,
     body.questions ? JSON.stringify(body.questions) : null,
     body.status === 'archived' ? 0 : (body.is_active !== undefined ? (body.is_active ? 1 : 0) : null),
     body.is_mandatory !== undefined ? (body.is_mandatory ? 1 : 0) : null,

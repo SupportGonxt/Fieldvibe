@@ -56,25 +56,28 @@ const SurveyBuilderPage: React.FC = () => {
     is_mandatory: false,
     questions: [],
   });
-  const [brands, setBrands] = useState<any[]>([]);
+  // Surveys are assigned to companies (field_companies). The selected company
+  // ids are stored in the survey's `brand_ids` column, which the agent visit
+  // flow uses to show a survey only to its assigned company.
+  const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    loadBrands();
+    loadCompanies();
     if (id) {
       loadSurvey();
     }
   }, [id]);
 
-  const loadBrands = async () => {
+  const loadCompanies = async () => {
     try {
-      const response = await apiClient.get('/brands');
-      const brandsData = response.data.data?.brands || response.data.data || [];
-      setBrands(Array.isArray(brandsData) ? brandsData : []);
+      const response = await apiClient.get('/field-ops/companies');
+      const data = response.data?.data || response.data || [];
+      setCompanies(Array.isArray(data) ? data : (data.companies || []));
     } catch (err) {
-      console.error('Failed to load brands:', err);
+      console.error('Failed to load companies:', err);
     }
   };
 
@@ -209,9 +212,9 @@ const SurveyBuilderPage: React.FC = () => {
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="survey-brands-label">Brands (Optional)</InputLabel>
+            <InputLabel id="survey-companies-label">Companies</InputLabel>
             <Select
-              labelId="survey-brands-label"
+              labelId="survey-companies-label"
               multiple
               value={survey.brand_ids}
               onChange={(e) => {
@@ -221,23 +224,23 @@ const SurveyBuilderPage: React.FC = () => {
                   brand_ids: typeof value === 'string' ? value.split(',') : value,
                 });
               }}
-              input={<OutlinedInput label="Brands (Optional)" />}
+              input={<OutlinedInput label="Companies" />}
               renderValue={(selected) => {
-                if (!selected.length) return <em>All Brands</em>;
+                if (!selected.length) return <em>All Companies</em>;
                 return (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {selected.map((value) => {
-                      const brand = brands.find((b) => String(b.id) === String(value));
-                      return <Chip key={value} label={brand?.name || value} size="small" />;
+                      const company = companies.find((c) => String(c.id) === String(value));
+                      return <Chip key={value} label={company?.name || value} size="small" />;
                     })}
                   </Box>
                 );
               }}
             >
-              {brands.map((brand) => (
-                <MenuItem key={brand.id} value={brand.id}>
-                  <Checkbox checked={survey.brand_ids.some((id) => String(id) === String(brand.id))} />
-                  <ListItemText primary={brand.name} />
+              {companies.map((company) => (
+                <MenuItem key={company.id} value={company.id}>
+                  <Checkbox checked={survey.brand_ids.some((id) => String(id) === String(company.id))} />
+                  <ListItemText primary={company.name} />
                 </MenuItem>
               ))}
             </Select>
