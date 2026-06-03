@@ -10,7 +10,7 @@ import {
   BarChart3, Users, MapPin, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight,
   AlertTriangle, Award, Activity, Target, Store, Eye, ChevronLeft, X,
   Filter, List, Download, FileSpreadsheet, FileText, UserCheck, ChevronRight,
-  Navigation, Clock, Building2, ClipboardList, PieChart as PieChartIcon
+  Navigation, Clock, Building2, ClipboardList, PieChart as PieChartIcon, Camera, User
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -134,6 +134,13 @@ const FieldOpsComprehensiveReport: React.FC = () => {
     }
   }, [companies, selectedCompany])
 
+  const selectedCompanyObj = Array.isArray(companies) ? companies.find((c: any) => c.id === selectedCompany) : null
+  const isStellr = !!selectedCompanyObj?.name?.toLowerCase().includes('stellr')
+
+  useEffect(() => {
+    if (isStellr && activeTab === 'individuals') setActiveTab('overview')
+  }, [isStellr, activeTab])
+
   const dateParams = startDate || endDate
     ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
     : ''
@@ -172,7 +179,7 @@ const FieldOpsComprehensiveReport: React.FC = () => {
 
       {/* Tab Bar */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 overflow-x-auto">
-        {TABS.map((tab) => (
+        {TABS.filter(tab => !(isStellr && tab.key === 'individuals')).map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
@@ -190,31 +197,31 @@ const FieldOpsComprehensiveReport: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <OverviewTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <OverviewTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'insights' && (
-        <InsightsTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <InsightsTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'checkins' && (
-        <CheckinsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <CheckinsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'stores' && (
-        <StoresTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <StoresTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'individuals' && (
         <IndividualsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
       )}
       {activeTab === 'performance' && (
-        <PerformanceTab />
+        <PerformanceTab selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'brand' && (
-        <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
       {activeTab === 'gps' && (
-        <GPSTrackingTab />
+        <GPSTrackingTab selectedCompany={selectedCompany} />
       )}
       {activeTab === 'export' && (
-        <ExportTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} />
+        <ExportTab dateParams={dateParams} companyParam={companyParam} startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
       )}
     </div>
   )
@@ -228,9 +235,10 @@ interface TabProps {
   startDate: string
   endDate: string
   selectedCompany: string
+  isStellr?: boolean
 }
 
-function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCompany }: TabProps) {
+function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
   const { data: kpis, isLoading: kpisLoading, isError: kpisError } = useQuery({
     queryKey: ['field-ops-kpis', startDate, endDate, selectedCompany],
     queryFn: async () => {
@@ -299,9 +307,11 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
           { label: 'Approved', value: kpis?.approved_checkins || 0, icon: BarChart3, color: 'green' },
           { label: 'Active Agents', value: kpis?.active_agents || 0, icon: Users, color: 'purple' },
           { label: 'Total Shops', value: kpis?.total_shops || 0, icon: MapPin, color: 'orange' },
-          { label: 'Conversions', value: kpis?.conversions || 0, icon: TrendingUp, color: 'emerald' },
-          { label: 'Individuals', value: kpis?.total_individuals || 0, icon: Users, color: 'pink' },
-          { label: 'Conv. Rate', value: `${convRate}%`, icon: ArrowUpRight, color: 'cyan' },
+          ...(!isStellr ? [
+            { label: 'Conversions', value: kpis?.conversions || 0, icon: TrendingUp, color: 'emerald' },
+            { label: 'Individuals', value: kpis?.total_individuals || 0, icon: Users, color: 'pink' },
+            { label: 'Conv. Rate', value: `${convRate}%`, icon: ArrowUpRight, color: 'cyan' },
+          ] : []),
         ].map((kpi, i) => (
           <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -348,7 +358,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
       </div>
 
       {/* Conversion Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {!isStellr && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Conversion Analysis</h3>
           <div className="grid grid-cols-2 gap-4">
@@ -387,7 +397,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Agent Performance Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -399,28 +409,30 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Agent</th>
                   <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Check-ins</th>
-                  <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conversions</th>
-                  <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conv. Rate</th>
+                  {!isStellr && <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conversions</th>}
+                  {!isStellr && <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conv. Rate</th>}
                 </tr>
               </thead>
               <tbody>
                 {agentPerf.length === 0 ? (
-                  <tr><td colSpan={4} className="py-8 text-center text-gray-400">No agent data available</td></tr>
+                  <tr><td colSpan={isStellr ? 2 : 4} className="py-8 text-center text-gray-400">No agent data available</td></tr>
                 ) : agentPerf.map((agent) => (
                   <tr key={agent.agent_id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td className="py-3 px-4 text-gray-900 dark:text-white font-medium">{agent.agent_name || 'Unknown'}</td>
                     <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{agent.checkin_count}</td>
-                    <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{agent.conversions}</td>
-                    <td className="py-3 px-4 text-right">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        agent.conversion_rate >= 50 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        agent.conversion_rate >= 25 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
-                        {agent.conversion_rate >= 50 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {agent.conversion_rate}%
-                      </span>
-                    </td>
+                    {!isStellr && <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{agent.conversions}</td>}
+                    {!isStellr && (
+                      <td className="py-3 px-4 text-right">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          agent.conversion_rate >= 50 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          agent.conversion_rate >= 25 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {agent.conversion_rate >= 50 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                          {agent.conversion_rate}%
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -434,7 +446,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
 
 // ─── Insights Tab (was ReportsInsights) ─────────────────────────────────────
 
-function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCompany }: TabProps) {
+function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
   const { data: agentPerf = [], isLoading, isError } = useQuery({
     queryKey: ['field-ops-insights-agents', startDate, endDate, selectedCompany],
     queryFn: async () => {
@@ -472,22 +484,26 @@ function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCom
   return (
     <div className="space-y-6">
       {/* Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
           <Activity className="h-6 w-6 mb-2 opacity-80" />
           <p className="text-3xl font-bold">{totalCheckins.toLocaleString()}</p>
           <p className="text-sm opacity-80">Total Check-ins</p>
         </div>
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-6 text-white">
-          <TrendingUp className="h-6 w-6 mb-2 opacity-80" />
-          <p className="text-3xl font-bold">{totalConversions.toLocaleString()}</p>
-          <p className="text-sm opacity-80">Total Conversions</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
-          <Target className="h-6 w-6 mb-2 opacity-80" />
-          <p className="text-3xl font-bold">{avgConvRate}%</p>
-          <p className="text-sm opacity-80">Avg Conversion Rate</p>
-        </div>
+        {!isStellr && (
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-6 text-white">
+            <TrendingUp className="h-6 w-6 mb-2 opacity-80" />
+            <p className="text-3xl font-bold">{totalConversions.toLocaleString()}</p>
+            <p className="text-sm opacity-80">Total Conversions</p>
+          </div>
+        )}
+        {!isStellr && (
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
+            <Target className="h-6 w-6 mb-2 opacity-80" />
+            <p className="text-3xl font-bold">{avgConvRate}%</p>
+            <p className="text-sm opacity-80">Avg Conversion Rate</p>
+          </div>
+        )}
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white">
           <Award className="h-6 w-6 mb-2 opacity-80" />
           <p className="text-3xl font-bold">{agentPerf.length}</p>
@@ -495,29 +511,31 @@ function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCom
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${!isStellr ? 'lg:grid-cols-2' : ''}`}>
         {/* Top Converting Agents */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Award className="h-5 w-5 text-yellow-500" /> Top Converting Agents
-          </h3>
-          <div className="space-y-4">
-            {topAgents.length === 0 ? (
-              <p className="text-gray-400 text-sm">No data available</p>
-            ) : topAgents.map((agent, i) => (
-              <div key={agent.agent_id} className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                  i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : i === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                }`}>{i + 1}</div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.agent_name || 'Unknown'}</p>
-                  <p className="text-xs text-gray-500">{agent.checkin_count} check-ins · {agent.conversions} conversions</p>
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Award className="h-5 w-5 text-yellow-500" /> Top Converting Agents
+            </h3>
+            <div className="space-y-4">
+              {topAgents.length === 0 ? (
+                <p className="text-gray-400 text-sm">No data available</p>
+              ) : topAgents.map((agent, i) => (
+                <div key={agent.agent_id} className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                    i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : i === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                  }`}>{i + 1}</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{agent.agent_name || 'Unknown'}</p>
+                    <p className="text-xs text-gray-500">{agent.checkin_count} check-ins · {agent.conversions} conversions</p>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-600">{agent.conversion_rate}%</span>
                 </div>
-                <span className="text-sm font-bold text-emerald-600">{agent.conversion_rate}%</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Most Active Agents */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -567,11 +585,21 @@ function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCom
 
 // ─── Check-ins Tab (was ReportsCheckinsList) ────────────────────────────────
 
-function CheckinsTab({ startDate, endDate, selectedCompany }: { startDate: string; endDate: string; selectedCompany: string }) {
+function checkinFormatKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function checkinIsPhotoUrl(val: string): boolean {
+  if (!val || typeof val !== 'string') return false
+  return val.startsWith('http') || val.startsWith('data:image')
+}
+
+function CheckinsTab({ startDate, endDate, selectedCompany, isStellr }: { startDate: string; endDate: string; selectedCompany: string; isStellr?: boolean }) {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [agentId, setAgentId] = useState('')
-  const [selectedCheckin, setSelectedCheckin] = useState<string | null>(null)
+  const [selectedCheckinRow, setSelectedCheckinRow] = useState<Checkin | null>(null)
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
 
   const { data: agents = [] } = useQuery({
     queryKey: ['report-agents'],
@@ -597,18 +625,31 @@ function CheckinsTab({ startDate, endDate, selectedCompany }: { startDate: strin
   })
 
   const { data: checkinDetail } = useQuery({
-    queryKey: ['checkin-detail', selectedCheckin],
+    queryKey: ['checkin-detail', selectedCheckinRow?.id],
     queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/checkins/${selectedCheckin}`)
+      const res = await apiClient.get(`/field-ops/reports/checkins/${selectedCheckinRow!.id}`)
       return res.data
     },
-    enabled: !!selectedCheckin,
+    enabled: !!selectedCheckinRow?.id,
   })
+
+  const closeModal = () => { setSelectedCheckinRow(null); setExpandedPhoto(null) }
 
   if (isLoading) return <LoadingSpinner />
   if (isError) return <ErrorBanner />
 
   const totalPages = Math.ceil((data?.total || 0) / 20)
+
+  // Parse questionnaire responses for Stellr modal
+  let stellrTextEntries: [string, string][] = []
+  let stellrPhotoEntries: [string, string][] = []
+  if (isStellr && checkinDetail?.response?.responses) {
+    try {
+      const parsed: Record<string, string> = JSON.parse(checkinDetail.response.responses)
+      stellrTextEntries = Object.entries(parsed).filter(([, v]) => v && !checkinIsPhotoUrl(String(v))) as [string, string][]
+      stellrPhotoEntries = Object.entries(parsed).filter(([, v]) => v && checkinIsPhotoUrl(String(v))) as [string, string][]
+    } catch { /* malformed JSON — leave arrays empty */ }
+  }
 
   return (
     <div className="space-y-6">
@@ -638,9 +679,9 @@ function CheckinsTab({ startDate, endDate, selectedCompany }: { startDate: strin
         </div>
       </div>
 
-      {/* Checkin Detail Modal */}
-      {selectedCheckin && checkinDetail && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedCheckin(null)}>
+      {/* Generic Checkin Detail Modal (non-Stellr) */}
+      {!isStellr && selectedCheckinRow && checkinDetail && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full p-6 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Check-in Details</h3>
             <div className="space-y-3 text-sm">
@@ -651,8 +692,105 @@ function CheckinsTab({ startDate, endDate, selectedCompany }: { startDate: strin
                 </div>
               ))}
             </div>
-            <button onClick={() => setSelectedCheckin(null)} className="mt-4 w-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg text-sm">Close</button>
+            <button onClick={closeModal} className="mt-4 w-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg text-sm">Close</button>
           </div>
+        </div>
+      )}
+
+      {/* Stellr Visit Detail Modal */}
+      {isStellr && selectedCheckinRow && checkinDetail && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Visit Details</h3>
+              <button onClick={closeModal} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+              {/* Meta grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Agent</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{selectedCheckinRow.agent_name || '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Date</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {selectedCheckinRow.timestamp ? new Date(selectedCheckinRow.timestamp).toLocaleString() : '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Store className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                      selectedCheckinRow.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : selectedCheckinRow.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                    }`}>{selectedCheckinRow.status || '—'}</span>
+                  </div>
+                </div>
+                {(selectedCheckinRow.latitude || selectedCheckinRow.longitude) && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">GPS</p>
+                      <p className="text-sm text-gray-900 dark:text-white">
+                        {Number(selectedCheckinRow.latitude).toFixed(5)}, {Number(selectedCheckinRow.longitude).toFixed(5)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Photos from questionnaire */}
+              {stellrPhotoEntries.length > 0 && (
+                <div>
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    <Camera className="w-4 h-4" /> Photos
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {stellrPhotoEntries.map(([key, url]) => (
+                      <div key={key}>
+                        <button onClick={() => setExpandedPhoto(String(url))} className="block w-full">
+                          <img src={String(url)} alt={checkinFormatKey(key)} className="w-full h-28 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
+                        </button>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-center truncate">{checkinFormatKey(key)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {checkinDetail.checkin?.notes && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Notes</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/30 rounded-lg px-4 py-3">{checkinDetail.checkin.notes}</p>
+                </div>
+              )}
+            </div>
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0 flex justify-end">
+              <button onClick={closeModal} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded photo lightbox */}
+      {expandedPhoto && (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setExpandedPhoto(null)}>
+          <img src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
         </div>
       )}
 
@@ -694,7 +832,7 @@ function CheckinsTab({ startDate, endDate, selectedCompany }: { startDate: strin
                     {c.latitude && c.longitude ? `${Number(c.latitude).toFixed(4)}, ${Number(c.longitude).toFixed(4)}` : '-'}
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <button onClick={() => setSelectedCheckin(c.id)} className="text-blue-600 hover:text-blue-700">
+                    <button onClick={() => setSelectedCheckinRow(c)} className="text-blue-600 hover:text-blue-700">
                       <Eye className="h-4 w-4" />
                     </button>
                   </td>
@@ -719,7 +857,7 @@ function CheckinsTab({ startDate, endDate, selectedCompany }: { startDate: strin
 
 // ─── Stores Tab (was ReportsShopsAnalytics) ─────────────────────────────────
 
-function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string; endDate: string; selectedCompany: string }) {
+function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDate: string; endDate: string; selectedCompany: string; isStellr?: boolean }) {
   const [page, setPage] = useState(1)
   const [selectedShop, setSelectedShop] = useState<string | null>(null)
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
@@ -757,7 +895,7 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{shop.name || 'Store Details'}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{shop.address || 'No address'}</p>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className={`grid gap-4 mb-6 ${isStellr ? 'grid-cols-2' : 'grid-cols-3'}`}>
             <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-2xl font-bold text-blue-600">{shopDetail.stats?.total_checkins || 0}</p>
               <p className="text-xs text-blue-700 dark:text-blue-400">Total Check-ins</p>
@@ -766,10 +904,12 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
               <p className="text-2xl font-bold text-green-600">{shopDetail.stats?.approved || 0}</p>
               <p className="text-xs text-green-700 dark:text-green-400">Approved</p>
             </div>
-            <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{shopDetail.stats?.conversions || 0}</p>
-              <p className="text-xs text-purple-700 dark:text-purple-400">Conversions</p>
-            </div>
+            {!isStellr && (
+              <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <p className="text-2xl font-bold text-purple-600">{shopDetail.stats?.conversions || 0}</p>
+                <p className="text-xs text-purple-700 dark:text-purple-400">Conversions</p>
+              </div>
+            )}
           </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Recent Check-ins</h3>
           <div className="overflow-x-auto">
@@ -780,7 +920,7 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Date</th>
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Agent</th>
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Status</th>
-                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Converted</th>
+                  {!isStellr && <th className="text-left py-2 px-3 text-gray-500 font-medium">Converted</th>}
                   <th className="text-left py-2 px-3 text-gray-500 font-medium">Notes</th>
                 </tr>
               </thead>
@@ -803,7 +943,7 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
                         {c.status}
                       </span>
                     </td>
-                    <td className="py-2 px-3">{c.converted ? <span className="text-green-600 font-medium">Yes</span> : <span className="text-gray-400">No</span>}</td>
+                    {!isStellr && <td className="py-2 px-3">{c.converted ? <span className="text-green-600 font-medium">Yes</span> : <span className="text-gray-400">No</span>}</td>}
                     <td className="py-2 px-3 text-gray-500 truncate max-w-[200px]">{c.responses || '-'}</td>
                   </tr>
                 ))}
@@ -839,7 +979,7 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <Store className="h-5 w-5 text-blue-500 mb-2" />
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.total || 0}</p>
@@ -852,13 +992,15 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
           </p>
           <p className="text-sm text-gray-500">Total Check-ins</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <Eye className="h-5 w-5 text-purple-500 mb-2" />
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {(data?.shops || []).reduce((s, shop) => s + shop.conversions, 0)}
-          </p>
-          <p className="text-sm text-gray-500">Total Conversions</p>
-        </div>
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <Eye className="h-5 w-5 text-purple-500 mb-2" />
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              {(data?.shops || []).reduce((s, shop) => s + shop.conversions, 0)}
+            </p>
+            <p className="text-sm text-gray-500">Total Conversions</p>
+          </div>
+        )}
       </div>
 
       {/* Shops Table */}
@@ -870,14 +1012,14 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
                 <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Store</th>
                 <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Check-ins</th>
                 <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Approved</th>
-                <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conversions</th>
+                {!isStellr && <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Conversions</th>}
                 <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Last Visit</th>
                 <th className="text-center py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {(data?.shops || []).length === 0 ? (
-                <tr><td colSpan={6} className="py-12 text-center text-gray-400">No stores found</td></tr>
+                <tr><td colSpan={isStellr ? 5 : 6} className="py-12 text-center text-gray-400">No stores found</td></tr>
               ) : (data?.shops || []).map((shop) => (
                 <tr key={shop.id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="py-3 px-4">
@@ -886,7 +1028,7 @@ function StoresTab({ startDate, endDate, selectedCompany }: { startDate: string;
                   </td>
                   <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{shop.total_checkins}</td>
                   <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{shop.approved_checkins}</td>
-                  <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{shop.conversions}</td>
+                  {!isStellr && <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-300">{shop.conversions}</td>}
                   <td className="py-3 px-4 text-right text-gray-500 text-xs">{shop.last_visit ? new Date(shop.last_visit).toLocaleDateString() : '-'}</td>
                   <td className="py-3 px-4 text-center">
                     <button onClick={() => setSelectedShop(shop.id)} className="text-blue-600 hover:text-blue-700 text-xs font-medium">View</button>
@@ -1015,7 +1157,7 @@ function IndividualsTab({ startDate, endDate, selectedCompany }: { startDate: st
 
 // ─── Export Tab (was ReportsExport) ─────────────────────────────────────────
 
-function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompany }: TabProps) {
+function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
   const [exporting, setExporting] = useState(false)
 
   const { data: agentPerf = [] } = useQuery({
@@ -1058,7 +1200,12 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
     setExporting(true)
     try {
       if (type === 'checkins') {
-        const res = await apiClient.get(`/field-ops/reports/export/checkins?dummy=1${dateParams}${companyParam}`)
+        const parts: string[] = []
+        if (startDate) parts.push(`startDate=${startDate}`)
+        if (endDate) parts.push(`endDate=${endDate}`)
+        if (selectedCompany) parts.push(`company_id=${selectedCompany}`)
+        const qs = parts.length > 0 ? `?${parts.join('&')}` : ''
+        const res = await apiClient.get(`/field-ops/reports/export/checkins${qs}`)
         const data = res.data?.data || []
         if (data.length === 0) { toast.error('No data to export'); return }
         const headers = Object.keys(data[0])
@@ -1089,7 +1236,7 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
   return (
     <div className="space-y-6">
       {/* Export Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -1128,24 +1275,26 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
           </button>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <FileText className="h-6 w-6 text-purple-600" />
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <FileText className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Conversion Stats</h3>
+                <p className="text-xs text-gray-500">Overall conversion and betting metrics</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">Conversion Stats</h3>
-              <p className="text-xs text-gray-500">Overall conversion and betting metrics</p>
-            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Summary of conversion rates: converted vs not converted, store visits vs non-store visits.
+            </p>
+            <button onClick={() => exportToCSV('conversions')} disabled={exporting}
+              className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-2.5 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
+              <Download className="h-4 w-4" /> Export Conversion CSV
+            </button>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Summary of conversion rates: converted vs not converted, store visits vs non-store visits.
-          </p>
-          <button onClick={() => exportToCSV('conversions')} disabled={exporting}
-            className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-2.5 rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium">
-            <Download className="h-4 w-4" /> Export Conversion CSV
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Agent Performance Preview */}
@@ -1182,19 +1331,20 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
 
 // ─── Performance Tab (was FieldOpsPerformancePage) ──────────────────────────
 
-function PerformanceTab() {
+function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string; isStellr?: boolean }) {
   const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'custom'>('month')
   const [dateRange, setDateRange] = useState({ start_date: today, end_date: today })
 
   const { data: performance, isLoading, isError } = useQuery({
-    queryKey: ['field-ops-performance', timePeriod, dateRange],
+    queryKey: ['field-ops-performance', timePeriod, dateRange, selectedCompany],
     queryFn: async () => {
       const params = {
         period: timePeriod === 'custom' ? undefined : timePeriod,
         start_date: timePeriod === 'custom' ? dateRange.start_date : undefined,
-        end_date: timePeriod === 'custom' ? dateRange.end_date : undefined
+        end_date: timePeriod === 'custom' ? dateRange.end_date : undefined,
+        company_id: selectedCompany || undefined,
       }
       return fieldOperationsService.getPerformance(params)
     },
@@ -1210,6 +1360,9 @@ function PerformanceTab() {
       } else {
         params.append('start_date', dateRange.start_date)
         params.append('end_date', dateRange.end_date)
+      }
+      if (selectedCompany) {
+        params.append('company_id', selectedCompany)
       }
       const endpoint = format === 'excel' ? '/field-ops/performance/export-excel' : '/field-ops/performance/export'
       const response = await fieldOperationsService.get(`${endpoint}?${params.toString()}`, { responseType: 'blob' })
@@ -1229,6 +1382,17 @@ function PerformanceTab() {
       console.error('Export failed:', err)
       toast.error('Failed to export report')
     }
+  }
+
+  const buildDrillDownUrl = (id: string) => {
+    const params = new URLSearchParams()
+    params.set('period', timePeriod)
+    if (timePeriod === 'custom') {
+      params.set('start_date', dateRange.start_date)
+      params.set('end_date', dateRange.end_date)
+    }
+    if (isStellr) params.set('stellr', '1')
+    return `/field-operations/drill-down/${id}?${params.toString()}`
   }
 
   if (isLoading) return <LoadingSpinner />
@@ -1278,14 +1442,14 @@ function PerformanceTab() {
       {/* Team Lead View */}
       {role === 'team_lead' && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-4'}`}>
             <PerfMetricCard title="Team Size" value={performance?.team_size || 0} icon={<Users className="w-6 h-6 text-blue-600" />} />
             <PerfMetricCard title="Total Visits" value={performance?.total_visits || 0} icon={<Target className="w-6 h-6 text-green-600" />} />
-            <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-purple-600" />} />
-            <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-6 h-6 text-orange-600" />} />
+            {!isStellr && <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-purple-600" />} />}
+            {!isStellr && <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-6 h-6 text-orange-600" />} />}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}>
+            {!isStellr && <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />}
             <PerfMetricCard title="Target (Store)" value={performance?.total_target_stores || 0} icon={<BarChart3 className="w-5 h-5 text-orange-600" />} />
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -1295,9 +1459,9 @@ function PerformanceTab() {
                 <thead><tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Store)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr></thead>
@@ -1306,19 +1470,19 @@ function PerformanceTab() {
                     <tr key={agent.agent_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{agent.agent_name}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.visits}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.individual_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.store_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.individual_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.store_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{agent.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => navigate(`/field-operations/drill-down/${agent.agent_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                        <button onClick={() => navigate(buildDrillDownUrl(agent.agent_id))} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
                           Details <ChevronRight className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
                   ))}
                   {(performance?.agents || []).length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No agent data available</td></tr>
+                    <tr><td colSpan={isStellr ? 4 : 7} className="px-4 py-8 text-center text-gray-500">No agent data available</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1344,15 +1508,15 @@ function PerformanceTab() {
       {/* Manager / Admin View */}
       {(role === 'manager' || role === 'admin') && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
             <PerfMetricCard title="Team Leads" value={performance?.total_team_leads || 0} icon={<Users className="w-6 h-6 text-blue-600" />} />
             <PerfMetricCard title="Total Agents" value={performance?.total_agents || 0} icon={<UserCheck className="w-6 h-6 text-green-600" />} />
             <PerfMetricCard title="Total Visits" value={performance?.total_visits || 0} icon={<Target className="w-6 h-6 text-purple-600" />} />
-            <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-indigo-600" />} />
+            {!isStellr && <PerfMetricCard title="Individual Visits" value={performance?.total_individual_visits || 0} icon={<UserCheck className="w-6 h-6 text-indigo-600" />} />}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-5 h-5 text-orange-600" />} />
-            <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />
+          <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-1' : 'md:grid-cols-3'}`}>
+            {!isStellr && <PerfMetricCard title="Store Visits" value={performance?.total_store_visits || 0} icon={<Target className="w-5 h-5 text-orange-600" />} />}
+            {!isStellr && <PerfMetricCard title="Target (Individual)" value={performance?.total_target_visits || 0} icon={<BarChart3 className="w-5 h-5 text-indigo-600" />} />}
             <PerfMetricCard title="Target (Store)" value={performance?.total_target_stores || 0} icon={<BarChart3 className="w-5 h-5 text-orange-600" />} />
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -1363,9 +1527,9 @@ function PerformanceTab() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team Lead</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Agents</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Indiv)</th>}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Target (Store)</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr></thead>
@@ -1375,19 +1539,19 @@ function PerformanceTab() {
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{team.team_lead_name}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.agent_count}</td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.visits}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.individual_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.store_visits || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.individual_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.store_visits || 0}</td>}
+                      {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_visits || 0}</td>}
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{team.target_stores || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => navigate(`/field-operations/drill-down/${team.team_lead_id}`)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
+                        <button onClick={() => navigate(buildDrillDownUrl(team.team_lead_id))} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end">
                           Drill Down <ChevronRight className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
                   ))}
                   {(performance?.teams || []).length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No team data available</td></tr>
+                    <tr><td colSpan={isStellr ? 5 : 8} className="px-4 py-8 text-center text-gray-500">No team data available</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1451,7 +1615,7 @@ function PerfMetricCard({ title, value, icon }: { title: string; value: string |
 
 const BRAND_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#14B8A6']
 
-function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: string; endDate: string; selectedCompany: string }) {
+function BrandInsightsTab({ startDate, endDate, selectedCompany, isStellr }: { startDate: string; endDate: string; selectedCompany: string; isStellr?: boolean }) {
   const effectiveStart = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const effectiveEnd = endDate || new Date().toISOString().split('T')[0]
 
@@ -1485,15 +1649,15 @@ function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: 
   return (
     <div className="space-y-6">
       {/* Summary KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${isStellr ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
         <BrandKPICard title="Total Visits" value={summary.total_visits || 0} icon={<Target className="w-5 h-5 text-blue-600" />} bg="bg-blue-100 dark:bg-blue-900/30" />
-        <BrandKPICard title="Total Individuals" value={summary.total_individuals || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />
-        <BrandKPICard title="Total Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />
-        <BrandKPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />
+        {!isStellr && <BrandKPICard title="Total Individuals" value={summary.total_individuals || 0} icon={<UserCheck className="w-5 h-5 text-green-600" />} bg="bg-green-100 dark:bg-green-900/30" />}
+        {!isStellr && <BrandKPICard title="Total Conversions" value={summary.total_conversions || 0} icon={<Award className="w-5 h-5 text-purple-600" />} bg="bg-purple-100 dark:bg-purple-900/30" />}
+        {!isStellr && <BrandKPICard title="Conversion Rate" value={`${summary.conversion_rate || 0}%`} icon={<TrendingUp className="w-5 h-5 text-yellow-600" />} bg="bg-yellow-100 dark:bg-yellow-900/30" />}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${!isStellr ? 'lg:grid-cols-2' : ''}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daily Visit Trends</h3>
@@ -1514,27 +1678,29 @@ function BrandInsightsTab({ startDate, endDate, selectedCompany }: { startDate: 
             <div className="h-64 flex items-center justify-center text-gray-400">No visit trend data available</div>
           )}
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
-            <PieChartIcon className="w-5 h-5 text-gray-400" />
-          </div>
-          {conversionsByDay.length > 0 ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={conversionsByDay}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
-                  <YAxis /><Tooltip /><Legend />
-                  <Bar dataKey="individuals" fill="#10B981" name="Individuals" />
-                  <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
-                </BarChart>
-              </ResponsiveContainer>
+        {!isStellr && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Individuals & Conversions</h3>
+              <PieChartIcon className="w-5 h-5 text-gray-400" />
             </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-400">No conversion data available</div>
-          )}
-        </div>
+            {conversionsByDay.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={conversionsByDay}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" tickFormatter={(d) => new Date(d).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })} />
+                    <YAxis /><Tooltip /><Legend />
+                    <Bar dataKey="individuals" fill="#10B981" name="Individuals" />
+                    <Bar dataKey="conversions" fill="#8B5CF6" name="Conversions" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-400">No conversion data available</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Visits by Hour */}
@@ -1691,10 +1857,10 @@ function BrandKPICard({ title, value, icon, bg }: { title: string; value: string
 
 // ─── GPS Tracking Tab (was LiveGPSTrackingPage) ─────────────────────────────
 
-function GPSTrackingTab() {
+function GPSTrackingTab({ selectedCompany }: { selectedCompany: string }) {
   const { data: locations, isLoading, isError } = useQuery({
-    queryKey: ['live-locations'],
-    queryFn: () => fieldOperationsService.getLiveLocations(),
+    queryKey: ['live-locations', selectedCompany],
+    queryFn: () => fieldOperationsService.getLiveLocations(selectedCompany || undefined),
     refetchInterval: 30000
   })
 

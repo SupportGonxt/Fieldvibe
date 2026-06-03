@@ -634,6 +634,7 @@ function CompanyAssignmentsTab() {
                   { value: 'both', label: 'Both (Store & Individual)' },
                   { value: 'store', label: 'Store Visits Only' },
                   { value: 'individual', label: 'Individual Visits Only' },
+                  { value: 'survey', label: 'Survey Visits Only' },
                 ]}
                 value={assignForm.visit_target_type}
                 onChange={(val: string) => setAssignForm(prev => ({ ...prev, visit_target_type: val }))}
@@ -691,9 +692,10 @@ function CompanyAssignmentsTab() {
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       a.visit_target_type === 'store' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
                       a.visit_target_type === 'individual' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' :
+                      a.visit_target_type === 'survey' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
                       'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                     }`}>
-                      {a.visit_target_type === 'both' ? 'Both' : a.visit_target_type === 'store' ? 'Store' : 'Individual'}
+                      {a.visit_target_type === 'both' ? 'Both' : a.visit_target_type === 'store' ? 'Store' : a.visit_target_type === 'individual' ? 'Individual' : 'Survey'}
                     </span>
                   </td>
                   <td className="px-6 py-4">

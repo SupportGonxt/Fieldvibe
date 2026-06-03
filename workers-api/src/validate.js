@@ -43,6 +43,7 @@ export const createUserSchema = z.object({
   manager_id: z.string().optional().nullable(),
   teamLeadId: z.string().optional().nullable(),
   team_lead_id: z.string().optional().nullable(),
+  tenant_id: z.string().optional().nullable(),
 });
 
 export const updateUserSchema = z.object({

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import TransactionDetail from '../../../components/transactions/TransactionDetail'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import { apiClient } from '../../../services/api.service'
 import { tradeMarketingService } from '../../../services/insights.service'
 import { formatDate } from '../../../utils/format'
 import ErrorState from '../../../components/ui/ErrorState'
@@ -20,11 +21,20 @@ export default function VisitDetail() {
   const [goldrushIdValue, setGoldrushIdValue] = useState('')
   const [savingGoldrushId, setSavingGoldrushId] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+  const [questionnaireDef, setQuestionnaireDef] = useState<{ id: string; name: string; questions: Array<{ key?: string; id?: string; label?: string; question?: string; question_text?: string; question_label?: string }> } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const desktopFileInputRef = useRef<HTMLInputElement>(null)
   const rejectedPhotosSectionRef = useRef<HTMLDivElement>(null)
   const photoFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const formatCoordinate = (value: unknown): string | null => {
+    if (value === null || value === undefined || value === '') return null
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return null
+    return numericValue.toFixed(4)
+  }
 
   const handlePhotoUpload = async (files: FileList | null, photoType: string = 'general') => {
     if (!files || files.length === 0 || !id) return
@@ -132,12 +142,44 @@ export default function VisitDetail() {
     }
   }, [visit])
 
+  const formatRespKey = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const isPhotoUrl = (val: string) => typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))
+
+  const getLabelForKey = (key: string): string => {
+    if (questionnaireDef?.questions) {
+      const found = questionnaireDef.questions.find((q, idx) =>
+        (q.key || q.id || String(idx)) === key
+      )
+      // Question text varies by which builder created the survey: SurveyBuilderPage
+      // uses label; the field-ops builder uses question_text/question_label. Check
+      // all of them so the detail view shows the question, not its id/key.
+      if (found) {
+        const f = found as any
+        return f.label || f.question || f.question_text || f.question_label || formatRespKey(key)
+      }
+    }
+    return formatRespKey(key)
+  }
+
   // Detect mobile context by checking if path starts with /agent/
   const isMobileContext = location.pathname.startsWith('/agent/')
 
   useEffect(() => {
     loadVisit()
   }, [id])
+
+  useEffect(() => {
+    if (!visit?.questionnaire_id) return
+    let mounted = true
+    apiClient.get(`/surveys/${visit.questionnaire_id}`)
+      .then((res: any) => {
+        if (!mounted) return
+        const q = res?.data?.data || res?.data
+        if (q?.id) setQuestionnaireDef(q)
+      })
+      .catch(() => {})
+    return () => { mounted = false }
+  }, [visit?.questionnaire_id])
 
   // Auto-scroll to rejected photos section if navigated here with ?scrollTo=rejected-photos
   useEffect(() => {
@@ -151,8 +193,38 @@ export default function VisitDetail() {
   const loadVisit = async () => {
     setLoading(true)
     try {
-      const response = await fieldOperationsService.getVisit(id!)
-      setVisit(response.data || response)
+      let payload: any = null
+      try {
+        const response = await fieldOperationsService.getVisit(id!)
+        payload = response.data || response
+      } catch {
+        // Fallback for environments where /field-operations/visits/:id is not mounted.
+        const fallback = await apiClient.get(`/visits/${id}`)
+        payload = fallback?.data?.data || fallback?.data
+      }
+      // Merge in the complete photo list from /visits/:id/photos so the detail view
+      // includes back/front/board/custom-question photos that aren't in visit_photos.
+      try {
+        const photoRes = await apiClient.get(`/visits/${id}/photos`)
+        const extraPhotos = (photoRes?.data?.data || []) as Array<any>
+        if (Array.isArray(extraPhotos) && extraPhotos.length > 0 && payload) {
+          const existing = Array.isArray(payload.photos) ? payload.photos : []
+          const seen = new Set<string>()
+          for (const p of existing) {
+            const key = p?.id || p?.r2_url || p?.photo_url || p?.url
+            if (key) seen.add(String(key))
+          }
+          const merged = [...existing]
+          for (const p of extraPhotos) {
+            const key = p?.id || p?.r2_url || p?.photo_url || p?.url
+            if (!key || seen.has(String(key))) continue
+            seen.add(String(key))
+            merged.push(p)
+          }
+          payload = { ...payload, photos: merged }
+        }
+      } catch { /* ignore: detail view still renders with whatever photos came back */ }
+      setVisit(payload)
     } catch (error) {
       console.error('Failed to load visit:', error)
     } finally {
@@ -275,7 +347,12 @@ export default function VisitDetail() {
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">GPS</span>
                 <span className="text-sm text-white">
-                  {(visit.checkin_latitude || visit.latitude)?.toFixed(4)}, {(visit.checkin_longitude || visit.longitude)?.toFixed(4)}
+                  {(() => {
+                    const lat = formatCoordinate(visit.checkin_latitude || visit.latitude)
+                    const lng = formatCoordinate(visit.checkin_longitude || visit.longitude)
+                    if (!lat || !lng) return 'Unavailable'
+                    return `${lat}, ${lng}`
+                  })()}
                 </span>
               </div>
             )}
@@ -593,26 +670,74 @@ export default function VisitDetail() {
             )}
           </div>
 
-          {/* Survey Responses */}
-          {responses.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                <FileText className="w-3 h-3" /> Survey Responses
-              </h3>
-              {responses.map((resp: any, idx: number) => {
-                let parsed: Record<string, string> = {}
-                try { parsed = typeof resp.responses === 'string' ? JSON.parse(resp.responses) : resp.responses || {} } catch { /* */ }
-                return (
-                  <div key={idx} className="space-y-2">
-                    {Object.entries(parsed).map(([key, value]) => (
-                      <div key={key} className="flex justify-between">
-                        <span className="text-xs text-gray-500">{key}</span>
-                        <span className="text-sm text-white">{String(value)}</span>
+          {/* Survey / Questionnaire Responses */}
+          {responses.length > 0 && (() => {
+            const allParsed: Record<string, string> = {}
+            for (const resp of responses) {
+              try {
+                const parsed = typeof resp.responses === 'string' ? JSON.parse(resp.responses) : resp.responses || {}
+                Object.assign(allParsed, parsed)
+              } catch { /* skip malformed */ }
+            }
+            const textEntries = Object.entries(allParsed).filter(([, v]) => v != null && String(v).trim() !== '' && !isPhotoUrl(String(v)))
+            const photoEntries = Object.entries(allParsed).filter(([, v]) => v != null && isPhotoUrl(String(v)))
+            if (textEntries.length === 0 && photoEntries.length === 0) return null
+            return (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <MessageSquare className="w-3 h-3" /> {questionnaireDef?.name || 'Questionnaire'}
+                </h3>
+
+                {/* Text answers */}
+                {textEntries.length > 0 && (
+                  <div className="space-y-2.5">
+                    {textEntries.map(([key, value]) => (
+                      <div key={key} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">{getLabelForKey(key)}</p>
+                        <p className="text-sm text-white">{String(value)}</p>
                       </div>
                     ))}
                   </div>
-                )
-              })}
+                )}
+
+                {/* Photo answers */}
+                {photoEntries.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                      <Camera className="w-3 h-3" /> Photos
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {photoEntries.map(([key, url]) => (
+                        <div key={key}>
+                          <button
+                            onClick={() => setExpandedPhoto(String(url))}
+                            className="block w-full rounded-lg overflow-hidden border border-white/10 active:opacity-80 transition-opacity"
+                          >
+                            <img src={String(url)} alt={getLabelForKey(key)} className="w-full h-28 object-cover" />
+                          </button>
+                          <p className="mt-1 text-[10px] text-gray-500 text-center truncate">{getLabelForKey(key)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Photo lightbox */}
+          {expandedPhoto && (
+            <div
+              className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+              onClick={() => setExpandedPhoto(null)}
+            >
+              <img src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
+              <button
+                onClick={() => setExpandedPhoto(null)}
+                className="absolute top-4 right-4 p-2 bg-white/10 rounded-full text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           )}
 
@@ -857,7 +982,7 @@ export default function VisitDetail() {
       {responses.length > 0 && (
         <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5" /> Survey Responses
+            <FileText className="w-5 h-5" /> {questionnaireDef?.name || 'Survey Responses'}
           </h3>
           {responses.map((resp: any, idx: number) => {
             let parsed: Record<string, string> = {}
@@ -866,7 +991,7 @@ export default function VisitDetail() {
               <div key={idx} className="space-y-2">
                 {Object.entries(parsed).map(([key, value]) => (
                   <div key={key} className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">{getLabelForKey(key)}</span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{String(value)}</span>
                   </div>
                 ))}

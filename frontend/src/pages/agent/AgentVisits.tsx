@@ -39,6 +39,22 @@ export default function AgentVisits() {
   )
   const [typeFilter, setTypeFilter] = useState<'all' | 'store' | 'individual'>('all')
   const [search, setSearch] = useState('')
+  // The "Rejected Photos" and "Rejected GR ID" filters are Goldrush-specific —
+  // only show them to agents who work for a Goldrush company.
+  const [isGoldrushAgent, setIsGoldrushAgent] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    apiClient.get('/agent/my-companies')
+      .then((res: any) => {
+        const list = res?.data?.data || res?.data || []
+        if (mounted && Array.isArray(list)) {
+          setIsGoldrushAgent(list.some((c: any) => /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)))
+        }
+      })
+      .catch(() => {})
+    return () => { mounted = false }
+  }, [])
 
   const fetchVisits = useCallback(async (signal?: AbortSignal, retryCount = 0) => {
     setLoading(true)
@@ -221,7 +237,9 @@ export default function AgentVisits() {
 
         {/* Status filters */}
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {(['all', 'completed', 'in_progress', 'pending', 'rejected_photos', 'rejected_goldrush'] as const).map((f) => (
+          {((isGoldrushAgent
+            ? ['all', 'completed', 'in_progress', 'pending', 'rejected_photos', 'rejected_goldrush']
+            : ['all', 'completed', 'in_progress', 'pending']) as FilterType[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 
 type PresetKey = 'today' | 'wtd' | 'mtd' | 'ytd' | 'alltime' | 'custom'
 
@@ -57,23 +57,17 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
   onStartDateChange,
   onEndDateChange,
 }) => {
-  const [activePreset, setActivePreset] = useState<PresetKey>(() =>
-    getActivePreset(startDate, endDate)
-  )
+  // Track whether user explicitly clicked "Custom" — needed to keep the Custom
+  // button highlighted while typing in date inputs (dates may not match any preset).
+  const [isCustomMode, setIsCustomMode] = useState(false)
 
-  // Sync activePreset if parent changes startDate/endDate externally
-  // (e.g. reset button, URL param changes) — but don't override 'custom'
-  // while the user is actively picking dates
-  useEffect(() => {
-    const derived = getActivePreset(startDate, endDate)
-    // Only sync if it matches a known preset — don't clobber 'custom' mid-selection
-    if (derived !== 'custom') {
-      setActivePreset(derived)
-    }
-  }, [startDate, endDate])
+  // Derive the active preset directly from props — no useEffect sync needed.
+  // This prevents company-change re-renders from inadvertently flipping the preset.
+  const derivedPreset = getActivePreset(startDate, endDate)
+  const activePreset: PresetKey = isCustomMode && derivedPreset === 'custom' ? 'custom' : derivedPreset
 
   const handlePreset = (preset: PresetKey) => {
-    setActivePreset(preset)
+    setIsCustomMode(preset === 'custom')
 
     if (preset === 'alltime') {
       onStartDateChange('')

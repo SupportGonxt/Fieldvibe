@@ -18,6 +18,11 @@ interface User {
   created_at: string
 }
 
+interface Company {
+  id: string
+  name: string
+}
+
 interface FormData {
   email: string
   password: string
@@ -26,6 +31,7 @@ interface FormData {
   phone: string
   role: string
   agent_type: string
+  company_id: string
 }
 
 const ROLES = [
@@ -47,6 +53,7 @@ const STATUSES = [
 ]
 
 export default function UserManagementPage() {
+  const [companies, setCompanies] = useState<Company[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -76,7 +83,8 @@ export default function UserManagementPage() {
     lastName: '',
     phone: '',
     role: 'salesman',
-    agent_type: 'field_ops'
+    agent_type: 'field_ops',
+    company_id: ''
   })
 
   const [editFormData, setEditFormData] = useState({
@@ -98,6 +106,13 @@ export default function UserManagementPage() {
   useEffect(() => {
     fetchUsers()
   }, [searchTerm, roleFilter, statusFilter])
+
+  useEffect(() => {
+    apiClient.get('/field-ops/companies').then(res => {
+      const data = res.data?.data || []
+      setCompanies(Array.isArray(data) ? data : [])
+    }).catch(() => {})
+  }, [])
 
   const fetchUsers = async () => {
     try {
@@ -131,7 +146,12 @@ export default function UserManagementPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await apiClient.post('/users', formData)
+      const { company_id, ...userPayload } = formData
+      const res = await apiClient.post('/users', userPayload)
+      const newUserId = res.data?.data?.id
+      if (newUserId && company_id) {
+        await apiClient.post('/field-ops/agent-companies', { agent_id: newUserId, company_id })
+      }
       showSuccess('User created successfully')
       setShowCreateModal(false)
       resetForm()
@@ -226,7 +246,8 @@ export default function UserManagementPage() {
       lastName: '',
       phone: '',
       role: 'salesman',
-      agent_type: 'field_ops'
+      agent_type: 'field_ops',
+      company_id: ''
     })
   }
 
@@ -412,7 +433,7 @@ export default function UserManagementPage() {
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
                           <span className="text-blue-600 font-medium">
-                            {user.first_name.charAt(0)}{user.last_name.charAt(0)}
+                            {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
                           </span>
                         </div>
                         <div className="ml-4">
@@ -578,6 +599,19 @@ export default function UserManagementPage() {
                     placeholder="Select department..."
                   />
                 </div>
+                {companies.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Company
+                    </label>
+                    <SearchableSelect
+                      options={companies.map(c => ({ value: c.id, label: c.name }))}
+                      value={formData.company_id}
+                      onChange={(val) => setFormData({ ...formData, company_id: val || '' })}
+                      placeholder="Select company..."
+                    />
+                  </div>
+                )}
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"

@@ -110,6 +110,7 @@ export const breadcrumbLabels: Record<string, string> = {
   '/trade-marketing/brand-activation': 'Brand Activation',
   '/van-sales/dashboard': 'Van Sales Dashboard',
   '/field-operations/dashboard': 'Field Operations Dashboard',
+  '/field-operations/reports/goldrush-stores': 'Stores Report',
   '/admin': 'Admin Panel',
 };
 
@@ -118,7 +119,7 @@ export const BreadcrumbsWithLabels: React.FC<Omit<BreadcrumbsProps, 'items'>> = 
   const location = useLocation();
   
   // Generate items with custom labels
-  const items = generateBreadcrumbsFromPath(location.pathname).map((item, index, arr) => {
+  const items = generateBreadcrumbsFromPath(location.pathname).map((item, index) => {
     // Build full path for this segment
     const fullPath = location.pathname.split('/').slice(0, index + 2).join('/');
     const customLabel = breadcrumbLabels[fullPath];

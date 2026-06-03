@@ -70,6 +70,51 @@ export function exportToXLSX(
   downloadBlob(blob, `${filename}.xls`)
 }
 
+interface ExcelSection {
+  title: string
+  columns: ExportColumn[]
+  data: any[]
+}
+
+/**
+ * Export several titled sections into a single CSV file (UTF-8 with BOM) that
+ * Excel opens directly. Each section gets a title row, a header row, then its
+ * data rows, separated by a blank line. Sections with no rows are skipped.
+ *
+ * CSV (not HTML-as-.xls) is used deliberately: the HTML-table trick triggers
+ * Excel's "file format and extension don't match / corrupted" warning, whereas
+ * a BOM-prefixed .csv opens cleanly.
+ */
+export function exportSectionsToExcel(
+  sections: ExcelSection[],
+  filename: string = 'export',
+  _sheetName: string = 'Report',
+  meta: Array<[string, string]> = []
+): void {
+  const csvCell = (value: any): string => `"${String(value ?? '').replace(/"/g, '""')}"`
+  const lines: string[] = []
+
+  meta.forEach(([k, v]) => lines.push(`${csvCell(k)},${csvCell(v)}`))
+  if (meta.length > 0) lines.push('')
+
+  sections.forEach(section => {
+    if (!section.data || section.data.length === 0) return
+    lines.push(csvCell(section.title))
+    lines.push(section.columns.map(col => csvCell(col.label)).join(','))
+    section.data.forEach(row => {
+      lines.push(section.columns.map(col => {
+        const value = col.format ? col.format(row[col.key], row) : row[col.key]
+        return csvCell(value)
+      }).join(','))
+    })
+    lines.push('')
+  })
+
+  const BOM = '﻿'
+  const blob = new Blob([BOM + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+  downloadBlob(blob, `${filename}.csv`)
+}
+
 export function exportToJSON(data: any[], filename: string = 'export'): void {
   const json = JSON.stringify(data, null, 2)
   const blob = new Blob([json], { type: 'application/json' })

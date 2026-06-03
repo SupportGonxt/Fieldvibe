@@ -1097,6 +1097,9 @@ function App() {
             <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><GoldrushIndividualInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><GoldrushStoreInsights /></PageLoader>} />
 
+            {/* Stellr → merged into Stores Report */}
+            <Route path="field-operations/reports/stellr" element={<Navigate to="/field-operations/reports/goldrush-stores" replace />} />
+
             {/* Mobile More Menu */}
             <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
             <Route path="more" element={<PageLoader><MoreMenuPage /></PageLoader>} />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { ArrowLeft, User, Target, TrendingUp, Calendar, Building2, ChevronRight, UserCheck, Award, FileSpreadsheet, Store, RefreshCw } from 'lucide-react'
@@ -21,11 +21,39 @@ type TimePeriod = 'day' | 'week' | 'month' | 'custom'
 export default function PerformanceDrillDownPage() {
   const { userId } = useParams<{ userId: string }>()
   const navigate = useNavigate()
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('day')
-  const [dateRange, setDateRange] = useState({
-    start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0]
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isStellr = searchParams.get('stellr') === '1'
+
+  const urlPeriod = searchParams.get('period')
+  const initialPeriod: TimePeriod =
+    urlPeriod === 'day' || urlPeriod === 'week' || urlPeriod === 'month' || urlPeriod === 'custom'
+      ? urlPeriod
+      : 'month'
+  const [timePeriod, setTimePeriodState] = useState<TimePeriod>(initialPeriod)
+  const [dateRange, setDateRangeState] = useState({
+    start_date: searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end_date: searchParams.get('end_date') || new Date().toISOString().split('T')[0]
   })
+
+  const setTimePeriod = (p: TimePeriod) => {
+    setTimePeriodState(p)
+    const next = new URLSearchParams(searchParams)
+    next.set('period', p)
+    if (p !== 'custom') {
+      next.delete('start_date')
+      next.delete('end_date')
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  const setDateRange = (r: { start_date: string; end_date: string }) => {
+    setDateRangeState(r)
+    const next = new URLSearchParams(searchParams)
+    next.set('period', 'custom')
+    next.set('start_date', r.start_date)
+    next.set('end_date', r.end_date)
+    setSearchParams(next, { replace: true })
+  }
 
   const { data: drillDown, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['field-ops-drill-down', userId, timePeriod, dateRange],
@@ -194,7 +222,7 @@ export default function PerformanceDrillDownPage() {
       </div>
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className={`grid gap-4 ${isStellr ? 'grid-cols-1 md:grid-cols-1' : 'grid-cols-2 md:grid-cols-5'}`}>
         <div className="card p-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30"><Target className="w-5 h-5 text-blue-600" /></div>
           <div>
@@ -202,34 +230,42 @@ export default function PerformanceDrillDownPage() {
             <p className="text-xl font-bold text-gray-900 dark:text-white">{totalVisits}</p>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30"><UserCheck className="w-5 h-5 text-green-600" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Individual</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalIndividuals}</p>
+        {!isStellr && (
+          <div className="card p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30"><UserCheck className="w-5 h-5 text-green-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Individual</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{totalIndividuals}</p>
+            </div>
           </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30"><Store className="w-5 h-5 text-indigo-600" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Store</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalStoreVisits}</p>
+        )}
+        {!isStellr && (
+          <div className="card p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30"><Store className="w-5 h-5 text-indigo-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Store</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{totalStoreVisits}</p>
+            </div>
           </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30"><Award className="w-5 h-5 text-purple-600" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Conversions</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{totalConversions}</p>
+        )}
+        {!isStellr && (
+          <div className="card p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30"><Award className="w-5 h-5 text-purple-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Conversions</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{totalConversions}</p>
+            </div>
           </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30"><TrendingUp className="w-5 h-5 text-yellow-600" /></div>
-          <div>
-            <p className="text-sm text-gray-500">Conv. Rate</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{conversionRate}%</p>
+        )}
+        {!isStellr && (
+          <div className="card p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30"><TrendingUp className="w-5 h-5 text-yellow-600" /></div>
+            <div>
+              <p className="text-sm text-gray-500">Conv. Rate</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{conversionRate}%</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Daily Breakdown Chart */}
@@ -263,9 +299,9 @@ export default function PerformanceDrillDownPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Visits</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conversions</th>
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Individual</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Store</th>}
+                  {!isStellr && <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conversions</th>}
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -275,12 +311,15 @@ export default function PerformanceDrillDownPage() {
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{sub.agent_name || `${sub.first_name || ''} ${sub.last_name || ''}`}</td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{(sub.role || 'agent').replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.visits || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.individuals || sub.individual_visits || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.store_visits || 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.conversions || 0}</td>
+                    {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.individuals || sub.individual_visits || 0}</td>}
+                    {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.store_visits || 0}</td>}
+                    {!isStellr && <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{sub.conversions || 0}</td>}
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => navigate(`/field-operations/drill-down/${sub.id || sub.agent_id}`)}
+                        onClick={() => {
+                          const qs = searchParams.toString()
+                          navigate(`/field-operations/drill-down/${sub.id || sub.agent_id}${qs ? `?${qs}` : ''}`)
+                        }}
                         className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 justify-end"
                       >
                         Drill Down <ChevronRight className="w-4 h-4" />
@@ -297,10 +336,10 @@ export default function PerformanceDrillDownPage() {
       {/* Target Performance */}
       <div className="card p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Target Achievement</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 gap-6 ${isStellr ? 'md:grid-cols-1' : 'md:grid-cols-3'}`}>
           <TargetBar label="Visits" current={totalVisits} target={20} />
-          <TargetBar label="Individuals" current={totalIndividuals} target={10} />
-          <TargetBar label="Conversions" current={totalConversions} target={5} />
+          {!isStellr && <TargetBar label="Individuals" current={totalIndividuals} target={10} />}
+          {!isStellr && <TargetBar label="Conversions" current={totalConversions} target={5} />}
         </div>
       </div>
     </div>

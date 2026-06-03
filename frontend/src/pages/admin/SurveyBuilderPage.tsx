@@ -15,6 +15,10 @@ import {
   FormControlLabel,
   Divider,
   Alert,
+  Checkbox,
+  ListItemText,
+  Chip,
+  OutlinedInput,
 } from '@mui/material';
 import { Add, Delete, ArrowUpward, ArrowDownward, Save } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -37,7 +41,7 @@ interface Survey {
   id?: number;
   name: string;
   description: string;
-  brand_id?: number;
+  brand_ids: (string | number)[];
   is_mandatory: boolean;
   questions: SurveyQuestion[];
 }
@@ -48,28 +52,32 @@ const SurveyBuilderPage: React.FC = () => {
   const [survey, setSurvey] = useState<Survey>({
     name: '',
     description: '',
+    brand_ids: [],
     is_mandatory: false,
     questions: [],
   });
-  const [brands, setBrands] = useState<any[]>([]);
+  // Surveys are assigned to companies (field_companies). The selected company
+  // ids are stored in the survey's `brand_ids` column, which the agent visit
+  // flow uses to show a survey only to its assigned company.
+  const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    loadBrands();
+    loadCompanies();
     if (id) {
       loadSurvey();
     }
   }, [id]);
 
-  const loadBrands = async () => {
+  const loadCompanies = async () => {
     try {
-      const response = await apiClient.get('/brands');
-      const brandsData = response.data.data?.brands || response.data.data || [];
-      setBrands(Array.isArray(brandsData) ? brandsData : []);
+      const response = await apiClient.get('/field-ops/companies');
+      const data = response.data?.data || response.data || [];
+      setCompanies(Array.isArray(data) ? data : (data.companies || []));
     } catch (err) {
-      console.error('Failed to load brands:', err);
+      console.error('Failed to load companies:', err);
     }
   };
 
@@ -77,9 +85,20 @@ const SurveyBuilderPage: React.FC = () => {
     try {
       const response = await apiClient.get(`/surveys/${id}`);
       const data = response.data.data;
+      // brand_ids may arrive as an array (new API), a JSON string, or be absent
+      // on legacy rows that only have a single brand_id.
+      let brandIds: (string | number)[] = [];
+      if (Array.isArray(data.brand_ids)) {
+        brandIds = data.brand_ids;
+      } else if (typeof data.brand_ids === 'string' && data.brand_ids) {
+        try { brandIds = JSON.parse(data.brand_ids); } catch { brandIds = []; }
+      } else if (data.brand_id) {
+        brandIds = [data.brand_id];
+      }
       setSurvey({
         ...data,
-        questions: JSON.parse(data.questions || '[]'),
+        brand_ids: brandIds,
+        questions: typeof data.questions === 'string' ? JSON.parse(data.questions || '[]') : (data.questions || []),
       });
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load survey');
@@ -193,15 +212,35 @@ const SurveyBuilderPage: React.FC = () => {
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Brand (Optional)</InputLabel>
+            <InputLabel id="survey-companies-label">Companies</InputLabel>
             <Select
-              value={survey.brand_id || ''}
-              onChange={(e) => setSurvey({ ...survey, brand_id: e.target.value as number })}
+              labelId="survey-companies-label"
+              multiple
+              value={survey.brand_ids}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSurvey({
+                  ...survey,
+                  brand_ids: typeof value === 'string' ? value.split(',') : value,
+                });
+              }}
+              input={<OutlinedInput label="Companies" />}
+              renderValue={(selected) => {
+                if (!selected.length) return <em>All Companies</em>;
+                return (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const company = companies.find((c) => String(c.id) === String(value));
+                      return <Chip key={value} label={company?.name || value} size="small" />;
+                    })}
+                  </Box>
+                );
+              }}
             >
-              <MenuItem value="">None</MenuItem>
-              {brands.map((brand) => (
-                <MenuItem key={brand.id} value={brand.id}>
-                  {brand.name}
+              {companies.map((company) => (
+                <MenuItem key={company.id} value={company.id}>
+                  <Checkbox checked={survey.brand_ids.some((id) => String(id) === String(company.id))} />
+                  <ListItemText primary={company.name} />
                 </MenuItem>
               ))}
             </Select>

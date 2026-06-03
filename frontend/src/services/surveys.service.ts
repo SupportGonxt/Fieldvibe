@@ -188,6 +188,18 @@ class SurveysService extends ApiService {
     return response.data?.data || response.data
   }
 
+  async getSurveyResponsesList(filter: any = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+
+    const response = await this.get(`${this.baseUrl}/responses?${params.toString()}`)
+    return response.data?.data || response.data
+  }
+
   async getSurveyTrends(filter: any = {}) {
     const params = new URLSearchParams()
     Object.entries(filter).forEach(([key, value]) => {
