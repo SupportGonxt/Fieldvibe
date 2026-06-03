@@ -77,59 +77,42 @@ interface ExcelSection {
 }
 
 /**
- * Export several titled tables into a single Excel-compatible worksheet.
- * Sections with no rows are skipped.
+ * Export several titled sections into a single CSV file (UTF-8 with BOM) that
+ * Excel opens directly. Each section gets a title row, a header row, then its
+ * data rows, separated by a blank line. Sections with no rows are skipped.
+ *
+ * CSV (not HTML-as-.xls) is used deliberately: the HTML-table trick triggers
+ * Excel's "file format and extension don't match / corrupted" warning, whereas
+ * a BOM-prefixed .csv opens cleanly.
  */
 export function exportSectionsToExcel(
   sections: ExcelSection[],
   filename: string = 'export',
-  sheetName: string = 'Report',
+  _sheetName: string = 'Report',
   meta: Array<[string, string]> = []
 ): void {
-  const renderTable = (section: ExcelSection): string => {
-    if (!section.data || section.data.length === 0) return ''
-    const headerRow = section.columns.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')
-    const bodyRows = section.data.map(row =>
-      section.columns.map(col => {
+  const csvCell = (value: any): string => `"${String(value ?? '').replace(/"/g, '""')}"`
+  const lines: string[] = []
+
+  meta.forEach(([k, v]) => lines.push(`${csvCell(k)},${csvCell(v)}`))
+  if (meta.length > 0) lines.push('')
+
+  sections.forEach(section => {
+    if (!section.data || section.data.length === 0) return
+    lines.push(csvCell(section.title))
+    lines.push(section.columns.map(col => csvCell(col.label)).join(','))
+    section.data.forEach(row => {
+      lines.push(section.columns.map(col => {
         const value = col.format ? col.format(row[col.key], row) : row[col.key]
-        const strValue = String(value ?? '')
-        const num = Number(strValue)
-        if (!isNaN(num) && strValue.trim() !== '') {
-          return `<td style="mso-number-format:'0.00'">${escapeHtml(strValue)}</td>`
-        }
-        return `<td style="mso-number-format:'\\@'">${escapeHtml(strValue)}</td>`
-      }).join('')
-    ).map(r => `<tr>${r}</tr>`).join('')
+        return csvCell(value)
+      }).join(','))
+    })
+    lines.push('')
+  })
 
-    const colSpan = section.columns.length
-    return `
-      <tr><td colspan="${colSpan}" style="font-weight:bold;font-size:14px;padding-top:16px;">${escapeHtml(section.title)}</td></tr>
-      <tr>${headerRow}</tr>
-      ${bodyRows}
-      <tr><td colspan="${colSpan}">&nbsp;</td></tr>`
-  }
-
-  const metaRows = meta.map(([k, v]) =>
-    `<tr><td style="font-weight:bold;">${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`
-  ).join('')
-
-  const tables = sections.map(renderTable).join('')
-
-  const html = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>${escapeHtml(sheetName)}</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;}</style>
-</head><body>
-<table border="1">${metaRows ? `${metaRows}<tr><td>&nbsp;</td></tr>` : ''}${tables}</table>
-</body></html>`
-
-  const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
-  downloadBlob(blob, `${filename}.xls`)
+  const BOM = '﻿'
+  const blob = new Blob([BOM + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+  downloadBlob(blob, `${filename}.csv`)
 }
 
 export function exportToJSON(data: any[], filename: string = 'export'): void {

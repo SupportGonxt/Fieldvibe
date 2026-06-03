@@ -6544,19 +6544,26 @@ api.get('/surveys/responses', authMiddleware, async (c) => {
     try { questions = typeof r.questions === 'string' ? JSON.parse(r.questions) : (r.questions || []); } catch { questions = []; }
     let parsed = {};
     try { parsed = typeof r.responses === 'string' ? JSON.parse(r.responses) : (r.responses || {}); } catch { parsed = {}; }
-    // Build the ordered question/answer list for the detail view.
+    // Questions come in two shapes: the seeded Goldrush style ({ key, label, type })
+    // and the survey-builder style ({ id, question_text, question_type }). Answers
+    // are keyed by whichever identifier that survey uses (id / key / label), so try
+    // them all when resolving each answer.
     const answers = (questions || []).map(q => {
-      let val = parsed[q.key];
-      if (val === undefined) val = parsed[q.label];
+      const label = q.label || q.question_text || q.question || q.title || q.text || q.key || q.id || '';
+      const type = q.type || q.question_type || 'text';
+      let val;
+      for (const k of [q.id, q.key, q.label, q.question_text]) {
+        if (k !== undefined && k !== null && parsed[k] !== undefined) { val = parsed[k]; break; }
+      }
       if (Array.isArray(val)) val = val.join(', ');
       return {
-        question_label: q.label || q.key || '',
-        question_type: q.type || 'text',
+        question_label: label,
+        question_type: type,
         answer: (val === undefined || val === null) ? '' : String(val)
       };
     });
     // Include any answered keys that don't map to a known question definition.
-    const knownKeys = new Set((questions || []).flatMap(q => [q.key, q.label].filter(Boolean)));
+    const knownKeys = new Set((questions || []).flatMap(q => [q.id, q.key, q.label, q.question_text].filter(Boolean)));
     for (const [k, v] of Object.entries(parsed)) {
       if (knownKeys.has(k)) continue;
       if (v === undefined || v === null || v === '') continue;
