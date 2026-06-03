@@ -6516,6 +6516,66 @@ api.get('/surveys/trends', authMiddleware, async (c) => {
   } });
 });
 
+// List individual survey responses (one row per submitted response) with the
+// brand + agent, plus the full questions & answers for the admin "View" detail.
+// Scoped to actual survey responses, optionally filtered by brand and date range
+// (same filters as the surveys dashboard).
+api.get('/surveys/responses', authMiddleware, async (c) => {
+  const db = c.env.DB; const tenantId = c.get('tenantId');
+  const { brand_id: brandId, start_date: startDate, end_date: endDate } = c.req.query();
+  const scope = surveyResponseScope(tenantId, brandId, startDate, endDate);
+  const rows = await db.prepare(`
+    SELECT vr.id, vr.responses, vr.created_at, vr.visit_id,
+      v.agent_id,
+      q.id as questionnaire_id, q.name as questionnaire_name, q.questions as questions,
+      (u.first_name || ' ' || u.last_name) as agent_name,
+      COALESCE(qb.name, vb.name) as brand_name
+    FROM visit_responses vr
+    JOIN visits v ON vr.visit_id = v.id
+    LEFT JOIN users u ON u.id = v.agent_id
+    LEFT JOIN questionnaires q ON q.id = v.questionnaire_id
+    LEFT JOIN brands qb ON qb.id = q.brand_id
+    LEFT JOIN brands vb ON vb.id = v.brand_id
+    WHERE ${scope.where}
+    ORDER BY vr.created_at DESC LIMIT 500`).bind(...scope.binds).all();
+
+  const data = (rows.results || []).map(r => {
+    let questions = [];
+    try { questions = typeof r.questions === 'string' ? JSON.parse(r.questions) : (r.questions || []); } catch { questions = []; }
+    let parsed = {};
+    try { parsed = typeof r.responses === 'string' ? JSON.parse(r.responses) : (r.responses || {}); } catch { parsed = {}; }
+    // Build the ordered question/answer list for the detail view.
+    const answers = (questions || []).map(q => {
+      let val = parsed[q.key];
+      if (val === undefined) val = parsed[q.label];
+      if (Array.isArray(val)) val = val.join(', ');
+      return {
+        question_label: q.label || q.key || '',
+        question_type: q.type || 'text',
+        answer: (val === undefined || val === null) ? '' : String(val)
+      };
+    });
+    // Include any answered keys that don't map to a known question definition.
+    const knownKeys = new Set((questions || []).flatMap(q => [q.key, q.label].filter(Boolean)));
+    for (const [k, v] of Object.entries(parsed)) {
+      if (knownKeys.has(k)) continue;
+      if (v === undefined || v === null || v === '') continue;
+      if (typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'))) continue;
+      answers.push({ question_label: k, question_type: 'text', answer: Array.isArray(v) ? v.join(', ') : String(v) });
+    }
+    return {
+      id: r.id,
+      visit_id: r.visit_id,
+      brand_name: r.brand_name || 'Unassigned',
+      agent_name: (r.agent_name && r.agent_name.trim()) ? r.agent_name : 'Unknown',
+      questionnaire_name: r.questionnaire_name || 'Survey',
+      created_at: r.created_at,
+      answers
+    };
+  });
+  return c.json({ success: true, data });
+});
+
 api.get('/surveys/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');

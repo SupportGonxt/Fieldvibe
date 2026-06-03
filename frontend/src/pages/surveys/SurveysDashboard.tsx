@@ -14,7 +14,9 @@ import {
   RefreshCw,
   Target,
   Award,
-  MessageSquare
+  MessageSquare,
+  Eye,
+  X
 } from 'lucide-react'
 import {
   LineChart,
@@ -33,8 +35,10 @@ import {
   Cell,
   Pie
 } from 'recharts'
+import toast from 'react-hot-toast'
 import { surveysService } from '../../services/surveys.service'
 import { brandService } from '../../services/brand.service'
+import { exportSectionsToExcel } from '../../utils/export'
 import { formatDate, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
@@ -48,6 +52,7 @@ export default function SurveysDashboard() {
     end_date: new Date().toISOString().split('T')[0]
   })
   const [brandId, setBrandId] = useState('')
+  const [selectedResponse, setSelectedResponse] = useState<any | null>(null)
 
   const filters = { ...dateRange, ...(brandId ? { brand_id: brandId } : {}) }
 
@@ -75,6 +80,12 @@ export default function SurveysDashboard() {
     staleTime: 1000 * 60 * 5,
   })
 
+  const { data: responsesList } = useQuery({
+    queryKey: ['surveys-responses-list', filters],
+    queryFn: () => surveysService.getSurveyResponsesList(filters),
+    staleTime: 1000 * 60 * 5,
+  })
+
   const isLoading = statsLoading || analyticsLoading || trendsLoading
   const isError = statsError || analyticsError || trendsError
 
@@ -83,7 +94,85 @@ export default function SurveysDashboard() {
   }
 
   const handleExportReport = () => {
-    surveysService.exportSurveyReport('pdf')
+    const selectedBrand = brandId ? (brands || []).find((b) => b.id === brandId) : null
+    const brandLabel = selectedBrand ? selectedBrand.name : 'All Brands'
+
+    const sections = [
+      {
+        title: 'Summary',
+        columns: [
+          { key: 'metric', label: 'Metric' },
+          { key: 'value', label: 'Value' },
+        ],
+        data: [
+          { metric: 'Total Surveys', value: stats?.total_surveys ?? 0 },
+          { metric: 'Active Surveys', value: stats?.active_surveys ?? 0 },
+          { metric: 'Total Responses', value: stats?.total_responses ?? 0 },
+          { metric: 'Response Rate', value: `${stats?.response_rate ?? 0}%` },
+        ],
+      },
+      {
+        title: 'Surveys',
+        columns: [
+          { key: 'title', label: 'Survey' },
+          { key: 'type', label: 'Type' },
+          { key: 'status', label: 'Status' },
+          { key: 'response_count', label: 'Responses' },
+          { key: 'response_rate', label: 'Response Rate (%)' },
+        ],
+        data: (analytics?.recent_surveys || []).map((s: any) => ({
+          title: s.title,
+          type: s.type,
+          status: s.status,
+          response_count: s.response_count ?? 0,
+          response_rate: s.response_rate ?? '',
+        })),
+      },
+      {
+        title: 'Responses by Agent',
+        columns: [
+          { key: 'agent', label: 'Agent' },
+          { key: 'responses', label: 'Responses' },
+        ],
+        data: analytics?.responses_by_agent || [],
+      },
+      {
+        title: 'Category Performance',
+        columns: [
+          { key: 'category', label: 'Category' },
+          { key: 'survey_count', label: 'Surveys' },
+          { key: 'total_responses', label: 'Total Responses' },
+          { key: 'avg_response_rate', label: 'Avg Response Rate (%)' },
+        ],
+        data: analytics?.category_performance || [],
+      },
+      {
+        title: 'Daily Responses',
+        columns: [
+          { key: 'date', label: 'Date' },
+          { key: 'responses', label: 'Responses' },
+        ],
+        data: trends?.daily_responses || [],
+      },
+    ]
+
+    const hasData = sections.some((s) => s.data.length > 0)
+    if (!hasData) {
+      toast.error('No survey data to export for the selected filters')
+      return
+    }
+
+    const safeBrand = brandLabel.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+    exportSectionsToExcel(
+      sections,
+      `survey-report-${safeBrand}-${dateRange.start_date}-to-${dateRange.end_date}`,
+      'Survey Report',
+      [
+        ['Brand', brandLabel],
+        ['Period', `${dateRange.start_date} to ${dateRange.end_date}`],
+      ]
+    )
+    toast.success('Survey report exported')
   }
 
   if (isLoading) {
@@ -446,6 +535,92 @@ export default function SurveysDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Survey Responses */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Survey Responses</h3>
+          <MessageSquare className="w-5 h-5 text-gray-400" />
+        </div>
+        {(responsesList || []).length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {(responsesList || []).map((response: any) => (
+                  <tr key={response.id} className="hover:bg-surface-secondary">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{response.brand_name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{response.agent_name}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => setSelectedResponse(response)}
+                        className="inline-flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>View</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-24 text-gray-500 text-sm">
+            No survey responses in this period
+          </div>
+        )}
+      </div>
+
+      {/* Survey Response Detail Modal */}
+      {selectedResponse && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setSelectedResponse(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between p-5 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{selectedResponse.questionnaire_name}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {selectedResponse.brand_name} · {selectedResponse.agent_name}
+                  {selectedResponse.created_at ? ` · ${formatDate(selectedResponse.created_at)}` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedResponse(null)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto space-y-4">
+              {(selectedResponse.answers || []).length > 0 ? (
+                (selectedResponse.answers || []).map((qa: any, index: number) => (
+                  <div key={index} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                    <p className="text-sm font-medium text-gray-900">{qa.question_label}</p>
+                    <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
+                      {qa.answer && qa.answer.trim() ? qa.answer : <span className="text-gray-400 italic">No answer</span>}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No questions or answers recorded for this response.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Insights & Recommendations */}
       {analytics?.insights && analytics.insights.length > 0 && (

@@ -70,6 +70,68 @@ export function exportToXLSX(
   downloadBlob(blob, `${filename}.xls`)
 }
 
+interface ExcelSection {
+  title: string
+  columns: ExportColumn[]
+  data: any[]
+}
+
+/**
+ * Export several titled tables into a single Excel-compatible worksheet.
+ * Sections with no rows are skipped.
+ */
+export function exportSectionsToExcel(
+  sections: ExcelSection[],
+  filename: string = 'export',
+  sheetName: string = 'Report',
+  meta: Array<[string, string]> = []
+): void {
+  const renderTable = (section: ExcelSection): string => {
+    if (!section.data || section.data.length === 0) return ''
+    const headerRow = section.columns.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')
+    const bodyRows = section.data.map(row =>
+      section.columns.map(col => {
+        const value = col.format ? col.format(row[col.key], row) : row[col.key]
+        const strValue = String(value ?? '')
+        const num = Number(strValue)
+        if (!isNaN(num) && strValue.trim() !== '') {
+          return `<td style="mso-number-format:'0.00'">${escapeHtml(strValue)}</td>`
+        }
+        return `<td style="mso-number-format:'\\@'">${escapeHtml(strValue)}</td>`
+      }).join('')
+    ).map(r => `<tr>${r}</tr>`).join('')
+
+    const colSpan = section.columns.length
+    return `
+      <tr><td colspan="${colSpan}" style="font-weight:bold;font-size:14px;padding-top:16px;">${escapeHtml(section.title)}</td></tr>
+      <tr>${headerRow}</tr>
+      ${bodyRows}
+      <tr><td colspan="${colSpan}">&nbsp;</td></tr>`
+  }
+
+  const metaRows = meta.map(([k, v]) =>
+    `<tr><td style="font-weight:bold;">${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`
+  ).join('')
+
+  const tables = sections.map(renderTable).join('')
+
+  const html = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>${escapeHtml(sheetName)}</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>th{font-weight:bold;background:#4472C4;color:white;padding:8px;} td{padding:6px;border:1px solid #D6DCE4;}</style>
+</head><body>
+<table border="1">${metaRows ? `${metaRows}<tr><td>&nbsp;</td></tr>` : ''}${tables}</table>
+</body></html>`
+
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
+  downloadBlob(blob, `${filename}.xls`)
+}
+
 export function exportToJSON(data: any[], filename: string = 'export'): void {
   const json = JSON.stringify(data, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
