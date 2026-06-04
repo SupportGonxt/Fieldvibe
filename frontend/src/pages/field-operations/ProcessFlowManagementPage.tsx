@@ -786,6 +786,7 @@ function CustomQuestionsTab() {
   const [keyManuallyEdited, setKeyManuallyEdited] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingBulkDeleteCompanyId, setPendingBulkDeleteCompanyId] = useState<string | null>(null)
   const [form, setForm] = useState({
     company_id: '',
     question_label: '',
@@ -1115,13 +1116,28 @@ function CustomQuestionsTab() {
           const vtBadge = (vt: string) => vt === 'store' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
             : vt === 'individual' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
             : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-          return Object.entries(packs).map(([companyName, vtGroups]) => (
+          return Object.entries(packs).map(([companyName, vtGroups]) => {
+            const companyQs = Object.values(vtGroups).flat()
+            const companyId = companyQs[0]?.company_id || null
+            return (
             <div key={companyName} className="card overflow-hidden">
               <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-gray-500" />
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{companyName}</h3>
-                  <span className="text-xs text-gray-400">({Object.values(vtGroups).flat().length} questions)</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-gray-500" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{companyName}</h3>
+                    <span className="text-xs text-gray-400">({companyQs.length} questions)</span>
+                  </div>
+                  {companyId && (
+                    <button
+                      onClick={() => setPendingBulkDeleteCompanyId(companyId)}
+                      className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                      title={`Delete all questions for ${companyName}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete all
+                    </button>
+                  )}
                 </div>
               </div>
               {Object.entries(vtGroups).map(([vt, qs]) => (
@@ -1187,7 +1203,7 @@ function CustomQuestionsTab() {
                 </div>
               ))}
             </div>
-          ))
+          )})
         })()
       )}
 
@@ -1201,6 +1217,29 @@ function CustomQuestionsTab() {
         title="Delete Question"
         message="Are you sure you want to delete this custom question? This action cannot be undone."
         confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingBulkDeleteCompanyId}
+        onClose={() => setPendingBulkDeleteCompanyId(null)}
+        onConfirm={async () => {
+          const cid = pendingBulkDeleteCompanyId
+          setPendingBulkDeleteCompanyId(null)
+          if (!cid) return
+          const toDelete = questions.filter(q => q.company_id === cid)
+          for (const q of toDelete) {
+            await fieldOperationsService.deleteCompanyCustomQuestion(q.id)
+          }
+          queryClient.invalidateQueries({ queryKey: ['custom-questions'] })
+          toast.success(`Deleted ${toDelete.length} question${toDelete.length !== 1 ? 's' : ''}`)
+        }}
+        title="Delete All Company Questions"
+        message={`Are you sure you want to delete ALL custom questions for ${
+          pendingBulkDeleteCompanyId ? getCompanyName(pendingBulkDeleteCompanyId) : 'this company'
+        }? This cannot be undone.`}
+        confirmLabel="Delete All"
         cancelLabel="Cancel"
         variant="danger"
       />
