@@ -117,7 +117,8 @@ const AVAILABLE_STEPS = [
   { key: 'gps', label: 'GPS Check-in', description: 'Capture GPS coordinates for visit location' },
   { key: 'visit_type', label: 'Visit Type', description: 'Select individual or store visit type' },
   { key: 'details', label: 'Details', description: 'Capture visit details, individual/store info' },
-  { key: 'survey', label: 'Survey', description: 'Complete survey/questionnaire' },
+  { key: 'survey', label: 'Survey', description: 'Complete a survey (visit saved as survey type in reports)' },
+  { key: 'questionnaire', label: 'Questionnaire', description: 'Inline questions saved as visit data (visit stays as individual/store)' },
   { key: 'photo', label: 'Photo', description: 'Capture photos (store visits only)' },
   { key: 'board', label: 'Board Placement', description: 'Verify board placement' },
   { key: 'review', label: 'Review & Submit', description: 'Review all data and submit visit' },
@@ -347,6 +348,15 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
   const [steps, setSteps] = useState<ProcessFlowStep[]>([])
   const [stepsLoaded, setStepsLoaded] = useState(!flow) // if creating new, no steps to load
 
+  // Load questionnaires so survey steps can have one pre-assigned
+  const { data: questionnairesResp } = useQuery({
+    queryKey: ['questionnaires-field-ops'],
+    queryFn: () => fieldOperationsService.getQuestionnaires({ module: 'field_ops' }),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allQuestionnaires: Array<any> = Array.isArray(questionnairesResp?.data) ? questionnairesResp.data :
+    Array.isArray(questionnairesResp) ? questionnairesResp : []
+
   // Load steps if editing
   const { } = useQuery({
     queryKey: ['process-flow', flow?.id],
@@ -356,7 +366,17 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
     select: (data: any) => {
       const flowData = data?.data || data
       if (flowData?.steps && !stepsLoaded) {
-        setSteps(flowData.steps.sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order))
+        setSteps(
+          flowData.steps
+            .sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order)
+            .map((s: ProcessFlowStep) => ({
+              ...s,
+              // config is stored as a JSON string in the DB — parse it on load
+              config: typeof s.config === 'string'
+                ? (() => { try { return JSON.parse(s.config as unknown as string) } catch { return {} } })()
+                : (s.config || {}),
+            }))
+        )
         setStepsLoaded(true)
       }
       return flowData
@@ -476,30 +496,71 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
         ) : (
           <div className="space-y-2">
             {steps.map((step, index) => (
-              <div key={step.step_key} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <span className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                  {index + 1}
-                </span>
-                <div className="flex-1">
-                  <span className="font-medium text-gray-900 dark:text-white text-sm">{step.step_label}</span>
-                  <span className="text-xs text-gray-400 ml-2">({step.step_key})</span>
+              <div key={step.step_key} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
+                    {index + 1}
+                  </span>
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900 dark:text-white text-sm">{step.step_label}</span>
+                    <span className="text-xs text-gray-400 ml-2">({step.step_key})</span>
+                  </div>
+                  <label className="flex items-center gap-1 cursor-pointer text-xs">
+                    <input type="checkbox" checked={!!step.is_required} onChange={() => toggleRequired(index)} className="rounded border-gray-300" />
+                    <span className="text-gray-600 dark:text-gray-400">Required</span>
+                  </label>
+                  <div className="flex gap-1">
+                    <button onClick={() => moveStep(index, 'up')} disabled={index === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => moveStep(index, 'down')} disabled={index === steps.length - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => removeStep(index)} className="p-1 text-red-400 hover:text-red-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <label className="flex items-center gap-1 cursor-pointer text-xs">
-                  <input type="checkbox" checked={!!step.is_required} onChange={() => toggleRequired(index)} className="rounded border-gray-300" />
-                  <span className="text-gray-600 dark:text-gray-400">Required</span>
-                </label>
-                <div className="flex gap-1">
-                  <button onClick={() => moveStep(index, 'up')} disabled={index === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
-                    <ChevronUp className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => moveStep(index, 'down')} disabled={index === steps.length - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => removeStep(index)} className="p-1 text-red-400 hover:text-red-600">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                {step.step_key === 'survey' && (
+                  <div className="mt-2 ml-10 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        Pre-assigned survey:
+                      </label>
+                      <select
+                        className="input text-xs py-1 flex-1"
+                        value={(step.config as Record<string, unknown>)?.questionnaire_id as string || ''}
+                        onChange={(e) => {
+                          const newSteps = [...steps]
+                          const newConfig = { ...(newSteps[index].config as Record<string, unknown> || {}) }
+                          if (e.target.value) {
+                            newConfig.questionnaire_id = e.target.value
+                          } else {
+                            delete newConfig.questionnaire_id
+                          }
+                          newSteps[index] = { ...newSteps[index], config: newConfig }
+                          setSteps(newSteps)
+                        }}
+                      >
+                        <option value="">None — agent selects</option>
+                        {allQuestionnaires.map((q: { id: string; name?: string; title?: string }) => (
+                          <option key={q.id} value={q.id}>{q.name || q.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {(step.config as Record<string, unknown>)?.questionnaire_id && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        Visit will be saved as survey type and appear in survey reports.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {step.step_key === 'questionnaire' && (
+                  <p className="mt-1 ml-10 text-xs text-blue-600 dark:text-blue-400">
+                    Shows the company's custom questions as a dedicated step. Answers saved as visit data — visit type stays as individual/store.
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -725,6 +786,7 @@ function CustomQuestionsTab() {
   const [keyManuallyEdited, setKeyManuallyEdited] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingBulkDeleteCompanyId, setPendingBulkDeleteCompanyId] = useState<string | null>(null)
   const [form, setForm] = useState({
     company_id: '',
     question_label: '',
@@ -1054,13 +1116,28 @@ function CustomQuestionsTab() {
           const vtBadge = (vt: string) => vt === 'store' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
             : vt === 'individual' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
             : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-          return Object.entries(packs).map(([companyName, vtGroups]) => (
+          return Object.entries(packs).map(([companyName, vtGroups]) => {
+            const companyQs = Object.values(vtGroups).flat()
+            const companyId = companyQs[0]?.company_id || null
+            return (
             <div key={companyName} className="card overflow-hidden">
               <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-gray-500" />
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{companyName}</h3>
-                  <span className="text-xs text-gray-400">({Object.values(vtGroups).flat().length} questions)</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-gray-500" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{companyName}</h3>
+                    <span className="text-xs text-gray-400">({companyQs.length} questions)</span>
+                  </div>
+                  {companyId && (
+                    <button
+                      onClick={() => setPendingBulkDeleteCompanyId(companyId)}
+                      className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                      title={`Delete all questions for ${companyName}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete all
+                    </button>
+                  )}
                 </div>
               </div>
               {Object.entries(vtGroups).map(([vt, qs]) => (
@@ -1126,7 +1203,7 @@ function CustomQuestionsTab() {
                 </div>
               ))}
             </div>
-          ))
+          )})
         })()
       )}
 
@@ -1140,6 +1217,29 @@ function CustomQuestionsTab() {
         title="Delete Question"
         message="Are you sure you want to delete this custom question? This action cannot be undone."
         confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingBulkDeleteCompanyId}
+        onClose={() => setPendingBulkDeleteCompanyId(null)}
+        onConfirm={async () => {
+          const cid = pendingBulkDeleteCompanyId
+          setPendingBulkDeleteCompanyId(null)
+          if (!cid) return
+          const toDelete = questions.filter(q => q.company_id === cid)
+          for (const q of toDelete) {
+            await fieldOperationsService.deleteCompanyCustomQuestion(q.id)
+          }
+          queryClient.invalidateQueries({ queryKey: ['custom-questions'] })
+          toast.success(`Deleted ${toDelete.length} question${toDelete.length !== 1 ? 's' : ''}`)
+        }}
+        title="Delete All Company Questions"
+        message={`Are you sure you want to delete ALL custom questions for ${
+          pendingBulkDeleteCompanyId ? getCompanyName(pendingBulkDeleteCompanyId) : 'this company'
+        }? This cannot be undone.`}
+        confirmLabel="Delete All"
         cancelLabel="Cancel"
         variant="danger"
       />

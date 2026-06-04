@@ -6528,14 +6528,16 @@ api.get('/surveys/responses', authMiddleware, async (c) => {
     SELECT vr.id, vr.responses, vr.created_at, vr.visit_id,
       v.agent_id,
       q.id as questionnaire_id, q.name as questionnaire_name, q.questions as questions,
+      q.brand_ids as q_brand_ids, q.company_id as q_company_id,
       (u.first_name || ' ' || u.last_name) as agent_name,
-      COALESCE(qb.name, vb.name) as brand_name
+      COALESCE(fc.name, qb.name, vb.name) as brand_name
     FROM visit_responses vr
     JOIN visits v ON vr.visit_id = v.id
     LEFT JOIN users u ON u.id = v.agent_id
     LEFT JOIN questionnaires q ON q.id = v.questionnaire_id
     LEFT JOIN brands qb ON qb.id = q.brand_id
     LEFT JOIN brands vb ON vb.id = v.brand_id
+    LEFT JOIN field_companies fc ON fc.id = v.company_id
     WHERE ${scope.where}
     ORDER BY vr.created_at DESC LIMIT 500`).bind(...scope.binds).all();
 
@@ -6570,10 +6572,24 @@ api.get('/surveys/responses', authMiddleware, async (c) => {
       if (typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'))) continue;
       answers.push({ question_label: k, question_type: 'text', answer: Array.isArray(v) ? v.join(', ') : String(v) });
     }
+    // If the SQL join didn't resolve a name, try the questionnaire's company_id or
+    // the first entry in its brand_ids JSON array as a last resort.
+    let brandName = r.brand_name;
+    if (!brandName) {
+      // brand_ids on questionnaires stores field_company ids — use the first one as a hint
+      // (we can't JOIN inside the array in SQLite, so we leave the label as-is)
+      brandName = r.q_company_id ? `Company ${r.q_company_id}` : null;
+      if (!brandName && r.q_brand_ids) {
+        try {
+          const ids = JSON.parse(r.q_brand_ids);
+          if (Array.isArray(ids) && ids.length > 0) brandName = `Company ${ids[0]}`;
+        } catch {}
+      }
+    }
     return {
       id: r.id,
       visit_id: r.visit_id,
-      brand_name: r.brand_name || 'Unassigned',
+      brand_name: brandName || 'Unassigned',
       agent_name: (r.agent_name && r.agent_name.trim()) ? r.agent_name : 'Unknown',
       questionnaire_name: r.questionnaire_name || 'Survey',
       created_at: r.created_at,
@@ -8637,6 +8653,22 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
 
     return c.json({ success: true, results });
   } catch (err) { return c.json({ error: 'Migration failed: ' + (err.message || err), results }, 500); }
+});
+
+// One-time cleanup: soft-delete all company_custom_questions for Stellr
+api.post('/migrations/clear-stellr-company-questions', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const stellr = await db.prepare(
+      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%stellr%' AND tenant_id = ? LIMIT 1"
+    ).bind(tenantId).first();
+    if (!stellr) return c.json({ success: false, message: 'Stellr company not found' }, 404);
+    const result = await db.prepare(
+      "UPDATE company_custom_questions SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND tenant_id = ? AND is_active = 1"
+    ).bind(stellr.id, tenantId).run();
+    return c.json({ success: true, message: `Deactivated all custom questions for Stellr (${stellr.id})`, changes: result.meta?.changes ?? 0 });
+  } catch (err) { return c.json({ success: false, error: err.message || err }, 500); }
 });
 
 // Add performance indexes for faster queries

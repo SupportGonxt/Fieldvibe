@@ -23,6 +23,7 @@ import {
 import { Add, Delete, ArrowUpward, ArrowDownward, Save } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiClient } from '../../services/api';
+import { brandService, Brand } from '../../services/brand.service';
 
 interface SurveyQuestion {
   id: string;
@@ -41,6 +42,7 @@ interface Survey {
   id?: number;
   name: string;
   description: string;
+  brand_id: string;
   brand_ids: (string | number)[];
   is_mandatory: boolean;
   questions: SurveyQuestion[];
@@ -52,6 +54,7 @@ const SurveyBuilderPage: React.FC = () => {
   const [survey, setSurvey] = useState<Survey>({
     name: '',
     description: '',
+    brand_id: '',
     brand_ids: [],
     is_mandatory: false,
     questions: [],
@@ -60,6 +63,9 @@ const SurveyBuilderPage: React.FC = () => {
   // ids are stored in the survey's `brand_ids` column, which the agent visit
   // flow uses to show a survey only to its assigned company.
   const [companies, setCompanies] = useState<any[]>([]);
+  // The survey's brand (real brands table). Stored in the `brand_id` column so
+  // the Surveys Dashboard brand filter and per-response brand_name resolve.
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

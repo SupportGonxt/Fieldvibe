@@ -163,6 +163,17 @@ const DEFAULT_SURVEY_STEPS: ProcessFlowStep[] = [
 const defaultStepsForType = (t: string): ProcessFlowStep[] =>
   t === 'store' ? DEFAULT_STORE_STEPS : t === 'survey' ? DEFAULT_SURVEY_STEPS : DEFAULT_INDIVIDUAL_STEPS
 
+// Pure helper — defined at module level so it can be used before any component state is initialised
+const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
+  !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
+
+// Parse the JSON config string stored on a ProcessFlowStep row
+function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!config) return {}
+  if (typeof config === 'object') return config as Record<string, unknown>
+  try { return JSON.parse(config) } catch { return {} }
+}
+
 export default function VisitCreate() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -305,16 +316,28 @@ export default function VisitCreate() {
       steps = processFlowSteps
     }
 
+    const currentCompany = companies.find(c => c.id === selectedCompany)
+    const isGoldrush = isGoldrushCompany(currentCompany)
+
     let filtered = steps.filter(step => {
       // Form Type chooser is no longer used — always hidden
       if (step.step_key === 'form_choice') return false
       // Individual visits: no board photo capture step. Survey visits keep the
       // photo step when the process flow includes it (configurable per flow).
       if (step.step_key === 'photo' && visitTargetType === 'individual') return false
-      // Surveys are only completed via the dedicated Survey visit type — never
-      // bundled into store or individual visits. The survey visit type always
-      // keeps the step (it's the entire purpose of the visit).
-      if (step.step_key === 'survey') return visitTargetType === 'survey'
+      if (step.step_key === 'survey') {
+        // Always show for dedicated survey visits
+        if (visitTargetType === 'survey') return true
+        // Goldrush: unchanged — survey step only appears on survey visit type
+        if (isGoldrush) return false
+        // Non-Goldrush store/individual visit: show the survey step only when
+        // this step has a specific questionnaire pre-assigned via the process flow.
+        return !!parseStepConfig(step.config).questionnaire_id
+      }
+      // Questionnaire step: show whenever it's in the process flow.
+      // It renders the company's custom questions as a dedicated step
+      // (visit stays as store/individual, responses saved as visit data).
+      if (step.step_key === 'questionnaire') return true
       return true
     })
 
@@ -335,21 +358,15 @@ export default function VisitCreate() {
     }
 
     return filtered
-  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
+  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired, companies, selectedCompany])
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
 
-  // Goldrush agents don't run standalone surveys, so the Survey visit type is
-  // hidden for them in the picker. Detected by company name/code: applies when a
-  // Goldrush company is currently selected, or the agent works only for Goldrush.
-  const isGoldrushCompany = (c?: Company | null) =>
-    !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
-  const hideSurveyVisitType = isMobileContext && companies.length > 0 && (
-    selectedCompany
-      ? isGoldrushCompany(companies.find(c => c.id === selectedCompany))
-      : companies.every(isGoldrushCompany)
-  )
+  // For non-Goldrush companies, surveys are reached via step assignment rather than
+  // a standalone Survey visit type. Hide the Survey option for all mobile agents —
+  // Goldrush had it hidden already; non-Goldrush now does too.
+  const hideSurveyVisitType = isMobileContext && companies.length > 0
 
   // Load form data on mount
   useEffect(() => {
@@ -631,9 +648,27 @@ export default function VisitCreate() {
     }
   }
 
-  // Reload questionnaires when entering survey step (in case they weren't loaded yet)
+  // When process flow steps load, auto-select any questionnaire that has been
+  // pre-assigned to a survey step (non-Goldrush store/individual visits only).
+  // The step assignment takes precedence over the visit_survey_config table.
   useEffect(() => {
-    if (currentStepKey === 'survey' && questionnaires.length === 0) {
+    if (visitTargetType === 'survey' || processFlowSteps.length === 0) return
+    if (!isMobileContext) return
+    const company = companies.find(c => c.id === selectedCompany)
+    if (isGoldrushCompany(company)) return
+    for (const step of processFlowSteps) {
+      if (step.step_key !== 'survey') continue
+      const qId = parseStepConfig(step.config).questionnaire_id as string | undefined
+      if (qId) {
+        setSelectedQuestionnaire(qId)
+        return
+      }
+    }
+  }, [processFlowSteps, selectedCompany, companies, visitTargetType, isMobileContext])
+
+  // Reload questionnaires when entering survey or questionnaire step (in case they weren't loaded yet)
+  useEffect(() => {
+    if ((currentStepKey === 'survey' || currentStepKey === 'questionnaire') && questionnaires.length === 0) {
       loadQuestionnaires()
     }
   }, [currentStepKey])
@@ -641,13 +676,20 @@ export default function VisitCreate() {
   const loadQuestionnaires = async (companyIdOverride?: string) => {
     setQuestionnairesLoaded(false)
     try {
+      // When a survey step has a questionnaire pre-assigned via the process flow,
+      // fetch broadly (all field_ops) so the assigned questionnaire is always found —
+      // it may have a different target_type than the current visit type.
+      const hasStepSurvey = visitTargetType !== 'survey' && processFlowSteps.some(s => {
+        if (s.step_key !== 'survey') return false
+        return !!parseStepConfig(s.config).questionnaire_id
+      })
       // For standalone survey visits, surveys are assigned to companies via the
       // `brand_ids` column (a JSON list of company ids). The backend can't filter
       // inside that array, so fetch all active field_ops surveys and narrow to
       // the agent's company client-side below. A survey's `visit_type` is its
       // survey type (adhoc/customer/...), never the literal 'survey', so we don't
       // filter by visit_type/target_type here.
-      const filter = visitTargetType === 'survey'
+      const filter = visitTargetType === 'survey' || hasStepSurvey
         ? { module: 'field_ops' }
         : { visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' }
       const res = await fieldOperationsService.getQuestionnaires(filter)
@@ -829,8 +871,10 @@ export default function VisitCreate() {
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
           }
-          for (const q of customQuestions) {
-            if (q.is_required && !customQuestionValues[q.question_key]) return false
+          if (!hasQuestionnaireStep) {
+            for (const q of customQuestions) {
+              if (q.is_required && !customQuestionValues[q.question_key]) return false
+            }
           }
           return true
         }
@@ -840,8 +884,10 @@ export default function VisitCreate() {
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
           }
-          for (const q of customQuestions) {
-            if (q.is_required && !customQuestionValues[q.question_key]) return false
+          if (!hasQuestionnaireStep) {
+            for (const q of customQuestions) {
+              if (q.is_required && !customQuestionValues[q.question_key]) return false
+            }
           }
           return true
         }
@@ -883,6 +929,12 @@ export default function VisitCreate() {
               }
             } catch {}
           }
+        }
+        return true
+      }
+      case 'questionnaire': {
+        for (const q of customQuestions) {
+          if (q.is_required && !customQuestionValues[q.question_key]) return false
         }
         return true
       }
@@ -1003,6 +1055,17 @@ export default function VisitCreate() {
       if (selectedQuestionnaire && Object.keys(surveyResponses).length > 0) {
         payload.questionnaire_id = selectedQuestionnaire
         payload.survey_responses = surveyResponses
+      }
+
+      // Survey step assigned on a store/individual visit → save visit as survey type
+      // so it appears in survey reports instead of store/individual reports
+      const isSurveyStepAssigned = visitTargetType !== 'survey' && !!selectedQuestionnaire &&
+        processFlowSteps.some(s => {
+          if (s.step_key !== 'survey') return false
+          return parseStepConfig(s.config).questionnaire_id === selectedQuestionnaire
+        })
+      if (isSurveyStepAssigned) {
+        payload.visit_target_type = 'survey'
       }
 
       // Include custom question values for both visit types
@@ -1476,8 +1539,8 @@ export default function VisitCreate() {
           </>
         )}
 
-        {/* Company-level custom questions (for BOTH individual AND store visits) */}
-        {customQuestions.length > 0 && (
+        {/* Company-level custom questions — moved to dedicated questionnaire step when one is in the flow */}
+        {customQuestions.length > 0 && !hasQuestionnaireStep && (
           <>
             <Divider sx={{ my: 3 }} />
             <Typography variant="h6" gutterBottom>Company Questions</Typography>
@@ -1677,6 +1740,34 @@ export default function VisitCreate() {
   )
 
   const renderSurveyStep = () => {
+    // True when the questionnaire is pre-assigned via a process flow step (non-Goldrush
+    // store/individual visit). The picker is suppressed; the agent just answers questions.
+    const isStepAssigned = visitTargetType !== 'survey' && !!selectedQuestionnaire &&
+      processFlowSteps.some(s => {
+        if (s.step_key !== 'survey') return false
+        return parseStepConfig(s.config).questionnaire_id === selectedQuestionnaire
+      })
+    const assignedQuestionnaire = isStepAssigned
+      ? questionnaires.find(qn => qn.id === selectedQuestionnaire) ?? null
+      : null
+
+    // When showing the picker, only show surveys assigned to the agent's company.
+    // Surveys declare their company assignments in `brand_ids` (JSON array of company ids)
+    // or the legacy single `company_id` field.
+    const pickerQuestionnaires = isMobileContext && selectedCompany
+      ? questionnaires.filter((q: Questionnaire & { brand_ids?: unknown; company_id?: string }) => {
+          let companyIds: string[] = []
+          try {
+            companyIds = Array.isArray(q.brand_ids)
+              ? q.brand_ids as string[]
+              : (typeof q.brand_ids === 'string' && q.brand_ids ? JSON.parse(q.brand_ids as string) : [])
+          } catch { companyIds = [] }
+          if (companyIds.map(String).includes(String(selectedCompany))) return true
+          if (q.company_id && String(q.company_id) === String(selectedCompany)) return true
+          return false
+        })
+      : questionnaires
+
     const parsedQuestions: Array<{ id?: string; key?: string; question?: string; label?: string; question_text?: string; question_label?: string; type?: string; question_type?: string; options?: string[]; required?: boolean }> = selectedQuestionnaire
       ? (() => {
           const q = questionnaires.find(qn => qn.id === selectedQuestionnaire)
@@ -1693,7 +1784,7 @@ export default function VisitCreate() {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>{stepTitle}</Typography>
-          {visitTargetType === 'survey' && questionnaires.length === 0 ? (
+          {visitTargetType === 'survey' && pickerQuestionnaires.length === 0 ? (
             !questionnairesLoaded ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
                 <CircularProgress size={20} />
@@ -1716,6 +1807,16 @@ export default function VisitCreate() {
 
           {!skipSurvey && (
             <>
+              {isStepAssigned ? (
+                // Questionnaire was pre-assigned via the process flow step — no picker needed
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  {assignedQuestionnaire
+                    ? <>Survey: <strong>{assignedQuestionnaire.name}</strong></>
+                    : !questionnairesLoaded
+                      ? 'Loading survey…'
+                      : 'Survey not found — please contact your supervisor.'}
+                </Alert>
+              ) : (
               <FormControl fullWidth sx={{ mb: 3 }}>
                 <InputLabel>{selectLabel}</InputLabel>
                 <Select
@@ -1727,11 +1828,12 @@ export default function VisitCreate() {
                   }}
                 >
                   <MenuItem value="">None</MenuItem>
-                  {questionnaires.map(q => (
+                  {pickerQuestionnaires.map(q => (
                     <MenuItem key={q.id} value={q.id}>{q.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
+              )}
 
               {parsedQuestions.length > 0 && (
                 <Box>
@@ -1853,7 +1955,7 @@ export default function VisitCreate() {
                 </Box>
               )}
 
-              {questionnaires.length === 0 && (
+              {pickerQuestionnaires.length === 0 && !isStepAssigned && (
                 <Typography variant="body2" color="text.secondary">
                   {`No ${stepTitle.toLowerCase()}s available for this visit type.`}
                 </Typography>
@@ -1862,6 +1964,123 @@ export default function VisitCreate() {
           )}
           </>
           )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // True when the active process flow has a dedicated questionnaire step —
+  // used to move custom questions out of the details step into their own step.
+  const hasQuestionnaireStep = activeSteps.some(s => s.step_key === 'questionnaire')
+
+  const renderQuestionnaireStep = () => {
+    if (stepDataLoading) {
+      return (
+        <Card><CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
+            <CircularProgress size={20} />
+            <Typography variant="body2" color="text.secondary">Loading questions…</Typography>
+          </Box>
+        </CardContent></Card>
+      )
+    }
+    if (customQuestions.length === 0) {
+      return (
+        <Card><CardContent>
+          <Typography variant="h6" gutterBottom>Questionnaire</Typography>
+          <Alert severity="info">No questions configured for this company and visit type.</Alert>
+        </CardContent></Card>
+      )
+    }
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Questionnaire</Typography>
+          <Box>
+            {customQuestions.map((q, idx) => {
+              const qKey = q.question_key
+              const qLabel = q.question_label
+              const qType = q.field_type
+              const rawOptions = q.field_options
+              const qOptions: string[] = rawOptions
+                ? (() => { try { return Array.isArray(JSON.parse(rawOptions)) ? JSON.parse(rawOptions) : [] } catch { return [] } })()
+                : []
+              const hasOptions = qOptions.length > 0
+              const isMultiSelect = qType === 'checkbox'
+              const isRequired = !!q.is_required
+              const hasValue = !!customQuestionValues[qKey]
+              const selectedOptions = (customQuestionValues[qKey] || '').split(',').map(s => s.trim()).filter(Boolean)
+              return (
+                <Box key={qKey} sx={{ mb: 3 }}>
+                  <Typography variant="body1" fontWeight="bold" sx={{ mb: 1 }}>
+                    {idx + 1}. {qLabel}{isRequired ? ' *' : ''}
+                  </Typography>
+                  {showValidation && isRequired && !hasValue && (
+                    <Typography variant="caption" color="error" sx={{ mb: 0.5, display: 'block' }}>This field is required</Typography>
+                  )}
+                  {qType === 'image' ? (
+                    <Box>
+                      {customQuestionValues[qKey] ? (
+                        <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                          <img src={customQuestionValues[qKey]} alt={qLabel} style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} />
+                          <Button size="small" color="error" onClick={() => setCustomQuestionValues(prev => { const n = { ...prev }; delete n[qKey]; return n })} sx={{ position: 'absolute', top: 0, right: 0 }}>Remove</Button>
+                        </Box>
+                      ) : (
+                        <Button variant="outlined" component="label" color={showValidation && isRequired && !hasValue ? 'error' : 'primary'}>
+                          Upload Photo{isRequired ? ' (Required)' : ''}
+                          <input type="file" hidden accept="image/*" capture="environment" onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onload = async () => {
+                                const compressed = await compressImage(reader.result as string)
+                                setCustomQuestionValues(prev => ({ ...prev, [qKey]: compressed }))
+                              }
+                              reader.readAsDataURL(file)
+                            }
+                          }} />
+                        </Button>
+                      )}
+                    </Box>
+                  ) : qType === 'toggle' ? (
+                    <FormControlLabel
+                      control={<Switch checked={customQuestionValues[qKey] === 'Yes'} onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: e.target.checked ? 'Yes' : 'No' }))} />}
+                      label={customQuestionValues[qKey] === 'Yes' ? 'Yes' : 'No'}
+                    />
+                  ) : isMultiSelect && hasOptions ? (
+                    <FormGroup>
+                      {qOptions.map(opt => (
+                        <FormControlLabel key={opt} control={
+                          <Checkbox checked={selectedOptions.includes(opt)} onChange={(e) => {
+                            const next = e.target.checked ? [...selectedOptions, opt] : selectedOptions.filter(o => o !== opt)
+                            setCustomQuestionValues(prev => ({ ...prev, [qKey]: next.join(',') }))
+                          }} />
+                        } label={opt} />
+                      ))}
+                    </FormGroup>
+                  ) : qType === 'radio' && hasOptions ? (
+                    <RadioGroup value={customQuestionValues[qKey] || ''} onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: e.target.value }))}>
+                      {qOptions.map(opt => <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />)}
+                    </RadioGroup>
+                  ) : qType === 'select' && hasOptions ? (
+                    <FormControl fullWidth error={showValidation && isRequired && !hasValue}>
+                      <Select value={customQuestionValues[qKey] || ''} onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: e.target.value }))} displayEmpty>
+                        <MenuItem value="">Select an answer</MenuItem>
+                        {qOptions.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <TextField fullWidth multiline={qType === 'textarea'} rows={qType === 'textarea' ? 3 : 1}
+                      type={qType === 'number' ? 'number' : qType === 'email' ? 'email' : qType === 'phone' ? 'tel' : 'text'}
+                      value={customQuestionValues[qKey] || ''} onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: e.target.value }))}
+                      placeholder="Enter your answer" error={showValidation && isRequired && !hasValue}
+                      inputProps={q.min_length || q.max_length ? { minLength: q.min_length, maxLength: q.max_length } : undefined}
+                    />
+                  )}
+                </Box>
+              )
+            })}
+          </Box>
         </CardContent>
       </Card>
     )
@@ -2083,8 +2302,8 @@ export default function VisitCreate() {
           </Box>
         )}
 
-        {/* Show custom question answers in review */}
-        {Object.keys(customQuestionValues).length > 0 && (
+        {/* Show custom question answers in review — not relevant for survey visits */}
+        {Object.keys(customQuestionValues).length > 0 && visitTargetType !== 'survey' && (
           <>
             <Divider sx={{ my: 2 }} />
             <Box sx={{ mb: 3 }}>
@@ -2156,6 +2375,7 @@ export default function VisitCreate() {
       case 'visit_type': return renderVisitTypeStep()
       case 'details': return renderDetailsStep()
       case 'survey': return renderSurveyStep()
+      case 'questionnaire': return renderQuestionnaireStep()
       case 'photo': return renderPhotoStep()
       case 'review': return renderReviewStep()
       default: return null
