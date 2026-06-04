@@ -1872,11 +1872,16 @@ export default function VisitCreate() {
       <CardContent>
         <Typography variant="h6" gutterBottom>{visitTargetType === 'survey' ? 'Shop Picture' : 'Board Photo Capture'}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
-          Duplicate photos are not allowed. <strong>At least one photo is required.</strong>
+          {visitTargetType === 'survey' ? (
+            <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
+          ) : (
+            <>Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
+            Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
+          )}
         </Typography>
 
-        {/* Board Placement Questions */}
+        {/* Board Placement Questions — store visits only; surveys just capture a shop photo */}
+        {visitTargetType !== 'survey' && (
         <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Board Placement Details</Typography>
           <Grid container spacing={2}>
@@ -1936,6 +1941,7 @@ export default function VisitCreate() {
             </Grid>
           </Grid>
         </Box>
+        )}
 
         <Box sx={{ mb: 3, textAlign: 'center' }}>
           <Button
@@ -1944,7 +1950,7 @@ export default function VisitCreate() {
             startIcon={<CameraIcon />}
             size="large"
           >
-            Take Photo
+            {visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
             <input
               type="file"
               hidden
