@@ -1128,16 +1128,6 @@ function CustomQuestionsTab() {
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{companyName}</h3>
                     <span className="text-xs text-gray-400">({companyQs.length} questions)</span>
                   </div>
-                  {companyId && (
-                    <button
-                      onClick={() => setPendingBulkDeleteCompanyId(companyId)}
-                      className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-                      title={`Delete all questions for ${companyName}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete all
-                    </button>
-                  )}
                 </div>
               </div>
               {Object.entries(vtGroups).map(([vt, qs]) => (

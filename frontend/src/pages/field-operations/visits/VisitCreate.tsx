@@ -915,8 +915,8 @@ export default function VisitCreate() {
           }
           return true
         }
-        // Even when survey is optional, if agent chose a questionnaire, validate required fields
-        if (selectedQuestionnaire && !skipSurvey && Object.keys(surveyResponses).length > 0) {
+        // When a questionnaire is selected (manually or step-assigned), required questions must be filled
+        if (selectedQuestionnaire && !skipSurvey) {
           const selQ = questionnaires.find(qn => qn.id === selectedQuestionnaire)
           if (selQ) {
             try {
