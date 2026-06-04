@@ -347,6 +347,15 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
   const [steps, setSteps] = useState<ProcessFlowStep[]>([])
   const [stepsLoaded, setStepsLoaded] = useState(!flow) // if creating new, no steps to load
 
+  // Load questionnaires so survey steps can have one pre-assigned
+  const { data: questionnairesResp } = useQuery({
+    queryKey: ['questionnaires-field-ops'],
+    queryFn: () => fieldOperationsService.getQuestionnaires({ module: 'field_ops' }),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allQuestionnaires: Array<any> = Array.isArray(questionnairesResp?.data) ? questionnairesResp.data :
+    Array.isArray(questionnairesResp) ? questionnairesResp : []
+
   // Load steps if editing
   const { } = useQuery({
     queryKey: ['process-flow', flow?.id],
@@ -356,7 +365,17 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
     select: (data: any) => {
       const flowData = data?.data || data
       if (flowData?.steps && !stepsLoaded) {
-        setSteps(flowData.steps.sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order))
+        setSteps(
+          flowData.steps
+            .sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order)
+            .map((s: ProcessFlowStep) => ({
+              ...s,
+              // config is stored as a JSON string in the DB — parse it on load
+              config: typeof s.config === 'string'
+                ? (() => { try { return JSON.parse(s.config as unknown as string) } catch { return {} } })()
+                : (s.config || {}),
+            }))
+        )
         setStepsLoaded(true)
       }
       return flowData
@@ -476,30 +495,59 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
         ) : (
           <div className="space-y-2">
             {steps.map((step, index) => (
-              <div key={step.step_key} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <span className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                  {index + 1}
-                </span>
-                <div className="flex-1">
-                  <span className="font-medium text-gray-900 dark:text-white text-sm">{step.step_label}</span>
-                  <span className="text-xs text-gray-400 ml-2">({step.step_key})</span>
+              <div key={step.step_key} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
+                    {index + 1}
+                  </span>
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900 dark:text-white text-sm">{step.step_label}</span>
+                    <span className="text-xs text-gray-400 ml-2">({step.step_key})</span>
+                  </div>
+                  <label className="flex items-center gap-1 cursor-pointer text-xs">
+                    <input type="checkbox" checked={!!step.is_required} onChange={() => toggleRequired(index)} className="rounded border-gray-300" />
+                    <span className="text-gray-600 dark:text-gray-400">Required</span>
+                  </label>
+                  <div className="flex gap-1">
+                    <button onClick={() => moveStep(index, 'up')} disabled={index === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => moveStep(index, 'down')} disabled={index === steps.length - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => removeStep(index)} className="p-1 text-red-400 hover:text-red-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <label className="flex items-center gap-1 cursor-pointer text-xs">
-                  <input type="checkbox" checked={!!step.is_required} onChange={() => toggleRequired(index)} className="rounded border-gray-300" />
-                  <span className="text-gray-600 dark:text-gray-400">Required</span>
-                </label>
-                <div className="flex gap-1">
-                  <button onClick={() => moveStep(index, 'up')} disabled={index === 0} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
-                    <ChevronUp className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => moveStep(index, 'down')} disabled={index === steps.length - 1} className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => removeStep(index)} className="p-1 text-red-400 hover:text-red-600">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                {step.step_key === 'survey' && (
+                  <div className="mt-2 ml-10 flex items-center gap-2">
+                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      Pre-assigned survey:
+                    </label>
+                    <select
+                      className="input text-xs py-1 flex-1"
+                      value={(step.config as Record<string, unknown>)?.questionnaire_id as string || ''}
+                      onChange={(e) => {
+                        const newSteps = [...steps]
+                        const newConfig = { ...(newSteps[index].config as Record<string, unknown> || {}) }
+                        if (e.target.value) {
+                          newConfig.questionnaire_id = e.target.value
+                        } else {
+                          delete newConfig.questionnaire_id
+                        }
+                        newSteps[index] = { ...newSteps[index], config: newConfig }
+                        setSteps(newSteps)
+                      }}
+                    >
+                      <option value="">None — agent selects</option>
+                      {allQuestionnaires.map((q: { id: string; name?: string; title?: string }) => (
+                        <option key={q.id} value={q.id}>{q.name || q.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -163,6 +163,17 @@ const DEFAULT_SURVEY_STEPS: ProcessFlowStep[] = [
 const defaultStepsForType = (t: string): ProcessFlowStep[] =>
   t === 'store' ? DEFAULT_STORE_STEPS : t === 'survey' ? DEFAULT_SURVEY_STEPS : DEFAULT_INDIVIDUAL_STEPS
 
+// Pure helper — defined at module level so it can be used before any component state is initialised
+const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
+  !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
+
+// Parse the JSON config string stored on a ProcessFlowStep row
+function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!config) return {}
+  if (typeof config === 'object') return config as Record<string, unknown>
+  try { return JSON.parse(config) } catch { return {} }
+}
+
 export default function VisitCreate() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -305,16 +316,24 @@ export default function VisitCreate() {
       steps = processFlowSteps
     }
 
+    const currentCompany = companies.find(c => c.id === selectedCompany)
+    const isGoldrush = isGoldrushCompany(currentCompany)
+
     let filtered = steps.filter(step => {
       // Form Type chooser is no longer used — always hidden
       if (step.step_key === 'form_choice') return false
       // Individual visits: no board photo capture step. Survey visits keep the
       // photo step when the process flow includes it (configurable per flow).
       if (step.step_key === 'photo' && visitTargetType === 'individual') return false
-      // Surveys are only completed via the dedicated Survey visit type — never
-      // bundled into store or individual visits. The survey visit type always
-      // keeps the step (it's the entire purpose of the visit).
-      if (step.step_key === 'survey') return visitTargetType === 'survey'
+      if (step.step_key === 'survey') {
+        // Always show for dedicated survey visits
+        if (visitTargetType === 'survey') return true
+        // Goldrush: unchanged — survey step only appears on survey visit type
+        if (isGoldrush) return false
+        // Non-Goldrush store/individual visit: show the survey step only when
+        // this step has a specific questionnaire pre-assigned via the process flow.
+        return !!parseStepConfig(step.config).questionnaire_id
+      }
       return true
     })
 
@@ -335,21 +354,15 @@ export default function VisitCreate() {
     }
 
     return filtered
-  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired])
+  }, [processFlowSteps, visitTargetType, questionnaires, surveyRequired, companies, selectedCompany])
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
 
-  // Goldrush agents don't run standalone surveys, so the Survey visit type is
-  // hidden for them in the picker. Detected by company name/code: applies when a
-  // Goldrush company is currently selected, or the agent works only for Goldrush.
-  const isGoldrushCompany = (c?: Company | null) =>
-    !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
-  const hideSurveyVisitType = isMobileContext && companies.length > 0 && (
-    selectedCompany
-      ? isGoldrushCompany(companies.find(c => c.id === selectedCompany))
-      : companies.every(isGoldrushCompany)
-  )
+  // For non-Goldrush companies, surveys are reached via step assignment rather than
+  // a standalone Survey visit type. Hide the Survey option for all mobile agents —
+  // Goldrush had it hidden already; non-Goldrush now does too.
+  const hideSurveyVisitType = isMobileContext && companies.length > 0
 
   // Load form data on mount
   useEffect(() => {
@@ -631,6 +644,24 @@ export default function VisitCreate() {
     }
   }
 
+  // When process flow steps load, auto-select any questionnaire that has been
+  // pre-assigned to a survey step (non-Goldrush store/individual visits only).
+  // The step assignment takes precedence over the visit_survey_config table.
+  useEffect(() => {
+    if (visitTargetType === 'survey' || processFlowSteps.length === 0) return
+    if (!isMobileContext) return
+    const company = companies.find(c => c.id === selectedCompany)
+    if (isGoldrushCompany(company)) return
+    for (const step of processFlowSteps) {
+      if (step.step_key !== 'survey') continue
+      const qId = parseStepConfig(step.config).questionnaire_id as string | undefined
+      if (qId) {
+        setSelectedQuestionnaire(qId)
+        return
+      }
+    }
+  }, [processFlowSteps, selectedCompany, companies, visitTargetType, isMobileContext])
+
   // Reload questionnaires when entering survey step (in case they weren't loaded yet)
   useEffect(() => {
     if (currentStepKey === 'survey' && questionnaires.length === 0) {
@@ -641,13 +672,20 @@ export default function VisitCreate() {
   const loadQuestionnaires = async (companyIdOverride?: string) => {
     setQuestionnairesLoaded(false)
     try {
+      // When a survey step has a questionnaire pre-assigned via the process flow,
+      // fetch broadly (all field_ops) so the assigned questionnaire is always found —
+      // it may have a different target_type than the current visit type.
+      const hasStepSurvey = visitTargetType !== 'survey' && processFlowSteps.some(s => {
+        if (s.step_key !== 'survey') return false
+        return !!parseStepConfig(s.config).questionnaire_id
+      })
       // For standalone survey visits, surveys are assigned to companies via the
       // `brand_ids` column (a JSON list of company ids). The backend can't filter
       // inside that array, so fetch all active field_ops surveys and narrow to
       // the agent's company client-side below. A survey's `visit_type` is its
       // survey type (adhoc/customer/...), never the literal 'survey', so we don't
       // filter by visit_type/target_type here.
-      const filter = visitTargetType === 'survey'
+      const filter = visitTargetType === 'survey' || hasStepSurvey
         ? { module: 'field_ops' }
         : { visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' }
       const res = await fieldOperationsService.getQuestionnaires(filter)
@@ -1677,6 +1715,17 @@ export default function VisitCreate() {
   )
 
   const renderSurveyStep = () => {
+    // True when the questionnaire is pre-assigned via a process flow step (non-Goldrush
+    // store/individual visit). The picker is suppressed; the agent just answers questions.
+    const isStepAssigned = visitTargetType !== 'survey' && !!selectedQuestionnaire &&
+      processFlowSteps.some(s => {
+        if (s.step_key !== 'survey') return false
+        return parseStepConfig(s.config).questionnaire_id === selectedQuestionnaire
+      })
+    const assignedQuestionnaire = isStepAssigned
+      ? questionnaires.find(qn => qn.id === selectedQuestionnaire) ?? null
+      : null
+
     const parsedQuestions: Array<{ id?: string; key?: string; question?: string; label?: string; question_text?: string; question_label?: string; type?: string; question_type?: string; options?: string[]; required?: boolean }> = selectedQuestionnaire
       ? (() => {
           const q = questionnaires.find(qn => qn.id === selectedQuestionnaire)
@@ -1716,6 +1765,16 @@ export default function VisitCreate() {
 
           {!skipSurvey && (
             <>
+              {isStepAssigned ? (
+                // Questionnaire was pre-assigned via the process flow step — no picker needed
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  {assignedQuestionnaire
+                    ? <>Survey: <strong>{assignedQuestionnaire.name}</strong></>
+                    : !questionnairesLoaded
+                      ? 'Loading survey…'
+                      : 'Survey not found — please contact your supervisor.'}
+                </Alert>
+              ) : (
               <FormControl fullWidth sx={{ mb: 3 }}>
                 <InputLabel>{selectLabel}</InputLabel>
                 <Select
@@ -1732,6 +1791,7 @@ export default function VisitCreate() {
                   ))}
                 </Select>
               </FormControl>
+              )}
 
               {parsedQuestions.length > 0 && (
                 <Box>
@@ -1853,7 +1913,7 @@ export default function VisitCreate() {
                 </Box>
               )}
 
-              {questionnaires.length === 0 && (
+              {questionnaires.length === 0 && !isStepAssigned && (
                 <Typography variant="body2" color="text.secondary">
                   {`No ${stepTitle.toLowerCase()}s available for this visit type.`}
                 </Typography>
