@@ -308,8 +308,9 @@ export default function VisitCreate() {
     let filtered = steps.filter(step => {
       // Form Type chooser is no longer used — always hidden
       if (step.step_key === 'form_choice') return false
-      // Individual and survey visits: no board photo capture step
-      if (step.step_key === 'photo' && (visitTargetType === 'individual' || visitTargetType === 'survey')) return false
+      // Individual visits: no board photo capture step. Survey visits keep the
+      // photo step when the process flow includes it (configurable per flow).
+      if (step.step_key === 'photo' && visitTargetType === 'individual') return false
       // Surveys are only completed via the dedicated Survey visit type — never
       // bundled into store or individual visits. The survey visit type always
       // keeps the step (it's the entire purpose of the visit).
@@ -1869,13 +1870,18 @@ export default function VisitCreate() {
   const renderPhotoStep = () => (
     <Card>
       <CardContent>
-        <Typography variant="h6" gutterBottom>Board Photo Capture</Typography>
+        <Typography variant="h6" gutterBottom>{visitTargetType === 'survey' ? 'Shop Picture' : 'Board Photo Capture'}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
-          Duplicate photos are not allowed. <strong>At least one photo is required.</strong>
+          {visitTargetType === 'survey' ? (
+            <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
+          ) : (
+            <>Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
+            Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
+          )}
         </Typography>
 
-        {/* Board Placement Questions */}
+        {/* Board Placement Questions — store visits only; surveys just capture a shop photo */}
+        {visitTargetType !== 'survey' && (
         <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Board Placement Details</Typography>
           <Grid container spacing={2}>
@@ -1935,6 +1941,7 @@ export default function VisitCreate() {
             </Grid>
           </Grid>
         </Box>
+        )}
 
         <Box sx={{ mb: 3, textAlign: 'center' }}>
           <Button
@@ -1943,7 +1950,7 @@ export default function VisitCreate() {
             startIcon={<CameraIcon />}
             size="large"
           >
-            Take Photo
+            {visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
             <input
               type="file"
               hidden
