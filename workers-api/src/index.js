@@ -8639,6 +8639,22 @@ api.post('/migrations/create-process-flows', authMiddleware, async (c) => {
   } catch (err) { return c.json({ error: 'Migration failed: ' + (err.message || err), results }, 500); }
 });
 
+// One-time cleanup: soft-delete all company_custom_questions for Stellr
+api.post('/migrations/clear-stellr-company-questions', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const stellr = await db.prepare(
+      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%stellr%' AND tenant_id = ? LIMIT 1"
+    ).bind(tenantId).first();
+    if (!stellr) return c.json({ success: false, message: 'Stellr company not found' }, 404);
+    const result = await db.prepare(
+      "UPDATE company_custom_questions SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND tenant_id = ? AND is_active = 1"
+    ).bind(stellr.id, tenantId).run();
+    return c.json({ success: true, message: `Deactivated all custom questions for Stellr (${stellr.id})`, changes: result.meta?.changes ?? 0 });
+  } catch (err) { return c.json({ success: false, error: err.message || err }, 500); }
+});
+
 // Add performance indexes for faster queries
 api.post('/migrations/add-performance-indexes', authMiddleware, async (c) => {
   const db = c.env.DB;

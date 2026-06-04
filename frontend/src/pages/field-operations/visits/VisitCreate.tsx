@@ -256,6 +256,8 @@ export default function VisitCreate() {
   const [surveyResponses, setSurveyResponses] = useState<Record<string, string>>({})
   const [surveyRequired, setSurveyRequired] = useState(false)
   const [skipSurvey, setSkipSurvey] = useState(false)
+  // Responses for the 'questionnaire' process-flow step (visit stays as store/individual)
+  const [questionnaireStepResponses, setQuestionnaireStepResponses] = useState<Record<string, string>>({})
 
   // Step 5: Photo (with board placement questions)
   const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string }>>([])
@@ -332,6 +334,11 @@ export default function VisitCreate() {
         if (isGoldrush) return false
         // Non-Goldrush store/individual visit: show the survey step only when
         // this step has a specific questionnaire pre-assigned via the process flow.
+        return !!parseStepConfig(step.config).questionnaire_id
+      }
+      // Questionnaire step: only show when a questionnaire is pre-assigned
+      // (visit stays as store/individual, responses saved as visit data)
+      if (step.step_key === 'questionnaire') {
         return !!parseStepConfig(step.config).questionnaire_id
       }
       return true
@@ -662,9 +669,9 @@ export default function VisitCreate() {
     }
   }, [processFlowSteps, selectedCompany, companies, visitTargetType, isMobileContext])
 
-  // Reload questionnaires when entering survey step (in case they weren't loaded yet)
+  // Reload questionnaires when entering survey or questionnaire step (in case they weren't loaded yet)
   useEffect(() => {
-    if (currentStepKey === 'survey' && questionnaires.length === 0) {
+    if ((currentStepKey === 'survey' || currentStepKey === 'questionnaire') && questionnaires.length === 0) {
       loadQuestionnaires()
     }
   }, [currentStepKey])
@@ -679,13 +686,17 @@ export default function VisitCreate() {
         if (s.step_key !== 'survey') return false
         return !!parseStepConfig(s.config).questionnaire_id
       })
+      const hasStepQuestionnaire = processFlowSteps.some(s => {
+        if (s.step_key !== 'questionnaire') return false
+        return !!parseStepConfig(s.config).questionnaire_id
+      })
       // For standalone survey visits, surveys are assigned to companies via the
       // `brand_ids` column (a JSON list of company ids). The backend can't filter
       // inside that array, so fetch all active field_ops surveys and narrow to
       // the agent's company client-side below. A survey's `visit_type` is its
       // survey type (adhoc/customer/...), never the literal 'survey', so we don't
       // filter by visit_type/target_type here.
-      const filter = visitTargetType === 'survey' || hasStepSurvey
+      const filter = visitTargetType === 'survey' || hasStepSurvey || hasStepQuestionnaire
         ? { module: 'field_ops' }
         : { visit_type: visitTargetType || undefined, company_id: companyIdOverride || selectedCompany || undefined, target_type: visitTargetType || undefined, module: 'field_ops' }
       const res = await fieldOperationsService.getQuestionnaires(filter)
@@ -924,6 +935,24 @@ export default function VisitCreate() {
         }
         return true
       }
+      case 'questionnaire': {
+        const qStep = processFlowSteps.find(s => s.step_key === 'questionnaire')
+        if (!qStep) return true
+        const qId = parseStepConfig(qStep.config).questionnaire_id as string | undefined
+        if (!qId) return true
+        const qDoc = questionnaires.find(qn => qn.id === qId)
+        if (!qDoc) return true
+        try {
+          const qs = typeof qDoc.questions === 'string' ? JSON.parse(qDoc.questions) : qDoc.questions
+          if (Array.isArray(qs)) {
+            for (const question of qs) {
+              const key = question.key || question.id
+              if (question.required && key && !questionnaireStepResponses[key]) return false
+            }
+          }
+        } catch {}
+        return true
+      }
       case 'photo': return photos.length > 0
       case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
@@ -1041,6 +1070,25 @@ export default function VisitCreate() {
       if (selectedQuestionnaire && Object.keys(surveyResponses).length > 0) {
         payload.questionnaire_id = selectedQuestionnaire
         payload.survey_responses = surveyResponses
+      }
+
+      // Questionnaire step: responses saved as visit data, visit type stays unchanged
+      const qFlowStep = processFlowSteps.find(s => s.step_key === 'questionnaire')
+      const qFlowStepQid = qFlowStep ? parseStepConfig(qFlowStep.config).questionnaire_id as string | undefined : undefined
+      if (qFlowStepQid && Object.keys(questionnaireStepResponses).length > 0) {
+        payload.questionnaire_id = qFlowStepQid
+        payload.survey_responses = questionnaireStepResponses
+      }
+
+      // Survey step assigned on a store/individual visit → save visit as survey type
+      // so it appears in survey reports instead of store/individual reports
+      const isSurveyStepAssigned = visitTargetType !== 'survey' && !!selectedQuestionnaire &&
+        processFlowSteps.some(s => {
+          if (s.step_key !== 'survey') return false
+          return parseStepConfig(s.config).questionnaire_id === selectedQuestionnaire
+        })
+      if (isSurveyStepAssigned) {
+        payload.visit_target_type = 'survey'
       }
 
       // Include custom question values for both visit types
@@ -1927,6 +1975,116 @@ export default function VisitCreate() {
     )
   }
 
+  const renderQuestionnaireStep = () => {
+    const qStep = processFlowSteps.find(s => s.step_key === 'questionnaire')
+    const qId = qStep ? parseStepConfig(qStep.config).questionnaire_id as string | undefined : undefined
+    const questionnaire = qId ? questionnaires.find(q => q.id === qId) ?? null : null
+    const parsedQuestions: Array<{ id?: string; key?: string; question?: string; label?: string; question_text?: string; question_label?: string; type?: string; question_type?: string; options?: string[]; required?: boolean }> = questionnaire
+      ? (() => { try { return typeof questionnaire.questions === 'string' ? JSON.parse(questionnaire.questions) : questionnaire.questions } catch { return [] } })()
+      : []
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Questionnaire</Typography>
+          {!questionnaire ? (
+            <Alert severity="info">
+              {!questionnairesLoaded ? 'Loading questionnaire…' : 'Questionnaire not found — please contact your supervisor.'}
+            </Alert>
+          ) : (
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Questionnaire: <strong>{questionnaire.name}</strong>
+              </Alert>
+              {parsedQuestions.length > 0 && (
+                <Box>
+                  {parsedQuestions.map((q, idx) => {
+                    const qKey = q.key || q.id || String(idx)
+                    const qLabel = q.label || q.question || q.question_text || q.question_label || qKey
+                    const qType = q.type || q.question_type || 'text'
+                    const qOptions = Array.isArray(q.options) ? q.options : []
+                    const hasOptions = qOptions.length > 0
+                    const isMultiSelect = ['multiselect', 'multi_select', 'checkbox', 'checkboxes'].includes(qType)
+                      || /tick all|select all|choose all|all that apply/i.test(qLabel)
+                    const selectedOptions = (questionnaireStepResponses[qKey] || '').split(',').map(s => s.trim()).filter(Boolean)
+                    const isRequired = !!q.required
+                    const hasValue = !!questionnaireStepResponses[qKey]
+                    return (
+                      <Box key={qKey} sx={{ mb: 3 }}>
+                        <Typography variant="body1" fontWeight="bold" sx={{ mb: 1 }}>
+                          {idx + 1}. {qLabel}{isRequired ? ' *' : ''}
+                        </Typography>
+                        {showValidation && isRequired && !hasValue && (
+                          <Typography variant="caption" color="error" sx={{ mb: 0.5, display: 'block' }}>This field is required</Typography>
+                        )}
+                        {qType === 'image' ? (
+                          <Box>
+                            {questionnaireStepResponses[qKey] ? (
+                              <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                                <img src={questionnaireStepResponses[qKey]} alt={qLabel} style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} />
+                                <Button size="small" color="error" onClick={() => setQuestionnaireStepResponses(prev => { const n = { ...prev }; delete n[qKey]; return n })} sx={{ position: 'absolute', top: 0, right: 0 }}>Remove</Button>
+                              </Box>
+                            ) : (
+                              <Button variant="outlined" component="label" color={showValidation && isRequired && !hasValue ? 'error' : 'primary'}>
+                                Upload Photo{isRequired ? ' (Required)' : ''}
+                                <input type="file" hidden accept="image/*" capture="environment" onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (file) {
+                                    const reader = new FileReader()
+                                    reader.onload = async () => {
+                                      const compressed = await compressImage(reader.result as string)
+                                      setQuestionnaireStepResponses(prev => ({ ...prev, [qKey]: compressed }))
+                                    }
+                                    reader.readAsDataURL(file)
+                                  }
+                                }} />
+                              </Button>
+                            )}
+                          </Box>
+                        ) : hasOptions && isMultiSelect ? (
+                          <FormGroup>
+                            {qOptions.map(opt => (
+                              <FormControlLabel key={opt} control={
+                                <Checkbox checked={selectedOptions.includes(opt)} onChange={(e) => {
+                                  const next = e.target.checked ? [...selectedOptions, opt] : selectedOptions.filter(o => o !== opt)
+                                  setQuestionnaireStepResponses(prev => ({ ...prev, [qKey]: next.join(',') }))
+                                }} />
+                              } label={opt} />
+                            ))}
+                          </FormGroup>
+                        ) : hasOptions && qType === 'select' ? (
+                          <FormControl fullWidth error={showValidation && isRequired && !hasValue}>
+                            <Select value={questionnaireStepResponses[qKey] || ''} onChange={(e) => setQuestionnaireStepResponses(prev => ({ ...prev, [qKey]: e.target.value }))} displayEmpty>
+                              <MenuItem value="">Select an answer</MenuItem>
+                              {qOptions.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                        ) : hasOptions ? (
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            {qOptions.map(opt => (
+                              <Button key={opt} variant={questionnaireStepResponses[qKey] === opt ? 'contained' : 'outlined'}
+                                color={questionnaireStepResponses[qKey] === opt ? (opt === 'Yes' ? 'success' : opt === 'No' ? 'error' : 'primary') : 'inherit'}
+                                onClick={() => setQuestionnaireStepResponses(prev => ({ ...prev, [qKey]: opt }))} size="small">
+                                {opt}
+                              </Button>
+                            ))}
+                          </Box>
+                        ) : (
+                          <TextField fullWidth multiline={qType === 'textarea'} rows={qType === 'textarea' ? 3 : 1}
+                            value={questionnaireStepResponses[qKey] || ''} onChange={(e) => setQuestionnaireStepResponses(prev => ({ ...prev, [qKey]: e.target.value }))}
+                            placeholder="Enter your answer" error={showValidation && isRequired && !hasValue} />
+                        )}
+                      </Box>
+                    )
+                  })}
+                </Box>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   const renderPhotoStep = () => (
     <Card>
       <CardContent>
@@ -2216,6 +2374,7 @@ export default function VisitCreate() {
       case 'visit_type': return renderVisitTypeStep()
       case 'details': return renderDetailsStep()
       case 'survey': return renderSurveyStep()
+      case 'questionnaire': return renderQuestionnaireStep()
       case 'photo': return renderPhotoStep()
       case 'review': return renderReviewStep()
       default: return null
