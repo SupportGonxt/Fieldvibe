@@ -522,11 +522,11 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
                     </button>
                   </div>
                 </div>
-                {(step.step_key === 'survey' || step.step_key === 'questionnaire') && (
+                {step.step_key === 'survey' && (
                   <div className="mt-2 ml-10 space-y-1">
                     <div className="flex items-center gap-2">
                       <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                        {step.step_key === 'questionnaire' ? 'Pre-assigned questionnaire:' : 'Pre-assigned survey:'}
+                        Pre-assigned survey:
                       </label>
                       <select
                         className="input text-xs py-1 flex-1"
@@ -543,23 +543,23 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
                           setSteps(newSteps)
                         }}
                       >
-                        <option value="">{step.step_key === 'questionnaire' ? '— select a questionnaire —' : 'None — agent selects'}</option>
+                        <option value="">None — agent selects</option>
                         {allQuestionnaires.map((q: { id: string; name?: string; title?: string }) => (
                           <option key={q.id} value={q.id}>{q.name || q.title}</option>
                         ))}
                       </select>
                     </div>
-                    {step.step_key === 'questionnaire' && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 ml-0">
-                        Answers saved as visit data — visit type stays as individual/store.
-                      </p>
-                    )}
-                    {step.step_key === 'survey' && (step.config as Record<string, unknown>)?.questionnaire_id && (
-                      <p className="text-xs text-purple-600 dark:text-purple-400 ml-0">
+                    {(step.config as Record<string, unknown>)?.questionnaire_id && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
                         Visit will be saved as survey type and appear in survey reports.
                       </p>
                     )}
                   </div>
+                )}
+                {step.step_key === 'questionnaire' && (
+                  <p className="mt-1 ml-10 text-xs text-blue-600 dark:text-blue-400">
+                    Shows the company's custom questions as a dedicated step. Answers saved as visit data — visit type stays as individual/store.
+                  </p>
                 )}
               </div>
             ))}
