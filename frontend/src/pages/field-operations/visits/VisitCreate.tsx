@@ -2302,8 +2302,8 @@ export default function VisitCreate() {
           </Box>
         )}
 
-        {/* Show custom question answers in review */}
-        {Object.keys(customQuestionValues).length > 0 && (
+        {/* Show custom question answers in review — not relevant for survey visits */}
+        {Object.keys(customQuestionValues).length > 0 && visitTargetType !== 'survey' && (
           <>
             <Divider sx={{ my: 2 }} />
             <Box sx={{ mb: 3 }}>
