@@ -308,8 +308,9 @@ export default function VisitCreate() {
     let filtered = steps.filter(step => {
       // Form Type chooser is no longer used — always hidden
       if (step.step_key === 'form_choice') return false
-      // Individual and survey visits: no board photo capture step
-      if (step.step_key === 'photo' && (visitTargetType === 'individual' || visitTargetType === 'survey')) return false
+      // Individual visits: no board photo capture step. Survey visits keep the
+      // photo step when the process flow includes it (configurable per flow).
+      if (step.step_key === 'photo' && visitTargetType === 'individual') return false
       // Surveys are only completed via the dedicated Survey visit type — never
       // bundled into store or individual visits. The survey visit type always
       // keeps the step (it's the entire purpose of the visit).
@@ -1869,7 +1870,7 @@ export default function VisitCreate() {
   const renderPhotoStep = () => (
     <Card>
       <CardContent>
-        <Typography variant="h6" gutterBottom>Board Photo Capture</Typography>
+        <Typography variant="h6" gutterBottom>{visitTargetType === 'survey' ? 'Shop Picture' : 'Board Photo Capture'}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Take a photo of the boards/signage. Answer the placement questions below, then capture a photo.
           Duplicate photos are not allowed. <strong>At least one photo is required.</strong>
