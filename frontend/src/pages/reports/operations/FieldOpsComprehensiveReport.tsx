@@ -138,10 +138,16 @@ const FieldOpsComprehensiveReport: React.FC = () => {
 
   const selectedCompanyObj = Array.isArray(companies) ? companies.find((c: any) => c.id === selectedCompany) : null
   const isStellr = !!selectedCompanyObj?.name?.toLowerCase().includes('stellr')
+  // Show Tracking GoldRush tab only when no company is selected (all) or when GoldRush is selected
+  const isGoldrush = !selectedCompany || !!selectedCompanyObj?.name?.toLowerCase().includes('goldrush')
 
   useEffect(() => {
     if (isStellr && activeTab === 'individuals') setActiveTab('overview')
   }, [isStellr, activeTab])
+
+  useEffect(() => {
+    if (!isGoldrush && activeTab === 'goldrush_tracking') setActiveTab('overview')
+  }, [isGoldrush, activeTab])
 
   const dateParams = startDate || endDate
     ? `?${startDate ? `startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`
@@ -181,7 +187,7 @@ const FieldOpsComprehensiveReport: React.FC = () => {
 
       {/* Tab Bar */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 overflow-x-auto">
-        {TABS.filter(tab => !(isStellr && tab.key === 'individuals')).map((tab) => (
+        {TABS.filter(tab => !(isStellr && tab.key === 'individuals') && !(!isGoldrush && tab.key === 'goldrush_tracking')).map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
