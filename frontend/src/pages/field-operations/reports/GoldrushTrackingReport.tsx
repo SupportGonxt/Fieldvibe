@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
@@ -34,6 +34,8 @@ const GoldrushTrackingReport: React.FC = () => {
   })
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [exporting, setExporting] = useState(false)
+  const [selectedTeamLead, setSelectedTeamLead] = useState('')
+  const [selectedAgent, setSelectedAgent] = useState('')
 
   const { data, isLoading, isError, refetch } = useQuery<TrackingResponse>({
     queryKey: ['goldrush-tracking', startDate, endDate],
@@ -50,6 +52,42 @@ const GoldrushTrackingReport: React.FC = () => {
   const dates = data?.dates ?? []
   const rows  = data?.rows  ?? []
 
+  // Unique team leads derived from data
+  const teamLeads = useMemo(() => {
+    const map = new Map<string, string>()
+    rows.forEach(r => {
+      if (r.role === 'team_lead') map.set(r.agent_id, r.agent_name)
+    })
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [rows])
+
+  // Agents available under selected team lead (or all agents if no TL selected)
+  const availableAgents = useMemo(() => {
+    return rows
+      .filter(r => r.role !== 'team_lead' && (!selectedTeamLead || r.team_lead_id === selectedTeamLead))
+      .map(r => ({ id: r.agent_id, name: r.agent_name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [rows, selectedTeamLead])
+
+  const handleTeamLeadChange = (val: string) => {
+    setSelectedTeamLead(val)
+    setSelectedAgent('')
+  }
+
+  // Apply filters
+  const visibleRows = useMemo(() => {
+    let filtered = rows
+    if (selectedTeamLead) {
+      filtered = filtered.filter(r => r.agent_id === selectedTeamLead || r.team_lead_id === selectedTeamLead)
+    }
+    if (selectedAgent) {
+      filtered = filtered.filter(r => r.agent_id === selectedAgent)
+    }
+    return filtered
+  }, [rows, selectedTeamLead, selectedAgent])
+
   const formatDateLabel = (d: string) => {
     const dt = new Date(d + 'T00:00:00')
     const day = dt.toLocaleDateString('en-ZA', { weekday: 'short' })
@@ -58,16 +96,16 @@ const GoldrushTrackingReport: React.FC = () => {
 
   const columnTotals: Record<string, number> = {}
   dates.forEach(d => {
-    columnTotals[d] = rows.reduce((sum, r) => sum + (r.by_date[d] ?? 0), 0)
+    columnTotals[d] = visibleRows.reduce((sum, r) => sum + (r.by_date[d] ?? 0), 0)
   })
-  const grandTotal = rows.reduce((sum, r) => sum + r.total, 0)
+  const grandTotal = visibleRows.reduce((sum, r) => sum + r.total, 0)
 
   const exportToCSV = () => {
-    if (rows.length === 0) { toast.error('No data to export'); return }
+    if (visibleRows.length === 0) { toast.error('No data to export'); return }
     setExporting(true)
     try {
       const headers = ['Name', 'Role', 'Team Lead', 'Total', ...dates]
-      const dataRows = rows.map(r => [
+      const dataRows = visibleRows.map(r => [
         r.agent_name,
         r.role === 'team_lead' ? 'Team Lead' : 'Agent',
         r.team_lead_name ?? '',
@@ -90,7 +128,7 @@ const GoldrushTrackingReport: React.FC = () => {
       a.download = `goldrush-tracking-${startDate || 'all'}-to-${endDate || 'all'}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      toast.success(`Exported ${rows.length} agents`)
+      toast.success(`Exported ${visibleRows.length} rows`)
     } catch {
       toast.error('Export failed')
     } finally {
@@ -106,6 +144,8 @@ const GoldrushTrackingReport: React.FC = () => {
       <p className="text-sm text-gray-500 dark:text-gray-400">Please try refreshing the page</p>
     </div>
   )
+
+  const selectClass = 'border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
   return (
     <div className="space-y-6">
@@ -132,13 +172,49 @@ const GoldrushTrackingReport: React.FC = () => {
           </button>
           <button
             onClick={exportToCSV}
-            disabled={exporting || rows.length === 0}
+            disabled={exporting || visibleRows.length === 0}
             className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
           >
             <Download className="h-4 w-4" /> Export CSV
           </button>
         </div>
       </div>
+
+      {/* Filters */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={selectedTeamLead}
+            onChange={e => handleTeamLeadChange(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">All Team Leads</option>
+            {teamLeads.map(tl => (
+              <option key={tl.id} value={tl.id}>{tl.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedAgent}
+            onChange={e => setSelectedAgent(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">All Agents</option>
+            {availableAgents.map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+
+          {(selectedTeamLead || selectedAgent) && (
+            <button
+              onClick={() => { setSelectedTeamLead(''); setSelectedAgent('') }}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* KPI summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -154,7 +230,7 @@ const GoldrushTrackingReport: React.FC = () => {
             <Users className="h-4 w-4 text-purple-500" />
             <span className="text-xs text-gray-500 dark:text-gray-400">Agents / Team Leads</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{rows.length}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{visibleRows.length}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -166,9 +242,11 @@ const GoldrushTrackingReport: React.FC = () => {
       </div>
 
       {/* Pivot table */}
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-          <p className="text-gray-400 text-sm">No sign-up data found for the selected period</p>
+          <p className="text-gray-400 text-sm">
+            {rows.length === 0 ? 'No sign-up data found for the selected period' : 'No results match the selected filters'}
+          </p>
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
@@ -200,7 +278,7 @@ const GoldrushTrackingReport: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => (
+                {visibleRows.map(row => (
                   <tr
                     key={row.agent_id}
                     className={`border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 ${
