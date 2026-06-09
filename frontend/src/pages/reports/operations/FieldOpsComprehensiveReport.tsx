@@ -13,6 +13,7 @@ import {
   Navigation, Clock, Building2, ClipboardList, PieChart as PieChartIcon, Camera, User
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import GoldrushTrackingReport from '../../field-operations/reports/GoldrushTrackingReport'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend
@@ -99,7 +100,7 @@ interface CustomerRecord {
 
 // ─── Tab types ──────────────────────────────────────────────────────────────
 
-type TabKey = 'overview' | 'insights' | 'checkins' | 'stores' | 'individuals' | 'performance' | 'brand' | 'gps' | 'export'
+type TabKey = 'overview' | 'insights' | 'checkins' | 'stores' | 'individuals' | 'performance' | 'goldrush_tracking' | 'brand' | 'gps' | 'export'
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'overview', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
@@ -108,6 +109,7 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'stores', label: 'Stores', icon: <Store className="w-4 h-4" /> },
   { key: 'individuals', label: 'Individuals', icon: <Users className="w-4 h-4" /> },
   { key: 'performance', label: 'Performance', icon: <Target className="w-4 h-4" /> },
+  { key: 'goldrush_tracking', label: 'Tracking GoldRush', icon: <TrendingUp className="w-4 h-4" /> },
   { key: 'brand', label: 'Brand Insights', icon: <TrendingUp className="w-4 h-4" /> },
   { key: 'gps', label: 'GPS Tracking', icon: <MapPin className="w-4 h-4" /> },
   { key: 'export', label: 'Export', icon: <Download className="w-4 h-4" /> },
@@ -213,6 +215,9 @@ const FieldOpsComprehensiveReport: React.FC = () => {
       )}
       {activeTab === 'performance' && (
         <PerformanceTab selectedCompany={selectedCompany} isStellr={isStellr} />
+      )}
+      {activeTab === 'goldrush_tracking' && (
+        <GoldrushTrackingReport />
       )}
       {activeTab === 'brand' && (
         <BrandInsightsTab startDate={startDate} endDate={endDate} selectedCompany={selectedCompany} isStellr={isStellr} />
