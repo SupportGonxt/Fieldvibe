@@ -64,7 +64,7 @@ const DateRangePresets: React.FC<DateRangePresetsProps> = ({
   // Derive the active preset directly from props — no useEffect sync needed.
   // This prevents company-change re-renders from inadvertently flipping the preset.
   const derivedPreset = getActivePreset(startDate, endDate)
-  const activePreset: PresetKey = isCustomMode && derivedPreset === 'custom' ? 'custom' : derivedPreset
+  const activePreset: PresetKey = isCustomMode ? 'custom' : derivedPreset
 
   const handlePreset = (preset: PresetKey) => {
     setIsCustomMode(preset === 'custom')
