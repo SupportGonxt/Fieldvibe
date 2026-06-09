@@ -49,8 +49,22 @@ const GoldrushTrackingReport: React.FC = () => {
     staleTime: 60000,
   })
 
-  const dates = data?.dates ?? []
-  const rows  = data?.rows  ?? []
+  const apiDates = data?.dates ?? []
+  const rows     = data?.rows  ?? []
+
+  // Generate every day in the selected period so agents show 0 on inactive days.
+  // Fall back to API-returned dates when no explicit range is set (all-time).
+  const dates = useMemo(() => {
+    if (!startDate || !endDate) return apiDates
+    const result: string[] = []
+    const cur = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T00:00:00')
+    while (cur <= end) {
+      result.push(cur.toISOString().split('T')[0])
+      cur.setDate(cur.getDate() + 1)
+    }
+    return result
+  }, [startDate, endDate, apiDates])
 
   // Unique team leads derived from data
   const teamLeads = useMemo(() => {
@@ -313,10 +327,10 @@ const GoldrushTrackingReport: React.FC = () => {
                           className={`py-2.5 px-3 text-center whitespace-nowrap ${
                             val > 0
                               ? 'text-gray-900 dark:text-white font-medium'
-                              : 'text-gray-300 dark:text-gray-600'
+                              : 'text-gray-400 dark:text-gray-500'
                           }`}
                         >
-                          {val > 0 ? val : '—'}
+                          {val}
                         </td>
                       )
                     })}
@@ -335,7 +349,7 @@ const GoldrushTrackingReport: React.FC = () => {
                   </td>
                   {dates.map(d => (
                     <td key={d} className="py-3 px-3 text-center text-gray-900 dark:text-white">
-                      {columnTotals[d] > 0 ? columnTotals[d] : '—'}
+                      {columnTotals[d] ?? 0}
                     </td>
                   ))}
                 </tr>
