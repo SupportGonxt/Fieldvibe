@@ -17582,32 +17582,46 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
 
     const hasStart = startDate && startDate.trim() !== '';
     const hasEnd   = endDate   && endDate.trim()   !== '';
-    let dateFilter = '';
-    const binds = [tenantId, tenantId, goldrushId];
-    if (hasStart && hasEnd) {
-      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
-      binds.push(startDate, endDate);
-    } else if (hasStart) {
-      const today = new Date().toISOString().split('T')[0];
-      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
-      binds.push(startDate, today);
-    } else if (hasEnd) {
-      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
-      binds.push('2000-01-01', endDate);
-    }
 
-    const result = await db.prepare(`
-      SELECT
+    // Resolve effective date range
+    const effectiveStart = hasStart ? startDate : (hasEnd ? '2000-01-01' : null);
+    const effectiveEnd   = hasEnd   ? endDate   : (hasStart ? new Date().toISOString().split('T')[0] : null);
+
+    // ── Query 1: all active agents/TLs linked to Goldrush ──────────────────
+    const agentsResult = await db.prepare(`
+      SELECT DISTINCT
         u.id            AS agent_id,
         u.first_name || ' ' || u.last_name AS agent_name,
         u.role,
         u.team_lead_id,
-        tl.first_name || ' ' || tl.last_name AS team_lead_name,
-        DATE(v.visit_date) AS visit_date,
-        COUNT(*)        AS count
-      FROM visits v
-      JOIN  users u  ON v.agent_id       = u.id
+        tl.first_name || ' ' || tl.last_name AS team_lead_name
+      FROM users u
+      JOIN agent_company_links acl
+        ON acl.agent_id = u.id AND acl.company_id = ? AND acl.tenant_id = ? AND acl.is_active = 1
       LEFT JOIN users tl ON u.team_lead_id = tl.id AND tl.tenant_id = ?
+      WHERE u.tenant_id = ?
+        AND u.is_active = 1
+        AND u.id NOT LIKE 'agent-test-%'
+        AND u.id NOT IN ('admin-user-001','agent-user-001','manager-user-001','e6c2898a-6420-4327-8000-e7857021a306')
+        AND u.email NOT LIKE '%@fieldvibe.test'
+        AND u.email NOT LIKE '%@demo.com'
+        AND u.email != 'luke@templeman.co.za'
+        AND u.email != 'luke.templeman@gonxt.tech'
+        AND u.role IN ('agent','team_lead','field_agent','sales_rep')
+    `).bind(goldrushId, tenantId, tenantId, tenantId).all();
+
+    // ── Query 2: visit counts grouped by agent + date ───────────────────────
+    let dateFilter = '';
+    const visitBinds = [tenantId, goldrushId];
+    if (effectiveStart && effectiveEnd) {
+      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
+      visitBinds.push(effectiveStart, effectiveEnd);
+    }
+
+    const visitsResult = await db.prepare(`
+      SELECT v.agent_id, DATE(v.visit_date) AS visit_date, COUNT(*) AS count
+      FROM visits v
+      JOIN users u ON v.agent_id = u.id
       WHERE v.tenant_id = ? AND v.company_id = ?
         AND LOWER(v.visit_type) = 'individual'
         AND v.agent_id NOT LIKE 'agent-test-%'
@@ -17617,38 +17631,37 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
         AND u.email != 'luke@templeman.co.za'
         AND u.email != 'luke.templeman@gonxt.tech'
         ${dateFilter}
-      GROUP BY u.id, DATE(v.visit_date)
-      ORDER BY agent_name, visit_date
-    `).bind(...binds).all();
+      GROUP BY v.agent_id, DATE(v.visit_date)
+    `).bind(...visitBinds).all();
 
-    const raw = result.results || [];
+    // Build lookup: agent_id -> { date -> count }
+    const countMap = new Map();
+    for (const r of (visitsResult.results || [])) {
+      if (!countMap.has(r.agent_id)) countMap.set(r.agent_id, {});
+      countMap.get(r.agent_id)[r.visit_date] = r.count || 0;
+    }
 
-    // Build sorted unique dates list
+    // Build sorted unique dates list (from actual visits only)
     const dateSet = new Set();
-    raw.forEach(r => { if (r.visit_date) dateSet.add(r.visit_date); });
+    for (const r of (visitsResult.results || [])) {
+      if (r.visit_date) dateSet.add(r.visit_date);
+    }
     const dates = Array.from(dateSet).sort();
 
-    // Aggregate per agent
-    const agentMap = new Map();
-    raw.forEach(r => {
-      if (!agentMap.has(r.agent_id)) {
-        agentMap.set(r.agent_id, {
-          agent_id:       r.agent_id,
-          agent_name:     r.agent_name || 'Unknown',
-          role:           r.role       || 'agent',
-          team_lead_id:   r.team_lead_id   || null,
-          team_lead_name: r.team_lead_name || null,
-          total:          0,
-          by_date:        {},
-        });
-      }
-      const agent = agentMap.get(r.agent_id);
-      agent.by_date[r.visit_date] = (r.count || 0);
-      agent.total += (r.count || 0);
-    });
-
-    // Sort: team leads first (alphabetically), then agents (alphabetically)
-    const rows = Array.from(agentMap.values()).sort((a, b) => {
+    // Merge: every agent gets a row, with by_date filled from countMap
+    const rows = (agentsResult.results || []).map(a => {
+      const by_date = countMap.get(a.agent_id) || {};
+      const total   = Object.values(by_date).reduce((s, v) => s + v, 0);
+      return {
+        agent_id:       a.agent_id,
+        agent_name:     a.agent_name || 'Unknown',
+        role:           a.role       || 'agent',
+        team_lead_id:   a.team_lead_id   || null,
+        team_lead_name: a.team_lead_name || null,
+        total,
+        by_date,
+      };
+    }).sort((a, b) => {
       const aIsTL = a.role === 'team_lead' ? 0 : 1;
       const bIsTL = b.role === 'team_lead' ? 0 : 1;
       if (aIsTL !== bIsTL) return aIsTL - bIsTL;
