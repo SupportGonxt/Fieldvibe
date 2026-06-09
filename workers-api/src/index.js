@@ -6455,7 +6455,7 @@ function surveyResponseScope(tenantId, brandId, startDate, endDate) {
   let where = "vr.tenant_id = ? AND v.questionnaire_id IS NOT NULL AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')";
   const binds = [tenantId];
   if (startDate && endDate) { where += ' AND date(vr.created_at) BETWEEN date(?) AND date(?)'; binds.push(startDate, endDate); }
-  if (brandId) { where += ' AND v.questionnaire_id IN (SELECT id FROM questionnaires WHERE tenant_id = ? AND (brand_id = ? OR brand_ids LIKE ?))'; binds.push(tenantId, brandId, `%"${brandId}"%`); }
+  if (brandId) { where += ' AND v.brand_id = ?'; binds.push(brandId); }
   return { where, binds };
 }
 // Visits that required a survey (the denominator for response rate).
@@ -17562,6 +17562,100 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
 
     console.log(`[GoldrushIndividuals] Returning ${data.length} records`);
     return c.json({ success: true, data, total: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Goldrush Tracking Report - daily individual sign-up counts per agent / team lead
+api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+
+    const goldrushCompany = await db.prepare(
+      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?"
+    ).bind(tenantId).first();
+    if (!goldrushCompany) {
+      return c.json({ success: true, dates: [], rows: [], message: 'Goldrush company not found' });
+    }
+    const goldrushId = goldrushCompany.id;
+
+    const hasStart = startDate && startDate.trim() !== '';
+    const hasEnd   = endDate   && endDate.trim()   !== '';
+    let dateFilter = '';
+    const binds = [tenantId, tenantId, goldrushId];
+    if (hasStart && hasEnd) {
+      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
+      binds.push(startDate, endDate);
+    } else if (hasStart) {
+      const today = new Date().toISOString().split('T')[0];
+      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
+      binds.push(startDate, today);
+    } else if (hasEnd) {
+      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
+      binds.push('2000-01-01', endDate);
+    }
+
+    const result = await db.prepare(`
+      SELECT
+        u.id            AS agent_id,
+        u.first_name || ' ' || u.last_name AS agent_name,
+        u.role,
+        u.team_lead_id,
+        tl.first_name || ' ' || tl.last_name AS team_lead_name,
+        DATE(v.visit_date) AS visit_date,
+        COUNT(*)        AS count
+      FROM visits v
+      JOIN  users u  ON v.agent_id       = u.id
+      LEFT JOIN users tl ON u.team_lead_id = tl.id AND tl.tenant_id = ?
+      WHERE v.tenant_id = ? AND v.company_id = ?
+        AND LOWER(v.visit_type) = 'individual'
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001','agent-user-001','manager-user-001','e6c2898a-6420-4327-8000-e7857021a306')
+        AND u.email NOT LIKE '%@fieldvibe.test'
+        AND u.email NOT LIKE '%@demo.com'
+        AND u.email != 'luke@templeman.co.za'
+        AND u.email != 'luke.templeman@gonxt.tech'
+        ${dateFilter}
+      GROUP BY u.id, DATE(v.visit_date)
+      ORDER BY agent_name, visit_date
+    `).bind(...binds).all();
+
+    const raw = result.results || [];
+
+    // Build sorted unique dates list
+    const dateSet = new Set();
+    raw.forEach(r => { if (r.visit_date) dateSet.add(r.visit_date); });
+    const dates = Array.from(dateSet).sort();
+
+    // Aggregate per agent
+    const agentMap = new Map();
+    raw.forEach(r => {
+      if (!agentMap.has(r.agent_id)) {
+        agentMap.set(r.agent_id, {
+          agent_id:       r.agent_id,
+          agent_name:     r.agent_name || 'Unknown',
+          role:           r.role       || 'agent',
+          team_lead_id:   r.team_lead_id   || null,
+          team_lead_name: r.team_lead_name || null,
+          total:          0,
+          by_date:        {},
+        });
+      }
+      const agent = agentMap.get(r.agent_id);
+      agent.by_date[r.visit_date] = (r.count || 0);
+      agent.total += (r.count || 0);
+    });
+
+    // Sort: team leads first (alphabetically), then agents (alphabetically)
+    const rows = Array.from(agentMap.values()).sort((a, b) => {
+      const aIsTL = a.role === 'team_lead' ? 0 : 1;
+      const bIsTL = b.role === 'team_lead' ? 0 : 1;
+      if (aIsTL !== bIsTL) return aIsTL - bIsTL;
+      return a.agent_name.localeCompare(b.agent_name);
+    });
+
+    return c.json({ success: true, dates, rows });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 

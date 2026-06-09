@@ -436,6 +436,7 @@ const GoldrushIndividualReport = lazyWithRetry(() => import('./pages/field-opera
 const GoldrushStoreReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreReport'))
 const GoldrushIndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualInsights'))
 const GoldrushStoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreInsights'))
+const GoldrushTrackingReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushTrackingReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
 function PageLoader({ children }: { children: React.ReactNode }) {
@@ -1096,6 +1097,7 @@ function App() {
             <Route path="field-operations/reports/goldrush-stores" element={<PageLoader><GoldrushStoreReport /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><GoldrushIndividualInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><GoldrushStoreInsights /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-tracking" element={<PageLoader><GoldrushTrackingReport /></PageLoader>} />
 
             {/* Stellr → merged into Stores Report */}
             <Route path="field-operations/reports/stellr" element={<Navigate to="/field-operations/reports/goldrush-stores" replace />} />

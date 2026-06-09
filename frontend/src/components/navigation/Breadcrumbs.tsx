@@ -111,6 +111,7 @@ export const breadcrumbLabels: Record<string, string> = {
   '/van-sales/dashboard': 'Van Sales Dashboard',
   '/field-operations/dashboard': 'Field Operations Dashboard',
   '/field-operations/reports/goldrush-stores': 'Stores Report',
+  '/field-operations/reports/goldrush-tracking': 'Tracking GoldRush',
   '/admin': 'Admin Panel',
 };
 
