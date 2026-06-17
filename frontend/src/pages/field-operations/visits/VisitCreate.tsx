@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 
 // Haversine distance between two GPS coordinates in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -240,7 +241,10 @@ export default function VisitCreate() {
   const [individualFirstName, setIndividualFirstName] = useState('')
   const [individualLastName, setIndividualLastName] = useState('')
   const [individualIdNumber, setIndividualIdNumber] = useState('')
+  const [individualIdType, setIndividualIdType] = useState<IdType>('sa_id')
   const [individualPhone, setIndividualPhone] = useState('')
+  // Per-question ID type (SA ID vs passport) for auto-detected national-id company questions
+  const [companyIdTypes, setCompanyIdTypes] = useState<Record<string, IdType>>({})
   const [individualEmail, setIndividualEmail] = useState('')
 
   // Step: Form Choice (store visits only) — agent picks Questionnaire or Survey
@@ -867,6 +871,7 @@ export default function VisitCreate() {
         if (visitTargetType === 'individual') {
           if (!individualFirstName || !individualLastName) return false
           if (!individualIdNumber && !individualPhone) return false
+          if (idError(individualIdType, individualIdNumber)) return false
           if (duplicateCheck?.has_duplicates) return false
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
@@ -874,6 +879,7 @@ export default function VisitCreate() {
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
             }
           }
           return true
@@ -887,6 +893,7 @@ export default function VisitCreate() {
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
             }
           }
           return true
@@ -1295,15 +1302,44 @@ export default function VisitCreate() {
                   helperText={showValidation && !individualLastName ? 'Last name is required' : undefined}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label={`ID Number ${!individualPhone ? '*' : ''}`}
-                  value={individualIdNumber}
-                  onChange={(e) => { setIndividualIdNumber(e.target.value); setDuplicateCheck(null); }}
-                  helperText={showValidation && !individualIdNumber && !individualPhone ? 'ID number or phone is required' : 'Must be unique - cannot be duplicated'}
-                  error={(showValidation && !individualIdNumber && !individualPhone) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
-                />
+              <Grid item xs={12} sm={3}>
+                <FormControl fullWidth>
+                  <InputLabel>ID Type</InputLabel>
+                  <Select
+                    label="ID Type"
+                    value={individualIdType}
+                    onChange={(e) => { setIndividualIdType(e.target.value as IdType); setDuplicateCheck(null); }}
+                  >
+                    <MenuItem value="sa_id">SA ID</MenuItem>
+                    <MenuItem value="passport">Passport</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                {(() => {
+                  const idErr = idError(individualIdType, individualIdNumber)
+                  const isSaId = individualIdType === 'sa_id'
+                  return (
+                    <TextField
+                      fullWidth
+                      label={`${isSaId ? 'SA ID Number' : 'Passport No.'} ${!individualPhone ? '*' : ''}`}
+                      value={individualIdNumber}
+                      onChange={(e) => {
+                        const v = isSaId ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase()
+                        setIndividualIdNumber(v)
+                        setDuplicateCheck(null)
+                      }}
+                      inputProps={isSaId ? { inputMode: 'numeric', pattern: '[0-9]*', maxLength: 13 } : { maxLength: 12 }}
+                      placeholder={isSaId ? '8001015009087' : 'e.g. A12345678'}
+                      helperText={
+                        idErr ? idErr
+                        : (showValidation && !individualIdNumber && !individualPhone ? 'ID number or phone is required'
+                        : 'Must be unique - cannot be duplicated')
+                      }
+                      error={!!idErr || (showValidation && !individualIdNumber && !individualPhone) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
+                    />
+                  )
+                })()}
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -1556,7 +1592,41 @@ export default function VisitCreate() {
                 const lenError = !!(q.min_length && val.length > 0 && val.length < q.min_length)
                 return (
                 <Grid item xs={12} sm={6} key={q.id}>
-                  {q.field_type === 'select' && opts.length > 0 ? (
+                  {isNationalIdKey(q.question_key) ? (() => {
+                    const idType = companyIdTypes[q.question_key] || 'sa_id'
+                    const isSaId = idType === 'sa_id'
+                    const idErr = idError(idType, val)
+                    const requiredMissing = showValidation && !!q.is_required && !val
+                    return (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <FormControl sx={{ minWidth: 110 }}>
+                          <InputLabel>ID Type</InputLabel>
+                          <Select
+                            label="ID Type"
+                            value={idType}
+                            onChange={(e) => setCompanyIdTypes(prev => ({ ...prev, [q.question_key]: e.target.value as IdType }))}
+                          >
+                            <MenuItem value="sa_id">SA ID</MenuItem>
+                            <MenuItem value="passport">Passport</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          fullWidth
+                          required={!!q.is_required}
+                          label={`${q.question_label}${q.is_required ? ' *' : ''}`}
+                          value={val}
+                          onChange={(e) => {
+                            const newVal = isSaId ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase()
+                            setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: newVal }))
+                          }}
+                          inputProps={isSaId ? { inputMode: 'numeric', pattern: '[0-9]*', maxLength: 13 } : { maxLength: 12 }}
+                          placeholder={isSaId ? '8001015009087' : 'e.g. A12345678'}
+                          error={!!idErr || requiredMissing}
+                          helperText={idErr || (requiredMissing ? 'This field is required' : (isSaId ? 'SA ID — 13 digits' : 'Passport — 6–12 letters/numbers'))}
+                        />
+                      </Box>
+                    )
+                  })() : q.field_type === 'select' && opts.length > 0 ? (
                     <FormControl fullWidth required={!!q.is_required} error={showValidation && !!q.is_required && !val}>
                       <InputLabel>{q.question_label}{q.is_required ? ' *' : ''}</InputLabel>
                       <Select
