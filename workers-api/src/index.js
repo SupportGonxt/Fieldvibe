@@ -3458,6 +3458,16 @@ api.put('/visits/:id', async (c) => {
   }
   // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
   if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+    // Goldrush uniqueness + length on edit/resubmit (exclude this visit's own rows).
+    const incomingGoldrush = extractGoldrushId(body.custom_field_values);
+    if (incomingGoldrush) {
+      if (incomingGoldrush.length !== 9) {
+        return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
+      }
+      if (await goldrushIdExists(db, tenantId, incomingGoldrush, id)) {
+        return c.json({ error: 'This Goldrush ID has already been used. Goldrush IDs must be unique.' }, 409);
+      }
+    }
     const vi = await db.prepare('SELECT id, custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).first();
     if (vi) {
       let existing = {};
@@ -5774,6 +5784,16 @@ api.put('/field-operations/visits/:id', authMiddleware, async (c) => {
   }
   // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
   if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+    // Goldrush uniqueness + length on edit/resubmit (exclude this visit's own rows).
+    const incomingGoldrush = extractGoldrushId(body.custom_field_values);
+    if (incomingGoldrush) {
+      if (incomingGoldrush.length !== 9) {
+        return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
+      }
+      if (await goldrushIdExists(db, tenantId, incomingGoldrush, id)) {
+        return c.json({ error: 'This Goldrush ID has already been used. Goldrush IDs must be unique.' }, 409);
+      }
+    }
     const vi = await db.prepare('SELECT id, custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).first();
     if (vi) {
       let existing = {};
@@ -9011,6 +9031,38 @@ async function isPhotoHashDuplicate(db, tenantId, photoHash) {
   return !!existing;
 }
 
+// Find a goldrush player ID in a custom-field map (key contains 'goldrush_id',
+// excluding the *_rejected / *_rejection_reason metadata keys).
+function extractGoldrushId(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const [k, v] of Object.entries(obj)) {
+    const lk = k.toLowerCase();
+    if (lk.includes('goldrush_id') && !lk.includes('rejected') && !lk.includes('rejection')) {
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+  }
+  return '';
+}
+
+// Whether a goldrush_id already exists in any visit_individuals row for the
+// tenant. excludeVisitId skips the row(s) of the visit being edited so a
+// re-save of the same value isn't flagged against itself.
+async function goldrushIdExists(db, tenantId, goldrushId, excludeVisitId = null) {
+  if (!goldrushId) return false;
+  const sql = 'SELECT custom_field_values FROM visit_individuals WHERE tenant_id = ? AND custom_field_values LIKE ?'
+    + (excludeVisitId ? ' AND visit_id != ?' : '');
+  const binds = excludeVisitId
+    ? [tenantId, `%${goldrushId}%`, excludeVisitId]
+    : [tenantId, `%${goldrushId}%`];
+  const rows = await db.prepare(sql).bind(...binds).all();
+  for (const row of (rows.results || [])) {
+    let parsed;
+    try { parsed = JSON.parse(row.custom_field_values || '{}'); } catch { parsed = {}; }
+    if (extractGoldrushId(parsed) === goldrushId) return true;
+  }
+  return false;
+}
+
 // Create visit with full workflow data (individual or store)
 api.post('/visits/workflow', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -9027,6 +9079,18 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       const existingVisit = await db.prepare("SELECT id, status FROM visits WHERE tenant_id = ? AND id = ?").bind(tenantId, body.client_visit_id).first();
       if (existingVisit) {
         return c.json({ data: { id: existingVisit.id, status: existingVisit.status, visit_date: visitDate, already_existed: true }, message: 'Visit already exists (duplicate prevented)' }, 200);
+      }
+    }
+
+    // Goldrush uniqueness + length: reject up front, before any inserts, so a
+    // rejected submission never leaves an orphan visit row.
+    const incomingGoldrush = extractGoldrushId({ ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) });
+    if (incomingGoldrush) {
+      if (incomingGoldrush.length !== 9) {
+        return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
+      }
+      if (await goldrushIdExists(db, tenantId, incomingGoldrush)) {
+        return c.json({ error: 'This Goldrush ID has already been used. Goldrush IDs must be unique.' }, 409);
       }
     }
 
