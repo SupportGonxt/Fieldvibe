@@ -116,11 +116,25 @@ export default function VisitDetail() {
 
   const handleSaveGoldrushId = async () => {
     if (!id) return
+    const val = goldrushIdValue.trim()
+    if (val.length !== 9) {
+      toast.error('Goldrush ID must be exactly 9 digits')
+      return
+    }
     setSavingGoldrushId(true)
     try {
+      // Uniqueness: skip self-match when the value is unchanged for this visit.
+      if (visit && val !== getGoldrushId(visit)) {
+        const dup = await fieldOperationsService.checkIndividualDuplicate({ goldrush_id: val })
+        if (dup?.has_duplicates && (dup.duplicates || []).some((d: any) => d.field === 'goldrush_id')) {
+          toast.error('This Goldrush ID has already been used. Goldrush IDs must be unique.')
+          setSavingGoldrushId(false)
+          return
+        }
+      }
       await fieldOperationsService.updateVisit(id, {
         custom_field_values: {
-          goldrush_id: goldrushIdValue.trim(),
+          goldrush_id: val,
           goldrush_id_rejected: false,
           goldrush_id_rejection_reason: '',
         }
@@ -414,13 +428,14 @@ export default function VisitDetail() {
                       pattern="[0-9]*"
                       value={goldrushIdValue}
                       onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
+                      maxLength={9}
                       className="flex-1 px-3 py-2 text-sm bg-white/10 border border-orange-500/40 rounded-lg text-white placeholder-gray-500 focus:ring-1 focus:ring-orange-400"
-                      placeholder="Enter correct ID"
+                      placeholder="9-digit ID"
                       onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId() }}
                     />
                     <button
                       onClick={handleSaveGoldrushId}
-                      disabled={savingGoldrushId || !goldrushIdValue.trim()}
+                      disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9}
                       className="px-3 py-2 bg-[#00E87B] text-[#0A1628] text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1"
                     >
                       <Save className="w-3.5 h-3.5" />
@@ -440,12 +455,13 @@ export default function VisitDetail() {
                         pattern="[0-9]*"
                         value={goldrushIdValue}
                         onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
+                        maxLength={9}
                         className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-[#00E87B]"
-                        placeholder="Numeric ID"
+                        placeholder="9 digits"
                         autoFocus
                         onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(); if (e.key === 'Escape') setEditingGoldrushId(false); }}
                       />
-                      <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId} className="p-1 text-[#00E87B] disabled:opacity-50">
+                      <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9} className="p-1 text-[#00E87B] disabled:opacity-50">
                         <Save className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => setEditingGoldrushId(false)} className="p-1 text-gray-500">

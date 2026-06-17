@@ -115,6 +115,9 @@ interface ProcessFlowStep {
   config: string
 }
 
+// Goldrush player ID must be exactly this many digits and unique per tenant
+const GOLDRUSH_ID_LENGTH = 9
+
 // Built-in flow field keys that are already captured in the standard visit flow
 // Questions with check_duplicate flagged that match these keys will be filtered out
 const BUILT_IN_FLOW_KEYS = new Set([
@@ -741,11 +744,14 @@ export default function VisitCreate() {
 
   // Check individual duplicate
   const checkIndividualDuplicate = async () => {
-    if (!individualIdNumber && !individualPhone) return null
+    const goldrushQ = customQuestions.find(q => q.question_key.toLowerCase().includes('goldrush_id'))
+    const goldrushId = goldrushQ ? (customQuestionValues[goldrushQ.question_key] || '') : ''
+    if (!individualIdNumber && !individualPhone && !goldrushId) return null
     try {
       const res = await fieldOperationsService.checkIndividualDuplicate({
         id_number: individualIdNumber || undefined,
-        phone: individualPhone || undefined
+        phone: individualPhone || undefined,
+        goldrush_id: goldrushId || undefined
       })
       setDuplicateCheck(res)
       return res
@@ -880,6 +886,10 @@ export default function VisitCreate() {
             for (const q of customQuestions) {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
+              if (q.question_key.toLowerCase().includes('goldrush_id')) {
+                const gv = customQuestionValues[q.question_key] || ''
+                if (gv && gv.length !== GOLDRUSH_ID_LENGTH) return false
+              }
             }
           }
           return true
@@ -894,6 +904,10 @@ export default function VisitCreate() {
             for (const q of customQuestions) {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
+              if (q.question_key.toLowerCase().includes('goldrush_id')) {
+                const gv = customQuestionValues[q.question_key] || ''
+                if (gv && gv.length !== GOLDRUSH_ID_LENGTH) return false
+              }
             }
           }
           return true
@@ -970,9 +984,15 @@ export default function VisitCreate() {
       }
       setShowValidation(false)
       if (currentStepKey === 'details') {
-        if (visitTargetType === 'individual') {
+        const goldrushQ = customQuestions.find(q => q.question_key.toLowerCase().includes('goldrush_id'))
+        if (visitTargetType === 'individual' || goldrushQ) {
           const result = await checkIndividualDuplicate()
           if (result?.has_duplicates) {
+            const dupFields = (result.duplicates || []).map((d: any) => d.field)
+            if (dupFields.includes('goldrush_id')) {
+              setError('This Goldrush ID has already been used. Goldrush IDs must be unique.')
+              return
+            }
             setError('Duplicate individual detected. ID number and phone must be unique.')
             return
           }
@@ -1590,6 +1610,9 @@ export default function VisitCreate() {
                 const val = customQuestionValues[q.question_key] || ''
                 const lenHelper = q.min_length || q.max_length ? `${q.min_length ? `Min ${q.min_length}` : ''}${q.min_length && q.max_length ? ' / ' : ''}${q.max_length ? `Max ${q.max_length}` : ''} characters` : undefined
                 const lenError = !!(q.min_length && val.length > 0 && val.length < q.min_length)
+                const isGoldrushId = q.question_key.toLowerCase().includes('goldrush_id')
+                const goldrushLenError = isGoldrushId && val.length > 0 && val.length !== GOLDRUSH_ID_LENGTH
+                const goldrushDuplicate = isGoldrushId && (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id') || false)
                 return (
                 <Grid item xs={12} sm={6} key={q.id}>
                   {isNationalIdKey(q.question_key) ? (() => {
@@ -1784,19 +1807,26 @@ export default function VisitCreate() {
                       fullWidth
                       required={!!q.is_required}
                       label={q.question_label + (q.is_required ? ' *' : '')}
-                      type={q.question_key.toLowerCase().includes('goldrush_id') ? 'text' : q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
+                      type={isGoldrushId ? 'text' : q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
                       value={val}
                       onChange={(e) => {
-                        const newVal = q.question_key.toLowerCase().includes('goldrush_id') ? e.target.value.replace(/[^0-9]/g, '') : e.target.value
+                        const newVal = isGoldrushId ? e.target.value.replace(/[^0-9]/g, '') : e.target.value
                         setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: newVal }))
+                        if (isGoldrushId) setDuplicateCheck(null)
                       }}
                       inputProps={{
                         minLength: q.min_length || undefined,
-                        maxLength: q.max_length || undefined,
-                        ...(q.question_key.toLowerCase().includes('goldrush_id') ? { inputMode: 'numeric' as const, pattern: '[0-9]*' } : {})
+                        maxLength: isGoldrushId ? GOLDRUSH_ID_LENGTH : (q.max_length || undefined),
+                        ...(isGoldrushId ? { inputMode: 'numeric' as const, pattern: '[0-9]*' } : {})
                       }}
-                      helperText={showValidation && !!q.is_required && !val ? 'This field is required' : (q.question_key.toLowerCase().includes('goldrush_id') ? 'Numeric only' : lenHelper)}
-                      error={lenError || (showValidation && !!q.is_required && !val)}
+                      helperText={
+                        showValidation && !!q.is_required && !val ? 'This field is required'
+                        : goldrushDuplicate ? 'This Goldrush ID has already been used'
+                        : goldrushLenError ? `Goldrush ID must be exactly ${GOLDRUSH_ID_LENGTH} digits`
+                        : isGoldrushId ? `Exactly ${GOLDRUSH_ID_LENGTH} digits, must be unique`
+                        : lenHelper
+                      }
+                      error={lenError || goldrushLenError || goldrushDuplicate || (showValidation && !!q.is_required && !val)}
                     />
                   )}
                 </Grid>

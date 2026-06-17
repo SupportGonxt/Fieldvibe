@@ -8934,12 +8934,12 @@ api.post('/visits/check-store-revisit', authMiddleware, async (c) => {
   return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
 });
 
-// Check for duplicate individual (ID number or phone)
+// Check for duplicate individual (ID number, phone, or goldrush player ID)
 api.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  const { id_number, phone } = body;
+  const { id_number, phone, goldrush_id } = body;
   const duplicates = [];
   if (id_number) {
     const existing = await db.prepare('SELECT id, first_name, last_name, id_number FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, id_number).first();
@@ -8948,6 +8948,21 @@ api.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
   if (phone) {
     const existing = await db.prepare('SELECT id, first_name, last_name, phone FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, phone).first();
     if (existing) duplicates.push({ field: 'phone', value: phone, existing_individual: existing });
+  }
+  // goldrush_id lives in visit_individuals.custom_field_values JSON (key contains 'goldrush_id').
+  if (goldrush_id) {
+    const rows = await db.prepare(
+      'SELECT vi.individual_id, vi.custom_field_values, i.first_name, i.last_name FROM visit_individuals vi LEFT JOIN individuals i ON vi.individual_id = i.id WHERE vi.tenant_id = ? AND vi.custom_field_values LIKE ?'
+    ).bind(tenantId, `%${goldrush_id}%`).all();
+    for (const row of (rows.results || [])) {
+      let parsed;
+      try { parsed = JSON.parse(row.custom_field_values || '{}'); } catch { parsed = {}; }
+      const match = Object.entries(parsed).some(([k, v]) => k.toLowerCase().includes('goldrush_id') && String(v) === String(goldrush_id));
+      if (match) {
+        duplicates.push({ field: 'goldrush_id', value: goldrush_id, existing_individual: { id: row.individual_id, first_name: row.first_name, last_name: row.last_name } });
+        break;
+      }
+    }
   }
   return c.json({ has_duplicates: duplicates.length > 0, duplicates });
 });
