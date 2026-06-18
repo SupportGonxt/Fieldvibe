@@ -9094,6 +9094,21 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       }
     }
 
+    // Individual ID-number / phone uniqueness: hard-reject up front (mirrors the
+    // /individuals endpoint and the client pre-flight) so duplicates can't slip
+    // in via a race or a direct API call. Runs before any insert → no orphan
+    // visit. client_visit_id idempotency above already short-circuits retries.
+    if (body.visit_target_type === 'individual') {
+      if (body.individual_id_number) {
+        const dupId = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, body.individual_id_number).first();
+        if (dupId) return c.json({ error: 'This ID number is already registered. ID numbers must be unique.', duplicate_field: 'id_number' }, 409);
+      }
+      if (body.individual_phone) {
+        const dupPhone = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, body.individual_phone).first();
+        if (dupPhone) return c.json({ error: 'This phone number is already registered. Phone numbers must be unique.', duplicate_field: 'phone' }, 409);
+      }
+    }
+
     // 0. If store visit with store_name but no customer_id, auto-create customer
     let customerId = body.customer_id || null;
     if (body.visit_target_type === 'store' && !customerId && body.store_name) {
