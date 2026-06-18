@@ -701,6 +701,10 @@ CREATE INDEX IF NOT EXISTS idx_commission_earnings_earner ON commission_earnings
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_audit_log_tenant ON audit_log(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_agent_assignments ON agent_company_assignments(user_id, tenant_id);
+-- Uniqueness: one id_number / one phone per tenant. Partial so blank/NULL values
+-- (individuals captured without an ID or phone) are exempt from the constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_individuals_tenant_id_number ON individuals(tenant_id, id_number) WHERE id_number IS NOT NULL AND id_number != '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_individuals_tenant_phone ON individuals(tenant_id, phone) WHERE phone IS NOT NULL AND phone != '';
 
 -- ==================== ADDITIONAL TABLES ====================
 

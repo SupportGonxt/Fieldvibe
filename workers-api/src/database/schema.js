@@ -255,7 +255,11 @@ export const indexes = [
   'CREATE INDEX IF NOT EXISTS idx_ir_converted ON individual_registrations(converted, tenant_id)',
   'CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id)',
   'CREATE INDEX IF NOT EXISTS idx_targets_agent ON monthly_targets(agent_id, target_month)',
-  'CREATE INDEX IF NOT EXISTS idx_commissions_earner ON commission_earnings(earner_id, tenant_id)'
+  'CREATE INDEX IF NOT EXISTS idx_commissions_earner ON commission_earnings(earner_id, tenant_id)',
+  // Uniqueness: one id_number / one phone per tenant. Partial so blank/NULL
+  // values (individuals captured without an ID or phone) are exempt.
+  "CREATE UNIQUE INDEX IF NOT EXISTS uq_individuals_tenant_id_number ON individuals(tenant_id, id_number) WHERE id_number IS NOT NULL AND id_number != ''",
+  "CREATE UNIQUE INDEX IF NOT EXISTS uq_individuals_tenant_phone ON individuals(tenant_id, phone) WHERE phone IS NOT NULL AND phone != ''"
 ];
 
 /**
