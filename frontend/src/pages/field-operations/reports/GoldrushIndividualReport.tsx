@@ -4,9 +4,20 @@ import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, RefreshCw, Ban, RotateCcw } from 'lucide-react'
+import { Download, Users, Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, RefreshCw, Ban, RotateCcw, Tag } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
+
+interface NoBTagRecord {
+  visit_id: string
+  visit_date: string
+  first_name: string
+  last_name: string
+  id_number: string
+  goldrush_id: string
+  agent_name: string
+  team_lead_name: string | null
+}
 
 interface GoldrushIndividual {
   id: string
@@ -41,7 +52,8 @@ interface GoldrushIndividual {
 
 const GoldrushIndividualReport: React.FC = () => {
   const queryClient = useQueryClient()
-  
+  const [activeTab, setActiveTab] = useState<'individuals' | 'no_btag'>('individuals')
+
   // Initialize with week to date
   const [startDate, setStartDate] = useState<string>(() => {
     const now = new Date()
@@ -113,8 +125,21 @@ const GoldrushIndividualReport: React.FC = () => {
       console.log('[Goldrush] Received', res.data?.data?.length, 'records')
       return (res.data?.data || []) as GoldrushIndividual[]
     },
-    staleTime: 60000, // 1 minute cache to reduce API calls
-    gcTime: 5 * 60 * 1000, // Keep data for 5 minutes
+    staleTime: 60000,
+    gcTime: 5 * 60 * 1000,
+  })
+
+  const { data: noBTagRecords = [], isLoading: noBTagLoading, refetch: refetchNoBTag } = useQuery({
+    queryKey: ['goldrush-no-btag', startDate, endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      const res = await apiClient.get(`/field-ops/reports/goldrush-no-btag?${params.toString()}`)
+      return (res.data?.data || []) as NoBTagRecord[]
+    },
+    staleTime: 60000,
+    enabled: activeTab === 'no_btag',
   })
 
   const handleEditGoldrushId = (ind: GoldrushIndividual) => {
@@ -275,6 +300,36 @@ const GoldrushIndividualReport: React.FC = () => {
     }
   }
 
+  const exportNoBTag = () => {
+    setExporting(true)
+    try {
+      if (noBTagRecords.length === 0) { toast.error('No data to export'); return }
+      const headers = ['Date', 'First Name', 'Last Name', 'ID Number', 'Goldrush ID', 'Agent', 'Team Lead']
+      const rows = noBTagRecords.map(r => [
+        r.visit_date || '',
+        r.first_name || '',
+        r.last_name || '',
+        r.id_number || '',
+        r.goldrush_id || '',
+        r.agent_name || '',
+        r.team_lead_name || '',
+      ])
+      const BOM = '﻿'
+      const csv = [
+        headers.map(h => `"${h}"`).join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+      const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `goldrush-no-btag-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`Exported ${noBTagRecords.length} records`)
+    } catch { toast.error('Export failed') } finally { setExporting(false) }
+  }
+
   if (isLoading) return <LoadingSpinner />
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -312,16 +367,106 @@ const GoldrushIndividualReport: React.FC = () => {
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
           />
-          <button onClick={() => refetch()}
+          <button onClick={() => activeTab === 'individuals' ? refetch() : refetchNoBTag()}
             className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
             <RefreshCw className="h-4 w-4" /> Refresh
           </button>
-          <button onClick={exportToExcel} disabled={exporting || individuals.length === 0}
-            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
-            <Download className="h-4 w-4" /> Export Excel
-          </button>
+          {activeTab === 'individuals' ? (
+            <button onClick={exportToExcel} disabled={exporting || individuals.length === 0}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
+              <Download className="h-4 w-4" /> Export Excel
+            </button>
+          ) : (
+            <button onClick={exportNoBTag} disabled={exporting || noBTagRecords.length === 0}
+              className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm font-medium">
+              <Download className="h-4 w-4" /> Export No B-Tag
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setActiveTab('individuals')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'individuals'
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
+        >
+          <Users className="h-4 w-4" /> All Individuals
+          <span className="ml-1 text-xs bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">{individuals.length}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('no_btag')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'no_btag'
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
+        >
+          <Tag className="h-4 w-4" /> No B-Tag
+          {noBTagRecords.length > 0 && (
+            <span className="ml-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full">{noBTagRecords.length}</span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'no_btag' && (
+        <>
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 flex items-start gap-3">
+            <Tag className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-orange-800 dark:text-orange-300">Missing B-Tag (product_app_player_id)</p>
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">These captures have a valid Goldrush ID and SA ID number but no B-Tag assigned yet. Use Export to download for follow-up.</p>
+            </div>
+          </div>
+          {noBTagLoading ? <LoadingSpinner /> : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Date</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Name</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">ID Number</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Goldrush ID</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Agent</th>
+                      <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Team Lead</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {noBTagRecords.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-gray-400 text-sm">No records missing a B-Tag in this date range</td>
+                      </tr>
+                    ) : noBTagRecords.map(r => (
+                      <tr key={r.visit_id} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-orange-50/50 dark:hover:bg-orange-900/10">
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                          {r.visit_date ? new Date(r.visit_date).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-gray-900 dark:text-white font-medium whitespace-nowrap">{r.first_name} {r.last_name}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{r.id_number || '—'}</td>
+                        <td className="py-3 px-4 text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">{r.goldrush_id || '—'}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{r.agent_name || '—'}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{r.team_lead_name || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {noBTagRecords.length > 0 && (
+                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+                  {noBTagRecords.length} record{noBTagRecords.length !== 1 ? 's' : ''} missing B-Tag
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'individuals' && <>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -486,6 +631,8 @@ const GoldrushIndividualReport: React.FC = () => {
           </div>
         )}
       </div>
+
+      </> /* end individuals tab */}
 
       {/* Reject Goldrush ID Modal */}
       {rejectModal && (

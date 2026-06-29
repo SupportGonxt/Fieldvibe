@@ -8996,6 +8996,37 @@ async function isPhotoHashDuplicate(db, tenantId, photoHash) {
   return !!existing;
 }
 
+// Validate South African ID number (13 digits, valid date, Luhn checksum)
+function validateSAIdNumber(idNumber) {
+  if (!idNumber) return { valid: false, error: 'ID number is required' };
+  const cleaned = String(idNumber).replace(/\s/g, '');
+  if (!/^\d{13}$/.test(cleaned)) return { valid: false, error: 'ID number must be exactly 13 digits' };
+  const month = parseInt(cleaned.substring(2, 4));
+  const day = parseInt(cleaned.substring(4, 6));
+  if (month < 1 || month > 12) return { valid: false, error: 'ID number contains invalid birth month' };
+  if (day < 1 || day > 31) return { valid: false, error: 'ID number contains invalid birth day' };
+  const citizenDigit = parseInt(cleaned[10]);
+  if (citizenDigit !== 0 && citizenDigit !== 1) return { valid: false, error: 'ID number has invalid citizenship digit' };
+  // Luhn check
+  let sum = 0;
+  let isEven = false;
+  for (let i = cleaned.length - 1; i >= 0; i--) {
+    let digit = parseInt(cleaned[i]);
+    if (isEven) { digit *= 2; if (digit > 9) digit -= 9; }
+    sum += digit;
+    isEven = !isEven;
+  }
+  if (sum % 10 !== 0) return { valid: false, error: 'ID number failed checksum validation' };
+  return { valid: true };
+}
+
+// Validate Goldrush ID (must be exactly 9 digits)
+function validateGoldrushId(goldrushId) {
+  if (!goldrushId) return { valid: false, error: 'Goldrush ID is required' };
+  if (!/^\d{9}$/.test(String(goldrushId).trim())) return { valid: false, error: 'Goldrush ID must be exactly 9 digits' };
+  return { valid: true };
+}
+
 // Create visit with full workflow data (individual or store)
 api.post('/visits/workflow', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -9070,6 +9101,29 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     let individualId = null;
     // Track which custom question keys have AI analysis enabled (used by both individual and store paths)
     let aiEnabledKeys = new Set();
+
+    // Goldrush individual validation — run before creating individual or uploading photos
+    let goldrushValidationFailed = false;
+    let goldrushValidationErrors = {};
+    if (body.visit_target_type === 'individual' && companyId) {
+      const isGoldrushCompany = await db.prepare(
+        "SELECT id FROM field_companies WHERE id = ? AND LOWER(name) LIKE '%goldrush%'"
+      ).bind(companyId).first();
+      if (isGoldrushCompany) {
+        const allCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+        const grId = allCustom.goldrush_id;
+        const idNum = body.individual_id_number;
+        if (idNum) {
+          const idCheck = validateSAIdNumber(idNum);
+          if (!idCheck.valid) { goldrushValidationFailed = true; goldrushValidationErrors.id_number = idCheck.error; }
+        }
+        if (grId) {
+          const grCheck = validateGoldrushId(grId);
+          if (!grCheck.valid) { goldrushValidationFailed = true; goldrushValidationErrors.goldrush_id = grCheck.error; }
+        }
+      }
+    }
+
     if (body.visit_target_type === 'individual' && (body.individual_first_name || body.individual_id_number)) {
       // Check if individual already exists
       let existingIndividual = null;
@@ -9099,10 +9153,21 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       // Link visit to individual with custom field values
       // Merge custom_question_values (e.g. goldrush_id) into custom_field_values so they are stored together
       const mergedCustomFields = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      if (goldrushValidationFailed) {
+        mergedCustomFields.validation_failed = true;
+        mergedCustomFields.validation_errors = goldrushValidationErrors;
+      }
       const viId = crypto.randomUUID();
       await db.prepare('INSERT INTO visit_individuals (id, tenant_id, visit_id, individual_id, custom_field_values) VALUES (?, ?, ?, ?, ?)').bind(
         viId, tenantId, visitId, individualId, JSON.stringify(mergedCustomFields)
       ).run();
+
+      if (goldrushValidationFailed) {
+        return c.json({
+          data: { id: visitId, visit_date: visitDate, validation_failed: true, validation_errors: goldrushValidationErrors },
+          message: 'Capture not uploaded: ' + Object.values(goldrushValidationErrors).join('; ')
+        }, 422);
+      }
 
       // individual_registrations no longer used - visits table is the single source of truth
       // individual_registrations INSERT removed - visits table is the single source of truth
@@ -17669,6 +17734,152 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
     });
 
     return c.json({ success: true, dates, rows });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Goldrush Upload Failures Report — captures rejected due to invalid SA ID or Goldrush ID
+api.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+
+    const goldrushCompany = await db.prepare(
+      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?"
+    ).bind(tenantId).first();
+    if (!goldrushCompany) return c.json({ success: true, data: [] });
+    const goldrushCompanyId = goldrushCompany.id;
+
+    const hasStart = startDate && startDate.trim() !== '';
+    const hasEnd = endDate && endDate.trim() !== '';
+    let dateFilter = '';
+    const binds = [tenantId, goldrushCompanyId];
+    if (hasStart && hasEnd) { dateFilter = ' AND v.visit_date BETWEEN ? AND ?'; binds.push(startDate, endDate); }
+    else if (hasStart) { dateFilter = ' AND v.visit_date >= ?'; binds.push(startDate); }
+    else if (hasEnd) { dateFilter = ' AND v.visit_date <= ?'; binds.push(endDate); }
+
+    const result = await db.prepare(`
+      SELECT
+        v.id AS visit_id,
+        v.visit_date,
+        v.individual_name,
+        v.individual_surname,
+        v.individual_id_number,
+        vi.custom_field_values,
+        u.id AS agent_id,
+        u.first_name || ' ' || u.last_name AS agent_name,
+        tl.id AS team_lead_id,
+        tl.first_name || ' ' || tl.last_name AS team_lead_name
+      FROM visits v
+      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND vi.tenant_id = v.tenant_id
+      LEFT JOIN users u ON v.agent_id = u.id AND u.tenant_id = v.tenant_id
+      LEFT JOIN users tl ON u.team_lead_id = tl.id AND tl.tenant_id = v.tenant_id
+      WHERE v.tenant_id = ? AND v.company_id = ?
+        AND LOWER(v.visit_type) = 'individual'
+        AND JSON_EXTRACT(vi.custom_field_values, '$.validation_failed') = 1
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001','agent-user-001','manager-user-001','e6c2898a-6420-4327-8000-e7857021a306')
+        AND (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com')
+        ${dateFilter}
+      ORDER BY v.visit_date DESC, u.last_name
+    `).bind(...binds).all();
+
+    const data = (result.results || []).map(row => {
+      let validationErrors = {};
+      try {
+        const cf = typeof row.custom_field_values === 'string' ? JSON.parse(row.custom_field_values) : (row.custom_field_values || {});
+        validationErrors = cf.validation_errors || {};
+      } catch { /* ignore */ }
+      return {
+        visit_id: row.visit_id,
+        visit_date: row.visit_date,
+        first_name: row.individual_name || '',
+        last_name: row.individual_surname || '',
+        id_number: row.individual_id_number || '',
+        goldrush_id: (() => { try { const cf = typeof row.custom_field_values === 'string' ? JSON.parse(row.custom_field_values) : {}; return cf.goldrush_id || ''; } catch { return ''; } })(),
+        agent_id: row.agent_id,
+        agent_name: row.agent_name || 'Unknown',
+        team_lead_id: row.team_lead_id || null,
+        team_lead_name: row.team_lead_name || null,
+        errors: validationErrors,
+        error_summary: Object.values(validationErrors).join('; '),
+      };
+    });
+
+    return c.json({ success: true, data, total: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Goldrush No B-Tag Report — valid captures missing a product_app_player_id (B-tag)
+api.get('/field-ops/reports/goldrush-no-btag', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { startDate, endDate } = c.req.query();
+
+    const goldrushCompany = await db.prepare(
+      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?"
+    ).bind(tenantId).first();
+    if (!goldrushCompany) return c.json({ success: true, data: [] });
+    const goldrushCompanyId = goldrushCompany.id;
+
+    const hasStart = startDate && startDate.trim() !== '';
+    const hasEnd = endDate && endDate.trim() !== '';
+    let dateFilter = '';
+    const binds = [tenantId, goldrushCompanyId];
+    if (hasStart && hasEnd) { dateFilter = ' AND v.visit_date BETWEEN ? AND ?'; binds.push(startDate, endDate); }
+    else if (hasStart) { dateFilter = ' AND v.visit_date >= ?'; binds.push(startDate); }
+    else if (hasEnd) { dateFilter = ' AND v.visit_date <= ?'; binds.push(endDate); }
+
+    const result = await db.prepare(`
+      SELECT
+        v.id AS visit_id,
+        v.visit_date,
+        v.individual_name,
+        v.individual_surname,
+        v.individual_id_number,
+        vi.custom_field_values,
+        u.first_name || ' ' || u.last_name AS agent_name,
+        tl.first_name || ' ' || tl.last_name AS team_lead_name
+      FROM visits v
+      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND vi.tenant_id = v.tenant_id
+      LEFT JOIN users u ON v.agent_id = u.id AND u.tenant_id = v.tenant_id
+      LEFT JOIN users tl ON u.team_lead_id = tl.id AND tl.tenant_id = v.tenant_id
+      WHERE v.tenant_id = ? AND v.company_id = ?
+        AND LOWER(v.visit_type) = 'individual'
+        AND (JSON_EXTRACT(vi.custom_field_values, '$.validation_failed') IS NULL
+          OR JSON_EXTRACT(vi.custom_field_values, '$.validation_failed') = 0)
+        AND JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id') IS NOT NULL
+        AND JSON_EXTRACT(vi.custom_field_values, '$.goldrush_id') != ''
+        AND v.individual_id_number IS NOT NULL AND v.individual_id_number != ''
+        AND (JSON_EXTRACT(vi.custom_field_values, '$.product_app_player_id') IS NULL
+          OR JSON_EXTRACT(vi.custom_field_values, '$.product_app_player_id') = '')
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001','agent-user-001','manager-user-001','e6c2898a-6420-4327-8000-e7857021a306')
+        AND (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com')
+        ${dateFilter}
+      ORDER BY v.visit_date DESC
+    `).bind(...binds).all();
+
+    const data = (result.results || []).map(row => {
+      let goldrushId = '';
+      try {
+        const cf = typeof row.custom_field_values === 'string' ? JSON.parse(row.custom_field_values) : (row.custom_field_values || {});
+        goldrushId = cf.goldrush_id || '';
+      } catch { /* ignore */ }
+      return {
+        visit_id: row.visit_id,
+        visit_date: row.visit_date,
+        first_name: row.individual_name || '',
+        last_name: row.individual_surname || '',
+        id_number: row.individual_id_number || '',
+        goldrush_id: goldrushId,
+        agent_name: row.agent_name || 'Unknown',
+        team_lead_name: row.team_lead_name || null,
+      };
+    });
+
+    return c.json({ success: true, data, total: data.length });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
