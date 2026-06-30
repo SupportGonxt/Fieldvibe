@@ -51,8 +51,8 @@ interface GoldrushIndividual {
 }
 
 const GoldrushIndividualReport: React.FC = () => {
-  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'individuals' | 'no_btag'>('individuals')
+  const queryClient = useQueryClient()
 
   // Initialize with week to date
   const [startDate, setStartDate] = useState<string>(() => {
@@ -735,6 +735,7 @@ const GoldrushIndividualReport: React.FC = () => {
           </div>
         </div>
       )}
+      </>}
     </div>
   )
 }

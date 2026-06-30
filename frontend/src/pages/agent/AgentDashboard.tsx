@@ -156,7 +156,7 @@ export default function AgentDashboard() {
 
   const authUserForEffect = useAuthStore((s) => s.user)
 
-  // Fetch upload failures for team leads and managers (today's date range)
+  // Fetch upload failures for team leads and managers (last 7 days)
   useEffect(() => {
     if (authUserForEffect?.role !== 'team_lead' && authUserForEffect?.role !== 'manager') return
     let mounted = true
