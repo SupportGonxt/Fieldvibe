@@ -9038,6 +9038,55 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
   const visitDate = body.visit_date || now.split('T')[0];
 
   try {
+    // 0a. Goldrush individual validation — must run BEFORE any DB writes so a rejected
+    //     attempt never creates a visit record (which would trick the idempotency check
+    //     into returning 200 on the next submit, bypassing validation entirely).
+    if (body.visit_target_type === 'individual' && (body.company_id || body.companyId)) {
+      const checkCompanyId = body.company_id || body.companyId;
+      const isGoldrush = await db.prepare(
+        "SELECT id FROM field_companies WHERE id = ? AND LOWER(name) LIKE '%goldrush%'"
+      ).bind(checkCompanyId).first();
+      if (isGoldrush) {
+        const allCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+        const grId = allCustom.goldrush_id;
+        const idNum = body.individual_id_number;
+        const validationErrors = {};
+        if (idNum) {
+          const idCheck = validateSAIdNumber(idNum);
+          if (!idCheck.valid) validationErrors.id_number = idCheck.error;
+        }
+        if (grId) {
+          const grCheck = validateGoldrushId(grId);
+          if (!grCheck.valid) validationErrors.goldrush_id = grCheck.error;
+        }
+        if (Object.keys(validationErrors).length > 0) {
+          // Log failure to goldrush_upload_failures table (best effort)
+          try {
+            await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+            const agentRow = await db.prepare('SELECT first_name, last_name, team_lead_id FROM users WHERE id = ?').bind(body.agent_id || userId).first();
+            let tlName = null, tlId = agentRow?.team_lead_id || null;
+            if (tlId) {
+              const tlRow = await db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').bind(tlId).first();
+              if (tlRow) tlName = `${tlRow.first_name} ${tlRow.last_name}`;
+            }
+            const agentName = agentRow ? `${agentRow.first_name} ${agentRow.last_name}` : null;
+            await db.prepare('INSERT INTO goldrush_upload_failures (id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name, first_name, last_name, id_number, goldrush_id, phone, error_id_number, error_goldrush_id, visit_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))').bind(
+              crypto.randomUUID(), tenantId, checkCompanyId,
+              body.agent_id || userId, agentName, tlId, tlName,
+              body.individual_first_name || null, body.individual_last_name || null,
+              idNum || null, grId || null, body.individual_phone || null,
+              validationErrors.id_number || null, validationErrors.goldrush_id || null,
+              visitDate
+            ).run();
+          } catch (logErr) { console.error('Failed to log goldrush upload failure:', logErr); }
+          return c.json({
+            data: { validation_failed: true, validation_errors: validationErrors },
+            message: 'Capture not uploaded: ' + Object.values(validationErrors).join('; ')
+          }, 422);
+        }
+      }
+    }
+
     // Idempotency: if client sends a client_visit_id, check if visit already exists to prevent duplicates on retry
     if (body.client_visit_id) {
       const existingVisit = await db.prepare("SELECT id, status FROM visits WHERE tenant_id = ? AND id = ?").bind(tenantId, body.client_visit_id).first();
@@ -9102,28 +9151,6 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     // Track which custom question keys have AI analysis enabled (used by both individual and store paths)
     let aiEnabledKeys = new Set();
 
-    // Goldrush individual validation — run before creating individual or uploading photos
-    let goldrushValidationFailed = false;
-    let goldrushValidationErrors = {};
-    if (body.visit_target_type === 'individual' && companyId) {
-      const isGoldrushCompany = await db.prepare(
-        "SELECT id FROM field_companies WHERE id = ? AND LOWER(name) LIKE '%goldrush%'"
-      ).bind(companyId).first();
-      if (isGoldrushCompany) {
-        const allCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
-        const grId = allCustom.goldrush_id;
-        const idNum = body.individual_id_number;
-        if (idNum) {
-          const idCheck = validateSAIdNumber(idNum);
-          if (!idCheck.valid) { goldrushValidationFailed = true; goldrushValidationErrors.id_number = idCheck.error; }
-        }
-        if (grId) {
-          const grCheck = validateGoldrushId(grId);
-          if (!grCheck.valid) { goldrushValidationFailed = true; goldrushValidationErrors.goldrush_id = grCheck.error; }
-        }
-      }
-    }
-
     if (body.visit_target_type === 'individual' && (body.individual_first_name || body.individual_id_number)) {
       // Check if individual already exists
       let existingIndividual = null;
@@ -9153,21 +9180,10 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       // Link visit to individual with custom field values
       // Merge custom_question_values (e.g. goldrush_id) into custom_field_values so they are stored together
       const mergedCustomFields = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
-      if (goldrushValidationFailed) {
-        mergedCustomFields.validation_failed = true;
-        mergedCustomFields.validation_errors = goldrushValidationErrors;
-      }
       const viId = crypto.randomUUID();
       await db.prepare('INSERT INTO visit_individuals (id, tenant_id, visit_id, individual_id, custom_field_values) VALUES (?, ?, ?, ?, ?)').bind(
         viId, tenantId, visitId, individualId, JSON.stringify(mergedCustomFields)
       ).run();
-
-      if (goldrushValidationFailed) {
-        return c.json({
-          data: { id: visitId, visit_date: visitDate, validation_failed: true, validation_errors: goldrushValidationErrors },
-          message: 'Capture not uploaded: ' + Object.values(goldrushValidationErrors).join('; ')
-        }, 422);
-      }
 
       // individual_registrations no longer used - visits table is the single source of truth
       // individual_registrations INSERT removed - visits table is the single source of truth
@@ -17744,67 +17760,44 @@ api.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
     const tenantId = c.get('tenantId');
     const { startDate, endDate } = c.req.query();
 
-    const goldrushCompany = await db.prepare(
-      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?"
-    ).bind(tenantId).first();
-    if (!goldrushCompany) return c.json({ success: true, data: [] });
-    const goldrushCompanyId = goldrushCompany.id;
-
     const hasStart = startDate && startDate.trim() !== '';
     const hasEnd = endDate && endDate.trim() !== '';
     let dateFilter = '';
-    const binds = [tenantId, goldrushCompanyId];
-    if (hasStart && hasEnd) { dateFilter = ' AND v.visit_date BETWEEN ? AND ?'; binds.push(startDate, endDate); }
-    else if (hasStart) { dateFilter = ' AND v.visit_date >= ?'; binds.push(startDate); }
-    else if (hasEnd) { dateFilter = ' AND v.visit_date <= ?'; binds.push(endDate); }
+    const binds = [tenantId];
+    if (hasStart && hasEnd) { dateFilter = ' AND visit_date BETWEEN ? AND ?'; binds.push(startDate, endDate); }
+    else if (hasStart) { dateFilter = ' AND visit_date >= ?'; binds.push(startDate); }
+    else if (hasEnd) { dateFilter = ' AND visit_date <= ?'; binds.push(endDate); }
+
+    // Ensure table exists (in case migration hasn't run yet)
+    await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
 
     const result = await db.prepare(`
-      SELECT
-        v.id AS visit_id,
-        v.visit_date,
-        v.individual_name,
-        v.individual_surname,
-        v.individual_id_number,
-        vi.custom_field_values,
-        u.id AS agent_id,
-        u.first_name || ' ' || u.last_name AS agent_name,
-        tl.id AS team_lead_id,
-        tl.first_name || ' ' || tl.last_name AS team_lead_name
-      FROM visits v
-      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND vi.tenant_id = v.tenant_id
-      LEFT JOIN users u ON v.agent_id = u.id AND u.tenant_id = v.tenant_id
-      LEFT JOIN users tl ON u.team_lead_id = tl.id AND tl.tenant_id = v.tenant_id
-      WHERE v.tenant_id = ? AND v.company_id = ?
-        AND LOWER(v.visit_type) = 'individual'
-        AND JSON_EXTRACT(vi.custom_field_values, '$.validation_failed') = 1
-        AND v.agent_id NOT LIKE 'agent-test-%'
-        AND v.agent_id NOT IN ('admin-user-001','agent-user-001','manager-user-001','e6c2898a-6420-4327-8000-e7857021a306')
-        AND (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com')
-        ${dateFilter}
-      ORDER BY v.visit_date DESC, u.last_name
+      SELECT id, visit_date, first_name, last_name, id_number, goldrush_id, phone,
+        agent_id, agent_name, team_lead_id, team_lead_name,
+        error_id_number, error_goldrush_id, created_at
+      FROM goldrush_upload_failures
+      WHERE tenant_id = ? ${dateFilter}
+      ORDER BY visit_date DESC, agent_name
     `).bind(...binds).all();
 
-    const data = (result.results || []).map(row => {
-      let validationErrors = {};
-      try {
-        const cf = typeof row.custom_field_values === 'string' ? JSON.parse(row.custom_field_values) : (row.custom_field_values || {});
-        validationErrors = cf.validation_errors || {};
-      } catch { /* ignore */ }
-      return {
-        visit_id: row.visit_id,
-        visit_date: row.visit_date,
-        first_name: row.individual_name || '',
-        last_name: row.individual_surname || '',
-        id_number: row.individual_id_number || '',
-        goldrush_id: (() => { try { const cf = typeof row.custom_field_values === 'string' ? JSON.parse(row.custom_field_values) : {}; return cf.goldrush_id || ''; } catch { return ''; } })(),
-        agent_id: row.agent_id,
-        agent_name: row.agent_name || 'Unknown',
-        team_lead_id: row.team_lead_id || null,
-        team_lead_name: row.team_lead_name || null,
-        errors: validationErrors,
-        error_summary: Object.values(validationErrors).join('; '),
-      };
-    });
+    const data = (result.results || []).map(row => ({
+      id: row.id,
+      visit_date: row.visit_date,
+      first_name: row.first_name || '',
+      last_name: row.last_name || '',
+      id_number: row.id_number || '',
+      goldrush_id: row.goldrush_id || '',
+      phone: row.phone || '',
+      agent_id: row.agent_id,
+      agent_name: row.agent_name || 'Unknown',
+      team_lead_id: row.team_lead_id || null,
+      team_lead_name: row.team_lead_name || null,
+      errors: {
+        ...(row.error_id_number ? { id_number: row.error_id_number } : {}),
+        ...(row.error_goldrush_id ? { goldrush_id: row.error_goldrush_id } : {}),
+      },
+      error_summary: [row.error_id_number, row.error_goldrush_id].filter(Boolean).join('; '),
+    }));
 
     return c.json({ success: true, data, total: data.length });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }

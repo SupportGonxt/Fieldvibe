@@ -5,7 +5,7 @@ import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
   Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap, Download, X,
-  DollarSign, Flame, BarChart3, Ban
+  DollarSign, Flame, BarChart3, Ban, AlertTriangle
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
@@ -122,6 +122,10 @@ export default function AgentDashboard() {
   const [rejectedGoldrushCount, setRejectedGoldrushCount] = useState<number>(0)
   const [rejectedGoldrushLoading, setRejectedGoldrushLoading] = useState<boolean>(false)
 
+  // Upload failures KPI state (team leads and managers only)
+  const [uploadFailuresCount, setUploadFailuresCount] = useState<number>(0)
+  const [uploadFailuresLoading, setUploadFailuresLoading] = useState<boolean>(false)
+
   // Fetch rejected photos needing reupload
   useEffect(() => {
     let mounted = true
@@ -149,6 +153,23 @@ export default function AgentDashboard() {
     }).catch(() => setRejectedGoldrushCount(0)).finally(() => { if (mounted) setRejectedGoldrushLoading(false) })
     return () => { mounted = false }
   }, [])
+
+  const authUserForEffect = useAuthStore((s) => s.user)
+
+  // Fetch upload failures for team leads and managers (today's date range)
+  useEffect(() => {
+    if (authUserForEffect?.role !== 'team_lead' && authUserForEffect?.role !== 'manager') return
+    let mounted = true
+    setUploadFailuresLoading(true)
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).then((res: any) => {
+      if (!mounted) return
+      setUploadFailuresCount(res.data?.total || res.data?.data?.length || 0)
+    }).catch(() => setUploadFailuresCount(0)).finally(() => { if (mounted) setUploadFailuresLoading(false) })
+    return () => { mounted = false }
+  }, [authUserForEffect?.role])
+
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [perfSummary, setPerfSummary] = useState<PerfSummary | null>(null)
@@ -548,6 +569,29 @@ export default function AgentDashboard() {
             >
               <Ban className="w-4 h-4" />
               {rejectedGoldrushLoading ? 'Checking...' : rejectedGoldrushCount > 0 ? `View ${rejectedGoldrushCount} Rejected` : 'No Rejected IDs'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Failures KPI — team leads and managers only */}
+      {!isStellr && (authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+        <div className="px-5 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              icon={<AlertTriangle className="w-5 h-5" />}
+              label="Not Loaded (7 days)"
+              value={uploadFailuresCount}
+              color="bg-red-600"
+            />
+            <button
+              onClick={() => navigate('/field-operations/reports/goldrush-upload-failures')}
+              className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              disabled={uploadFailuresLoading}
+              style={{ opacity: uploadFailuresCount === 0 ? 0.5 : 1 }}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              {uploadFailuresLoading ? 'Checking...' : uploadFailuresCount > 0 ? `View ${uploadFailuresCount} Not Loaded` : 'No Upload Failures'}
             </button>
           </div>
         </div>
