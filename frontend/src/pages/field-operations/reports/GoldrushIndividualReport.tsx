@@ -735,7 +735,6 @@ const GoldrushIndividualReport: React.FC = () => {
           </div>
         </div>
       )}
-      </>}
     </div>
   )
 }
