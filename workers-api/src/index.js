@@ -9007,7 +9007,6 @@ function validateSAIdNumber(idNumber) {
   if (day < 1 || day > 31) return { valid: false, error: 'ID number contains invalid birth day' };
   const citizenDigit = parseInt(cleaned[10]);
   if (citizenDigit !== 0 && citizenDigit !== 1) return { valid: false, error: 'ID number has invalid citizenship digit' };
-<<<<<<< Updated upstream
   // Luhn check
   let sum = 0;
   let isEven = false;
@@ -9016,34 +9015,6 @@ function validateSAIdNumber(idNumber) {
     if (isEven) { digit *= 2; if (digit > 9) digit -= 9; }
     sum += digit;
     isEven = !isEven;
-=======
-  let sum = 0; let isEven = false;
-  for (let i = cleaned.length - 1; i >= 0; i--) {
-    let digit = parseInt(cleaned[i]);
-    if (isEven) { digit *= 2; if (digit > 9) digit -= 9; }
-    sum += digit; isEven = !isEven;
-  }
-  if (sum % 10 !== 0) return { valid: false, error: 'ID number failed checksum validation' };
-  return { valid: true };
-}
-
-// Validate Goldrush ID (must be exactly 9 numeric digits)
-function validateGoldrushId(goldrushId) {
-  if (!goldrushId) return { valid: false, error: 'Goldrush ID is required' };
-  if (!/^\d{9}$/.test(String(goldrushId).trim())) return { valid: false, error: 'Goldrush ID must be exactly 9 digits' };
-  return { valid: true };
-}
-
-// Find a goldrush player ID in a custom-field map (key contains 'goldrush_id',
-// excluding the *_rejected / *_rejection_reason metadata keys).
-function extractGoldrushId(obj) {
-  if (!obj || typeof obj !== 'object') return '';
-  for (const [k, v] of Object.entries(obj)) {
-    const lk = k.toLowerCase();
-    if (lk.includes('goldrush_id') && !lk.includes('rejected') && !lk.includes('rejection')) {
-      if (v != null && String(v).trim()) return String(v).trim();
-    }
->>>>>>> Stashed changes
   }
   if (sum % 10 !== 0) return { valid: false, error: 'ID number failed checksum validation' };
   return { valid: true };
