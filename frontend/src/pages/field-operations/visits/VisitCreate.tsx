@@ -1755,11 +1755,11 @@ export default function VisitCreate() {
                         startIcon={<UploadIcon />}
                         fullWidth
                       >
-                        {val ? 'Photo captured' : 'Take / Upload Photo'}
+                        {val ? 'Photo captured' : (isGoldrushCompany(companies.find(c => c.id === selectedCompany)) && visitTargetType === 'individual' ? 'Upload System Photo' : 'Take / Upload Photo')}
                         <input
                           type="file"
                           accept="image/*"
-                          capture="environment"
+                          {...(!(isGoldrushCompany(companies.find(c => c.id === selectedCompany)) && visitTargetType === 'individual') ? { capture: 'environment' as const } : {})}
                           hidden
                           onChange={async (e) => {
                             const file = e.target.files?.[0]
@@ -2111,8 +2111,8 @@ export default function VisitCreate() {
                         </Box>
                       ) : (
                         <Button variant="outlined" component="label" color={showValidation && isRequired && !hasValue ? 'error' : 'primary'}>
-                          Upload Photo{isRequired ? ' (Required)' : ''}
-                          <input type="file" hidden accept="image/*" capture="environment" onChange={(e) => {
+                          {isGoldrushCompany(companies.find(c => c.id === selectedCompany)) && visitTargetType === 'individual' ? 'Upload System Photo' : 'Upload Photo'}{isRequired ? ' (Required)' : ''}
+                          <input type="file" hidden accept="image/*" {...(!(isGoldrushCompany(companies.find(c => c.id === selectedCompany)) && visitTargetType === 'individual') ? { capture: 'environment' as const } : {})} onChange={(e) => {
                             const file = e.target.files?.[0]
                             if (file) {
                               const reader = new FileReader()
