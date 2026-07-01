@@ -9455,9 +9455,9 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       // Agent sees own performance
       const [visits, conversions, targets, individualVisits, storeVisits] = await Promise.all([
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?${cWhereV}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
         db.prepare("SELECT * FROM daily_targets WHERE agent_id = ? AND tenant_id = ? AND target_date = ?").bind(userId, tenantId, today.toISOString().split('T')[0]).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.agent_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhere.replace(/(\b)(?=company_id|status)/g, 'v.')}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
       ]);
       
@@ -9489,11 +9489,11 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders})${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
       ]);
-      
+
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
       const convMap = Object.fromEntries((totalConvs.results || []).map(r => [r.agent_id, r.count]));
       const indivMap = Object.fromEntries((totalIndivVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -9569,16 +9569,16 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       // agentIds already scopes to this team; no company_id filter on visits (handles NULL company_id for Goldrush)
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
       ]);
-      
+
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
       const convMap = Object.fromEntries((totalConvs.results || []).map(r => [r.agent_id, r.count]));
       const indivMap = Object.fromEntries((totalIndivVisits.results || []).map(r => [r.agent_id, r.count]));
       const storeMap = Object.fromEntries((totalStoreVisits.results || []).map(r => [r.agent_id, r.count]));
-      
+
       const currentMonth = startD.substring(0, 7);
       const monthStartDate = currentMonth + '-01';
       const agentTargetMap = {};
@@ -9648,8 +9648,8 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       // is handled above via agent_company_links so we don't miss NULL company_id rows).
       const [allVisits, allConvs, allIndivVisits, allStoreVisits] = await Promise.all([
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? GROUP BY v.agent_id`).bind(tenantId, startD, endD).all(),
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'individual' GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD).all(),
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
       ]);
 
