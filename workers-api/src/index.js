@@ -17847,20 +17847,33 @@ api.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
     else if (hasStart) { dateFilter = ' AND visit_date >= ?'; binds.push(startDate); }
     else if (hasEnd) { dateFilter = ' AND visit_date <= ?'; binds.push(endDate); }
 
-    // Ensure table exists (in case migration hasn't run yet)
-    await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+    // Ensure table exists with all columns (in case migration hasn't run yet)
+    await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, error_photo_mismatch TEXT, error_no_btag TEXT, visit_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_photo_mismatch TEXT").run(); } catch {}
+    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_no_btag TEXT").run(); } catch {}
+    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN visit_id TEXT").run(); } catch {}
 
     const result = await db.prepare(`
-      SELECT id, visit_date, first_name, last_name, id_number, goldrush_id, phone,
-        agent_id, agent_name, team_lead_id, team_lead_name,
-        error_id_number, error_goldrush_id, created_at
-      FROM goldrush_upload_failures
-      WHERE tenant_id = ? ${dateFilter}
-      ORDER BY visit_date DESC, agent_name
+      SELECT guf.id, guf.visit_id, guf.visit_date, guf.first_name, guf.last_name, guf.id_number, guf.goldrush_id, guf.phone,
+        guf.agent_id, guf.agent_name, guf.team_lead_id, guf.team_lead_name,
+        guf.error_id_number, guf.error_goldrush_id, guf.error_photo_mismatch, guf.error_no_btag, guf.created_at,
+        vp.r2_url as photo_url
+      FROM goldrush_upload_failures guf
+      LEFT JOIN visit_photos vp ON vp.id = (
+        SELECT vp2.id FROM visit_photos vp2
+        WHERE vp2.visit_id = guf.visit_id
+          AND vp2.tenant_id = guf.tenant_id
+          AND vp2.photo_type = 'goldrush_individual'
+          AND vp2.r2_url IS NOT NULL
+        LIMIT 1
+      )
+      WHERE guf.tenant_id = ? ${dateFilter.replace(/visit_date/g, 'guf.visit_date')}
+      ORDER BY guf.visit_date DESC, guf.agent_name
     `).bind(...binds).all();
 
     const data = (result.results || []).map(row => ({
       id: row.id,
+      visit_id: row.visit_id || null,
       visit_date: row.visit_date,
       first_name: row.first_name || '',
       last_name: row.last_name || '',
@@ -17871,11 +17884,14 @@ api.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
       agent_name: row.agent_name || 'Unknown',
       team_lead_id: row.team_lead_id || null,
       team_lead_name: row.team_lead_name || null,
+      photo_url: row.photo_url || null,
       errors: {
         ...(row.error_id_number ? { id_number: row.error_id_number } : {}),
         ...(row.error_goldrush_id ? { goldrush_id: row.error_goldrush_id } : {}),
+        ...(row.error_photo_mismatch ? { photo_mismatch: row.error_photo_mismatch } : {}),
+        ...(row.error_no_btag ? { no_btag: row.error_no_btag } : {}),
       },
-      error_summary: [row.error_id_number, row.error_goldrush_id].filter(Boolean).join('; '),
+      error_summary: [row.error_id_number, row.error_goldrush_id, row.error_photo_mismatch, row.error_no_btag].filter(Boolean).join('; '),
     }));
     return c.json({ success: true, data, total: data.length });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }

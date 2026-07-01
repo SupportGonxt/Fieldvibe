@@ -900,8 +900,8 @@ export default function VisitCreate() {
         typed_goldrush_id: typedId,
       })
       const { match, extracted_id, has_btag, extracted_btag } = res.data || {}
-      // has_btag: true = btag present, false = URL visible but no btag, null = URL not visible
-      const noBtag = has_btag === false
+      // has_btag: true = btag confirmed. false/null = no btag (URL not visible OR btag missing — both count as errors)
+      const noBtag = has_btag !== true
       if (noBtag) setPhotoNoBtagAcknowledged(false)
       if (match === true) {
         setPhotoVerification({ status: 'match', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
@@ -1004,7 +1004,7 @@ export default function VisitCreate() {
         if (isGoldrushCompany(currentCompany) && visitTargetType === 'individual') {
           if (photoVerification.status === 'checking') return false
           if (photoVerification.status === 'mismatch' && !photoIdMismatchAcknowledged) return false
-          if (photoVerification.hasBtag === false && !photoNoBtagAcknowledged) return false
+          if (photoVerification.hasBtag !== true && !photoNoBtagAcknowledged) return false
         }
         return true
       }
@@ -1178,7 +1178,7 @@ export default function VisitCreate() {
       if (warnings && Object.keys(warnings).length > 0) {
         // Visit was saved but has data issues — show inline warnings, don't auto-navigate
         setValidationWarnings(warnings)
-        toast.error('Visit saved with errors — please review below', { duration: 5000 })
+        toast.error('Visit saved with errors — please review below', 5000)
       } else {
         toast.success('Visit created successfully!')
         const isAgentContext = window.location.pathname.startsWith('/agent/')
@@ -2389,7 +2389,7 @@ export default function VisitCreate() {
           const currentCompany = companies.find(c => c.id === selectedCompany)
           if (!isGoldrushCompany(currentCompany) || photos.length === 0) return null
           if (photoVerification.status === 'idle' || photoVerification.status === 'checking') return null
-          if (photoVerification.hasBtag !== false) return null
+          if (photoVerification.hasBtag === true) return null
           return (
             <Alert
               severity="error"
