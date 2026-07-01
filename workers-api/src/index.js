@@ -9037,10 +9037,11 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
   const now = new Date().toISOString();
   const visitDate = body.visit_date || now.split('T')[0];
 
+  let goldrushValidationWarnings = null;
   try {
-    // 0a. Goldrush individual validation — must run BEFORE any DB writes so a rejected
-    //     attempt never creates a visit record (which would trick the idempotency check
-    //     into returning 200 on the next submit, bypassing validation entirely).
+    // 0a. Goldrush individual validation — log issues for reporting but allow the visit
+    //     through so the agent's capture is never lost. Errors are returned as warnings
+    //     in the response so the frontend can display them clearly.
     if (body.visit_target_type === 'individual' && (body.company_id || body.companyId)) {
       const checkCompanyId = body.company_id || body.companyId;
       const isGoldrush = await db.prepare(
@@ -9060,7 +9061,8 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
           if (!grCheck.valid) validationErrors.goldrush_id = grCheck.error;
         }
         if (Object.keys(validationErrors).length > 0) {
-          // Log failure to goldrush_upload_failures table (best effort)
+          goldrushValidationWarnings = validationErrors;
+          // Log to goldrush_upload_failures for the supervisor report (best effort)
           try {
             await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
             const agentRow = await db.prepare('SELECT first_name, last_name, team_lead_id FROM users WHERE id = ?').bind(body.agent_id || userId).first();
@@ -9079,10 +9081,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
               visitDate
             ).run();
           } catch (logErr) { console.error('Failed to log goldrush upload failure:', logErr); }
-          return c.json({
-            data: { validation_failed: true, validation_errors: validationErrors },
-            message: 'Capture not uploaded: ' + Object.values(validationErrors).join('; ')
-          }, 422);
+          // Continue — visit is still created so the agent's capture is not lost
         }
       }
     }
@@ -9350,7 +9349,8 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
 
     return c.json({
       data: { id: visitId, individual_id: individualId, status: 'completed', visit_date: visitDate },
-      message: 'Visit created successfully'
+      message: 'Visit created successfully',
+      ...(goldrushValidationWarnings ? { validation_warnings: goldrushValidationWarnings } : {})
     }, 201);
   } catch (err) {
     return c.json({ error: 'Failed to create visit: ' + (err.message || err) }, 500);

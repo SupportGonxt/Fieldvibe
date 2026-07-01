@@ -183,6 +183,7 @@ export default function VisitCreate() {
   const [activeStep, setActiveStep] = useState(0)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -1087,7 +1088,7 @@ export default function VisitCreate() {
         }))
       }
 
-      await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
+      const result = await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
       // Invalidate performance caches so reports update immediately
       queryClient.invalidateQueries({ queryKey: ['field-ops-performance'] })
       queryClient.invalidateQueries({ queryKey: ['field-ops-kpis'] })
@@ -1096,10 +1097,17 @@ export default function VisitCreate() {
       queryClient.invalidateQueries({ queryKey: ['field-ops-conversions'] })
       queryClient.invalidateQueries({ queryKey: ['field-ops-hourly'] })
       queryClient.invalidateQueries({ queryKey: ['field-ops-daily'] })
-      toast.success('Visit created successfully!')
-      // Navigate back to the correct context (agent or admin)
-      const isAgentContext = window.location.pathname.startsWith('/agent/')
-      navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
+
+      const warnings = result?.validation_warnings as { id_number?: string; goldrush_id?: string } | undefined
+      if (warnings && Object.keys(warnings).length > 0) {
+        // Visit was saved but has data issues — show inline warnings, don't auto-navigate
+        setValidationWarnings(warnings)
+        toast.error('Visit saved with errors — please review below', { duration: 5000 })
+      } else {
+        toast.success('Visit created successfully!')
+        const isAgentContext = window.location.pathname.startsWith('/agent/')
+        navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
+      }
     } catch (err: unknown) {
       // FIX: Properly extract error messages from axios response objects (fixes mobile save bug)
       const message = extractErrorMessage(err)
@@ -2420,6 +2428,33 @@ export default function VisitCreate() {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {validationWarnings && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 3 }}
+          onClose={() => setValidationWarnings(null)}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                setValidationWarnings(null)
+                const isAgentContext = window.location.pathname.startsWith('/agent/')
+                navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
+              }}
+            >
+              OK, Go Back
+            </Button>
+          }
+        >
+          <strong>Visit saved — but there are data errors your team lead can see:</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+            {validationWarnings.id_number && <li>SA ID Number: {validationWarnings.id_number}</li>}
+            {validationWarnings.goldrush_id && <li>Goldrush ID: {validationWarnings.goldrush_id}</li>}
+          </ul>
         </Alert>
       )}
 
