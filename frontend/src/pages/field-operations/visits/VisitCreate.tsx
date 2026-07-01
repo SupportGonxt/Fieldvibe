@@ -184,12 +184,15 @@ export default function VisitCreate() {
   const [activeStep, setActiveStep] = useState(0)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string } | null>(null)
+  const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
   const [photoVerification, setPhotoVerification] = useState<{
     status: 'idle' | 'checking' | 'match' | 'mismatch' | 'unreadable'
     extractedId?: string | null
+    hasBtag?: boolean | null
+    extractedBtag?: string | null
   }>({ status: 'idle' })
   const [photoIdMismatchAcknowledged, setPhotoIdMismatchAcknowledged] = useState(false)
+  const [photoNoBtagAcknowledged, setPhotoNoBtagAcknowledged] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -869,6 +872,7 @@ export default function VisitCreate() {
     setPhotos(prev => prev.filter((_, i) => i !== index))
     setPhotoVerification({ status: 'idle' })
     setPhotoIdMismatchAcknowledged(false)
+    setPhotoNoBtagAcknowledged(false)
   }
 
   // Find the Goldrush ID the agent typed across custom fields and questions
@@ -882,7 +886,7 @@ export default function VisitCreate() {
     return ''
   }
 
-  // Auto-verify the photo against the typed Goldrush ID for Goldrush individual visits
+  // Auto-verify the photo against the typed Goldrush ID and check for btag URL
   const verifyGoldrushPhoto = async (photoDataUrl: string) => {
     const typedId = getTypedGoldrushId()
     if (!typedId) {
@@ -895,14 +899,17 @@ export default function VisitCreate() {
         photo_data: photoDataUrl,
         typed_goldrush_id: typedId,
       })
-      const { match, extracted_id } = res.data || {}
+      const { match, extracted_id, has_btag, extracted_btag } = res.data || {}
+      // has_btag: true = btag present, false = URL visible but no btag, null = URL not visible
+      const noBtag = has_btag === false
+      if (noBtag) setPhotoNoBtagAcknowledged(false)
       if (match === true) {
-        setPhotoVerification({ status: 'match', extractedId: extracted_id })
+        setPhotoVerification({ status: 'match', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
       } else if (match === false) {
-        setPhotoVerification({ status: 'mismatch', extractedId: extracted_id })
+        setPhotoVerification({ status: 'mismatch', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
         setPhotoIdMismatchAcknowledged(false)
       } else {
-        setPhotoVerification({ status: 'unreadable', extractedId: null })
+        setPhotoVerification({ status: 'unreadable', extractedId: null, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
       }
     } catch {
       setPhotoVerification({ status: 'unreadable' })
@@ -997,6 +1004,7 @@ export default function VisitCreate() {
         if (isGoldrushCompany(currentCompany) && visitTargetType === 'individual') {
           if (photoVerification.status === 'checking') return false
           if (photoVerification.status === 'mismatch' && !photoIdMismatchAcknowledged) return false
+          if (photoVerification.hasBtag === false && !photoNoBtagAcknowledged) return false
         }
         return true
       }
@@ -1148,9 +1156,12 @@ export default function VisitCreate() {
         }))
       }
 
-      // Flag mismatch so backend logs it to goldrush_upload_failures
+      // Flag photo issues so backend logs them to goldrush_upload_failures
       if (photoIdMismatchAcknowledged) {
         payload.goldrush_photo_mismatch = true
+      }
+      if (photoNoBtagAcknowledged) {
+        payload.goldrush_no_btag = true
       }
 
       const result = await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
@@ -2250,12 +2261,12 @@ export default function VisitCreate() {
             startIcon={<CameraIcon />}
             size="large"
           >
-            {visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
+            {visitTargetType === 'individual' ? 'Upload System Photo' : visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
             <input
               type="file"
               hidden
               accept="image/*"
-              capture="environment"
+              {...(visitTargetType !== 'individual' ? { capture: 'environment' } : {})}
               onChange={handlePhotoCapture}
             />
           </Button>
@@ -2371,6 +2382,44 @@ export default function VisitCreate() {
             )
           }
           return null
+        })()}
+
+        {/* No B-Tag alert — shown independently of the ID mismatch check */}
+        {visitTargetType === 'individual' && (() => {
+          const currentCompany = companies.find(c => c.id === selectedCompany)
+          if (!isGoldrushCompany(currentCompany) || photos.length === 0) return null
+          if (photoVerification.status === 'idle' || photoVerification.status === 'checking') return null
+          if (photoVerification.hasBtag !== false) return null
+          return (
+            <Alert
+              severity="error"
+              sx={{ mt: 2 }}
+              action={
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 160 }}>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    variant="outlined"
+                    onClick={() => removePhoto(photos.length - 1)}
+                  >
+                    Go Back &amp; Edit
+                  </Button>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    variant="contained"
+                    onClick={() => setPhotoNoBtagAcknowledged(true)}
+                    disabled={photoNoBtagAcknowledged}
+                  >
+                    {photoNoBtagAcknowledged ? 'Proceeding anyway' : 'Submit Anyway'}
+                  </Button>
+                </Box>
+              }
+            >
+              <strong>No B-Tag number found.</strong> The photo URL does not show a Goldrush B-Tag
+              (<em>goldrush.co.za/?btag=...</em>). This will be flagged in the team lead report.
+            </Alert>
+          )
         })()}
 
         {photoGps && (
@@ -2588,6 +2637,8 @@ export default function VisitCreate() {
           <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
             {validationWarnings.id_number && <li>SA ID Number: {validationWarnings.id_number}</li>}
             {validationWarnings.goldrush_id && <li>Goldrush ID: {validationWarnings.goldrush_id}</li>}
+            {validationWarnings.photo_mismatch && <li>Photo: {validationWarnings.photo_mismatch}</li>}
+            {validationWarnings.no_btag && <li>B-Tag: {validationWarnings.no_btag}</li>}
           </ul>
         </Alert>
       )}

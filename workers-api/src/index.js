@@ -9063,11 +9063,17 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
         if (body.goldrush_photo_mismatch) {
           validationErrors.photo_mismatch = 'Goldrush ID in photo does not match the ID entered by the agent';
         }
+        if (body.goldrush_no_btag) {
+          validationErrors.no_btag = 'No B-Tag number found in the photo URL (goldrush.co.za/?btag=...)';
+        }
         if (Object.keys(validationErrors).length > 0) {
           goldrushValidationWarnings = validationErrors;
           // Log to goldrush_upload_failures for the supervisor report (best effort)
           try {
-            await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+            await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, error_photo_mismatch TEXT, error_no_btag TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+            // Add new columns to existing tables that pre-date this schema (safe to ignore if column already exists)
+            try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_photo_mismatch TEXT").run(); } catch {}
+            try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_no_btag TEXT").run(); } catch {}
             const agentRow = await db.prepare('SELECT first_name, last_name, team_lead_id FROM users WHERE id = ?').bind(body.agent_id || userId).first();
             let tlName = null, tlId = agentRow?.team_lead_id || null;
             if (tlId) {
@@ -9075,12 +9081,13 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
               if (tlRow) tlName = `${tlRow.first_name} ${tlRow.last_name}`;
             }
             const agentName = agentRow ? `${agentRow.first_name} ${agentRow.last_name}` : null;
-            await db.prepare('INSERT INTO goldrush_upload_failures (id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name, first_name, last_name, id_number, goldrush_id, phone, error_id_number, error_goldrush_id, visit_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))').bind(
+            await db.prepare('INSERT INTO goldrush_upload_failures (id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name, first_name, last_name, id_number, goldrush_id, phone, error_id_number, error_goldrush_id, error_photo_mismatch, error_no_btag, visit_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))').bind(
               crypto.randomUUID(), tenantId, checkCompanyId,
               body.agent_id || userId, agentName, tlId, tlName,
               body.individual_first_name || null, body.individual_last_name || null,
               idNum || null, grId || null, body.individual_phone || null,
               validationErrors.id_number || null, validationErrors.goldrush_id || null,
+              validationErrors.photo_mismatch || null, validationErrors.no_btag || null,
               visitDate
             ).run();
           } catch (logErr) { console.error('Failed to log goldrush upload failure:', logErr); }
@@ -17768,13 +17775,25 @@ api.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
     if (!base64Match) return c.json({ success: false, error: 'Invalid photo format' }, 400);
     const imageBytes = Uint8Array.from(atob(base64Match[1]), ch => ch.charCodeAt(0));
     if (imageBytes.length > 4_000_000) {
-      return c.json({ success: true, match: null, extracted_id: null, confidence: 'unreadable', reason: 'Image too large' });
+      return c.json({ success: true, match: null, extracted_id: null, has_btag: null, extracted_btag: null, confidence: 'unreadable', reason: 'Image too large' });
     }
-    const prompt = `This is a screenshot or card from the Goldrush gaming/betting system showing a player's profile. Find the player ID number visible in the image — it is typically a 9-digit number printed on the card or shown on screen. Return ONLY a JSON object, no prose, no markdown:
-{"extracted_id": "123456789", "confidence": "high"}
-If you cannot find a number or are unsure, return: {"extracted_id": null, "confidence": "low"}
+    const prompt = `This is a screenshot from the Goldrush gaming/betting system opened in a browser.
+
+Task 1 — Player ID: Find the 9-digit Goldrush player ID number visible in the image (printed on a card or shown on screen).
+
+Task 2 — B-Tag URL: Look at the browser address bar at the very top of the screenshot. Check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
+
+Return ONLY a JSON object, no prose, no markdown:
+{"extracted_id": "123456789", "has_btag": true, "extracted_btag": "123456789", "confidence": "high"}
+
+Rules:
+- extracted_id: the 9-digit player ID, or null if not found
+- has_btag: true if the URL bar shows goldrush.co.za with btag=<numbers>, false if URL bar is visible but no btag, null if URL bar is not visible in the image
+- extracted_btag: the btag number string, or null
+- confidence: "high", "medium", or "low"
+
 Output JSON only.`;
-    let extractedId = null, confidence = 'low';
+    let extractedId = null, confidence = 'low', hasBtag = null, extractedBtag = null;
     try {
       const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
         prompt,
@@ -17788,16 +17807,18 @@ Output JSON only.`;
         const parsed = JSON.parse(clean.slice(jsonStart, jsonEnd + 1));
         extractedId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : null;
         confidence = parsed.confidence || 'low';
+        hasBtag = parsed.has_btag === true ? true : parsed.has_btag === false ? false : null;
+        extractedBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : null;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
     }
     const typedClean = String(typed_goldrush_id).replace(/\D/g, '');
     const match = extractedId ? extractedId === typedClean : null;
-    return c.json({ success: true, match, extracted_id: extractedId, confidence });
+    return c.json({ success: true, match, extracted_id: extractedId, has_btag: hasBtag, extracted_btag: extractedBtag, confidence });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);
-    return c.json({ success: true, match: null, extracted_id: null, confidence: 'unreadable', reason: 'Verification failed' });
+    return c.json({ success: true, match: null, extracted_id: null, has_btag: null, extracted_btag: null, confidence: 'unreadable', reason: 'Verification failed' });
   }
 });
 
