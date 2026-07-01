@@ -9060,6 +9060,9 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
           const grCheck = validateGoldrushId(grId);
           if (!grCheck.valid) validationErrors.goldrush_id = grCheck.error;
         }
+        if (body.goldrush_photo_mismatch) {
+          validationErrors.photo_mismatch = 'Goldrush ID in photo does not match the ID entered by the agent';
+        }
         if (Object.keys(validationErrors).length > 0) {
           goldrushValidationWarnings = validationErrors;
           // Log to goldrush_upload_failures for the supervisor report (best effort)
@@ -17751,6 +17754,51 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
 
     return c.json({ success: true, dates, rows });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Goldrush Photo ID Verification — uses vision AI to extract the Goldrush ID from a
+// player photo and compare it to the ID the agent typed in the form.
+api.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
+  try {
+    const { photo_data, typed_goldrush_id } = await c.req.json();
+    if (!photo_data || !typed_goldrush_id) {
+      return c.json({ success: false, error: 'Missing photo_data or typed_goldrush_id' }, 400);
+    }
+    const base64Match = photo_data.match(/^data:image\/[^;]+;base64,(.+)$/s);
+    if (!base64Match) return c.json({ success: false, error: 'Invalid photo format' }, 400);
+    const imageBytes = Uint8Array.from(atob(base64Match[1]), ch => ch.charCodeAt(0));
+    if (imageBytes.length > 4_000_000) {
+      return c.json({ success: true, match: null, extracted_id: null, confidence: 'unreadable', reason: 'Image too large' });
+    }
+    const prompt = `This is a screenshot or card from the Goldrush gaming/betting system showing a player's profile. Find the player ID number visible in the image — it is typically a 9-digit number printed on the card or shown on screen. Return ONLY a JSON object, no prose, no markdown:
+{"extracted_id": "123456789", "confidence": "high"}
+If you cannot find a number or are unsure, return: {"extracted_id": null, "confidence": "low"}
+Output JSON only.`;
+    let extractedId = null, confidence = 'low';
+    try {
+      const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
+        prompt,
+        image: [...imageBytes],
+      });
+      const text = (aiResponse?.response || aiResponse?.result?.response || '').trim();
+      const clean = text.replace(/```json|```/gi, '').trim();
+      const jsonStart = clean.indexOf('{');
+      const jsonEnd = clean.lastIndexOf('}');
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        const parsed = JSON.parse(clean.slice(jsonStart, jsonEnd + 1));
+        extractedId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : null;
+        confidence = parsed.confidence || 'low';
+      }
+    } catch (aiErr) {
+      console.error('Goldrush photo AI error:', aiErr);
+    }
+    const typedClean = String(typed_goldrush_id).replace(/\D/g, '');
+    const match = extractedId ? extractedId === typedClean : null;
+    return c.json({ success: true, match, extracted_id: extractedId, confidence });
+  } catch (e) {
+    console.error('verify-goldrush-photo error:', e);
+    return c.json({ success: true, match: null, extracted_id: null, confidence: 'unreadable', reason: 'Verification failed' });
+  }
 });
 
 // Goldrush Upload Failures Report — captures rejected due to invalid SA ID or Goldrush ID
