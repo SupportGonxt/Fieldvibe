@@ -591,7 +591,7 @@ export default function AgentDashboard() {
               style={{ opacity: uploadFailuresCount === 0 ? 0.5 : 1 }}
             >
               <AlertTriangle className="w-4 h-4" />
-              {uploadFailuresLoading ? 'Checking...' : uploadFailuresCount > 0 ? `View ${uploadFailuresCount} Not Loaded` : 'No Upload Failures'}
+              {uploadFailuresLoading ? 'Checking...' : uploadFailuresCount > 0 ? `View ${uploadFailuresCount} Not Loaded` : 'Nothing Not Loaded'}
             </button>
           </div>
         </div>

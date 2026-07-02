@@ -17779,8 +17779,11 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
 api.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
   try {
     const { photo_data, typed_goldrush_id } = await c.req.json();
-    if (!photo_data || !typed_goldrush_id) {
-      return c.json({ success: false, error: 'Missing photo_data or typed_goldrush_id' }, 400);
+    // typed_goldrush_id is optional — the system photo is now captured before the agent
+    // types the Goldrush ID, so at verification time it may not exist yet. The B-Tag and
+    // extracted_id are still returned; the caller checks the ID match later once it's typed.
+    if (!photo_data) {
+      return c.json({ success: false, error: 'Missing photo_data' }, 400);
     }
     const base64Match = photo_data.match(/^data:image\/[^;]+;base64,(.+)$/s);
     if (!base64Match) return c.json({ success: false, error: 'Invalid photo format' }, 400);
@@ -17824,8 +17827,8 @@ Output JSON only.`;
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
     }
-    const typedClean = String(typed_goldrush_id).replace(/\D/g, '');
-    const match = extractedId ? extractedId === typedClean : null;
+    const typedClean = typed_goldrush_id ? String(typed_goldrush_id).replace(/\D/g, '') : '';
+    const match = (extractedId && typedClean) ? extractedId === typedClean : null;
     return c.json({ success: true, match, extracted_id: extractedId, has_btag: hasBtag, extracted_btag: extractedBtag, confidence });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);

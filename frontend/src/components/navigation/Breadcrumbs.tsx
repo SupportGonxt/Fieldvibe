@@ -112,7 +112,7 @@ export const breadcrumbLabels: Record<string, string> = {
   '/field-operations/dashboard': 'Field Operations Dashboard',
   '/field-operations/reports/goldrush-stores': 'Stores Report',
   '/field-operations/reports/goldrush-tracking': 'Tracking GoldRush',
-  '/field-operations/reports/goldrush-upload-failures': 'Upload Failures',
+  '/field-operations/reports/goldrush-upload-failures': 'Not Loaded List',
   '/admin': 'Admin Panel',
 };
 

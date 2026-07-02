@@ -142,12 +142,15 @@ const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
+// Goldrush individuals: the system photo is captured FIRST (so the B-Tag can be
+// checked before the agent types any customer details), then Details (incl. the
+// Goldrush ID) is filled in afterwards.
 const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
   { id: 'i1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
   { id: 'i2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
-  { id: 'i3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
-  { id: 'i4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
-  { id: 'i4b', step_key: 'photo', step_label: 'Goldrush Photo', step_order: 5, is_required: 1, config: '{}' },
+  { id: 'i4b', step_key: 'photo', step_label: 'Goldrush Photo', step_order: 3, is_required: 1, config: '{}' },
+  { id: 'i3', step_key: 'details', step_label: 'Details', step_order: 4, is_required: 1, config: '{}' },
+  { id: 'i4', step_key: 'survey', step_label: 'Survey', step_order: 5, is_required: 0, config: '{}' },
   { id: 'i5', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
@@ -186,7 +189,7 @@ export default function VisitCreate() {
   const [error, setError] = useState<string | null>(null)
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
   const [photoVerification, setPhotoVerification] = useState<{
-    status: 'idle' | 'checking' | 'match' | 'mismatch' | 'unreadable'
+    status: 'idle' | 'checking' | 'match' | 'mismatch' | 'unreadable' | 'pending_id'
     extractedId?: string | null
     hasBtag?: boolean | null
     extractedBtag?: string | null
@@ -886,35 +889,53 @@ export default function VisitCreate() {
     return ''
   }
 
-  // Auto-verify the photo against the typed Goldrush ID and check for btag URL
+  // Verify the B-Tag (and, once known, the player ID) in the uploaded system photo.
+  // The photo is now captured before the Goldrush ID is typed in, so the B-Tag check
+  // never waits on a typed ID — only the ID match is deferred until it's available.
   const verifyGoldrushPhoto = async (photoDataUrl: string) => {
     const typedId = getTypedGoldrushId()
-    if (!typedId) {
-      setPhotoVerification({ status: 'unreadable' })
-      return
-    }
     setPhotoVerification({ status: 'checking' })
     try {
       const res = await apiClient.post('/field-ops/verify-goldrush-photo', {
         photo_data: photoDataUrl,
-        typed_goldrush_id: typedId,
+        typed_goldrush_id: typedId || undefined,
       })
-      const { match, extracted_id, has_btag, extracted_btag } = res.data || {}
+      const { extracted_id, has_btag, extracted_btag } = res.data || {}
       // has_btag: true = btag confirmed. false/null = no btag (URL not visible OR btag missing — both count as errors)
-      const noBtag = has_btag !== true
-      if (noBtag) setPhotoNoBtagAcknowledged(false)
-      if (match === true) {
-        setPhotoVerification({ status: 'match', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
-      } else if (match === false) {
-        setPhotoVerification({ status: 'mismatch', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
-        setPhotoIdMismatchAcknowledged(false)
-      } else {
+      if (has_btag !== true) setPhotoNoBtagAcknowledged(false)
+      setPhotoIdMismatchAcknowledged(false)
+      if (!extracted_id) {
         setPhotoVerification({ status: 'unreadable', extractedId: null, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
+        return
       }
+      if (!typedId) {
+        // ID hasn't been typed yet (Details step comes after Photo) — the match
+        // is checked reactively once the agent fills in the Goldrush ID.
+        setPhotoVerification({ status: 'pending_id', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
+        return
+      }
+      const match = extracted_id === typedId.replace(/\D/g, '')
+      setPhotoVerification({ status: match ? 'match' : 'mismatch', extractedId: extracted_id, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null })
     } catch {
       setPhotoVerification({ status: 'unreadable' })
     }
   }
+
+  // Once the photo has been checked and the agent later types (or edits) the Goldrush
+  // ID in the Details step, reconcile it against the ID already extracted from the photo.
+  useEffect(() => {
+    if (photoVerification.status !== 'pending_id' && photoVerification.status !== 'match' && photoVerification.status !== 'mismatch') return
+    if (!photoVerification.extractedId) return
+    const typedId = getTypedGoldrushId().replace(/\D/g, '')
+    if (!typedId) {
+      setPhotoVerification(prev => ({ ...prev, status: 'pending_id' }))
+      return
+    }
+    const match = photoVerification.extractedId === typedId
+    setPhotoVerification(prev => (prev.status === (match ? 'match' : 'mismatch') ? prev : { ...prev, status: match ? 'match' : 'mismatch' }))
+    if (!match) setPhotoIdMismatchAcknowledged(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customFieldValues, customQuestionValues, photoVerification.extractedId])
 
   // Step validation based on dynamic step key
   const canProceed = (): boolean => {
@@ -936,6 +957,8 @@ export default function VisitCreate() {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
             }
           }
+          const currentCompany = companies.find(c => c.id === selectedCompany)
+          if (isGoldrushCompany(currentCompany) && photoVerification.status === 'mismatch' && !photoIdMismatchAcknowledged) return false
           return true
         }
         if (visitTargetType === 'store') {
@@ -1425,6 +1448,48 @@ export default function VisitCreate() {
                 ))}
               </Alert>
             )}
+
+            {/* Goldrush ID match — can only be checked once the ID below is typed in, since
+                the system photo is now captured before this step. The B-Tag check itself
+                already happened (and was gated) on the Photo step. */}
+            {(() => {
+              const currentCompany = companies.find(c => c.id === selectedCompany)
+              if (!isGoldrushCompany(currentCompany) || photos.length === 0) return null
+              const goToPhotoStep = () => {
+                removePhoto(photos.length - 1)
+                const photoStepIndex = activeSteps.findIndex(s => s.step_key === 'photo')
+                if (photoStepIndex !== -1) setActiveStep(photoStepIndex)
+              }
+              if (photoVerification.status === 'mismatch') {
+                return (
+                  <Alert
+                    severity="error"
+                    sx={{ mt: 2 }}
+                    action={
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 160 }}>
+                        <Button size="small" color="inherit" variant="outlined" onClick={goToPhotoStep}>
+                          Change Photo
+                        </Button>
+                        <Button
+                          size="small"
+                          color="inherit"
+                          variant="contained"
+                          onClick={() => setPhotoIdMismatchAcknowledged(true)}
+                          disabled={photoIdMismatchAcknowledged}
+                        >
+                          {photoIdMismatchAcknowledged ? 'Proceeding anyway' : 'Submit Anyway'}
+                        </Button>
+                      </Box>
+                    }
+                  >
+                    <strong>Goldrush ID mismatch.</strong> The ID read from the photo
+                    {photoVerification.extractedId ? ` (${photoVerification.extractedId})` : ''} does not match the
+                    Goldrush ID entered below. This will be flagged in the team lead report.
+                  </Alert>
+                )
+              }
+              return null
+            })()}
           </>
         )}
 
@@ -2182,7 +2247,7 @@ export default function VisitCreate() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {visitTargetType === 'individual' ? (
-            <>Upload the individual&apos;s photo from the Goldrush system. <strong>A photo is required to complete this capture.</strong></>
+            <>Upload the individual&apos;s system photo from Goldrush first — we&apos;ll check it for a B-Tag before you enter their details. <strong>A photo is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -2330,7 +2395,15 @@ export default function VisitCreate() {
           if (photoVerification.status === 'checking') {
             return (
               <Alert severity="info" sx={{ mt: 2 }}>
-                Verifying Goldrush ID in photo...
+                Verifying photo...
+              </Alert>
+            )
+          }
+          if (photoVerification.status === 'pending_id') {
+            return (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Player ID {photoVerification.extractedId} read from the photo. It will be checked
+                against the Goldrush ID you enter on the next step.
               </Alert>
             )
           }

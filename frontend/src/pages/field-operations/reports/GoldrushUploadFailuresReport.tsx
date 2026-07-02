@@ -142,7 +142,7 @@ const GoldrushUploadFailuresReport: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Upload Failures Report</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Not Loaded List Report</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Captures flagged due to invalid IDs, photo mismatches, or missing B-Tag numbers</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -161,7 +161,7 @@ const GoldrushUploadFailuresReport: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center gap-2 mb-2">
             <XCircle className="h-4 w-4 text-red-500" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Total Failures</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Total Not Loaded</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{failures.length}</p>
         </div>
@@ -205,7 +205,7 @@ const GoldrushUploadFailuresReport: React.FC = () => {
       {failures.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
           <XCircle className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-gray-400 text-sm">No upload failures in this date range</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No visits in the not loaded list for this date range</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -218,7 +218,7 @@ const GoldrushUploadFailuresReport: React.FC = () => {
                   Team Lead: {tlGroup.teamLeadName}
                 </span>
                 <span className="ml-auto text-xs text-gray-400">
-                  {Object.values(tlGroup.agents).reduce((s, a) => s + a.records.length, 0)} failures
+                  {Object.values(tlGroup.agents).reduce((s, a) => s + a.records.length, 0)} not loaded
                 </span>
               </div>
 
