@@ -908,6 +908,34 @@ export default function VisitCreate() {
     return false
   }
 
+  // Some companies (e.g. Goldrush) also collect the customer's name via dedicated custom
+  // questions/fields (e.g. "Consumer Name" / "Consumer Surname") rather than — or in
+  // addition to — the built-in individualFirstName/individualLastName inputs. Pre-fill
+  // those too from the photo so the agent doesn't have to retype the name a second time.
+  const applyExtractedName = (firstName?: string | null, lastName?: string | null) => {
+    const isFirstNameKey = (k: string) => {
+      const l = k.toLowerCase()
+      if (l.includes('surname') || l.includes('last_name') || l.includes('lastname')) return false
+      return l.includes('consumer_name') || l.includes('first_name') || l.includes('firstname')
+    }
+    const isLastNameKey = (k: string) => {
+      const l = k.toLowerCase()
+      return l.includes('consumer_surname') || l.includes('surname') || l.includes('last_name') || l.includes('lastname')
+    }
+    if (firstName) {
+      const q = customQuestions.find(q => isFirstNameKey(q.question_key))
+      if (q) setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: firstName }))
+      const f = customFields.find(f => isFirstNameKey(f.field_name))
+      if (f) setCustomFieldValues(prev => ({ ...prev, [f.field_name]: firstName }))
+    }
+    if (lastName) {
+      const q = customQuestions.find(q => isLastNameKey(q.question_key))
+      if (q) setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: lastName }))
+      const f = customFields.find(f => isLastNameKey(f.field_name))
+      if (f) setCustomFieldValues(prev => ({ ...prev, [f.field_name]: lastName }))
+    }
+  }
+
   // Verify the B-Tag and player ID/name in the uploaded system photo, and pre-fill the
   // Goldrush ID + customer name from what the AI read off the photo. The photo is now
   // captured before Details, so the agent no longer types these in by hand — they just
@@ -924,6 +952,7 @@ export default function VisitCreate() {
       setPhotoIdMismatchAcknowledged(false)
       if (extracted_first_name) setIndividualFirstName(extracted_first_name)
       if (extracted_last_name) setIndividualLastName(extracted_last_name)
+      applyExtractedName(extracted_first_name, extracted_last_name)
       if (!extracted_id) {
         setPhotoVerification({ status: 'unreadable', extractedId: null, hasBtag: has_btag ?? null, extractedBtag: extracted_btag ?? null, extractedFirstName: extracted_first_name ?? null, extractedLastName: extracted_last_name ?? null })
         return
