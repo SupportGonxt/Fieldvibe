@@ -208,8 +208,8 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url)
 }
 
-export function escapeHtml(str: string): string {
-  return str
+export function escapeHtml(str: string | null | undefined): string {
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

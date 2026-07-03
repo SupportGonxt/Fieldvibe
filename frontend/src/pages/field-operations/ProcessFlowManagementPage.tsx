@@ -167,21 +167,31 @@ interface PrintFormSection {
   questions: CustomQuestion[]
 }
 
-// Map a survey question onto the shape printQuestionForm knows how to render
-function surveyQuestionToPrintable(q: SurveyQuestion): CustomQuestion {
+// Map a survey question onto the shape printQuestionForm knows how to render.
+// Survey rows in the database vary in field naming, so fall back across the
+// known variants rather than assuming question_text/question_type exist.
+function surveyQuestionToPrintable(q: SurveyQuestion, index: number): CustomQuestion {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = q as any
+  const label = raw.question_text || raw.text || raw.question || raw.label || `Question ${index + 1}`
+  const type = raw.question_type || raw.type || 'text'
+  const options = Array.isArray(raw.options)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? raw.options.map((o: any) => typeof o === 'string' ? o : o?.label || o?.value || String(o ?? '')).filter(Boolean)
+    : undefined
   const fieldType =
-    q.question_type === 'multiple_choice' || q.question_type === 'rating' ? 'select' :
-    q.question_type === 'yes_no' ? 'toggle' :
-    q.question_type === 'date' ? 'date' : 'text'
+    type === 'multiple_choice' || type === 'rating' ? 'select' :
+    type === 'yes_no' ? 'toggle' :
+    type === 'date' ? 'date' : 'text'
   return {
-    id: q.id,
+    id: raw.id || `survey-q-${index}`,
     company_id: '',
-    question_label: q.question_text,
+    question_label: label,
     question_key: '',
     field_type: fieldType,
-    field_options: q.question_type === 'rating' ? ['1', '2', '3', '4', '5'] : q.options,
-    is_required: q.required,
-    display_order: 0,
+    field_options: type === 'rating' ? ['1', '2', '3', '4', '5'] : options,
+    is_required: !!raw.required,
+    display_order: index,
     visit_target_type: 'survey',
   }
 }
@@ -1379,19 +1389,29 @@ function CustomQuestionsTab() {
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                      {qs.map((q, idx) => (
-                        <tr key={q.id || idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                          <td className="px-6 py-3 text-sm text-gray-500">{idx + 1}</td>
-                          <td className="px-6 py-3">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">{q.question_text}</div>
-                            {Array.isArray(q.options) && q.options.length > 0 && (
-                              <div className="text-xs text-gray-400">{q.options.join(' / ')}</div>
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">{QUESTION_TYPES.find(t => t.value === q.question_type)?.label || q.question_type}</td>
-                          <td className="px-6 py-3 text-sm">{q.required ? <span className="text-red-500 font-medium">Yes</span> : 'No'}</td>
-                        </tr>
-                      ))}
+                      {qs.map((q, idx) => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const raw = q as any
+                        const text = raw.question_text || raw.text || raw.question || raw.label || `Question ${idx + 1}`
+                        const type = raw.question_type || raw.type || 'text'
+                        const options = Array.isArray(raw.options)
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          ? raw.options.map((o: any) => typeof o === 'string' ? o : o?.label || o?.value || String(o ?? '')).filter(Boolean)
+                          : []
+                        return (
+                          <tr key={raw.id || idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <td className="px-6 py-3 text-sm text-gray-500">{idx + 1}</td>
+                            <td className="px-6 py-3">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">{text}</div>
+                              {options.length > 0 && (
+                                <div className="text-xs text-gray-400">{options.join(' / ')}</div>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">{QUESTION_TYPES.find(t => t.value === type)?.label || type}</td>
+                            <td className="px-6 py-3 text-sm">{raw.required ? <span className="text-red-500 font-medium">Yes</span> : 'No'}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
