@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { surveysService } from '../../services/surveys.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { exportToCSV, printTable, type ExportColumn } from '../../utils/export'
+import { exportToCSV, escapeHtml, type ExportColumn } from '../../utils/export'
 
 // ── Types ──
 
@@ -140,6 +140,77 @@ const FIELD_TYPES = [
   { value: 'textarea', label: 'Long Text' },
   { value: 'image', label: 'Photo Upload' },
 ]
+
+// ── Printable question form (blank answer spaces for agents to fill out) ──
+
+function printQuestionForm(questions: Array<CustomQuestion & { company: string }>, title: string) {
+  const answerArea = (q: CustomQuestion): string => {
+    const opts = Array.isArray(q.field_options) ? q.field_options : []
+    if (q.field_type === 'toggle') {
+      return `<div class="options"><span class="opt">&#9744; Yes</span><span class="opt">&#9744; No</span></div>`
+    }
+    if ((q.field_type === 'select' || q.field_type === 'radio' || q.field_type === 'checkbox') && opts.length > 0) {
+      return `<div class="options">${opts.map(o => `<span class="opt">&#9744; ${escapeHtml(o)}</span>`).join('')}</div>`
+    }
+    if (q.field_type === 'textarea') {
+      return `<div class="write-box"></div>`
+    }
+    return `<div class="write-line"></div>`
+  }
+
+  const questionBlock = (q: CustomQuestion, n: number): string => `
+    <div class="question">
+      <div class="q-label">${n}. ${escapeHtml(q.question_label)}${q.is_required ? '<span class="req"> *</span>' : ''}</div>
+      ${answerArea(q)}
+    </div>`
+
+  // Group by company; numbering restarts per company section
+  const companies = [...new Set(questions.map(q => q.company))]
+  const body = companies.map(company => {
+    const qs = questions.filter(q => q.company === company)
+    const blocks = qs.map((q, i) => questionBlock(q, i + 1)).join('')
+    return companies.length > 1
+      ? `<h2 class="company">${escapeHtml(company)}</h2>${blocks}`
+      : blocks
+  }).join('')
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+    <style>
+      @page { size: portrait; margin: 15mm; }
+      body { font-family: -apple-system, sans-serif; color: #1f2937; }
+      h1 { font-size: 15pt; margin: 0 0 4px; }
+      .fill-header { display: flex; gap: 40px; margin: 14px 0 20px; font-size: 10.5pt; }
+      .fill-header span { border-bottom: 1px solid #6b7280; min-width: 200px; display: inline-block; }
+      .company { font-size: 12pt; margin: 22px 0 8px; padding-bottom: 3px; border-bottom: 2px solid #d1d5db; }
+      .question { margin-bottom: 16px; page-break-inside: avoid; }
+      .q-label { font-size: 11pt; font-weight: 600; margin-bottom: 8px; }
+      .req { color: #dc2626; }
+      .options { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 10.5pt; padding-left: 16px; }
+      .opt { white-space: nowrap; }
+      .write-line { border-bottom: 1px solid #9ca3af; height: 22px; margin-left: 16px; }
+      .write-box { border: 1px solid #9ca3af; border-radius: 3px; height: 70px; margin-left: 16px; }
+      .footnote { margin-top: 24px; font-size: 8.5pt; color: #6b7280; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+    </head><body>
+    <h1>${escapeHtml(title)}</h1>
+    <div class="fill-header">
+      <div>Agent Name: <span>&nbsp;</span></div>
+      <div>Date: <span>&nbsp;</span></div>
+    </div>
+    ${body}
+    <div class="footnote">* Required question</div>
+    </body></html>`
+
+  const printWindow = window.open('', '_blank')
+  if (printWindow) {
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+    setTimeout(() => printWindow.print(), 500)
+  }
+}
 
 // ── Main Page Component ──
 
@@ -892,44 +963,43 @@ function CustomQuestionsTab() {
   }
 
   // ── Print / Download ──
-  type ExportScope = 'all' | 'store' | 'individual'
+  type ExportScope = 'all' | 'store' | 'individual' | 'survey'
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false)
+  const [showPrintMenu, setShowPrintMenu] = useState(false)
   const downloadMenuRef = useRef<HTMLDivElement>(null)
+  const printMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!showDownloadMenu) return
+    if (!showDownloadMenu && !showPrintMenu) return
     const onClickOutside = (e: MouseEvent) => {
       if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
         setShowDownloadMenu(false)
       }
+      if (printMenuRef.current && !printMenuRef.current.contains(e.target as Node)) {
+        setShowPrintMenu(false)
+      }
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [showDownloadMenu])
-
-  const exportColumns: ExportColumn[] = [
-    { key: 'company', label: 'Company' },
-    { key: 'question_label', label: 'Question' },
-    { key: 'question_key', label: 'Question Key' },
-    { key: 'field_type', label: 'Field Type', format: v => FIELD_TYPES.find(f => f.value === v)?.label || String(v ?? '') },
-    { key: 'visit_target_type', label: 'Applies To', format: v => v === 'store' ? 'Store' : v === 'individual' ? 'Individual' : 'Store & Individual' },
-    { key: 'is_required', label: 'Required', format: v => v ? 'Yes' : 'No' },
-    { key: 'field_options', label: 'Options', format: v => Array.isArray(v) ? v.join(', ') : '' },
-    { key: 'min_length', label: 'Min Length', format: v => v != null ? String(v) : '' },
-    { key: 'max_length', label: 'Max Length', format: v => v != null ? String(v) : '' },
-    { key: 'display_order', label: 'Order' },
-  ]
+  }, [showDownloadMenu, showPrintMenu])
 
   const scopeLabel = (scope: ExportScope) =>
-    scope === 'store' ? 'Store Questions' : scope === 'individual' ? 'Individual Questions' : 'All Questions'
+    scope === 'store' ? 'Store Questions' :
+    scope === 'individual' ? 'Individual Questions' :
+    scope === 'survey' ? 'Survey Questions' : 'All Questions'
+
+  const hasSurveyQuestions = questions.some(q => q.visit_target_type === 'survey')
 
   // Questions marked "both" apply to store and individual visits alike, so they
-  // are included in either scoped download (matching the visit-flow API filter).
+  // are included in either scoped export (matching the visit-flow API filter).
+  // Survey questions are only ever survey-targeted.
   function exportRows(scope: ExportScope) {
     const scoped = scope === 'all'
       ? questions
-      : questions.filter(q => (q.visit_target_type || 'both') === scope || (q.visit_target_type || 'both') === 'both')
+      : scope === 'survey'
+        ? questions.filter(q => q.visit_target_type === 'survey')
+        : questions.filter(q => (q.visit_target_type || 'both') === scope || (q.visit_target_type || 'both') === 'both')
     return scoped
       .slice()
       .sort((a, b) =>
@@ -941,26 +1011,49 @@ function CustomQuestionsTab() {
 
   const exportCompanyLabel = filterCompany ? getCompanyName(filterCompany) : 'All Companies'
 
+  // Question text as agents should read it: label, required marker, and the
+  // available choices for option-type questions so the form is answerable on paper.
+  function questionText(q: CustomQuestion) {
+    const opts = Array.isArray(q.field_options) ? q.field_options : []
+    const optHint = q.field_type === 'toggle' ? ' (Yes / No)' : opts.length ? ` (${opts.join(' / ')})` : ''
+    return `${q.question_label}${q.is_required ? ' *' : ''}${optHint}`
+  }
+
   function handleDownload(scope: ExportScope) {
     setShowDownloadMenu(false)
-    const rows = exportRows(scope)
-    if (rows.length === 0) {
+    const scoped = exportRows(scope)
+    if (scoped.length === 0) {
       toast.error(`No ${scopeLabel(scope).toLowerCase()} to download for ${exportCompanyLabel}`)
       return
     }
+    const multiCompany = new Set(scoped.map(q => q.company)).size > 1
+    const rows = scoped.map((q, i) => ({
+      number: i + 1,
+      company: q.company,
+      question: questionText(q),
+      answer: '',
+    }))
+    const columns: ExportColumn[] = [
+      { key: 'number', label: '#' },
+      ...(multiCompany ? [{ key: 'company', label: 'Company' } as ExportColumn] : []),
+      { key: 'question', label: 'Question' },
+      { key: 'answer', label: 'Answer' },
+    ]
     const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     const filename = `custom-questions-${slug(exportCompanyLabel)}${scope !== 'all' ? `-${scope}` : ''}`
-    exportToCSV(rows, exportColumns, filename)
+    exportToCSV(rows, columns, filename)
     toast.success(`Downloaded ${rows.length} question${rows.length !== 1 ? 's' : ''}`)
   }
 
-  function handlePrint() {
-    const rows = exportRows('all')
+  function handlePrint(scope: ExportScope) {
+    setShowPrintMenu(false)
+    const rows = exportRows(scope)
     if (rows.length === 0) {
-      toast.error('No questions to print')
+      toast.error(`No ${scopeLabel(scope).toLowerCase()} to print for ${exportCompanyLabel}`)
       return
     }
-    printTable(rows, exportColumns, `Custom Questions — ${exportCompanyLabel}`)
+    const title = `${exportCompanyLabel} — ${scopeLabel(scope)}`
+    printQuestionForm(rows, title)
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
@@ -992,15 +1085,39 @@ function CustomQuestionsTab() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrint}
-            disabled={questions.length === 0}
-            className="btn-outline flex items-center gap-2 disabled:opacity-50"
-            title="Print the questions currently shown"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print</span>
-          </button>
+          <div className="relative" ref={printMenuRef}>
+            <button
+              onClick={() => setShowPrintMenu(v => !v)}
+              disabled={questions.length === 0}
+              className="btn-outline flex items-center gap-2 disabled:opacity-50"
+              title="Print questions"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showPrintMenu && (
+              <div className="absolute right-0 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                <div className="px-4 py-1.5 text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                  {exportCompanyLabel}
+                </div>
+                <button onClick={() => handlePrint('all')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  All Questions
+                </button>
+                <button onClick={() => handlePrint('store')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Store Questions
+                </button>
+                <button onClick={() => handlePrint('individual')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Individual Questions
+                </button>
+                {hasSurveyQuestions && (
+                  <button onClick={() => handlePrint('survey')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Survey Questions
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <div className="relative" ref={downloadMenuRef}>
             <button
               onClick={() => setShowDownloadMenu(v => !v)}
@@ -1026,6 +1143,11 @@ function CustomQuestionsTab() {
                 <button onClick={() => handleDownload('individual')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                   Individual Questions (CSV)
                 </button>
+                {hasSurveyQuestions && (
+                  <button onClick={() => handleDownload('survey')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Survey Questions (CSV)
+                  </button>
+                )}
               </div>
             )}
           </div>
