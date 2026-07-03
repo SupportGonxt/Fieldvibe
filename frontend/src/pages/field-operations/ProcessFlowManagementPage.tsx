@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -23,9 +23,12 @@ import {
   CheckCircle,
   Target,
   FileText,
+  Printer,
+  Download,
 } from 'lucide-react'
 import { surveysService } from '../../services/surveys.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { exportToCSV, printTable, type ExportColumn } from '../../utils/export'
 
 // ── Types ──
 
@@ -888,6 +891,78 @@ function CustomQuestionsTab() {
     return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
   }
 
+  // ── Print / Download ──
+  type ExportScope = 'all' | 'store' | 'individual'
+
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false)
+  const downloadMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showDownloadMenu) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+        setShowDownloadMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [showDownloadMenu])
+
+  const exportColumns: ExportColumn[] = [
+    { key: 'company', label: 'Company' },
+    { key: 'question_label', label: 'Question' },
+    { key: 'question_key', label: 'Question Key' },
+    { key: 'field_type', label: 'Field Type', format: v => FIELD_TYPES.find(f => f.value === v)?.label || String(v ?? '') },
+    { key: 'visit_target_type', label: 'Applies To', format: v => v === 'store' ? 'Store' : v === 'individual' ? 'Individual' : 'Store & Individual' },
+    { key: 'is_required', label: 'Required', format: v => v ? 'Yes' : 'No' },
+    { key: 'field_options', label: 'Options', format: v => Array.isArray(v) ? v.join(', ') : '' },
+    { key: 'min_length', label: 'Min Length', format: v => v != null ? String(v) : '' },
+    { key: 'max_length', label: 'Max Length', format: v => v != null ? String(v) : '' },
+    { key: 'display_order', label: 'Order' },
+  ]
+
+  const scopeLabel = (scope: ExportScope) =>
+    scope === 'store' ? 'Store Questions' : scope === 'individual' ? 'Individual Questions' : 'All Questions'
+
+  // Questions marked "both" apply to store and individual visits alike, so they
+  // are included in either scoped download (matching the visit-flow API filter).
+  function exportRows(scope: ExportScope) {
+    const scoped = scope === 'all'
+      ? questions
+      : questions.filter(q => (q.visit_target_type || 'both') === scope || (q.visit_target_type || 'both') === 'both')
+    return scoped
+      .slice()
+      .sort((a, b) =>
+        getCompanyName(a.company_id).localeCompare(getCompanyName(b.company_id)) ||
+        (a.visit_target_type || 'both').localeCompare(b.visit_target_type || 'both') ||
+        (a.display_order - b.display_order))
+      .map(q => ({ ...q, company: getCompanyName(q.company_id) }))
+  }
+
+  const exportCompanyLabel = filterCompany ? getCompanyName(filterCompany) : 'All Companies'
+
+  function handleDownload(scope: ExportScope) {
+    setShowDownloadMenu(false)
+    const rows = exportRows(scope)
+    if (rows.length === 0) {
+      toast.error(`No ${scopeLabel(scope).toLowerCase()} to download for ${exportCompanyLabel}`)
+      return
+    }
+    const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const filename = `custom-questions-${slug(exportCompanyLabel)}${scope !== 'all' ? `-${scope}` : ''}`
+    exportToCSV(rows, exportColumns, filename)
+    toast.success(`Downloaded ${rows.length} question${rows.length !== 1 ? 's' : ''}`)
+  }
+
+  function handlePrint() {
+    const rows = exportRows('all')
+    if (rows.length === 0) {
+      toast.error('No questions to print')
+      return
+    }
+    printTable(rows, exportColumns, `Custom Questions — ${exportCompanyLabel}`)
+  }
+
   if (isLoading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
 
   if (isError) {
@@ -916,10 +991,49 @@ function CustomQuestionsTab() {
             placeholder="All Companies"
           />
         </div>
-        <button onClick={() => { setShowCreate(true); setEditingQuestion(null) }} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          <span>New Question</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrint}
+            disabled={questions.length === 0}
+            className="btn-outline flex items-center gap-2 disabled:opacity-50"
+            title="Print the questions currently shown"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <div className="relative" ref={downloadMenuRef}>
+            <button
+              onClick={() => setShowDownloadMenu(v => !v)}
+              disabled={questions.length === 0}
+              className="btn-outline flex items-center gap-2 disabled:opacity-50"
+              title="Download questions as CSV"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showDownloadMenu && (
+              <div className="absolute right-0 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                <div className="px-4 py-1.5 text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                  {exportCompanyLabel}
+                </div>
+                <button onClick={() => handleDownload('all')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  All Questions (CSV)
+                </button>
+                <button onClick={() => handleDownload('store')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Store Questions (CSV)
+                </button>
+                <button onClick={() => handleDownload('individual')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Individual Questions (CSV)
+                </button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => { setShowCreate(true); setEditingQuestion(null) }} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            <span>New Question</span>
+          </button>
+        </div>
       </div>
 
       {showCreate && (
