@@ -24,11 +24,10 @@ import {
   Target,
   FileText,
   Printer,
-  Download,
 } from 'lucide-react'
 import { surveysService } from '../../services/surveys.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { exportToCSV, escapeHtml, type ExportColumn } from '../../utils/export'
+import { escapeHtml } from '../../utils/export'
 
 // ── Types ──
 
@@ -163,7 +162,31 @@ const FIELDVIBE_LOGO_SVG = `<svg viewBox="0 0 280 64" width="170" height="39" fi
   </defs>
 </svg>`
 
-function printQuestionForm(questions: Array<CustomQuestion & { company: string }>, title: string) {
+interface PrintFormSection {
+  heading?: string
+  questions: CustomQuestion[]
+}
+
+// Map a survey question onto the shape printQuestionForm knows how to render
+function surveyQuestionToPrintable(q: SurveyQuestion): CustomQuestion {
+  const fieldType =
+    q.question_type === 'multiple_choice' || q.question_type === 'rating' ? 'select' :
+    q.question_type === 'yes_no' ? 'toggle' :
+    q.question_type === 'date' ? 'date' : 'text'
+  return {
+    id: q.id,
+    company_id: '',
+    question_label: q.question_text,
+    question_key: '',
+    field_type: fieldType,
+    field_options: q.question_type === 'rating' ? ['1', '2', '3', '4', '5'] : q.options,
+    is_required: q.required,
+    display_order: 0,
+    visit_target_type: 'survey',
+  }
+}
+
+function printQuestionForm(sections: PrintFormSection[], title: string) {
   const answerArea = (q: CustomQuestion): string => {
     const opts = Array.isArray(q.field_options) ? q.field_options : []
     if (q.field_type === 'toggle') {
@@ -184,13 +207,11 @@ function printQuestionForm(questions: Array<CustomQuestion & { company: string }
       ${answerArea(q)}
     </div>`
 
-  // Group by company; numbering restarts per company section
-  const companies = [...new Set(questions.map(q => q.company))]
-  const body = companies.map(company => {
-    const qs = questions.filter(q => q.company === company)
-    const blocks = qs.map((q, i) => questionBlock(q, i + 1)).join('')
-    return companies.length > 1
-      ? `<h2 class="company">${escapeHtml(company)}</h2>${blocks}`
+  // Numbering restarts within each section
+  const body = sections.map(section => {
+    const blocks = section.questions.map((q, i) => questionBlock(q, i + 1)).join('')
+    return section.heading
+      ? `<h2 class="company">${escapeHtml(section.heading)}</h2>${blocks}`
       : blocks
   }).join('')
 
@@ -918,6 +939,34 @@ function CustomQuestionsTab() {
     Array.isArray(questionsResp?.results) ? questionsResp.results :
     Array.isArray(questionsResp) ? questionsResp : []
 
+  const { data: surveysResp } = useQuery({
+    queryKey: ['surveys-list'],
+    queryFn: () => surveysService.getSurveys({}),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const surveys: any[] = Array.isArray(surveysResp?.surveys) ? surveysResp.surveys :
+    Array.isArray(surveysResp?.data) ? surveysResp.data :
+    Array.isArray(surveysResp) ? surveysResp : []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function surveyQuestions(s: any): SurveyQuestion[] {
+    if (Array.isArray(s.questions)) return s.questions
+    if (typeof s.questions === 'string') {
+      try {
+        const parsed = JSON.parse(s.questions)
+        return Array.isArray(parsed) ? parsed : []
+      } catch { return [] }
+    }
+    return []
+  }
+
+  // Surveys allocated to the selected company (or to all companies)
+  const companySurveys = filterCompany
+    ? surveys.filter(s => (s.company_id === filterCompany || !s.company_id) && surveyQuestions(s).length > 0)
+    : []
+  // When the company has no custom questions but does have surveys, show those instead
+  const showCompanySurveys = companySurveys.length > 0 && questions.length === 0
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -989,31 +1038,26 @@ function CustomQuestionsTab() {
   // ── Print / Download ──
   type ExportScope = 'all' | 'store' | 'individual' | 'survey'
 
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false)
   const [showPrintMenu, setShowPrintMenu] = useState(false)
-  const downloadMenuRef = useRef<HTMLDivElement>(null)
   const printMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!showDownloadMenu && !showPrintMenu) return
+    if (!showPrintMenu) return
     const onClickOutside = (e: MouseEvent) => {
-      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
-        setShowDownloadMenu(false)
-      }
       if (printMenuRef.current && !printMenuRef.current.contains(e.target as Node)) {
         setShowPrintMenu(false)
       }
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [showDownloadMenu, showPrintMenu])
+  }, [showPrintMenu])
 
   const scopeLabel = (scope: ExportScope) =>
     scope === 'store' ? 'Store Questions' :
     scope === 'individual' ? 'Individual Questions' :
     scope === 'survey' ? 'Survey Questions' : 'All Questions'
 
-  const hasSurveyQuestions = questions.some(q => q.visit_target_type === 'survey')
+  const hasSurveyQuestions = questions.some(q => q.visit_target_type === 'survey') || companySurveys.length > 0
 
   // Questions marked "both" apply to store and individual visits alike, so they
   // are included in either scoped export (matching the visit-flow API filter).
@@ -1035,49 +1079,30 @@ function CustomQuestionsTab() {
 
   const exportCompanyLabel = filterCompany ? getCompanyName(filterCompany) : 'All Companies'
 
-  // Question text as agents should read it: label, required marker, and the
-  // available choices for option-type questions so the form is answerable on paper.
-  function questionText(q: CustomQuestion) {
-    const opts = Array.isArray(q.field_options) ? q.field_options : []
-    const optHint = q.field_type === 'toggle' ? ' (Yes / No)' : opts.length ? ` (${opts.join(' / ')})` : ''
-    return `${q.question_label}${q.is_required ? ' *' : ''}${optHint}`
-  }
-
-  function handleDownload(scope: ExportScope) {
-    setShowDownloadMenu(false)
-    const scoped = exportRows(scope)
-    if (scoped.length === 0) {
-      toast.error(`No ${scopeLabel(scope).toLowerCase()} to download for ${exportCompanyLabel}`)
-      return
-    }
-    const multiCompany = new Set(scoped.map(q => q.company)).size > 1
-    const rows = scoped.map((q, i) => ({
-      number: i + 1,
-      company: q.company,
-      question: questionText(q),
-      answer: '',
-    }))
-    const columns: ExportColumn[] = [
-      { key: 'number', label: '#' },
-      ...(multiCompany ? [{ key: 'company', label: 'Company' } as ExportColumn] : []),
-      { key: 'question', label: 'Question' },
-      { key: 'answer', label: 'Answer' },
-    ]
-    const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const filename = `custom-questions-${slug(exportCompanyLabel)}${scope !== 'all' ? `-${scope}` : ''}`
-    exportToCSV(rows, columns, filename)
-    toast.success(`Downloaded ${rows.length} question${rows.length !== 1 ? 's' : ''}`)
-  }
-
   function handlePrint(scope: ExportScope) {
     setShowPrintMenu(false)
     const rows = exportRows(scope)
-    if (rows.length === 0) {
+    const companyGroups = [...new Set(rows.map(q => q.company))]
+    const sections: PrintFormSection[] = companyGroups.map(c => ({
+      heading: companyGroups.length > 1 ? c : undefined,
+      questions: rows.filter(q => q.company === c),
+    }))
+    // Company surveys join the survey scope, and stand in for "all" when the
+    // company has no custom questions of its own
+    if (scope === 'survey' || (scope === 'all' && showCompanySurveys)) {
+      for (const s of companySurveys) {
+        sections.push({
+          heading: `Survey: ${s.title || s.name}`,
+          questions: surveyQuestions(s).map(surveyQuestionToPrintable),
+        })
+      }
+    }
+    if (sections.every(s => s.questions.length === 0) || sections.length === 0) {
       toast.error(`No ${scopeLabel(scope).toLowerCase()} to print for ${exportCompanyLabel}`)
       return
     }
     const title = `${exportCompanyLabel} — ${scopeLabel(scope)}`
-    printQuestionForm(rows, title)
+    printQuestionForm(sections, title)
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
@@ -1112,7 +1137,7 @@ function CustomQuestionsTab() {
           <div className="relative" ref={printMenuRef}>
             <button
               onClick={() => setShowPrintMenu(v => !v)}
-              disabled={questions.length === 0}
+              disabled={questions.length === 0 && companySurveys.length === 0}
               className="btn-outline flex items-center gap-2 disabled:opacity-50"
               title="Print questions"
             >
@@ -1137,39 +1162,6 @@ function CustomQuestionsTab() {
                 {hasSurveyQuestions && (
                   <button onClick={() => handlePrint('survey')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                     Survey Questions
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="relative" ref={downloadMenuRef}>
-            <button
-              onClick={() => setShowDownloadMenu(v => !v)}
-              disabled={questions.length === 0}
-              className="btn-outline flex items-center gap-2 disabled:opacity-50"
-              title="Download questions as CSV"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            {showDownloadMenu && (
-              <div className="absolute right-0 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
-                <div className="px-4 py-1.5 text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                  {exportCompanyLabel}
-                </div>
-                <button onClick={() => handleDownload('all')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  All Questions (CSV)
-                </button>
-                <button onClick={() => handleDownload('store')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  Store Questions (CSV)
-                </button>
-                <button onClick={() => handleDownload('individual')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  Individual Questions (CSV)
-                </button>
-                {hasSurveyQuestions && (
-                  <button onClick={() => handleDownload('survey')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                    Survey Questions (CSV)
                   </button>
                 )}
               </div>
@@ -1356,11 +1348,63 @@ function CustomQuestionsTab() {
 
       {/* Question Packs - grouped by company and visit type */}
       {questions.length === 0 ? (
-        <div className="card p-12 text-center">
-          <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-          <p className="text-gray-500">No custom questions configured</p>
-          <p className="text-sm text-gray-400 mt-1">Add company-specific questions that appear on the visit Details step</p>
-        </div>
+        showCompanySurveys ? (
+          <>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              No custom questions configured for {exportCompanyLabel} — showing its allocated survey{companySurveys.length !== 1 ? 's' : ''} instead.
+            </div>
+            {companySurveys.map(survey => {
+              const qs = surveyQuestions(survey)
+              return (
+                <div key={survey.id} className="card overflow-hidden">
+                  <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2 flex-wrap">
+                    <FileText className="w-4 h-4 text-purple-500" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{survey.title || survey.name}</h3>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Survey</span>
+                    {!survey.company_id && (
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">All Companies</span>
+                    )}
+                    <span className="text-xs text-gray-400">({qs.length} question{qs.length !== 1 ? 's' : ''})</span>
+                  </div>
+                  {survey.description && (
+                    <div className="px-6 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">{survey.description}</div>
+                  )}
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Question</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Required</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                      {qs.map((q, idx) => (
+                        <tr key={q.id || idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-6 py-3 text-sm text-gray-500">{idx + 1}</td>
+                          <td className="px-6 py-3">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{q.question_text}</div>
+                            {Array.isArray(q.options) && q.options.length > 0 && (
+                              <div className="text-xs text-gray-400">{q.options.join(' / ')}</div>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">{QUESTION_TYPES.find(t => t.value === q.question_type)?.label || q.question_type}</td>
+                          <td className="px-6 py-3 text-sm">{q.required ? <span className="text-red-500 font-medium">Yes</span> : 'No'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })}
+          </>
+        ) : (
+          <div className="card p-12 text-center">
+            <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+            <p className="text-gray-500">No custom questions configured</p>
+            <p className="text-sm text-gray-400 mt-1">Add company-specific questions that appear on the visit Details step</p>
+          </div>
+        )
       ) : (
         (() => {
           // Group questions into packs: company -> visit_type -> questions[]
