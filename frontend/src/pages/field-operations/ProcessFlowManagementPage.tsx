@@ -143,6 +143,26 @@ const FIELD_TYPES = [
 
 // ── Printable question form (blank answer spaces for agents to fill out) ──
 
+// FieldVibe logo (light-background variant of public/fieldvibe-logo-light.svg),
+// inlined so the print window renders it without waiting on an image request.
+const FIELDVIBE_LOGO_SVG = `<svg viewBox="0 0 280 64" width="170" height="39" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="32" cy="32" r="28" stroke="url(#fvl-grad)" stroke-width="2.5" stroke-dasharray="5 3.5" opacity="0.3"/>
+  <path d="M19 38C19 38 23 25 32 25C41 25 45 38 45 38" stroke="url(#fvl-grad)" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+  <path d="M13 43C13 43 20 18 32 18C44 18 51 43 51 43" stroke="url(#fvl-grad)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <circle cx="32" cy="32" r="6.5" fill="url(#fvl-grad)"/>
+  <circle cx="32" cy="32" r="2.8" fill="white"/>
+  <path d="M32 13L32 23" stroke="#00C968" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M27 18L32 13L37 18" stroke="#00C968" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="74" y="42" font-family="'Outfit', 'SF Pro Display', -apple-system, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#0A0F1C">Field</text>
+  <text x="155" y="42" font-family="'Outfit', 'SF Pro Display', -apple-system, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#00C968">Vibe</text>
+  <defs>
+    <linearGradient id="fvl-grad" x1="10" y1="10" x2="54" y2="54">
+      <stop offset="0%" stop-color="#00C968"/>
+      <stop offset="100%" stop-color="#00E87B"/>
+    </linearGradient>
+  </defs>
+</svg>`
+
 function printQuestionForm(questions: Array<CustomQuestion & { company: string }>, title: string) {
   const answerArea = (q: CustomQuestion): string => {
     const opts = Array.isArray(q.field_options) ? q.field_options : []
@@ -179,7 +199,8 @@ function printQuestionForm(questions: Array<CustomQuestion & { company: string }
     <style>
       @page { size: portrait; margin: 15mm; }
       body { font-family: -apple-system, sans-serif; color: #1f2937; }
-      h1 { font-size: 15pt; margin: 0 0 4px; }
+      .brand { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #00C968; }
+      h1 { font-size: 15pt; margin: 0; }
       .fill-header { display: flex; gap: 40px; margin: 14px 0 20px; font-size: 10.5pt; }
       .fill-header span { border-bottom: 1px solid #6b7280; min-width: 200px; display: inline-block; }
       .company { font-size: 12pt; margin: 22px 0 8px; padding-bottom: 3px; border-bottom: 2px solid #d1d5db; }
@@ -194,7 +215,10 @@ function printQuestionForm(questions: Array<CustomQuestion & { company: string }
       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
     </style>
     </head><body>
-    <h1>${escapeHtml(title)}</h1>
+    <div class="brand">
+      ${FIELDVIBE_LOGO_SVG}
+      <h1>${escapeHtml(title)}</h1>
+    </div>
     <div class="fill-header">
       <div>Agent Name: <span>&nbsp;</span></div>
       <div>Date: <span>&nbsp;</span></div>
