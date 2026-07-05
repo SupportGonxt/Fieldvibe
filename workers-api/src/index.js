@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
+import incentiveRoutes from './routes/field-ops/incentives.js';
 
 const app = new Hono();
 
@@ -20751,6 +20752,7 @@ app.get('/api/uploads/:key{.+}', async (c) => {
 // ==================== FIELD-OPS ROUTE MODULES ====================
 api.route('/field-ops', configRoutes);
 api.route('/field-ops', hierarchyRoutes);
+api.route('/field-ops', incentiveRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
