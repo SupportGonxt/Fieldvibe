@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run tests/unit",
+    "test:pure": "vitest run --config tests/unit/vitest.node.config.js",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e",
     "lint": "eslint src/**/*.js tests/**/*.js"
