@@ -7,6 +7,7 @@ import { validate, loginSchema, registerSchema, createUserSchema, updateUserSche
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 import incentiveRoutes from './routes/field-ops/incentives.js';
+import { dueEscalation } from './services/incentiveService.js';
 
 const app = new Hono();
 
@@ -20885,6 +20886,91 @@ async function generatePerformanceSummaries(db, force = false) {
   } catch (e) { console.error('generatePerformanceSummaries error:', e); }
 }
 
+// Field-ops inactivity nudge. During SAST work hours, alert an agent (and escalate up
+// their chain) once they've gone quiet longer than the configured threshold. Thresholds
+// come from program_config: inactivity_minutes (grace) + escalate_steps (who, when).
+// Tenants without both keys are skipped — inactivity nudges are opt-in per program.
+function parseSqlUtc(s) {
+  if (!s) return null;
+  let iso = s.includes('T') ? s : s.replace(' ', 'T');
+  if (!/[Z+]/.test(iso)) iso += 'Z';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+async function checkInactiveAgents(db) {
+  try {
+    const now = new Date();
+    const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const sastHour = sast.getUTCHours();
+    const sastDay = sast.getUTCDay();
+    // Working hours only: 8am–5pm SAST, Mon–Fri.
+    if (sastHour < 8 || sastHour >= 17) return;
+    if (sastDay === 0 || sastDay === 6) return;
+
+    const today = now.toISOString().slice(0, 10);
+    const workStartUtc = `${today} 06:00:00`; // 08:00 SAST
+
+    const tenants = await db.prepare(
+      "SELECT DISTINCT tenant_id FROM users WHERE role IN ('agent','field_agent','sales_rep') AND is_active = 1"
+    ).all();
+
+    for (const { tenant_id: tenantId } of (tenants.results || [])) {
+      const cfgRows = await db.prepare(
+        "SELECT key, value_json FROM program_config WHERE tenant_id = ? AND company_id IS NULL AND key IN ('inactivity_minutes','escalate_steps')"
+      ).bind(tenantId).all();
+      const cfg = {};
+      for (const r of (cfgRows.results || [])) { try { cfg[r.key] = JSON.parse(r.value_json); } catch {} }
+      const threshold = Number(cfg.inactivity_minutes);
+      const steps = Array.isArray(cfg.escalate_steps) ? cfg.escalate_steps : null;
+      if (!threshold || !steps) continue; // program hasn't opted in
+
+      const agents = await db.prepare(
+        "SELECT id, first_name, last_name, team_lead_id, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent','field_agent','sales_rep') AND is_active = 1 AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))"
+      ).bind(tenantId).all();
+
+      for (const agent of (agents.results || [])) {
+        try {
+          const last = await db.prepare(
+            `SELECT MAX(vi.created_at) t FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+             WHERE v.tenant_id = ? AND v.agent_id = ? AND vi.created_at >= ?`
+          ).bind(tenantId, agent.id, workStartUtc).first();
+          const lastActive = parseSqlUtc(last?.t) || parseSqlUtc(workStartUtc);
+          const idleMin = Math.floor((now.getTime() - lastActive.getTime()) / 60000);
+          const due = dueEscalation(steps, idleMin - threshold);
+          if (!due) continue;
+
+          const targetId = due.to === 'employee' ? agent.id
+            : due.to === 'team_lead' ? agent.team_lead_id
+            : due.to === 'manager' ? (agent.manager_id || null)
+            : null;
+          if (!targetId) continue;
+
+          // One nudge per agent per step per day (idempotent across cron ticks).
+          const relId = `inactive_${agent.id}_${due.to}_${today}`;
+          const dup = await db.prepare(
+            "SELECT id FROM notifications WHERE tenant_id = ? AND type = 'inactivity' AND related_id = ?"
+          ).bind(tenantId, relId).first();
+          if (dup) continue;
+
+          const name = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || 'An agent';
+          const hrs = Math.floor(idleMin / 60), mins = idleMin % 60;
+          const idleStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+          const title = due.to === 'employee' ? 'Time to get moving' : `${name} has gone quiet`;
+          const message = due.to === 'employee'
+            ? `No signups logged in ${idleStr}. Get back out there — every signup counts toward your bonus.`
+            : `${name} has logged no signups in ${idleStr} today. A nudge might help.`;
+
+          await db.prepare(
+            "INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at) VALUES (?, ?, ?, 'inactivity', ?, ?, 'AGENT', ?, 0, datetime('now'))"
+          ).bind(crypto.randomUUID(), tenantId, targetId, title, message, relId).run();
+        } catch (agentErr) {
+          console.error(`Inactivity check error for ${agent.id}:`, agentErr);
+        }
+      }
+    }
+  } catch (e) { console.error('checkInactiveAgents error:', e); }
+}
+
 async function checkOverdueInvoices(db) {
   try {
     // TI-03: Scope by tenant to prevent cross-tenant updates
@@ -21293,6 +21379,8 @@ export default {
     if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
     // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
     if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
+    // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
+    if (hour >= 6 && hour <= 15) await checkInactiveAgents(env.DB);
     // Reap stuck rows first so they re-enter the drain queue this tick.
     await reapStuckAiProcessing(env.DB);
     // Drain pending AI analysis on every tick. Bounded by AI_DRAIN_BATCH_SIZE; the existing

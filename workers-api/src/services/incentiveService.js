@@ -34,6 +34,15 @@ export function extractGoldrushIds({ goldrush_ids, csv } = {}) {
   return [...ids];
 }
 
+// Inactivity escalation: given escalate_steps (each {after_min, to}) and how many
+// minutes past the inactivity threshold an agent is, return the highest step now due
+// (or null). Steps fire cumulatively across cron ticks: employee, then team_lead, then manager.
+export function dueEscalation(steps, excessMin) {
+  return (steps || [])
+    .filter((s) => Number(s.after_min) <= excessMin)
+    .sort((a, b) => Number(b.after_min) - Number(a.after_min))[0] ?? null;
+}
+
 // Next tier above the current value → { min, amount } or null if already top.
 export function nextTier(tiers, value) {
   return (tiers || [])

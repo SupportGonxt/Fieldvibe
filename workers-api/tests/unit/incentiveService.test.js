@@ -3,7 +3,7 @@
  * tierAmount pays the highest tier whose min <= avg; nextTier is the one above.
  */
 import { describe, it, expect } from 'vitest';
-import { tierAmount, nextTier, extractGoldrushIds } from '../../src/services/incentiveService.js';
+import { tierAmount, nextTier, extractGoldrushIds, dueEscalation } from '../../src/services/incentiveService.js';
 
 // Default Goldrush scale: avg>=20 -> 3500, >=15 -> 2500, >=10 -> 2000, else 0.
 const TIERS = [
@@ -78,5 +78,30 @@ describe('extractGoldrushIds', () => {
   it('does not carve a 9-digit fragment out of a longer number (13-digit SA ID)', () => {
     expect(extractGoldrushIds({ goldrush_ids: ['8001015009087'] })).toEqual([]);
     expect(extractGoldrushIds({ csv: '0821234567,8001015009087' })).toEqual([]);
+  });
+});
+
+describe('dueEscalation', () => {
+  const STEPS = [
+    { after_min: 0, to: 'employee' },
+    { after_min: 30, to: 'team_lead' },
+    { after_min: 60, to: 'manager' },
+  ];
+
+  it('nudges the employee at the breach (excess 0)', () => {
+    expect(dueEscalation(STEPS, 0).to).toBe('employee');
+  });
+
+  it('escalates to team_lead and then manager as idle grows', () => {
+    expect(dueEscalation(STEPS, 29).to).toBe('employee');
+    expect(dueEscalation(STEPS, 30).to).toBe('team_lead');
+    expect(dueEscalation(STEPS, 65).to).toBe('manager');
+    expect(dueEscalation(STEPS, 1000).to).toBe('manager');
+  });
+
+  it('returns null before the first step and on empty/missing steps', () => {
+    expect(dueEscalation(STEPS, -1)).toBeNull();
+    expect(dueEscalation([], 100)).toBeNull();
+    expect(dueEscalation(undefined, 100)).toBeNull();
   });
 });
