@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
+import configRoutes from './routes/field-ops/config.js';
 
 const app = new Hono();
 
@@ -20437,6 +20438,9 @@ app.get('/api/uploads/:key{.+}', async (c) => {
     return c.json({ success: false, message: 'File retrieval failed' }, 500);
   }
 });
+
+// ==================== FIELD-OPS ROUTE MODULES ====================
+api.route('/field-ops', configRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
