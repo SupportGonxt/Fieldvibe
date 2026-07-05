@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
 import configRoutes from './routes/field-ops/config.js';
+import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 
 const app = new Hono();
 
@@ -2864,7 +2865,7 @@ api.post('/users', requireRole('admin'), async (c) => {
   const emailForDb = email || (isMobileRole ? `user_${id.substring(0, 8)}@placeholder.local` : null);
   try {
     const agentType = body.agent_type || body.agentType || null;
-    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, normalizePhone(body.phone), hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, gm_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, normalizePhone(body.phone), hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.gmId || body.gm_id || null, 'active').run();
     const actualPin = isMobileRole ? (body.pin || '12345') : undefined;
     return c.json({ success: true, data: { id, password, default_pin: actualPin }, message: 'User created' }, 201);
   } catch (err) {
@@ -2885,8 +2886,8 @@ api.put('/users/:id', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json();
   const agentType = body.agent_type !== undefined ? body.agent_type : (body.agentType !== undefined ? body.agentType : undefined);
-  let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
-  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, normalizePhone(body.phone), body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
+  let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, gm_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
+  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, normalizePhone(body.phone), body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.gmId || body.gm_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
   if (agentType !== undefined) {
     sql += ', agent_type = ?';
     binds.push(agentType);
@@ -20441,6 +20442,7 @@ app.get('/api/uploads/:key{.+}', async (c) => {
 
 // ==================== FIELD-OPS ROUTE MODULES ====================
 api.route('/field-ops', configRoutes);
+api.route('/field-ops', hierarchyRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
