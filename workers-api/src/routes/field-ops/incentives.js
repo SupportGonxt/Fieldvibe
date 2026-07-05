@@ -220,6 +220,73 @@ app.post('/incentives/reconcile', requireRole('admin', 'general_manager', 'backo
   });
 });
 
+// GET /incentives/pnl?period=&company_id= — GM mobile P&L for the period.
+// Revenue = converted deposits x commission_per_deposit (provisional = all non-rejected,
+// qualified = reconciled). Cost = tiered incentive payouts (per-agent, avg-based) + fixed salaries.
+app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const now = new Date().toISOString();
+  const period = c.req.query('period') || periodOf(now);
+  const companyId = c.req.query('company_id') || null;
+  const asOf = c.req.query('as_of') || now.slice(0, 10);
+  const start = `${period}-01`, end = nextMonthStart(period);
+
+  const rate = (await getConfig(db, tenantId, companyId, 'commission_per_deposit')) || 0;
+  const salaries = (await getConfig(db, tenantId, companyId, 'salaries')) || {};
+  const salaryTotal = Object.values(salaries).reduce((s, v) => s + (Number(v) || 0), 0);
+
+  // Signups + converted deposits, split provisional (all non-rejected) vs qualified.
+  const agg = await db.prepare(
+    `SELECT
+        COUNT(*) signups,
+        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) converted,
+        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status') = 'qualified' THEN 1 ELSE 0 END) qualified_signups,
+        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status') = 'qualified'
+                  AND json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) qualified_converted
+     FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?
+       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`
+  ).bind(tenantId, start, end).first();
+
+  // Tiered incentive cost: per-agent, avg-based — must run each agent through the engine.
+  const { results: agents } = await db.prepare(
+    `SELECT DISTINCT v.agent_id id FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?`
+  ).bind(tenantId, start, end).all();
+  let incentiveQualified = 0, incentivePace = 0;
+  for (const { id } of agents || []) {
+    const u = await db.prepare('SELECT role FROM users WHERE id = ?').bind(id).first();
+    if (!u) continue;
+    const inc = await computeIncentive(db, tenantId, companyId, id, u.role, period, asOf);
+    incentiveQualified += inc.payable;
+    incentivePace += inc.provisionalPace;
+  }
+
+  const provRevenue = (agg?.converted || 0) * rate;
+  const qualRevenue = (agg?.qualified_converted || 0) * rate;
+  return c.json({
+    success: true,
+    pnl: {
+      period,
+      commissionPerDeposit: rate,
+      signups: agg?.signups || 0,
+      converted: agg?.converted || 0,
+      qualifiedSignups: agg?.qualified_signups || 0,
+      qualifiedConverted: agg?.qualified_converted || 0,
+      // qualified (confirmed) view — money that has cleared reconciliation
+      revenue: qualRevenue,
+      incentiveCost: round1(incentiveQualified),
+      salaryCost: salaryTotal,
+      net: round1(qualRevenue - incentiveQualified - salaryTotal),
+      // provisional (on-pace) view — projection at current activity
+      projectedRevenue: provRevenue,
+      projectedIncentiveCost: round1(incentivePace),
+      projectedNet: round1(provRevenue - incentivePace - salaryTotal),
+    },
+  });
+});
+
 // GET /incentives/roster — field agents with phone + today's signup count + last activity,
 // for Back Office click-to-dial chasing. Sorted least-active first (quiet agents float up).
 app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffice_admin', 'manager', 'team_lead'), async (c) => {
