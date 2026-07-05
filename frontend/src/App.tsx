@@ -55,6 +55,7 @@ const AgentProfile = lazyWithRetry(() => import('./pages/agent/AgentProfile'))
 const AgentOnboarding = lazyWithRetry(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinManagement'))
 const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTrainingGuide'))
+const GoldrushFastEntry = lazyWithRetry(() => import('./pages/agent/GoldrushFastEntry'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
 const ManagerTeamsTab = lazyWithRetry(() => import('./pages/agent/ManagerTeamsTab'))
 const AgentDetailPage = lazyWithRetry(() => import('./pages/agent/AgentDetailPage'))
@@ -1121,6 +1122,7 @@ function App() {
             <Route path="dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
             <Route path="visits" element={<PageLoader><AgentVisits /></PageLoader>} />
             <Route path="visits/create" element={<PageLoader><VisitCreate /></PageLoader>} />
+            <Route path="signup" element={<PageLoader><GoldrushFastEntry /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
