@@ -28,6 +28,7 @@ const MobileLoginPage: React.FC = () => {
     const { isAuthenticated, user } = useAuthStore.getState()
     if (isAuthenticated && user) {
       const role = user.role
+      if (role === 'backoffice_admin') { navigate('/agent/reconcile'); return }
       if (role && ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager'].includes(role)) {
         navigate('/agent/dashboard')
         return
@@ -119,7 +120,7 @@ const MobileLoginPage: React.FC = () => {
         // Normal login — commit auth state immediately
         localStorage.setItem('token', accessToken)
         useAuthStore.setState({ user: authUser, tokens: authTokens, isAuthenticated: true })
-        navigate('/agent/dashboard')
+        navigate(authUser?.role === 'backoffice_admin' ? '/agent/reconcile' : '/agent/dashboard')
       } else {
         setError(data.message || 'Login failed')
         triggerShake()
@@ -168,6 +169,7 @@ const MobileLoginPage: React.FC = () => {
       const data = await response.json()
       if (data.success) {
         // PIN changed successfully — now commit the full auth state
+        const loggedInRole = pendingAuthRef.current?.user?.role
         if (pendingAuthRef.current) {
           useAuthStore.setState({
             user: pendingAuthRef.current.user,
@@ -176,7 +178,7 @@ const MobileLoginPage: React.FC = () => {
           })
           pendingAuthRef.current = null
         }
-        navigate('/agent/dashboard')
+        navigate(loggedInRole === 'backoffice_admin' ? '/agent/reconcile' : '/agent/dashboard')
       } else {
         setPinChangeError(data.message || 'Failed to change PIN')
         triggerShake()

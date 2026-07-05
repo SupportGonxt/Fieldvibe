@@ -17,6 +17,7 @@ const PerformanceSection = lazy(() => import('./PerformanceSection'))
 const TeamPerformanceSection = lazy(() => import('./TeamPerformanceSection'))
 const PerformanceMessages = lazy(() => import('./PerformanceMessages'))
 const HeroIncentive = lazy(() => import('./HeroIncentive'))
+const Leaderboard = lazy(() => import('./Leaderboard'))
 
 interface TargetSummary {
   target_visits: number

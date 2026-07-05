@@ -220,6 +220,28 @@ app.post('/incentives/reconcile', requireRole('admin', 'general_manager', 'backo
   });
 });
 
+// GET /incentives/roster — field agents with phone + today's signup count + last activity,
+// for Back Office click-to-dial chasing. Sorted least-active first (quiet agents float up).
+app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffice_admin', 'manager', 'team_lead'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const today = new Date().toISOString().slice(0, 10);
+  const { results } = await db.prepare(
+    `SELECT u.id, u.first_name || ' ' || u.last_name AS name, u.phone,
+            COUNT(CASE WHEN date(vi.created_at) = ? THEN 1 END) AS today,
+            MAX(vi.created_at) AS last_activity
+     FROM users u
+     LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = u.tenant_id
+     LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
+       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'
+     WHERE u.tenant_id = ? AND u.is_active = 1
+       AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
+       AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both'))
+     GROUP BY u.id ORDER BY today ASC, last_activity ASC`
+  ).bind(today, tenantId, ...AGENT_ROLES).all();
+  return c.json({ success: true, roster: results || [] });
+});
+
 function nextMonthStart(period) {
   const [y, m] = period.split('-').map(Number);
   return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2 } from 'lucide-react'
+import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 
 function getTabsForRole(role: string | undefined) {
@@ -23,6 +23,15 @@ function getTabsForRole(role: string | undefined) {
       ...baseTabs,
       { path: '/agent/teams', label: 'Teams', icon: Building2 },
       { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
+      { path: '/agent/profile', label: 'Profile', icon: User },
+    ]
+  }
+
+  if (role === 'backoffice_admin') {
+    return [
+      ...baseTabs,
+      { path: '/agent/reconcile', label: 'Reconcile', icon: ClipboardCheck },
+      { path: '/agent/call-list', label: 'Agents', icon: PhoneCall },
       { path: '/agent/profile', label: 'Profile', icon: User },
     ]
   }

@@ -56,6 +56,8 @@ const AgentOnboarding = lazyWithRetry(() => import('./pages/agent/AgentOnboardin
 const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinManagement'))
 const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTrainingGuide'))
 const GoldrushFastEntry = lazyWithRetry(() => import('./pages/agent/GoldrushFastEntry'))
+const BackOfficeCallList = lazyWithRetry(() => import('./pages/agent/BackOfficeCallList'))
+const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOfficeReconcile'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
 const ManagerTeamsTab = lazyWithRetry(() => import('./pages/agent/ManagerTeamsTab'))
 const AgentDetailPage = lazyWithRetry(() => import('./pages/agent/AgentDetailPage'))
@@ -453,7 +455,7 @@ function PageLoader({ children }: { children: React.ReactNode }) {
   )
 }
 
-const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager']
+const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager', 'backoffice_admin']
 
 function App() {
   const { isAuthenticated, isLoading, initialize, hydrated, user } = useAuthStore()
@@ -487,7 +489,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to={user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />
@@ -1123,6 +1125,8 @@ function App() {
             <Route path="visits" element={<PageLoader><AgentVisits /></PageLoader>} />
             <Route path="visits/create" element={<PageLoader><VisitCreate /></PageLoader>} />
             <Route path="signup" element={<PageLoader><GoldrushFastEntry /></PageLoader>} />
+            <Route path="reconcile" element={<PageLoader><BackOfficeReconcile /></PageLoader>} />
+            <Route path="call-list" element={<PageLoader><BackOfficeCallList /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
