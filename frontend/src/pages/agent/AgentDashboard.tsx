@@ -16,6 +16,7 @@ import { photoReviewService } from '../../services/insights.service'
 const PerformanceSection = lazy(() => import('./PerformanceSection'))
 const TeamPerformanceSection = lazy(() => import('./TeamPerformanceSection'))
 const PerformanceMessages = lazy(() => import('./PerformanceMessages'))
+const HeroIncentive = lazy(() => import('./HeroIncentive'))
 
 interface TargetSummary {
   target_visits: number
@@ -204,6 +205,13 @@ export default function AgentDashboard() {
     if (!data?.companies) return false
     return data.companies.some(c => c.name?.toLowerCase().includes('stellr'))
   }, [data?.companies])
+
+  // Goldrush hero mode — same standard PWA, an exception branch surfacing the incentive engine.
+  const goldrushCompany = useMemo(
+    () => data?.companies?.find(c => c.name?.toLowerCase().includes('goldrush')) ?? null,
+    [data?.companies]
+  )
+  const isAgentRole = ['agent', 'field_agent', 'sales_rep'].includes(authUser?.role || '')
 
   // Memoize data destructuring to reduce repeated property access
   const dataProps = useMemo(() => {
@@ -410,6 +418,13 @@ export default function AgentDashboard() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {/* Goldrush hero incentive — exception branch of the standard PWA */}
+      {goldrushCompany && isAgentRole && (
+        <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" /></div>}>
+          <HeroIncentive companyId={goldrushCompany.id} />
+        </Suspense>
+      )}
 
       {/* PWA Install Prompt */}
       {showInstallPrompt && (
