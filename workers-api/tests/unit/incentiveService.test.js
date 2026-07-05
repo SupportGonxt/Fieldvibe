@@ -3,7 +3,7 @@
  * tierAmount pays the highest tier whose min <= avg; nextTier is the one above.
  */
 import { describe, it, expect } from 'vitest';
-import { tierAmount, nextTier } from '../../src/services/incentiveService.js';
+import { tierAmount, nextTier, extractGoldrushIds } from '../../src/services/incentiveService.js';
 
 // Default Goldrush scale: avg>=20 -> 3500, >=15 -> 2500, >=10 -> 2000, else 0.
 const TIERS = [
@@ -50,5 +50,33 @@ describe('nextTier', () => {
 
   it('at an exact boundary, points to the tier above (not the current one)', () => {
     expect(nextTier(TIERS, 10)).toEqual({ min: 15, amount: 2500 });
+  });
+});
+
+describe('extractGoldrushIds', () => {
+  it('pulls one 9-digit id per array cell', () => {
+    expect(extractGoldrushIds({ goldrush_ids: ['123456789', '987654321'] }))
+      .toEqual(['123456789', '987654321']);
+  });
+
+  it('pulls every 9-digit run from a csv/text blob', () => {
+    expect(extractGoldrushIds({ csv: 'id,name\n123456789,Ann\n987654321,Bob\n' }))
+      .toEqual(['123456789', '987654321']);
+  });
+
+  it('dedups across array and csv', () => {
+    expect(extractGoldrushIds({ goldrush_ids: ['123456789'], csv: '123456789\n555555555' }))
+      .toEqual(['123456789', '555555555']);
+  });
+
+  it('ignores non-9-digit tokens and empty input', () => {
+    expect(extractGoldrushIds({ goldrush_ids: ['12345', 'abcdef', ''] })).toEqual([]);
+    expect(extractGoldrushIds({})).toEqual([]);
+    expect(extractGoldrushIds()).toEqual([]);
+  });
+
+  it('does not carve a 9-digit fragment out of a longer number (13-digit SA ID)', () => {
+    expect(extractGoldrushIds({ goldrush_ids: ['8001015009087'] })).toEqual([]);
+    expect(extractGoldrushIds({ csv: '0821234567,8001015009087' })).toEqual([]);
   });
 });

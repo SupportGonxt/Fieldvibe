@@ -5,7 +5,7 @@
  */
 import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
-import { computeIncentive, AGENT_ROLES, writePayable } from '../../services/incentiveService.js';
+import { computeIncentive, AGENT_ROLES, writePayable, extractGoldrushIds } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
 
 const app = new Hono();
@@ -170,6 +170,54 @@ app.post('/incentives/close', adminOnly, async (c) => {
     }
   }
   return c.json({ success: true, period, written });
+});
+
+// POST /incentives/reconcile — BO/admin uploads the Goldrush-confirmed IDs; promote matching
+// signups provisional -> qualified. No clawback: only ever promotes, never demotes (already-paid
+// qualified rows and BO-rejected rows are left untouched). Idempotent.
+// body: { goldrush_ids?: string[], csv?: string, dry_run?: boolean }
+app.post('/incentives/reconcile', requireRole('admin', 'general_manager', 'backoffice_admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json().catch(() => ({}));
+
+  // Collect 9-digit Goldrush IDs from an explicit array and/or a pasted CSV/text blob.
+  const list = extractGoldrushIds(body);
+  if (list.length === 0) {
+    return c.json({ success: false, error: 'No 9-digit Goldrush IDs found in the upload' }, 400);
+  }
+
+  // goldrush id lives at custom_field_values.goldrush_id_entry (fast-entry) or .goldrush_id (legacy)
+  const gid = `COALESCE(json_extract(custom_field_values,'$.goldrush_id_entry'),
+                        json_extract(custom_field_values,'$.goldrush_id'))`;
+  const placeholders = list.map(() => '?').join(',');
+
+  // Which uploaded IDs actually exist as signups? Report the rest back to BO for chasing.
+  const { results: found } = await db.prepare(
+    `SELECT DISTINCT ${gid} g FROM visit_individuals WHERE tenant_id = ? AND ${gid} IN (${placeholders})`
+  ).bind(tenantId, ...list).all();
+  const matchedIds = new Set((found || []).map((r) => String(r.g)));
+  const unmatched = list.filter((id) => !matchedIds.has(id));
+
+  if (body.dry_run) {
+    return c.json({ success: true, dry_run: true, uploaded: list.length, matched: matchedIds.size, unmatched });
+  }
+
+  const res = await db.prepare(
+    `UPDATE visit_individuals
+     SET custom_field_values = json_set(COALESCE(custom_field_values,'{}'),'$.verification_status','qualified')
+     WHERE tenant_id = ?
+       AND COALESCE(json_extract(custom_field_values,'$.verification_status'),'provisional') = 'provisional'
+       AND ${gid} IN (${placeholders})`
+  ).bind(tenantId, ...list).run();
+
+  return c.json({
+    success: true,
+    uploaded: list.length,
+    matched: matchedIds.size,
+    qualified: res.meta?.changes ?? 0,
+    unmatched,
+  });
 });
 
 function nextMonthStart(period) {

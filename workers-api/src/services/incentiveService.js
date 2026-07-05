@@ -16,6 +16,24 @@ export function tierAmount(tiers, value) {
     .sort((a, b) => b.min - a.min)[0]?.amount ?? 0;
 }
 
+// Reconciliation upload → deduped list of 9-digit Goldrush IDs. Accepts an explicit
+// array and/or a pasted CSV/text blob; pulls the first 9-digit run from each array cell
+// and every 9-digit run from the blob. Order-stable, no duplicates.
+export function extractGoldrushIds({ goldrush_ids, csv } = {}) {
+  // exactly-9-digit runs, not flanked by other digits (so a 13-digit SA ID / phone
+  // never yields a spurious 9-digit fragment)
+  const NINE = /(?<!\d)\d{9}(?!\d)/g;
+  const ids = new Set();
+  for (const v of Array.isArray(goldrush_ids) ? goldrush_ids : []) {
+    const m = String(v).match(NINE);
+    if (m) ids.add(m[0]);
+  }
+  if (typeof csv === 'string') {
+    for (const m of csv.matchAll(NINE)) ids.add(m[0]);
+  }
+  return [...ids];
+}
+
 // Next tier above the current value → { min, amount } or null if already top.
 export function nextTier(tiers, value) {
   return (tiers || [])
