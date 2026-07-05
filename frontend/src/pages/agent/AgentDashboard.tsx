@@ -423,6 +423,7 @@ export default function AgentDashboard() {
       {goldrushCompany && isAgentRole && (
         <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" /></div>}>
           <HeroIncentive companyId={goldrushCompany.id} />
+          <Leaderboard meId={authUser?.id} />
         </Suspense>
       )}
 
