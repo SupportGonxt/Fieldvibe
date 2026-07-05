@@ -213,6 +213,9 @@ export default function AgentDashboard() {
     [data?.companies]
   )
   const isAgentRole = ['agent', 'field_agent', 'sales_rep'].includes(authUser?.role || '')
+  // Team roles get the same team-avg hero (computeIncentive/teamMetric already returns their metric),
+  // but not the agent-only Fast Signup + personal Leaderboard.
+  const isTeamRole = ['team_lead', 'manager'].includes(authUser?.role || '')
 
   // Memoize data destructuring to reduce repeated property access
   const dataProps = useMemo(() => {
@@ -421,21 +424,23 @@ export default function AgentDashboard() {
       </div>
 
       {/* Goldrush hero incentive — exception branch of the standard PWA */}
-      {goldrushCompany && isAgentRole && (
+      {goldrushCompany && (isAgentRole || isTeamRole) && (
         <>
-          <div className="px-5 mb-4">
-            <button
-              onClick={() => navigate('/agent/signup')}
-              className="w-full flex items-center gap-3 bg-[#00E87B] text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
-            >
-              <Zap className="w-6 h-6 flex-shrink-0" />
-              <span className="flex-1 text-left leading-tight">Fast Signup<span className="block text-xs font-medium opacity-70">Snap the photo — one tap</span></span>
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+          {isAgentRole && (
+            <div className="px-5 mb-4">
+              <button
+                onClick={() => navigate('/agent/signup')}
+                className="w-full flex items-center gap-3 bg-[#00E87B] text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
+              >
+                <Zap className="w-6 h-6 flex-shrink-0" />
+                <span className="flex-1 text-left leading-tight">Fast Signup<span className="block text-xs font-medium opacity-70">Snap the photo — one tap</span></span>
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
           <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" /></div>}>
             <HeroIncentive companyId={goldrushCompany.id} />
-            <Leaderboard meId={authUser?.id} />
+            {isAgentRole && <Leaderboard meId={authUser?.id} />}
           </Suspense>
         </>
       )}
@@ -483,6 +488,19 @@ export default function AgentDashboard() {
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Team Overview</p>
               <p className="text-xs text-gray-400">View your agents' performance</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          </button>
+          <button
+            onClick={() => navigate('/agent/visits/create?type=store')}
+            className="mt-3 w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
+              <Store className="w-5 h-5 text-[#00E87B]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-white">Store Visit</p>
+              <p className="text-xs text-gray-400">Log a visit to a store</p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-500" />
           </button>
