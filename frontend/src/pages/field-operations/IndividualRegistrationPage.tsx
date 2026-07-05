@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { UserPlus, Search, CheckCircle, XCircle, Phone, Mail, Hash, Building2, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { idError, type IdType } from '../../utils/sa-id'
 
 export default function IndividualRegistrationPage() {
   const queryClient = useQueryClient()
@@ -14,6 +15,7 @@ export default function IndividualRegistrationPage() {
   const [showRegister, setShowRegister] = useState(false)
   const [convertingId, setConvertingId] = useState<string | null>(null)
   const [playerIdInput, setPlayerIdInput] = useState('')
+  const [idType, setIdType] = useState<IdType>('sa_id')
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -51,6 +53,7 @@ export default function IndividualRegistrationPage() {
       queryClient.invalidateQueries({ queryKey: ['field-ops-conversions'] })
       toast.success('Individual registered successfully')
       setShowRegister(false)
+      setIdType('sa_id')
       setForm({ first_name: '', last_name: '', id_number: '', phone: '', email: '', product_app_player_id: '', company_id: '', notes: '', converted: false })
     },
     onError: () => toast.error('Failed to register individual'),
@@ -116,8 +119,36 @@ export default function IndividualRegistrationPage() {
               <input type="text" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} className="input w-full" placeholder="Last name" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ID Number</label>
-              <input type="text" value={form.id_number} onChange={(e) => setForm({ ...form, id_number: e.target.value })} className="input w-full" placeholder="e.g. 9001015009087" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ID Type</label>
+              <SearchableSelect
+                options={[
+                  { value: 'sa_id', label: 'SA ID' },
+                  { value: 'passport', label: 'Passport' },
+                ]}
+                value={idType}
+                onChange={(val) => { setIdType((val as IdType) || 'sa_id'); setForm(prev => ({ ...prev, id_number: '' })) }}
+                placeholder="ID Type"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {idType === 'sa_id' ? 'SA ID Number' : 'Passport No.'}
+              </label>
+              <input
+                type="text"
+                inputMode={idType === 'sa_id' ? 'numeric' : 'text'}
+                maxLength={idType === 'sa_id' ? 13 : 12}
+                value={form.id_number}
+                onChange={(e) => {
+                  const v = idType === 'sa_id' ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase()
+                  setForm({ ...form, id_number: v })
+                }}
+                className="input w-full"
+                placeholder={idType === 'sa_id' ? 'e.g. 8001015009087' : 'e.g. A12345678'}
+              />
+              {idError(idType, form.id_number) && (
+                <p className="mt-1 text-sm text-red-600">{idError(idType, form.id_number)}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
@@ -156,8 +187,8 @@ export default function IndividualRegistrationPage() {
           </div>
           <div className="flex gap-3 mt-4">
             <button
-              onClick={() => { if (form.first_name && form.last_name) registerMutation.mutate(form) }}
-              disabled={!form.first_name || !form.last_name || registerMutation.isPending}
+              onClick={() => { if (form.first_name && form.last_name && !idError(idType, form.id_number)) registerMutation.mutate(form) }}
+              disabled={!form.first_name || !form.last_name || !!idError(idType, form.id_number) || registerMutation.isPending}
               className="btn-primary"
             >
               {registerMutation.isPending ? 'Registering...' : 'Register'}

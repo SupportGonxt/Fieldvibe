@@ -4,6 +4,8 @@ import { logger } from 'hono/logger';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
+import configRoutes from './routes/field-ops/config.js';
+import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 
 const app = new Hono();
 
@@ -2863,7 +2865,7 @@ api.post('/users', requireRole('admin'), async (c) => {
   const emailForDb = email || (isMobileRole ? `user_${id.substring(0, 8)}@placeholder.local` : null);
   try {
     const agentType = body.agent_type || body.agentType || null;
-    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, normalizePhone(body.phone), hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, 'active').run();
+    await db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, pin_hash, first_name, last_name, role, agent_type, manager_id, team_lead_id, gm_id, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(id, tenantId, emailForDb, normalizePhone(body.phone), hashedPassword, pinHash, body.firstName || body.first_name || '', body.lastName || body.last_name || '', role, agentType, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.gmId || body.gm_id || null, 'active').run();
     const actualPin = isMobileRole ? (body.pin || '12345') : undefined;
     return c.json({ success: true, data: { id, password, default_pin: actualPin }, message: 'User created' }, 201);
   } catch (err) {
@@ -2884,8 +2886,8 @@ api.put('/users/:id', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json();
   const agentType = body.agent_type !== undefined ? body.agent_type : (body.agentType !== undefined ? body.agentType : undefined);
-  let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
-  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, normalizePhone(body.phone), body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
+  let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, gm_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
+  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, normalizePhone(body.phone), body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.gmId || body.gm_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
   if (agentType !== undefined) {
     sql += ', agent_type = ?';
     binds.push(agentType);
@@ -3458,6 +3460,16 @@ api.put('/visits/:id', async (c) => {
   }
   // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
   if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+    // Goldrush uniqueness + length on edit/resubmit (exclude this visit's own rows).
+    const incomingGoldrush = extractGoldrushId(body.custom_field_values);
+    if (incomingGoldrush) {
+      if (incomingGoldrush.length !== 9) {
+        return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
+      }
+      if (await goldrushIdExists(db, tenantId, incomingGoldrush, id)) {
+        return c.json({ error: 'This Goldrush ID has already been used. Goldrush IDs must be unique.' }, 409);
+      }
+    }
     const vi = await db.prepare('SELECT id, custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).first();
     if (vi) {
       let existing = {};
@@ -5774,6 +5786,16 @@ api.put('/field-operations/visits/:id', authMiddleware, async (c) => {
   }
   // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
   if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+    // Goldrush uniqueness + length on edit/resubmit (exclude this visit's own rows).
+    const incomingGoldrush = extractGoldrushId(body.custom_field_values);
+    if (incomingGoldrush) {
+      if (incomingGoldrush.length !== 9) {
+        return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
+      }
+      if (await goldrushIdExists(db, tenantId, incomingGoldrush, id)) {
+        return c.json({ error: 'This Goldrush ID has already been used. Goldrush IDs must be unique.' }, 409);
+      }
+    }
     const vi = await db.prepare('SELECT id, custom_field_values FROM visit_individuals WHERE visit_id = ? AND tenant_id = ?').bind(id, tenantId).first();
     if (vi) {
       let existing = {};
@@ -8934,12 +8956,12 @@ api.post('/visits/check-store-revisit', authMiddleware, async (c) => {
   return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
 });
 
-// Check for duplicate individual (ID number or phone)
+// Check for duplicate individual (ID number, phone, or goldrush player ID)
 api.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  const { id_number, phone } = body;
+  const { id_number, phone, goldrush_id } = body;
   const duplicates = [];
   if (id_number) {
     const existing = await db.prepare('SELECT id, first_name, last_name, id_number FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, id_number).first();
@@ -8948,6 +8970,21 @@ api.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
   if (phone) {
     const existing = await db.prepare('SELECT id, first_name, last_name, phone FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, phone).first();
     if (existing) duplicates.push({ field: 'phone', value: phone, existing_individual: existing });
+  }
+  // goldrush_id lives in visit_individuals.custom_field_values JSON (key contains 'goldrush_id').
+  if (goldrush_id) {
+    const rows = await db.prepare(
+      'SELECT vi.individual_id, vi.custom_field_values, i.first_name, i.last_name FROM visit_individuals vi LEFT JOIN individuals i ON vi.individual_id = i.id WHERE vi.tenant_id = ? AND vi.custom_field_values LIKE ?'
+    ).bind(tenantId, `%${goldrush_id}%`).all();
+    for (const row of (rows.results || [])) {
+      let parsed;
+      try { parsed = JSON.parse(row.custom_field_values || '{}'); } catch { parsed = {}; }
+      const match = Object.entries(parsed).some(([k, v]) => k.toLowerCase().includes('goldrush_id') && String(v) === String(goldrush_id));
+      if (match) {
+        duplicates.push({ field: 'goldrush_id', value: goldrush_id, existing_individual: { id: row.individual_id, first_name: row.first_name, last_name: row.last_name } });
+        break;
+      }
+    }
   }
   return c.json({ has_duplicates: duplicates.length > 0, duplicates });
 });
@@ -9025,6 +9062,38 @@ function validateGoldrushId(goldrushId) {
   if (!goldrushId) return { valid: false, error: 'Goldrush ID is required' };
   if (!/^\d{9}$/.test(String(goldrushId).trim())) return { valid: false, error: 'Goldrush ID must be exactly 9 digits' };
   return { valid: true };
+}
+
+// Find a goldrush player ID in a custom-field map (key contains 'goldrush_id',
+// excluding the *_rejected / *_rejection_reason metadata keys).
+function extractGoldrushId(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const [k, v] of Object.entries(obj)) {
+    const lk = k.toLowerCase();
+    if (lk.includes('goldrush_id') && !lk.includes('rejected') && !lk.includes('rejection')) {
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+  }
+  return '';
+}
+
+// Whether a goldrush_id already exists in any visit_individuals row for the
+// tenant. excludeVisitId skips the row(s) of the visit being edited so a
+// re-save of the same value isn't flagged against itself.
+async function goldrushIdExists(db, tenantId, goldrushId, excludeVisitId = null) {
+  if (!goldrushId) return false;
+  const sql = 'SELECT custom_field_values FROM visit_individuals WHERE tenant_id = ? AND custom_field_values LIKE ?'
+    + (excludeVisitId ? ' AND visit_id != ?' : '');
+  const binds = excludeVisitId
+    ? [tenantId, `%${goldrushId}%`, excludeVisitId]
+    : [tenantId, `%${goldrushId}%`];
+  const rows = await db.prepare(sql).bind(...binds).all();
+  for (const row of (rows.results || [])) {
+    let parsed;
+    try { parsed = JSON.parse(row.custom_field_values || '{}'); } catch { parsed = {}; }
+    if (extractGoldrushId(parsed) === goldrushId) return true;
+  }
+  return false;
 }
 
 // Create visit with full workflow data (individual or store)
@@ -9107,6 +9176,33 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       const existingVisit = await db.prepare("SELECT id, status FROM visits WHERE tenant_id = ? AND id = ?").bind(tenantId, body.client_visit_id).first();
       if (existingVisit) {
         return c.json({ data: { id: existingVisit.id, status: existingVisit.status, visit_date: visitDate, already_existed: true }, message: 'Visit already exists (duplicate prevented)' }, 200);
+      }
+    }
+
+    // Goldrush uniqueness + length: reject up front, before any inserts, so a
+    // rejected submission never leaves an orphan visit row.
+    const incomingGoldrush = extractGoldrushId({ ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) });
+    if (incomingGoldrush) {
+      if (incomingGoldrush.length !== 9) {
+        return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
+      }
+      if (await goldrushIdExists(db, tenantId, incomingGoldrush)) {
+        return c.json({ error: 'This Goldrush ID has already been used. Goldrush IDs must be unique.' }, 409);
+      }
+    }
+
+    // Individual ID-number / phone uniqueness: hard-reject up front (mirrors the
+    // /individuals endpoint and the client pre-flight) so duplicates can't slip
+    // in via a race or a direct API call. Runs before any insert → no orphan
+    // visit. client_visit_id idempotency above already short-circuits retries.
+    if (body.visit_target_type === 'individual') {
+      if (body.individual_id_number) {
+        const dupId = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND id_number = ? AND id_number != ""').bind(tenantId, body.individual_id_number).first();
+        if (dupId) return c.json({ error: 'This ID number is already registered. ID numbers must be unique.', duplicate_field: 'id_number' }, 409);
+      }
+      if (body.individual_phone) {
+        const dupPhone = await db.prepare('SELECT id FROM individuals WHERE tenant_id = ? AND phone = ? AND phone != ""').bind(tenantId, body.individual_phone).first();
+        if (dupPhone) return c.json({ error: 'This phone number is already registered. Phone numbers must be unique.', duplicate_field: 'phone' }, 409);
       }
     }
 
@@ -20651,6 +20747,10 @@ app.get('/api/uploads/:key{.+}', async (c) => {
     return c.json({ success: false, message: 'File retrieval failed' }, 500);
   }
 });
+
+// ==================== FIELD-OPS ROUTE MODULES ====================
+api.route('/field-ops', configRoutes);
+api.route('/field-ops', hierarchyRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);

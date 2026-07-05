@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   max_users INTEGER DEFAULT 10,
   features TEXT,
   variance_threshold REAL DEFAULT 0.01,
+  timezone TEXT DEFAULT 'Africa/Johannesburg',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -32,9 +33,11 @@ CREATE TABLE IF NOT EXISTS users (
   agent_type TEXT,
   manager_id TEXT,
   team_lead_id TEXT,
+  gm_id TEXT,
   status TEXT DEFAULT 'active',
   is_active INTEGER DEFAULT 1,
   last_login TEXT,
+  last_activity_at TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
@@ -701,6 +704,10 @@ CREATE INDEX IF NOT EXISTS idx_commission_earnings_earner ON commission_earnings
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_audit_log_tenant ON audit_log(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_agent_assignments ON agent_company_assignments(user_id, tenant_id);
+-- Uniqueness: one id_number / one phone per tenant. Partial so blank/NULL values
+-- (individuals captured without an ID or phone) are exempt from the constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_individuals_tenant_id_number ON individuals(tenant_id, id_number) WHERE id_number IS NOT NULL AND id_number != '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_individuals_tenant_phone ON individuals(tenant_id, phone) WHERE phone IS NOT NULL AND phone != '';
 
 -- ==================== ADDITIONAL TABLES ====================
 
@@ -1562,6 +1569,9 @@ CREATE TABLE IF NOT EXISTS individual_registrations (
   phone TEXT,
   email TEXT,
   product_app_player_id TEXT,
+  goldrush_id_photo_url TEXT,
+  verification_status TEXT DEFAULT 'provisional',
+  verified_at TEXT,
   converted INTEGER DEFAULT 0,
   conversion_date TEXT,
   notes TEXT,
@@ -2092,3 +2102,59 @@ INSERT OR IGNORE INTO process_flow_steps (id, tenant_id, process_flow_id, step_k
   ('pfs-i3', 'default', 'pf-individual-default', 'details', 'Details', 3, 1),
   ('pfs-i4', 'default', 'pf-individual-default', 'survey', 'Survey', 4, 0),
   ('pfs-i5', 'default', 'pf-individual-default', 'review', 'Review & Submit', 5, 1);
+
+-- ==================== OPS REDESIGN (0010) ====================
+
+CREATE TABLE IF NOT EXISTS incentive_scales (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT,
+  role TEXT NOT NULL, metric TEXT NOT NULL, tiers_json TEXT NOT NULL,
+  basis TEXT DEFAULT 'working_days', period TEXT DEFAULT 'month',
+  active INTEGER DEFAULT 1, effective_from TEXT, effective_to TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS program_config (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT,
+  key TEXT NOT NULL, value_json TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS inactivity_events (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL,
+  detected_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT, data_call_id TEXT,
+  escalation_level INTEGER DEFAULT 0,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS data_calls (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+  bo_admin_id TEXT NOT NULL, target_user_id TEXT NOT NULL,
+  inactivity_event_id TEXT, trigger TEXT DEFAULT 'inactivity',
+  channel TEXT, notes TEXT, outcome TEXT,
+  alerted_at TEXT, actioned_at TEXT, resulted_in_activity INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS training_days (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL,
+  date TEXT NOT NULL, reason TEXT, created_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE TABLE IF NOT EXISTS goldrush_imports (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT,
+  uploaded_by TEXT NOT NULL, source TEXT, row_count INTEGER,
+  matched_count INTEGER, unmatched_count INTEGER,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_incentive_scales_lookup ON incentive_scales(tenant_id, company_id, role, active);
+CREATE INDEX IF NOT EXISTS idx_program_config_lookup ON program_config(tenant_id, company_id, key);
+CREATE INDEX IF NOT EXISTS idx_inactivity_open ON inactivity_events(tenant_id, resolved_at);
+CREATE INDEX IF NOT EXISTS idx_data_calls_target ON data_calls(tenant_id, target_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_training_days_lookup ON training_days(tenant_id, user_id, date);

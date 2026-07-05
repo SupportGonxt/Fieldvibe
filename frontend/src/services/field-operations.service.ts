@@ -1158,8 +1158,8 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
-  // Check for duplicate individual (ID number or phone)
-  async checkIndividualDuplicate(data: { id_number?: string; phone?: string }) {
+  // Check for duplicate individual (ID number, phone, or goldrush player ID)
+  async checkIndividualDuplicate(data: { id_number?: string; phone?: string; goldrush_id?: string }) {
     const response = await this.post('/visits/check-individual-duplicate', data)
     return response.data || response
   }

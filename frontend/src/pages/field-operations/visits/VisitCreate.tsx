@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 
 // Haversine distance between two GPS coordinates in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -113,6 +114,9 @@ interface ProcessFlowStep {
   is_required: number
   config: string
 }
+
+// Goldrush player ID must be exactly this many digits and unique per tenant
+const GOLDRUSH_ID_LENGTH = 9
 
 // Built-in flow field keys that are already captured in the standard visit flow
 // Questions with check_duplicate flagged that match these keys will be filtered out
@@ -255,7 +259,10 @@ export default function VisitCreate() {
   const [individualFirstName, setIndividualFirstName] = useState('')
   const [individualLastName, setIndividualLastName] = useState('')
   const [individualIdNumber, setIndividualIdNumber] = useState('')
+  const [individualIdType, setIndividualIdType] = useState<IdType>('sa_id')
   const [individualPhone, setIndividualPhone] = useState('')
+  // Per-question ID type (SA ID vs passport) for auto-detected national-id company questions
+  const [companyIdTypes, setCompanyIdTypes] = useState<Record<string, IdType>>({})
   const [individualEmail, setIndividualEmail] = useState('')
 
   // Step: Form Choice (store visits only) — agent picks Questionnaire or Survey
@@ -752,11 +759,14 @@ export default function VisitCreate() {
 
   // Check individual duplicate
   const checkIndividualDuplicate = async () => {
-    if (!individualIdNumber && !individualPhone) return null
+    const goldrushQ = customQuestions.find(q => q.question_key.toLowerCase().includes('goldrush_id'))
+    const goldrushId = goldrushQ ? (customQuestionValues[goldrushQ.question_key] || '') : ''
+    if (!individualIdNumber && !individualPhone && !goldrushId) return null
     try {
       const res = await fieldOperationsService.checkIndividualDuplicate({
         id_number: individualIdNumber || undefined,
-        phone: individualPhone || undefined
+        phone: individualPhone || undefined,
+        goldrush_id: goldrushId || undefined
       })
       setDuplicateCheck(res)
       return res
@@ -996,6 +1006,7 @@ export default function VisitCreate() {
         if (visitTargetType === 'individual') {
           if (!individualFirstName || !individualLastName) return false
           if (!individualIdNumber && !individualPhone) return false
+          if (idError(individualIdType, individualIdNumber)) return false
           if (duplicateCheck?.has_duplicates) return false
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
@@ -1003,6 +1014,11 @@ export default function VisitCreate() {
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
+              if (q.question_key.toLowerCase().includes('goldrush_id')) {
+                const gv = customQuestionValues[q.question_key] || ''
+                if (gv && gv.length !== GOLDRUSH_ID_LENGTH) return false
+              }
             }
           }
           const currentCompany = companies.find(c => c.id === selectedCompany)
@@ -1018,6 +1034,11 @@ export default function VisitCreate() {
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
               if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
+              if (q.question_key.toLowerCase().includes('goldrush_id')) {
+                const gv = customQuestionValues[q.question_key] || ''
+                if (gv && gv.length !== GOLDRUSH_ID_LENGTH) return false
+              }
             }
           }
           return true
@@ -1103,9 +1124,15 @@ export default function VisitCreate() {
       }
       setShowValidation(false)
       if (currentStepKey === 'details') {
-        if (visitTargetType === 'individual') {
+        const goldrushQ = customQuestions.find(q => q.question_key.toLowerCase().includes('goldrush_id'))
+        if (visitTargetType === 'individual' || goldrushQ) {
           const result = await checkIndividualDuplicate()
           if (result?.has_duplicates) {
+            const dupFields = (result.duplicates || []).map((d: any) => d.field)
+            if (dupFields.includes('goldrush_id')) {
+              setError('This Goldrush ID has already been used. Goldrush IDs must be unique.')
+              return
+            }
             setError('Duplicate individual detected. ID number and phone must be unique.')
             return
           }
@@ -1450,15 +1477,44 @@ export default function VisitCreate() {
                   helperText={showValidation && !individualLastName ? 'Last name is required' : undefined}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label={`ID Number ${!individualPhone ? '*' : ''}`}
-                  value={individualIdNumber}
-                  onChange={(e) => { setIndividualIdNumber(e.target.value); setDuplicateCheck(null); }}
-                  helperText={showValidation && !individualIdNumber && !individualPhone ? 'ID number or phone is required' : 'Must be unique - cannot be duplicated'}
-                  error={(showValidation && !individualIdNumber && !individualPhone) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
-                />
+              <Grid item xs={12} sm={3}>
+                <FormControl fullWidth>
+                  <InputLabel>ID Type</InputLabel>
+                  <Select
+                    label="ID Type"
+                    value={individualIdType}
+                    onChange={(e) => { setIndividualIdType(e.target.value as IdType); setDuplicateCheck(null); }}
+                  >
+                    <MenuItem value="sa_id">SA ID</MenuItem>
+                    <MenuItem value="passport">Passport</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                {(() => {
+                  const idErr = idError(individualIdType, individualIdNumber)
+                  const isSaId = individualIdType === 'sa_id'
+                  return (
+                    <TextField
+                      fullWidth
+                      label={`${isSaId ? 'SA ID Number' : 'Passport No.'} ${!individualPhone ? '*' : ''}`}
+                      value={individualIdNumber}
+                      onChange={(e) => {
+                        const v = isSaId ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase()
+                        setIndividualIdNumber(v)
+                        setDuplicateCheck(null)
+                      }}
+                      inputProps={isSaId ? { inputMode: 'numeric', pattern: '[0-9]*', maxLength: 13 } : { maxLength: 12 }}
+                      placeholder={isSaId ? '8001015009087' : 'e.g. A12345678'}
+                      helperText={
+                        idErr ? idErr
+                        : (showValidation && !individualIdNumber && !individualPhone ? 'ID number or phone is required'
+                        : 'Must be unique - cannot be duplicated')
+                      }
+                      error={!!idErr || (showValidation && !individualIdNumber && !individualPhone) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
+                    />
+                  )
+                })()}
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -1752,9 +1808,46 @@ export default function VisitCreate() {
                 const val = customQuestionValues[q.question_key] || ''
                 const lenHelper = q.min_length || q.max_length ? `${q.min_length ? `Min ${q.min_length}` : ''}${q.min_length && q.max_length ? ' / ' : ''}${q.max_length ? `Max ${q.max_length}` : ''} characters` : undefined
                 const lenError = !!(q.min_length && val.length > 0 && val.length < q.min_length)
+                const isGoldrushId = q.question_key.toLowerCase().includes('goldrush_id')
+                const goldrushLenError = isGoldrushId && val.length > 0 && val.length !== GOLDRUSH_ID_LENGTH
+                const goldrushDuplicate = isGoldrushId && (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id') || false)
                 return (
                 <Grid item xs={12} sm={6} key={q.id}>
-                  {q.field_type === 'select' && opts.length > 0 ? (
+                  {isNationalIdKey(q.question_key) ? (() => {
+                    const idType = companyIdTypes[q.question_key] || 'sa_id'
+                    const isSaId = idType === 'sa_id'
+                    const idErr = idError(idType, val)
+                    const requiredMissing = showValidation && !!q.is_required && !val
+                    return (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <FormControl sx={{ minWidth: 110 }}>
+                          <InputLabel>ID Type</InputLabel>
+                          <Select
+                            label="ID Type"
+                            value={idType}
+                            onChange={(e) => setCompanyIdTypes(prev => ({ ...prev, [q.question_key]: e.target.value as IdType }))}
+                          >
+                            <MenuItem value="sa_id">SA ID</MenuItem>
+                            <MenuItem value="passport">Passport</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          fullWidth
+                          required={!!q.is_required}
+                          label={`${q.question_label}${q.is_required ? ' *' : ''}`}
+                          value={val}
+                          onChange={(e) => {
+                            const newVal = isSaId ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase()
+                            setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: newVal }))
+                          }}
+                          inputProps={isSaId ? { inputMode: 'numeric', pattern: '[0-9]*', maxLength: 13 } : { maxLength: 12 }}
+                          placeholder={isSaId ? '8001015009087' : 'e.g. A12345678'}
+                          error={!!idErr || requiredMissing}
+                          helperText={idErr || (requiredMissing ? 'This field is required' : (isSaId ? 'SA ID — 13 digits' : 'Passport — 6–12 letters/numbers'))}
+                        />
+                      </Box>
+                    )
+                  })() : q.field_type === 'select' && opts.length > 0 ? (
                     <FormControl fullWidth required={!!q.is_required} error={showValidation && !!q.is_required && !val}>
                       <InputLabel>{q.question_label}{q.is_required ? ' *' : ''}</InputLabel>
                       <Select
@@ -1912,19 +2005,26 @@ export default function VisitCreate() {
                       fullWidth
                       required={!!q.is_required}
                       label={q.question_label + (q.is_required ? ' *' : '')}
-                      type={q.question_key.toLowerCase().includes('goldrush_id') ? 'text' : q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
+                      type={isGoldrushId ? 'text' : q.field_type === 'number' ? 'number' : q.field_type === 'email' ? 'email' : q.field_type === 'phone' ? 'tel' : 'text'}
                       value={val}
                       onChange={(e) => {
-                        const newVal = q.question_key.toLowerCase().includes('goldrush_id') ? e.target.value.replace(/[^0-9]/g, '') : e.target.value
+                        const newVal = isGoldrushId ? e.target.value.replace(/[^0-9]/g, '') : e.target.value
                         setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: newVal }))
+                        if (isGoldrushId) setDuplicateCheck(null)
                       }}
                       inputProps={{
                         minLength: q.min_length || undefined,
-                        maxLength: q.max_length || undefined,
-                        ...(q.question_key.toLowerCase().includes('goldrush_id') ? { inputMode: 'numeric' as const, pattern: '[0-9]*' } : {})
+                        maxLength: isGoldrushId ? GOLDRUSH_ID_LENGTH : (q.max_length || undefined),
+                        ...(isGoldrushId ? { inputMode: 'numeric' as const, pattern: '[0-9]*' } : {})
                       }}
-                      helperText={showValidation && !!q.is_required && !val ? 'This field is required' : (q.question_key.toLowerCase().includes('goldrush_id') ? 'Numeric only' : lenHelper)}
-                      error={lenError || (showValidation && !!q.is_required && !val)}
+                      helperText={
+                        showValidation && !!q.is_required && !val ? 'This field is required'
+                        : goldrushDuplicate ? 'This Goldrush ID has already been used'
+                        : goldrushLenError ? `Goldrush ID must be exactly ${GOLDRUSH_ID_LENGTH} digits`
+                        : isGoldrushId ? `Exactly ${GOLDRUSH_ID_LENGTH} digits, must be unique`
+                        : lenHelper
+                      }
+                      error={lenError || goldrushLenError || goldrushDuplicate || (showValidation && !!q.is_required && !val)}
                     />
                   )}
                 </Grid>
