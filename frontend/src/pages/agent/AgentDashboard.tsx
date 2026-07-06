@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import BOTargetCard from './BOTargetCard'
+import PerformanceCard from './PerformanceCard'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
@@ -428,6 +429,13 @@ export default function AgentDashboard() {
       {authUser?.role === 'backoffice_admin' && (
         <div className="px-5">
           <BOTargetCard />
+        </div>
+      )}
+
+      {/* Cockpit: agent self-performance KPIs + underperformance signals */}
+      {isAgentRole && (
+        <div className="px-5">
+          <PerformanceCard />
         </div>
       )}
 
