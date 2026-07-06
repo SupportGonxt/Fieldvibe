@@ -438,7 +438,7 @@ export default function StoreInsights() {
   const exportToExcel = () => {
     setExporting(true)
     try {
-      if (stores.length === 0) { toast.error('No data to export'); return }
+      if (filtered.length === 0) { toast.error('No data to export'); return }
       const headers = [
         'Store Name', 'Store Address', 'Visit Date', 'Agent', 'Goldrush ID', 'Status',
         'Stock Source', 'Competitors in Store', 'Competitor Stock Source', 'Competitor Products', 'Competitor Prices',
@@ -446,10 +446,10 @@ export default function StoreInsights() {
         'AI Status', 'AI Board Detected', 'AI Brand', 'AI Condition', 'AI Visibility', 'AI Board Type', 'AI Share of Voice %', 'AI Description',
         'Notes', 'GPS Latitude', 'GPS Longitude', 'Date Created',
       ]
-      const rows = stores.map(s => [
+      const rows = filtered.map(s => [
         s.store_name || '', s.store_address || '', s.visit_date || '', s.agent_name || '', s.goldrush_id || '', s.status || '',
         s.stock_source || '', s.competitors_in_store || '', s.competitor_stock_source || '', s.competitor_products || '', s.competitor_prices || '',
-        s.has_advertising || '', s.other_ad_brands || '', s.board_installed || '',
+        s.has_advertising || '', s.other_ad_brands || '', s.board_installed === 'Yes' || s.ai_board_detected ? 'Yes' : (s.board_installed || ''),
         s.ai_status || '', s.ai_board_detected ? 'Yes' : 'No', s.ai_brand || '', s.ai_condition || '', s.ai_visibility || '', s.ai_board_type || '', s.ai_share_of_voice?.toString() || '', s.ai_description || '',
         s.notes || '', s.gps_latitude?.toString() || '', s.gps_longitude?.toString() || '', s.created_at || '',
       ])
@@ -462,7 +462,7 @@ export default function StoreInsights() {
       a.download = `goldrush-store-report-${new Date().toISOString().slice(0, 10)}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      toast.success(`Exported ${stores.length} records`)
+      toast.success(`Exported ${filtered.length} records`)
     } catch {
       toast.error('Export failed')
     } finally { setExporting(false) }
@@ -471,13 +471,13 @@ export default function StoreInsights() {
   const exportStellrToCSV = () => {
     setExporting(true)
     try {
-      if (stellrVisits.length === 0) { toast.error('No data to export'); return }
+      if (stellrFiltered.length === 0) { toast.error('No data to export'); return }
       const headers = [
         'Store Name', 'Store Address', 'Visit Date', 'Agent', 'Status', 'Outlet Type',
         'Product Range', 'Stock Availability', 'Shelf Position', 'POS Material', 'Brand Visibility', 'Cooler Installed',
         'Competitor Brands', 'Pricing Compliance', 'Notes', 'GPS Latitude', 'GPS Longitude', 'Date Created',
       ]
-      const rows = stellrVisits.map(v => [
+      const rows = stellrFiltered.map(v => [
         v.store_name || '', v.store_address || '', v.visit_date || '', v.agent_name || '', v.status || '', v.outlet_type || '',
         v.product_range || '', v.stock_availability || '', v.shelf_position || '', v.pos_material || '', v.brand_visibility || '', v.cooler_installed || '',
         v.competitor_brands || '', v.pricing_compliance || '', v.notes || '', v.gps_latitude?.toString() || '', v.gps_longitude?.toString() || '', v.created_at || '',
@@ -491,7 +491,7 @@ export default function StoreInsights() {
       a.download = `stellr-report-${new Date().toISOString().slice(0, 10)}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      toast.success(`Exported ${stellrVisits.length} records`)
+      toast.success(`Exported ${stellrFiltered.length} records`)
     } catch {
       toast.error('Export failed')
     } finally { setExporting(false) }
@@ -569,7 +569,7 @@ export default function StoreInsights() {
       {activeTab === 'insights' && loading && !data && <div className="p-12 flex justify-center"><LoadingSpinner /></div>}
       {activeTab === 'insights' && error && <div className="p-8 text-center text-red-600">{error}</div>}
       {activeTab === 'insights' && data && (() => {
-        const aiCoveragePct = data.totals.with_photos > 0 ? Math.round((data.totals.with_ai_completed / data.totals.with_photos) * 1000) / 10 : 0
+        const aiCoveragePct = data.totals.stores_visited > 0 ? Math.round((data.totals.with_ai_completed / data.totals.stores_visited) * 1000) / 10 : 0
         const photoCoveragePct = data.totals.stores_visited > 0 ? Math.round((data.totals.with_photos / data.totals.stores_visited) * 1000) / 10 : 0
         const stockPct = data.totals.stores_visited > 0 ? Math.round((data.totals.with_stock / data.totals.stores_visited) * 1000) / 10 : 0
         const adPct = data.totals.stores_visited > 0 ? Math.round((data.totals.with_advertising / data.totals.stores_visited) * 1000) / 10 : 0

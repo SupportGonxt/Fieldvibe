@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
@@ -45,7 +45,7 @@ const CaptureFailuresReport: React.FC = () => {
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [exporting, setExporting] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
-  const [companyId, setCompanyId] = useState<string>('goldrush')
+  const [companyId, setCompanyId] = useState<string>('')
 
   const buildUrl = () => {
     const params = new URLSearchParams()
@@ -56,7 +56,7 @@ const CaptureFailuresReport: React.FC = () => {
     return `/field-ops/reports/goldrush-upload-failures?${params.toString()}`
   }
 
-  const { data: companies = [], isLoadingCompanies } = useQuery({
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
     queryKey: ['companies'],
     queryFn: async () => {
       const res = await apiClient.get('/field-ops/companies')
@@ -64,6 +64,13 @@ const CaptureFailuresReport: React.FC = () => {
     },
     staleTime: 300000,
   })
+  useEffect(() => {
+    if (Array.isArray(companies) && companies.length > 0 && !companyId) {
+      const goldrush = companies.find((c: any) => c.name?.toLowerCase().includes('goldrush'))
+      if (goldrush) setCompanyId(goldrush.id)
+      else if (companies.length === 1) setCompanyId(companies[0].id)
+    }
+  }, [companies, companyId])
 
   const { data: failures = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-upload-failures', startDate, endDate, companyId],
