@@ -1,7 +1,8 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet } from 'lucide-react'
+import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { NotificationCenter } from '../../components/ui/NotificationCenter'
 
 function getTabsForRole(role: string | undefined) {
   const baseTabs = [
@@ -29,7 +30,7 @@ function getTabsForRole(role: string | undefined) {
 
   if (role === 'general_manager') {
     return [
-      ...baseTabs,
+      { path: '/agent/overview', label: 'Overview', icon: LayoutDashboard },
       { path: '/agent/pnl', label: 'P&L', icon: Wallet },
       { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
       { path: '/agent/profile', label: 'Profile', icon: User },
@@ -112,6 +113,13 @@ export default function AgentLayout() {
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           <h1 className="text-lg font-semibold text-white">{getSubPageTitle(location.pathname)}</h1>
+        </div>
+      )}
+
+      {/* Notification bell — main pages only (sub-pages have their own header) */}
+      {!onSubPage && (
+        <div className="fixed top-3 right-3 z-40">
+          <NotificationCenter />
         </div>
       )}
 

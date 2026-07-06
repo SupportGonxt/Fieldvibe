@@ -59,6 +59,7 @@ const GoldrushFastEntry = lazyWithRetry(() => import('./pages/agent/GoldrushFast
 const BackOfficeCallList = lazyWithRetry(() => import('./pages/agent/BackOfficeCallList'))
 const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOfficeReconcile'))
 const GMPnl = lazyWithRetry(() => import('./pages/agent/GMPnl'))
+const GmOverview = lazyWithRetry(() => import('./pages/agent/GmOverview'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
 const ManagerTeamsTab = lazyWithRetry(() => import('./pages/agent/ManagerTeamsTab'))
 const AgentDetailPage = lazyWithRetry(() => import('./pages/agent/AgentDetailPage'))
@@ -491,7 +492,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? '/agent/pnl' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? '/agent/overview' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />
@@ -1131,6 +1132,7 @@ function App() {
             <Route path="reconcile" element={<PageLoader><BackOfficeReconcile /></PageLoader>} />
             <Route path="call-list" element={<PageLoader><BackOfficeCallList /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
+            <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
