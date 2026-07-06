@@ -30,7 +30,7 @@ export async function computeTotals(db, tenantId, companyId) {
     `SELECT COUNT(*) n FROM visits v WHERE v.tenant_id=? AND v.company_id=? AND LOWER(v.visit_type)='individual'`
   ).bind(tenantId, companyId).first())?.n ?? 0;
   const distinctIdentifiers = (await db.prepare(
-    `SELECT COUNT(DISTINCT COALESCE(JSON_EXTRACT(vi.custom_field_values,'$.goldrush_id'), JSON_EXTRACT(vi.custom_field_values,'$.goldrush_id_entry'))) n
+    `SELECT COUNT(DISTINCT COALESCE(JSON_EXTRACT(vi.custom_field_values,'$.goldrush_id_entry'), JSON_EXTRACT(vi.custom_field_values,'$.goldrush_id'))) n
      FROM visit_individuals vi JOIN visits v ON vi.visit_id=v.id
      WHERE v.tenant_id=? AND v.company_id=?`
   ).bind(tenantId, companyId).first())?.n ?? 0;
