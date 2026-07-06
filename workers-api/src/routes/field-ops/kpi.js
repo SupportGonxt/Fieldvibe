@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import { getConfig } from './config.js';
 import { aggregateKpis, evaluateSignals } from '../../services/kpiSignals.js';
+import { sendPush } from '../../lib/web-push.js';
 
 export function resolveRoleKpiKey(role) {
   if (role === 'team_lead') return 'kpi.team_lead';
@@ -95,6 +96,78 @@ app.get('/kpi/roster', async (c) => {
     agents.push({ agentId: id, name: u?.name || id, actual, signals });
   }
   return c.json({ roster: rankRoster(agents) });
+});
+
+// --- Remediation (Task 2.5) ---
+// Auth: individual c.get()s (no `auth` object). Live symbols verified against
+// web-push.js (sendPush(env, sub, payload) → {ok,status}) and push_subscriptions
+// (flat endpoint/p256dh/auth cols) — the plan's sendWebPush/subscription-JSON is stale.
+
+// Pure: shapes a coaching_notes row. Unit-tested.
+export function coachingNoteRow({ id, tenantId, companyId, managerId, agentId, signalType, action, note }) {
+  return {
+    id, tenant_id: tenantId, company_id: companyId ?? null,
+    manager_id: managerId, agent_id: agentId,
+    signal_type: signalType ?? null, action, note: note ?? null,
+  };
+}
+
+// coaching_notes DDL lives in schema.sql (applied via db:migrate). Guard the write
+// path so a not-yet-migrated D1 never 500s — mirrors Task 1.7's ensureCaptureFailures.
+async function ensureCoachingNotes(db) {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS coaching_notes (
+       id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT,
+       manager_id TEXT NOT NULL, agent_id TEXT NOT NULL, signal_type TEXT,
+       action TEXT NOT NULL, note TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+  ).run();
+}
+
+app.post('/kpi/remediate/note', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const companyId = c.req.query('company_id') || null;
+  const b = await c.req.json();
+  const row = coachingNoteRow({
+    id: `cn-${userId}-${b.agentId}-${b.created_suffix || ''}`,
+    tenantId, companyId, managerId: userId, agentId: b.agentId,
+    signalType: b.signalType, action: b.action || 'note', note: b.note,
+  });
+  await ensureCoachingNotes(db);
+  await db.prepare(
+    `INSERT INTO coaching_notes (id, tenant_id, company_id, manager_id, agent_id, signal_type, action, note)
+     VALUES (?,?,?,?,?,?,?,?)`
+  ).bind(row.id, row.tenant_id, row.company_id, row.manager_id, row.agent_id, row.signal_type, row.action, row.note).run();
+  return c.json({ ok: true, id: row.id });
+});
+
+app.post('/kpi/remediate/nudge', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const b = await c.req.json();
+  const subs = (await db.prepare(
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id=? AND user_id=?`
+  ).bind(tenantId, b.agentId).all()).results ?? [];
+  if (!subs.length) return c.json({ ok: false, reason: 'no_subscription' }, 404);
+  const payload = { title: 'Performance nudge', body: b.message || 'Check in with your manager.' };
+  let delivered = 0;
+  for (const sub of subs) {
+    const { ok, status } = await sendPush(c.env, sub, payload);
+    if (ok) delivered++;
+    else if (status === 404 || status === 410) {
+      await db.prepare(`DELETE FROM push_subscriptions WHERE tenant_id=? AND user_id=? AND endpoint=?`)
+        .bind(tenantId, b.agentId, sub.endpoint).run();
+    }
+  }
+  return c.json({ ok: delivered > 0, delivered });
+});
+
+app.post('/kpi/remediate/call', async (c) => {
+  const b = await c.req.json();
+  // Reuse the voice-call room path: return a room id the client opens.
+  const roomId = `coach-${c.get('userId')}-${b.agentId}`;
+  return c.json({ ok: true, roomId });
 });
 
 export default app;

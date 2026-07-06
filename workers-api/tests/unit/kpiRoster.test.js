@@ -1,6 +1,6 @@
 // workers-api/tests/unit/kpiRoster.test.js
 import { describe, it, expect } from 'vitest';
-import { resolveRoleKpiKey, rankRoster } from '../../src/routes/field-ops/kpi.js';
+import { resolveRoleKpiKey, rankRoster, coachingNoteRow } from '../../src/routes/field-ops/kpi.js';
 
 describe('resolveRoleKpiKey', () => {
   it('maps agent-tier roles to kpi.agent', () => {
@@ -27,5 +27,21 @@ describe('rankRoster', () => {
       { agentId: 'c', name: 'C', actual: { signups_per_day: 12 }, signals: [] },
     ]);
     expect(out.map(a => a.agentId)).toEqual(['b', 'a', 'c']);
+  });
+});
+
+describe('coachingNoteRow', () => {
+  it('maps camelCase args to snake_case row, defaulting optionals to null', () => {
+    expect(coachingNoteRow({
+      id: 'cn-1', tenantId: 't', companyId: 'c', managerId: 'm', agentId: 'a',
+      signalType: 'below_target', action: 'note', note: 'follow up Monday',
+    })).toEqual({
+      id: 'cn-1', tenant_id: 't', company_id: 'c', manager_id: 'm', agent_id: 'a',
+      signal_type: 'below_target', action: 'note', note: 'follow up Monday',
+    });
+  });
+  it('nulls missing companyId/signalType/note', () => {
+    expect(coachingNoteRow({ id: 'x', tenantId: 't', managerId: 'm', agentId: 'a', action: 'note' }))
+      .toEqual({ id: 'x', tenant_id: 't', company_id: null, manager_id: 'm', agent_id: 'a', signal_type: null, action: 'note', note: null });
   });
 });
