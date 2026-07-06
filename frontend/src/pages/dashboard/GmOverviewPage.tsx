@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
-  RefreshCw, AlertTriangle, Award, UserX,
+  RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { formatCurrency, formatNumber } from '../../utils/format'
@@ -22,10 +23,23 @@ interface Overview {
   calls: { contacted: number; target: number }
 }
 
+interface TenantSignals {
+  counts: { below_target: number; dropped_vs_baseline: number; gone_quiet: number; low_conversion: number }
+  flaggedAgents: number
+  totalAgents: number
+}
+
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'day', label: 'Today' },
   { key: 'week', label: 'This week' },
   { key: 'month', label: 'This month' },
+]
+
+const SIGNAL_LABELS: { key: keyof TenantSignals['counts']; label: string }[] = [
+  { key: 'below_target', label: 'Below target' },
+  { key: 'dropped_vs_baseline', label: 'Signups dropped' },
+  { key: 'gone_quiet', label: 'Gone quiet' },
+  { key: 'low_conversion', label: 'Low conversion' },
 ]
 
 function Kpi({ icon: Icon, label, value, sub, tone = 'blue' }: {
@@ -53,6 +67,13 @@ export default function GmOverviewPage() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['gm-overview', period],
     queryFn: async () => (await apiClient.get<Overview & { success: boolean }>(`/field-ops/gm/overview?period=${period}`)).data,
+    staleTime: 1000 * 60 * 2,
+  })
+
+  // Tenant-wide performance signals — independent of the period toggle (fixed baseline window).
+  const { data: signals } = useQuery({
+    queryKey: ['gm-tenant-signals'],
+    queryFn: async () => (await apiClient.get<TenantSignals>('/field-ops/kpi/tenant-signals')).data,
     staleTime: 1000 * 60 * 2,
   })
 
@@ -116,6 +137,30 @@ export default function GmOverviewPage() {
         <Kpi icon={Users} tone={field.activeAgents ? 'green' : 'red'} label="Agents active"
           value={`${field.activeAgents}/${field.totalAgents}`} sub="active today" />
       </div>
+
+      {/* Performance cockpit — tenant-wide underperformance signals, links to team drill */}
+      {signals && (
+        <Link to="/field-operations/team-cockpit" className="card block hover:bg-surface-secondary transition-colors">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2"><Activity className="w-4 h-4 text-content-secondary" />
+              <h2 className="font-semibold">Performance signals</h2></div>
+            <span className="flex items-center gap-1 text-sm text-content-secondary">
+              {signals.flaggedAgents}/{signals.totalAgents} agents flagged <ChevronRight className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {SIGNAL_LABELS.map(({ key, label }) => {
+              const n = signals.counts[key]
+              return (
+                <div key={key} className="p-3 rounded-xl bg-surface-secondary">
+                  <p className={`text-2xl font-semibold ${n > 0 ? 'text-amber-600' : ''}`}>{n}</p>
+                  <p className="text-xs text-content-secondary mt-1">{label}</p>
+                </div>
+              )
+            })}
+          </div>
+        </Link>
+      )}
 
       {/* BO calls */}
       <div className="card">

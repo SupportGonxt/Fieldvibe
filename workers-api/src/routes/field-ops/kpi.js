@@ -6,6 +6,8 @@ import { Hono } from 'hono';
 import { getConfig } from './config.js';
 import { aggregateKpis, evaluateSignals } from '../../services/kpiSignals.js';
 import { sendPush } from '../../lib/web-push.js';
+import { requireRole } from '../../middleware/auth.js';
+import { AGENT_ROLES } from '../../services/incentiveService.js';
 
 export function resolveRoleKpiKey(role) {
   if (role === 'team_lead') return 'kpi.team_lead';
@@ -25,6 +27,17 @@ async function dailyRows(db, tenantId, agentId, sinceDate) {
      WHERE v.tenant_id=? AND v.agent_id=? AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date`
   ).bind(tenantId, agentId, sinceDate).all()).results ?? [];
+}
+
+// Aggregate one agent's KPIs + signals over a window. Shared by roster + tenant-signals.
+async function agentSignals(db, tenantId, id, thresholds, since) {
+  const rows = await dailyRows(db, tenantId, id, since);
+  const actual = aggregateKpis(rows);
+  const baseline = aggregateKpis(rows.slice(0, Math.ceil(rows.length / 2)));
+  const lastVisit = rows.length ? rows[rows.length - 1].date : null;
+  const daysSinceLastVisit = lastVisit
+    ? Math.floor((Date.now() - Date.parse(lastVisit)) / 86400000) : 999;
+  return { actual, signals: evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds }) };
 }
 
 const app = new Hono();
@@ -86,16 +99,35 @@ app.get('/kpi/roster', async (c) => {
 
   const agents = [];
   for (const id of memberIds) {
-    const rows = await dailyRows(db, tenantId, id, since);
-    const actual = aggregateKpis(rows);
-    const baseline = aggregateKpis(rows.slice(0, Math.ceil(rows.length / 2)));
-    const lastVisit = rows.length ? rows[rows.length - 1].date : null;
-    const daysSince = lastVisit ? Math.floor((Date.now() - Date.parse(lastVisit)) / 86400000) : 999;
-    const signals = evaluateSignals({ actual, baseline, daysSinceLastVisit: daysSince, thresholds });
+    const { actual, signals } = await agentSignals(db, tenantId, id, thresholds, since);
     const u = await db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first();
     agents.push({ agentId: id, name: u?.name || id, actual, signals });
   }
   return c.json({ roster: rankRoster(agents) });
+});
+
+// Tenant-wide signal roll-up for the GM overview cockpit tile. GM-only (mirrors gm.js gate).
+// Counts, per signal type, how many active field agents are currently triggering it.
+app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const companyId = c.req.query('company_id') || null;
+  const thresholds = (await getConfig(db, tenantId, companyId, 'kpi.agent')) || {};
+  const windowDays = thresholds.baseline_window_days || 14;
+  const since = new Date(Date.now() - windowDays * 86400000).toISOString().slice(0, 10);
+  const agents = (await db.prepare(
+    `SELECT id FROM users WHERE tenant_id=? AND is_active=1 AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
+       AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))`
+  ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
+
+  const counts = { below_target: 0, dropped_vs_baseline: 0, gone_quiet: 0, low_conversion: 0 };
+  let flaggedAgents = 0;
+  for (const { id } of agents) {
+    const { signals } = await agentSignals(db, tenantId, id, thresholds, since);
+    if (signals.length) flaggedAgents++;
+    for (const s of signals) if (s.type in counts) counts[s.type]++;
+  }
+  return c.json({ counts, flaggedAgents, totalAgents: agents.length });
 });
 
 // --- Remediation (Task 2.5) ---
