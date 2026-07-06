@@ -6,6 +6,11 @@ import { Download, AlertTriangle, RefreshCw, XCircle, Users, Image, Link } from 
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 
+interface Company {
+  id: string
+  name: string
+}
+
 interface UploadFailure {
   id: string
   visit_id: string | null
@@ -28,7 +33,7 @@ interface UploadFailure {
   error_summary: string
 }
 
-const GoldrushUploadFailuresReport: React.FC = () => {
+const CaptureFailuresReport: React.FC = () => {
   const [startDate, setStartDate] = useState<string>(() => {
     const now = new Date()
     const dayOfWeek = now.getDay()
@@ -40,16 +45,28 @@ const GoldrushUploadFailuresReport: React.FC = () => {
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0])
   const [exporting, setExporting] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [companyId, setCompanyId] = useState<string>('goldrush')
 
   const buildUrl = () => {
     const params = new URLSearchParams()
     if (startDate) params.append('startDate', startDate)
     if (endDate) params.append('endDate', endDate)
+    // ponytail: company_id inert until report endpoints are parameterized
+    if (companyId) params.append('company_id', companyId)
     return `/field-ops/reports/goldrush-upload-failures?${params.toString()}`
   }
 
+  const { data: companies = [], isLoadingCompanies } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
+      const res = await apiClient.get('/field-ops/companies')
+      return (res.data?.data || res.data || []) as Company[]
+    },
+    staleTime: 300000,
+  })
+
   const { data: failures = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['goldrush-upload-failures', startDate, endDate],
+    queryKey: ['goldrush-upload-failures', startDate, endDate, companyId],
     queryFn: async () => {
       const res = await apiClient.get(buildUrl())
       return (res.data?.data || []) as UploadFailure[]
@@ -146,6 +163,17 @@ const GoldrushUploadFailuresReport: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400">Captures flagged due to invalid IDs, photo mismatches, or missing B-Tag numbers</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            disabled={isLoadingCompanies}
+            className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white disabled:opacity-50"
+          >
+            <option value="">-- Select Company --</option>
+            {companies.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
           <DateRangePresets startDate={startDate} endDate={endDate} onStartDateChange={setStartDate} onEndDateChange={setEndDate} />
           <button onClick={() => refetch()} className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
             <RefreshCw className="h-4 w-4" /> Refresh
@@ -334,4 +362,4 @@ const GoldrushUploadFailuresReport: React.FC = () => {
   )
 }
 
-export default GoldrushUploadFailuresReport
+export default CaptureFailuresReport
