@@ -40,6 +40,11 @@ export function signalLowConversion(actual, th) {
 }
 
 export function evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds }) {
+  // Empty window = no activity captured, not underperformance. The zero-fill +
+  // fabricated daysSinceLastVisit=999 would trigger below_target + gone_quiet +
+  // low_conversion on an agent we have no data for, inflating flagged counts.
+  // Insufficient signal → flag nothing. (M-1)
+  if (!actual || actual.days === 0) return [];
   const out = [];
   const bt = signalBelowTarget(actual, thresholds);
   if (bt.triggered) out.push({ type: 'below_target', detail: bt });

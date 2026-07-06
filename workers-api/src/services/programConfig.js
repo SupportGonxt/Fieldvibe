@@ -48,7 +48,11 @@ export function validateIdentifier(value, spec = {}) {
 // rows: [{ question_key, question_label, field_type, min_length, max_length, check_duplicate,
 //          visit_target_type, show_in_reports }]
 export function buildGoldrushConfig({ tenantId, companyId, rows }) {
-  const captureSteps = rows.map(r => {
+  const captureSteps = rows
+    // goldrush_id_entry is collapsed into goldrush_id by canonicalization; its
+    // source row would otherwise map to a dead text step nothing writes to.
+    .filter(r => r.question_key !== 'goldrush_id_entry')
+    .map(r => {
     if (r.question_key === 'goldrush_id') {
       return identifierQuestion({
         key: 'goldrush_id', label: r.question_label,

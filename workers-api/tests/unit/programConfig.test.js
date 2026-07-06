@@ -58,4 +58,15 @@ describe('buildGoldrushConfig', () => {
     const step = byKey['capture_steps'].find(s => s.key === 'goldrush_id');
     expect(step).toMatchObject({ type: 'identifier', unique: true, is_qualification_key: true });
   });
+  it('drops the dead goldrush_id_entry row (canonicalized into goldrush_id)', () => {
+    const rows = [
+      { question_key: 'goldrush_id_entry', question_label: 'Fast entry', field_type: 'text',
+        visit_target_type: 'individual', show_in_reports: 1 },
+      { question_key: 'goldrush_id', question_label: 'Goldrush ID', field_type: 'text',
+        min_length: 9, max_length: 9, check_duplicate: 1, visit_target_type: 'individual', show_in_reports: 1 },
+    ];
+    const cfg = buildGoldrushConfig({ tenantId: 't1', companyId: 'c1', rows });
+    const steps = JSON.parse(cfg.entries.find(e => e.key === 'capture_steps').value_json);
+    expect(steps.map(s => s.key)).toEqual(['goldrush_id']); // entry row produced no step
+  });
 });

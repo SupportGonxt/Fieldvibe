@@ -17646,6 +17646,19 @@ api.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
+// Resolve which company a goldrush-family report runs against. Explicit
+// ?company_id= wins (tenant-checked; invalid id → null, no silent fallback so
+// a bad filter returns empty rather than leaking goldrush). No company_id →
+// the legacy name-LIKE goldrush default, preserving pre-parameterization behavior.
+async function resolveReportCompanyId(db, tenantId, companyId) {
+  if (companyId) {
+    const row = await db.prepare('SELECT id FROM field_companies WHERE id = ? AND tenant_id = ?').bind(companyId, tenantId).first();
+    return row ? row.id : null;
+  }
+  const gr = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+  return gr ? gr.id : null;
+}
+
 // Goldrush Individual Report - all individual registrations for Goldrush with questionnaire data
 api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => {
   try {
@@ -17653,16 +17666,14 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     const tenantId = c.get('tenantId');
     const { startDate, endDate, company_id } = c.req.query();
 
-    // Find Goldrush company
-    const goldrushCompany = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
-    if (!goldrushCompany) {
-      return c.json({ success: true, data: [], total: 0, message: 'Goldrush company not found' });
+    // Find the report's company (explicit company_id, else goldrush default)
+    const goldrushId = await resolveReportCompanyId(db, tenantId, company_id || null);
+    if (!goldrushId) {
+      return c.json({ success: true, data: [], total: 0, message: 'Company not found' });
     }
-    const goldrushId = goldrushCompany.id;
 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
-    // company_id filter not applicable here - endpoint already scoped to Goldrush company
     // IMPORTANT: Only apply date filter if BOTH startDate AND endDate are provided
     // If either is missing or empty, return ALL data (all-time behavior)
     
@@ -17836,15 +17847,12 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
 
-    const goldrushCompany = await db.prepare(
-      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?"
-    ).bind(tenantId).first();
-    if (!goldrushCompany) {
-      return c.json({ success: true, dates: [], rows: [], message: 'Goldrush company not found' });
+    const goldrushId = await resolveReportCompanyId(db, tenantId, company_id || null);
+    if (!goldrushId) {
+      return c.json({ success: true, dates: [], rows: [], message: 'Company not found' });
     }
-    const goldrushId = goldrushCompany.id;
 
     const hasStart = startDate && startDate.trim() !== '';
     const hasEnd   = endDate   && endDate.trim()   !== '';
@@ -18072,13 +18080,10 @@ api.get('/field-ops/reports/goldrush-no-btag', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
 
-    const goldrushCompany = await db.prepare(
-      "SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?"
-    ).bind(tenantId).first();
-    if (!goldrushCompany) return c.json({ success: true, data: [] });
-    const goldrushCompanyId = goldrushCompany.id;
+    const goldrushCompanyId = await resolveReportCompanyId(db, tenantId, company_id || null);
+    if (!goldrushCompanyId) return c.json({ success: true, data: [] });
 
     const hasStart = startDate && startDate.trim() !== '';
     const hasEnd = endDate && endDate.trim() !== '';
@@ -18147,12 +18152,11 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
     const tenantId = c.get('tenantId');
     const { startDate, endDate, company_id } = c.req.query();
 
-    // Find Goldrush company
-    const goldrushCompany = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
-    if (!goldrushCompany) {
-      return c.json({ success: true, data: [], total: 0, message: 'Goldrush company not found' });
+    // Find the report's company (explicit company_id, else goldrush default)
+    const goldrushId = await resolveReportCompanyId(db, tenantId, company_id || null);
+    if (!goldrushId) {
+      return c.json({ success: true, data: [], total: 0, message: 'Company not found' });
     }
-    const goldrushId = goldrushCompany.id;
 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
@@ -18477,11 +18481,10 @@ api.get('/field-ops/reports/goldrush-individuals/insights', authMiddleware, asyn
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
 
-    const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
-    if (!goldrush) return c.json({ success: true, data: emptyIndividualInsights() });
-    const goldrushId = goldrush.id;
+    const goldrushId = await resolveReportCompanyId(db, tenantId, company_id || null);
+    if (!goldrushId) return c.json({ success: true, data: emptyIndividualInsights() });
 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
@@ -18614,11 +18617,10 @@ api.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c)
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const { startDate, endDate } = c.req.query();
+    const { startDate, endDate, company_id } = c.req.query();
 
-    const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
-    if (!goldrush) return c.json({ success: true, data: emptyStoreInsights() });
-    const goldrushId = goldrush.id;
+    const goldrushId = await resolveReportCompanyId(db, tenantId, company_id || null);
+    if (!goldrushId) return c.json({ success: true, data: emptyStoreInsights() });
 
     let dateFilter = '';
     const binds = [tenantId, goldrushId];
@@ -21200,10 +21202,9 @@ function kpiHtml(rows) {
 
 // Computes the same payload the GET /goldrush-individuals/insights endpoint
 // returns, but invokable from cron without HTTP.
-async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDate) {
-  const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
-  if (!goldrush) return null;
-  const goldrushId = goldrush.id;
+async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDate, companyId = null) {
+  const goldrushId = await resolveReportCompanyId(db, tenantId, companyId);
+  if (!goldrushId) return null;
   let dateFilter = '';
   const binds = [tenantId, goldrushId];
   if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }
@@ -21252,10 +21253,9 @@ async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDat
   };
 }
 
-async function computeGoldrushStoreInsights(db, tenantId, startDate, endDate) {
-  const goldrush = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
-  if (!goldrush) return null;
-  const goldrushId = goldrush.id;
+async function computeGoldrushStoreInsights(db, tenantId, startDate, endDate, companyId = null) {
+  const goldrushId = await resolveReportCompanyId(db, tenantId, companyId);
+  if (!goldrushId) return null;
   let dateFilter = '';
   const binds = [tenantId, goldrushId];
   if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }

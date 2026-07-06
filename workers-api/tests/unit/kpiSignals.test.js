@@ -56,4 +56,11 @@ describe('signals', () => {
     const types = out.map(s => s.type).sort();
     expect(types).toEqual(['below_target', 'dropped_vs_baseline', 'gone_quiet', 'low_conversion']);
   });
+  it('empty window (days=0) flags nothing — no fabricated signals (M-1)', () => {
+    const out = evaluateSignals({
+      actual: aggregateKpis([]), baseline: aggregateKpis([]),
+      daysSinceLastVisit: 999, thresholds: TH,
+    });
+    expect(out).toEqual([]);
+  });
 });
