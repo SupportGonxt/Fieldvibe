@@ -8,6 +8,7 @@ import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 import incentiveRoutes from './routes/field-ops/incentives.js';
 import callRoutes from './routes/field-ops/calls.js';
+import gmRoutes, { buildGmOverview, digestSlot } from './routes/field-ops/gm.js';
 import { dueEscalation } from './services/incentiveService.js';
 export { CallRoom } from './durable/CallRoom.js';
 
@@ -20757,6 +20758,7 @@ api.route('/field-ops', configRoutes);
 api.route('/field-ops', hierarchyRoutes);
 api.route('/field-ops', incentiveRoutes);
 api.route('/field-ops', callRoutes);
+api.route('/field-ops', gmRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
@@ -20767,6 +20769,59 @@ app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 // ==================== SECTION 9: SCHEDULED JOBS ====================
 
 // ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
+// GM daily digest — emails every general_manager the day's overview + an in-app notification.
+// Fires from the 04/10/16 UTC cron ticks (06/12/18 SAST). Reuses buildGmOverview + MailChannels.
+async function generateGmDigest(env) {
+  const db = env.DB;
+  const sastHour = (new Date().getUTCHours() + 2) % 24;
+  const slot = digestSlot(sastHour);
+  if (!slot) return;
+  const { results: gms } = await db.prepare(
+    `SELECT id, tenant_id, email, first_name FROM users
+     WHERE role = 'general_manager' AND is_active = 1 AND email IS NOT NULL`
+  ).all();
+  const byTenant = new Map();
+  for (const g of gms || []) {
+    if (!byTenant.has(g.tenant_id)) byTenant.set(g.tenant_id, []);
+    byTenant.get(g.tenant_id).push(g);
+  }
+  const rand = (n) => 'R' + Math.round(Number(n) || 0).toLocaleString('en-ZA');
+  const stamp = new Date().toISOString().slice(0, 10);
+  for (const [tenantId, list] of byTenant) {
+    let o;
+    try { o = await buildGmOverview(db, tenantId, null, 'day'); }
+    catch (e) { console.error('gm-digest overview failed', tenantId, e.message); continue; }
+    const kpis = [
+      ['Signups today', String(o.funnel.signups)],
+      ['Converted', `${o.funnel.converted} (${o.funnel.conversionRate}%)`],
+      ['Revenue (today)', rand(o.money.revenue)],
+      ['Active agents', `${o.field.activeAgents}/${o.field.totalAgents}`],
+      ['BO agents contacted', `${o.calls.contacted}/${o.calls.target}`],
+    ];
+    const leaderRows = (o.leaders || []).map((l) => [l.name, String(l.signups), String(l.converted)]);
+    const html =
+      `<div style="font-family:Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;padding:16px">` +
+      `<h2 style="color:#0F172A">FieldVibe daily summary — ${slot}</h2>` +
+      kpiHtml(kpis) +
+      (leaderRows.length
+        ? `<h3 style="color:#0F172A;font-size:15px">Top performers</h3>${tableHtml(['Agent', 'Signups', 'Converted'], leaderRows)}`
+        : '') +
+      `</div>`;
+    const msg = `${o.funnel.signups} signups, ${o.funnel.converted} converted, ${rand(o.money.revenue)} revenue today.`;
+    const subject = `FieldVibe daily summary — ${slot}`;
+    for (const g of list) {
+      try {
+        await sendEmailViaMailChannels(env, { to: g.email, toName: g.first_name, subject, html });
+      } catch (e) { console.error('gm-digest email failed', g.email, e.message); }
+      try {
+        await db.prepare(
+          "INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at) VALUES (?, ?, ?, 'gm_digest', ?, ?, 'GM_DIGEST', ?, 0, datetime('now'))"
+        ).bind(crypto.randomUUID(), tenantId, g.id, `Daily summary (${slot})`, msg, `gmdigest_${stamp}_${slot}`).run();
+      } catch (e) { console.error('gm-digest notif failed', g.id, e.message); }
+    }
+  }
+}
+
 async function generatePerformanceSummaries(db, force = false) {
   try {
     // Get current SAST hour (UTC+2)
@@ -21380,6 +21435,8 @@ export default {
     if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);
     if (day === 1 && hour === 5) await generateAgingReport(env.DB);
     if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
+    // GM daily digest at 06/12/18 SAST (04/10/16 UTC).
+    if (hour === 4 || hour === 10 || hour === 16) await generateGmDigest(env);
     // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
     if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
