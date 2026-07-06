@@ -2121,6 +2121,21 @@ CREATE TABLE IF NOT EXISTS program_config (
   FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
+-- Coaching notes: one-tap remediation log from the performance cockpit.
+CREATE TABLE IF NOT EXISTS coaching_notes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT,
+  manager_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  signal_type TEXT,
+  action TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+CREATE INDEX IF NOT EXISTS idx_coaching_notes_agent ON coaching_notes(tenant_id, agent_id, created_at);
+
 CREATE TABLE IF NOT EXISTS inactivity_events (
   id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL,
   detected_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT, data_call_id TEXT,
