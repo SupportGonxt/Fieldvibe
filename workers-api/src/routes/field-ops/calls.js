@@ -177,9 +177,12 @@ app.get('/calls/history', async (c) => {
   const userId = c.get('userId');
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10) || 50, 200);
   const rows = await db.prepare(
-    `SELECT id, callee_id, status, started_at, answered_at, ended_at, duration_s
-     FROM bo_calls WHERE tenant_id = ? AND caller_id = ?
-     ORDER BY created_at DESC LIMIT ?`
+    `SELECT bc.id, bc.callee_id, bc.status, bc.started_at, bc.answered_at, bc.ended_at, bc.duration_s,
+            TRIM(u.first_name || ' ' || u.last_name) AS callee_name
+     FROM bo_calls bc
+     LEFT JOIN users u ON u.id = bc.callee_id
+     WHERE bc.tenant_id = ? AND bc.caller_id = ?
+     ORDER BY bc.created_at DESC LIMIT ?`
   ).bind(tenantId, userId, limit).all();
   return c.json({ success: true, calls: rows.results || [] });
 });
