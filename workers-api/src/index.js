@@ -4,12 +4,13 @@ import { logger } from 'hono/logger';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
-import configRoutes from './routes/field-ops/config.js';
+import configRoutes, { getConfig } from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 import incentiveRoutes from './routes/field-ops/incentives.js';
 import callRoutes from './routes/field-ops/calls.js';
 import gmRoutes, { buildGmOverview, digestSlot } from './routes/field-ops/gm.js';
 import { dueEscalation } from './services/incentiveService.js';
+import { buildGoldrushConfig } from './services/programConfig.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -9125,10 +9126,9 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
     //     Rejected visits are excluded from individual reports via goldrush_upload_failures.visit_id.
     if (body.visit_target_type === 'individual' && (body.company_id || body.companyId)) {
       const checkCompanyId = body.company_id || body.companyId;
-      const isGoldrush = await db.prepare(
-        "SELECT id FROM field_companies WHERE id = ? AND LOWER(name) LIKE '%goldrush%'"
-      ).bind(checkCompanyId).first();
-      if (isGoldrush) {
+      // convergence: qualification path is config-driven, not company-name-gated.
+      const qualEnabled = await getConfig(db, tenantId, checkCompanyId, 'qualification_enabled');
+      if (qualEnabled === true) {
         const allCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
         const grId = allCustom.goldrush_id;
         const idNum = body.individual_id_number;
@@ -14180,6 +14180,24 @@ api.post('/seed/goldrush', authMiddleware, async (c) => {
         }
       }
     } catch (e) { console.error('Fix questionnaire id_passport_photo error:', e); }
+
+    // 8. Convergence bridge: derive program_config from the seeded custom questions so the
+    //    config-driven capture path works immediately (before the historical migration runs).
+    try {
+      const ccqRows = (await db.prepare(
+        `SELECT question_key, question_label, field_type, min_length, max_length,
+                check_duplicate, visit_target_type, show_in_reports
+         FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND is_active = 1`
+      ).bind(tenantId, goldrushId).all()).results ?? [];
+      const cfg = buildGoldrushConfig({ tenantId, companyId: goldrushId, rows: ccqRows });
+      for (const e of cfg.entries) {
+        await db.prepare(
+          `INSERT INTO program_config (id, tenant_id, company_id, key, value_json)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET value_json=excluded.value_json`
+        ).bind(`pc-${goldrushId}-${e.key}`, tenantId, goldrushId, e.key, e.value_json).run();
+      }
+    } catch (e) { console.error('Config bridge seed error:', e); }
 
     return c.json({
       success: true,
