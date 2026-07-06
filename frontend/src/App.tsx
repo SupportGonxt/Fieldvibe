@@ -156,6 +156,7 @@ const CustomersAdvanced = lazyWithRetry(() => import('./pages/CustomersAdvanced'
 const CustomersPage = lazyWithRetry(() => import('./pages/customers/CustomersPage'))
 const DailyTargetsPage = lazyWithRetry(() => import('./pages/field-operations/DailyTargetsPage'))
 const DashboardPage = lazyWithRetry(() => import('./pages/dashboard/DashboardPage'))
+const GmOverviewPage = lazyWithRetry(() => import('./pages/dashboard/GmOverviewPage'))
 const DataImportExportPage = lazyWithRetry(() => import('./pages/admin/DataImportExportPage'))
 const DeliveryDetail = lazyWithRetry(() => import('./pages/orders/deliveries/DeliveryDetail'))
 const DeliveryEdit = lazyWithRetry(() => import('./pages/orders/deliveries/DeliveryEdit'))
@@ -515,6 +516,7 @@ function App() {
           }>
             {/* Dashboard Routes */}
             <Route path="dashboard" element={<PageLoader><DashboardPage /></PageLoader>} />
+            <Route path="dashboard/gm" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GmOverviewPage /></PageLoader></ProtectedRoute>} />
             <Route path="analytics" element={<PageLoader><AnalyticsPage /></PageLoader>} />
             
             <Route path="analytics-dashboard/*" element={<Navigate to="/insights" replace />} />
