@@ -8,6 +8,7 @@ import {
   DollarSign, Flame, BarChart3, Ban, AlertTriangle, Zap
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import BOTargetCard from './BOTargetCard'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
@@ -422,6 +423,13 @@ export default function AgentDashboard() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {/* BO Home: agents-contacted target card (backoffice only) */}
+      {authUser?.role === 'backoffice_admin' && (
+        <div className="px-5">
+          <BOTargetCard />
+        </div>
+      )}
 
       {/* Goldrush hero incentive — exception branch of the standard PWA */}
       {goldrushCompany && (isAgentRole || isTeamRole) && (
