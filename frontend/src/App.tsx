@@ -189,6 +189,7 @@ const FieldOpsInsights = lazyWithRetry(() => import('./pages/insights/FieldOpsIn
 const FieldOpsSettingsPage = lazyWithRetry(() => import('./pages/field-operations/FieldOpsSettingsPage'))
 const MonthlyTargetsPage = lazyWithRetry(() => import('./pages/field-operations/MonthlyTargetsPage'))
 const TargetCommissionsPage = lazyWithRetry(() => import('./pages/field-operations/TargetCommissionsPage'))
+const TeamCockpit = lazyWithRetry(() => import('./pages/field-operations/TeamCockpit'))
 const WorkingDaysConfigPage = lazyWithRetry(() => import('./pages/field-operations/WorkingDaysConfigPage'))
 const FinanceDashboard = lazyWithRetry(() => import('./pages/finance/FinanceDashboard'))
 const FinanceInvoiceCreate = lazyWithRetry(() => import('./pages/finance/InvoiceCreate'))
@@ -598,6 +599,7 @@ function App() {
             {/* Field Operations Refactor: New Routes */}
             <Route path="field-operations/performance" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/daily-targets" element={<PageLoader><DailyTargetsPage /></PageLoader>} />
+            <Route path="field-operations/team-cockpit" element={<PageLoader><TeamCockpit /></PageLoader>} />
             <Route path="field-operations/individuals" element={<PageLoader><IndividualRegistrationPage /></PageLoader>} />
             <Route path="field-operations/companies" element={<PageLoader><CompanyManagementPage /></PageLoader>} />
             <Route path="field-operations/company-dashboard/:companyId" element={<PageLoader><CompanyDashboardPage /></PageLoader>} />

@@ -98,6 +98,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Activity' },
 
       // ── Review ──
+      { name: 'Team Cockpit', href: '/field-operations/team-cockpit', permission: null, description: 'Team performance roster + one-tap remediation', group: 'Review' },
       { name: 'Photo Review', href: '/field-operations/photo-review', permission: null, description: 'Review, approve or reject agent-uploaded photos', group: 'Review' },
 
       // ── Reports ──
