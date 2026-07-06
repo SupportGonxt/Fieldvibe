@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Phone, Loader2, Search, RefreshCw, CircleDot } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useToast } from '../../components/ui/Toast'
 
-// Back Office call list: every active field agent with their phone, today's signup
-// count and last activity. Sorted quietest-first by the API so the agents who need
-// a nudge float to the top. Tapping the row dials via tel: on the BO's device.
+// Back Office call list: every active field agent with their today's signup count
+// and last activity. Sorted quietest-first by the API so the agents who need a
+// nudge float to the top. Tapping a row starts an in-app WebRTC call to the agent.
 
 type RosterRow = {
   id: string
@@ -29,9 +30,24 @@ function sinceLabel(iso: string | null): string {
 
 export default function BackOfficeCallList() {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [roster, setRoster] = useState<RosterRow[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
+  const [calling, setCalling] = useState<string | null>(null)
+
+  async function startCall(r: RosterRow) {
+    if (calling) return
+    setCalling(r.id)
+    try {
+      const res = await apiClient.post('/field-ops/calls/start', { callee_id: r.id })
+      const { callId, iceServers } = res.data
+      navigate(`/agent/call/${callId}`, { state: { peerName: r.name || 'Agent', iceServers } })
+    } catch {
+      toast.error('Could not start call')
+      setCalling(null)
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -93,45 +109,33 @@ export default function BackOfficeCallList() {
         ) : (
           <div className="space-y-2">
             {filtered.map((r) => {
-              const dialable = !!r.phone
-              const inner = (
-                <div className="flex items-center gap-3 w-full">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white font-medium truncate">{r.name || 'Unnamed agent'}</div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
-                      <CircleDot className={`w-3 h-3 ${r.today > 0 ? 'text-[#00E87B]' : 'text-gray-600'}`} />
-                      {sinceLabel(r.last_activity)}
+              const isCalling = calling === r.id
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => startCall(r)}
+                  disabled={!!calling}
+                  className="flex items-center w-full text-left bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 active:scale-[0.99] transition-transform disabled:opacity-60"
+                >
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-medium truncate">{r.name || 'Unnamed agent'}</div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
+                        <CircleDot className={`w-3 h-3 ${r.today > 0 ? 'text-[#00E87B]' : 'text-gray-600'}`} />
+                        {sinceLabel(r.last_activity)}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className={`text-lg font-semibold tabular-nums ${r.today > 0 ? 'text-[#00E87B]' : 'text-gray-600'}`}>
+                        {r.today}
+                      </div>
+                      <div className="text-[10px] text-gray-600 uppercase tracking-wide">today</div>
+                    </div>
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-[#00E87B]/15 text-[#00E87B]">
+                      {isCalling ? <Loader2 className="w-5 h-5 animate-spin" /> : <Phone className="w-5 h-5" />}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className={`text-lg font-semibold tabular-nums ${r.today > 0 ? 'text-[#00E87B]' : 'text-gray-600'}`}>
-                      {r.today}
-                    </div>
-                    <div className="text-[10px] text-gray-600 uppercase tracking-wide">today</div>
-                  </div>
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                    dialable ? 'bg-[#00E87B]/15 text-[#00E87B]' : 'bg-white/[0.04] text-gray-700'
-                  }`}>
-                    <Phone className="w-5 h-5" />
-                  </div>
-                </div>
-              )
-              return dialable ? (
-                <a
-                  key={r.id}
-                  href={`tel:${r.phone}`}
-                  className="flex items-center bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 active:scale-[0.99] transition-transform"
-                >
-                  {inner}
-                </a>
-              ) : (
-                <div
-                  key={r.id}
-                  className="flex items-center bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 opacity-70"
-                  title="No phone number on file"
-                >
-                  {inner}
-                </div>
+                </button>
               )
             })}
           </div>

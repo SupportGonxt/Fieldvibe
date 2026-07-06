@@ -467,10 +467,14 @@ async function generateToken(payload, secret, expiresIn = 86400) {
 const authMiddleware = async (c, next) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Browser WebSocket can't set headers, so WS upgrades pass the JWT as a
+    // query param instead. Signature is still verified below either way.
+    const token = authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : c.req.query('access_token');
+    if (!token) {
       return c.json({ success: false, message: 'Unauthorized' }, 401);
     }
-    const token = authHeader.substring(7);
     const parts = token.split('.');
     if (parts.length !== 3) {
       return c.json({ success: false, message: 'Malformed token' }, 401);

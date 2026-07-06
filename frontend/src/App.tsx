@@ -49,6 +49,7 @@ const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'
 const AdminPage = lazyWithRetry(() => import('./pages/admin/AdminPage'))
 const AgentDashboard = lazyWithRetry(() => import('./pages/agent/AgentDashboard'))
 const AgentLayout = lazyWithRetry(() => import('./pages/agent/AgentLayout'))
+const CallScreen = lazyWithRetry(() => import('./pages/agent/CallScreen'))
 const AgentVisits = lazyWithRetry(() => import('./pages/agent/AgentVisits'))
 const AgentStats = lazyWithRetry(() => import('./pages/agent/AgentStats'))
 const AgentProfile = lazyWithRetry(() => import('./pages/agent/AgentProfile'))
@@ -1145,6 +1146,14 @@ function App() {
             <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
             <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
+
+          {/* Full-screen call UI — outside AgentLayout so no nav/header chrome */}
+          <Route path="/agent/call/incoming" element={
+            <ProtectedRoute><PageLoader><CallScreen incoming /></PageLoader></ProtectedRoute>
+          } />
+          <Route path="/agent/call/:callId" element={
+            <ProtectedRoute><PageLoader><CallScreen /></PageLoader></ProtectedRoute>
+          } />
 
           {/* T-17: 404 Not Found page */}
           <Route path="*" element={<NotFoundPage />} />

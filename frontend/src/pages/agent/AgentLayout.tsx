@@ -3,6 +3,30 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
+import { apiClient } from '../../services/api.service'
+
+// Poll for a ringing call aimed at this user. Call screens render outside this
+// layout, so AgentLayout unmounts during a call and polling pauses on its own.
+// Web Push (Phase C) will make ring delivery instant; this is the fallback.
+function useIncomingCallPoll() {
+  const navigate = useNavigate()
+  React.useEffect(() => {
+    let active = true
+    const tick = async () => {
+      try {
+        const res = await apiClient.get('/field-ops/calls/incoming')
+        const call = res?.data?.call
+        if (active && call) {
+          navigate('/agent/call/incoming', {
+            state: { callId: call.callId, peerName: call.callerName, iceServers: res.data.iceServers },
+          })
+        }
+      } catch { /* offline / transient — try again next tick */ }
+    }
+    const id = setInterval(tick, 5000)
+    return () => { active = false; clearInterval(id) }
+  }, [navigate])
+}
 
 function getTabsForRole(role: string | undefined) {
   const baseTabs = [
@@ -97,6 +121,7 @@ export default function AgentLayout() {
   const user = useAuthStore((s) => s.user)
   const tabs = getTabsForRole(user?.role)
   const onSubPage = isSubPage(location.pathname)
+  useIncomingCallPoll()
 
   return (
     <div className="min-h-screen bg-[#06090F] flex flex-col">

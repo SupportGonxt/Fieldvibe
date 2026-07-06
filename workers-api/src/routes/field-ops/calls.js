@@ -52,6 +52,29 @@ app.get('/calls/ws', async (c) => {
   return stub.fetch(c.req.raw);
 });
 
+// --- Incoming poll -----------------------------------------------------------
+// The callee polls this to discover a ringing call aimed at them. Web Push
+// (Phase C) will make this instant; polling is the always-works fallback.
+app.get('/calls/incoming', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  // Only recent rings — a stale row shouldn't ambush the agent minutes later.
+  const cutoff = new Date(Date.now() - 60000).toISOString();
+  const row = await db.prepare(
+    `SELECT c.id, u.first_name || ' ' || u.last_name AS caller_name
+     FROM bo_calls c LEFT JOIN users u ON u.id = c.caller_id
+     WHERE c.tenant_id = ? AND c.callee_id = ? AND c.status = 'ringing' AND c.started_at > ?
+     ORDER BY c.started_at DESC LIMIT 1`
+  ).bind(tenantId, userId, cutoff).first();
+  if (!row) return c.json({ success: true, call: null });
+  return c.json({
+    success: true,
+    call: { callId: row.id, callerName: (row.caller_name || '').trim() || 'Back office' },
+    iceServers: await iceServers(c.env),
+  });
+});
+
 // --- Lifecycle ---------------------------------------------------------------
 app.post('/calls/start', boOnly, async (c) => {
   const db = c.env.DB;
@@ -102,7 +125,7 @@ app.post('/calls/:id/end', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json().catch(() => ({}));
   const row = await db.prepare(
-    `SELECT status, started_at, answered_at FROM bo_calls WHERE id = ? AND tenant_id = ?`
+    `SELECT status, started_at, answered_at, ended_at FROM bo_calls WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).first();
   if (!row) return c.json({ success: false, message: 'call not found' }, 404);
   if (row.ended_at) return c.json({ success: true }); // already finalized
