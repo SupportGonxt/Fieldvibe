@@ -9106,6 +9106,50 @@ async function goldrushIdExists(db, tenantId, goldrushId, excludeVisitId = null)
   return false;
 }
 
+// Convergence: capture_failures is the generalized home for capture rejections
+// (goldrush_upload_failures kept as a compat VIEW so legacy read sites keep resolving).
+// Idempotent + recovery-safe: safe to call on every write; each abrupt-stop midpoint
+// converges on the next call. ponytail: one sqlite_master probe per call = cheap early-return.
+async function ensureCaptureFailures(db) {
+  // Fast path: once the legacy name is a VIEW, migration is complete.
+  const meta = await db.prepare(
+    "SELECT type FROM sqlite_master WHERE name = 'goldrush_upload_failures'"
+  ).first();
+  if (meta && meta.type === 'view') return;
+
+  await db.prepare(`CREATE TABLE IF NOT EXISTS capture_failures (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT,
+    team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT,
+    identifier_value TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT,
+    error_photo_mismatch TEXT, error_no_btag TEXT, visit_id TEXT, visit_date TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP)`).run();
+
+  if (meta && meta.type === 'table') {
+    // The old physical table may predate later ALTER-added columns on a DB that never
+    // logged a failure under recent code — add them (guarded) so the backfill SELECT resolves.
+    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_photo_mismatch TEXT").run(); } catch {}
+    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_no_btag TEXT").run(); } catch {}
+    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN visit_id TEXT").run(); } catch {}
+    // Lossless backfill of historic rejections (goldrush_id -> identifier_value), then retire
+    // the old physical table so the compat view can take its name.
+    await db.prepare(`INSERT OR IGNORE INTO capture_failures
+      (id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name,
+       first_name, last_name, id_number, identifier_value, phone, error_id_number,
+       error_goldrush_id, error_photo_mismatch, error_no_btag, visit_id, visit_date, created_at)
+      SELECT id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name,
+       first_name, last_name, id_number, goldrush_id, phone, error_id_number,
+       error_goldrush_id, error_photo_mismatch, error_no_btag, visit_id, visit_date, created_at
+      FROM goldrush_upload_failures`).run();
+    await db.prepare("DROP TABLE goldrush_upload_failures").run();
+  }
+
+  // Compat view: every legacy read of `goldrush_upload_failures` keeps working; the renamed
+  // identifier_value column is re-exposed under its old name `goldrush_id`.
+  await db.prepare(
+    "CREATE VIEW IF NOT EXISTS goldrush_upload_failures AS SELECT *, identifier_value AS goldrush_id FROM capture_failures"
+  ).run();
+}
+
 // Create visit with full workflow data (individual or store)
 api.post('/visits/workflow', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -9152,10 +9196,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
           // Defer the DB log until after the visit is created so we can store visit_id
           logGoldrushFailure = async (createdVisitId) => {
             try {
-              await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, error_photo_mismatch TEXT, error_no_btag TEXT, visit_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
-              try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_photo_mismatch TEXT").run(); } catch {}
-              try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_no_btag TEXT").run(); } catch {}
-              try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN visit_id TEXT").run(); } catch {}
+              await ensureCaptureFailures(db);
               const agentRow = await db.prepare('SELECT first_name, last_name, team_lead_id FROM users WHERE id = ?').bind(body.agent_id || userId).first();
               let tlName = null, tlId = agentRow?.team_lead_id || null;
               if (tlId) {
@@ -9163,7 +9204,7 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
                 if (tlRow) tlName = `${tlRow.first_name} ${tlRow.last_name}`;
               }
               const agentName = agentRow ? `${agentRow.first_name} ${agentRow.last_name}` : null;
-              await db.prepare('INSERT INTO goldrush_upload_failures (id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name, first_name, last_name, id_number, goldrush_id, phone, error_id_number, error_goldrush_id, error_photo_mismatch, error_no_btag, visit_id, visit_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))').bind(
+              await db.prepare('INSERT INTO capture_failures (id, tenant_id, company_id, agent_id, agent_name, team_lead_id, team_lead_name, first_name, last_name, id_number, identifier_value, phone, error_id_number, error_goldrush_id, error_photo_mismatch, error_no_btag, visit_id, visit_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime("now"))').bind(
                 crypto.randomUUID(), tenantId, checkCompanyId,
                 body.agent_id || userId, agentName, tlId, tlName,
                 body.individual_first_name || null, body.individual_last_name || null,
@@ -17979,10 +18020,7 @@ api.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
     else if (hasEnd) { dateFilter = ' AND visit_date <= ?'; binds.push(endDate); }
 
     // Ensure table exists with all columns (in case migration hasn't run yet)
-    await db.prepare("CREATE TABLE IF NOT EXISTS goldrush_upload_failures (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT, agent_id TEXT, agent_name TEXT, team_lead_id TEXT, team_lead_name TEXT, first_name TEXT, last_name TEXT, id_number TEXT, goldrush_id TEXT, phone TEXT, error_id_number TEXT, error_goldrush_id TEXT, error_photo_mismatch TEXT, error_no_btag TEXT, visit_id TEXT, visit_date TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
-    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_photo_mismatch TEXT").run(); } catch {}
-    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN error_no_btag TEXT").run(); } catch {}
-    try { await db.prepare("ALTER TABLE goldrush_upload_failures ADD COLUMN visit_id TEXT").run(); } catch {}
+    await ensureCaptureFailures(db);
 
     const result = await db.prepare(`
       SELECT guf.id, guf.visit_id, guf.visit_date, guf.first_name, guf.last_name, guf.id_number, guf.goldrush_id, guf.phone,
