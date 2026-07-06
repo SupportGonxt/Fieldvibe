@@ -6,6 +6,7 @@
  */
 import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
+import { DEFAULT_CAPTURE_CONFIG } from '../../services/programConfig.js';
 
 // ---- Reusable resolvers (imported by other services) ----
 export async function getConfig(db, tenantId, companyId, key) {
@@ -147,6 +148,8 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
     ],
     salaries: { manager: 0, bo: 0, gm: 0 },
     leaderboard_visible: true,
+    // Inert capture-flag defaults (convergence): goldrush becomes config, not code.
+    ...DEFAULT_CAPTURE_CONFIG,
   };
   for (const [key, value] of Object.entries(configDefaults)) {
     const exists = await db.prepare(
