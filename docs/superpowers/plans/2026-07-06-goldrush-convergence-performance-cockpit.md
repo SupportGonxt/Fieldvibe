@@ -12,7 +12,7 @@
 
 - **NO PROD CUTOVER without explicit user go-ahead.** "Complete build" = build + `npm run test:pure` green + `cd frontend && npm run build` green + deploy to `dev` ONLY. STOP before: prod D1 (`fieldvibe-db`) migration, `dev`→`main` merge, prod VAPID secret. Copied verbatim from standing instruction.
 - **Every new test file MUST be appended to the explicit include array** in `workers-api/tests/unit/vitest.node.config.js` — it uses no glob. A test not in the array does not run.
-- **VAPID private key is PREVIEW-only** (`jcYEmtMBnOxn8TLxFdxzeYZDnehvsC1VnKXKgtF3iDQ`). Never commit/hardcode. Tests generate ephemeral P-256 keypairs (pattern in `webPushVapid.test.js`).
+- **VAPID private key is PREVIEW-only** (`<VAPID_PRIVATE_KEY — preview-only, set via wrangler secret>`). Never commit/hardcode. Tests generate ephemeral P-256 keypairs (pattern in `webPushVapid.test.js`).
 - **Role vocabulary (actual `users.role` values):** `agent`, `field_agent`, `sales_rep` (all field-agent tier), `team_lead`, `manager` (area/regional), `general_manager`, `backoffice_admin`, `admin`, `super_admin`, `viewer`. KPI config keys: `kpi.agent`, `kpi.team_lead`, `kpi.manager`, `kpi.general_manager`.
 - **GM web surface = Overview tile + digest only.** Digest targets all `general_manager` users in the tenant.
 - **`getConfig` resolver** (`workers-api/src/routes/field-ops/config.js`) is the ONLY sanctioned way to read `program_config`. Company row wins over tenant-default (`company_id IS NULL`). Returns parsed JSON or `null`.

@@ -25,7 +25,8 @@ async function dailyRows(db, tenantId, agentId, sinceDate) {
             SUM(CASE WHEN JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 THEN 1 ELSE 0 END) qualified
      FROM visits v LEFT JOIN visit_individuals vi ON vi.visit_id=v.id
      WHERE v.tenant_id=? AND v.agent_id=? AND v.visit_date>=? AND v.status='completed'
-     GROUP BY v.visit_date`
+     GROUP BY v.visit_date
+     ORDER BY v.visit_date`
   ).bind(tenantId, agentId, sinceDate).all()).results ?? [];
 }
 

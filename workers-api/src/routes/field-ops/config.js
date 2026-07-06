@@ -152,14 +152,13 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
     ...DEFAULT_CAPTURE_CONFIG,
   };
   for (const [key, value] of Object.entries(configDefaults)) {
-    const exists = await db.prepare(
-      `SELECT id FROM program_config WHERE tenant_id = ? AND key = ? AND ${companyId === null ? 'company_id IS NULL' : 'company_id = ?'}`
-    ).bind(...(companyId === null ? [tenantId, key] : [tenantId, key, companyId])).first();
-    if (!exists) {
-      await db.prepare(
-        `INSERT INTO program_config (id, tenant_id, company_id, key, value_json) VALUES (?, ?, ?, ?, ?)`
-      ).bind(crypto.randomUUID(), tenantId, companyId, key, JSON.stringify(value)).run();
-    }
+    // ponytail: insert-once semantics — ON CONFLICT on the real business key
+    // (tenant_id, company_id, key) replaces the racy exists-check+insert, and
+    // converges with the migration bridge's company-scoped rows on that same tuple.
+    await db.prepare(
+      `INSERT INTO program_config (id, tenant_id, company_id, key, value_json) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(tenant_id, company_id, key) DO NOTHING`
+    ).bind(crypto.randomUUID(), tenantId, companyId, key, JSON.stringify(value)).run();
   }
 
   // Cockpit: per-role KPI threshold defaults (tenant-level; company overrides via PUT /config).

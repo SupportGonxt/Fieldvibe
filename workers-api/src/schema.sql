@@ -2170,6 +2170,10 @@ CREATE TABLE IF NOT EXISTS goldrush_imports (
 
 CREATE INDEX IF NOT EXISTS idx_incentive_scales_lookup ON incentive_scales(tenant_id, company_id, role, active);
 CREATE INDEX IF NOT EXISTS idx_program_config_lookup ON program_config(tenant_id, company_id, key);
+-- ponytail: NULLs are distinct in a UNIQUE index, so tenant-level rows (company_id NULL) aren't
+-- deduped here — that's fine, they use deterministic id `pc-default-${key}` + INSERT OR IGNORE
+-- already. This index closes the company-scoped duplicate path between the two program_config writers.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_program_config_uniq ON program_config(tenant_id, company_id, key);
 CREATE INDEX IF NOT EXISTS idx_inactivity_open ON inactivity_events(tenant_id, resolved_at);
 CREATE INDEX IF NOT EXISTS idx_data_calls_target ON data_calls(tenant_id, target_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_training_days_lookup ON training_days(tenant_id, user_id, date);

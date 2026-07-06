@@ -78,9 +78,13 @@ export async function run({ db, tenantId, companyId, dryRun = true }) {
   // 3. Apply config + normalized answers (upsert).
   for (const e of cfg.entries) {
     await db.prepare(
+      // ponytail: two ON CONFLICT targets — id (this writer re-run) and the real
+      // business key (tenant_id, company_id, key), so it converges with seed-defaults'
+      // company-scoped rows which use a different id namespace for the same tuple.
       `INSERT INTO program_config (id, tenant_id, company_id, key, value_json)
        VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET value_json=excluded.value_json`
+       ON CONFLICT(id) DO UPDATE SET value_json=excluded.value_json
+       ON CONFLICT(tenant_id, company_id, key) DO UPDATE SET value_json=excluded.value_json`
     ).bind(`pc-${companyId}-${e.key}`, tenantId, companyId, e.key, e.value_json).run();
   }
   for (const u of updates) {

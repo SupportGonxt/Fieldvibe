@@ -22,7 +22,7 @@ type Actual = {
 type Signal = { type: string; detail: any }
 type RosterAgent = { agentId: string; name: string; actual: Actual; signals: Signal[] }
 
-const LEADER_ROLES = ['team_lead', 'manager', 'admin', 'super_admin']
+const LEADER_ROLES = ['team_lead', 'manager', 'general_manager', 'admin', 'super_admin']
 
 function signalText(s: Signal): string {
   switch (s.type) {
