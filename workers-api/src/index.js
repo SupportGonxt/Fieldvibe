@@ -7,7 +7,9 @@ import { validate, loginSchema, registerSchema, createUserSchema, updateUserSche
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 import incentiveRoutes from './routes/field-ops/incentives.js';
+import callRoutes from './routes/field-ops/calls.js';
 import { dueEscalation } from './services/incentiveService.js';
+export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
 
@@ -20754,6 +20756,7 @@ app.get('/api/uploads/:key{.+}', async (c) => {
 api.route('/field-ops', configRoutes);
 api.route('/field-ops', hierarchyRoutes);
 api.route('/field-ops', incentiveRoutes);
+api.route('/field-ops', callRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
