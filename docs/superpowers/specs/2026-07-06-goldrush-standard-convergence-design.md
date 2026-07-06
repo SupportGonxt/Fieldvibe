@@ -1,20 +1,21 @@
-# Goldrush → Standard Convergence — Design
+# Goldrush → Standard Convergence + Performance Cockpit — Design
 
 **Date:** 2026-07-06
-**Status:** Approved (sections 1–5), ready for implementation plan
-**Initiative:** Role-based performance management (Spec 1 of 2). Spec 2 = Performance cockpit, built after this.
+**Status:** Approved (sections 1–7), ready for implementation plan
+**Initiative:** Role-based performance management. One build, two halves: (§1–§5) converge goldrush into the standard config-driven model losslessly; (§6–§7) the performance cockpit — role KPIs, 4 underperformance signals, one-tap remediation — riding the same config foundation.
 
 ## Goal
 
-Retire goldrush as a hardcoded exception. Make it one company whose behavior is entirely described by per-company **config + survey + process flow** rows — no `name LIKE '%goldrush%'` gates anywhere. Collapse three parallel question systems into one. Migrate all history into the canonical layout losslessly, with money-safe before/after assertions as the gate.
+Retire goldrush as a hardcoded exception. Make it one company whose behavior is entirely described by per-company **config + survey + process flow** rows — no `name LIKE '%goldrush%'` gates anywhere. Collapse three parallel question systems into one. Migrate all history into the canonical layout losslessly, with money-safe before/after assertions as the gate. On that same `program_config` foundation, add a per-role performance cockpit that reads the normalized data and drives remediation.
 
 ## North star
 
-"Fit the standard" — goldrush conforms to the standard model, not the reverse. "Don't lose any insights" — every existing goldrush report, question, and commission number survives, reproducible for any company from the admin UI with zero code.
+"Fit the standard" — goldrush conforms to the standard model, not the reverse. "Don't lose any insights" — every existing goldrush report, question, and commission number survives, reproducible for any company from the admin UI with zero code. The cockpit measures every role off that same normalized data — no parallel metrics store.
 
 ## Non-goals
 
-- Spec 2 (performance cockpit / KPIs / underperformance signals) — separate spec.
+- A separate metrics/event pipeline. KPIs aggregate on read from existing `visits`/`visit_individuals`; a rollup table is added only if query latency demands it (§6A).
+- Per-agent target overrides. Thresholds are per-role within a company (§6A) — no individual bars.
 - Prod cutover. Ships to `dev` only. Migration on prod D1 (`fieldvibe-db`) + `dev`→`main` runs **only on explicit user go-ahead** (same rule as the voice-call feature).
 
 ---
@@ -167,6 +168,50 @@ Money-critical, so verification is the spine.
 
 ---
 
+## Section 6 — Performance cockpit (role KPIs, signals, remediation)
+
+Built in the same PR chain, on the same `program_config` foundation. Reads the §2-normalized data. No parallel metrics store.
+
+**6A. Data model — aggregate on read.**
+KPIs derive from existing tables: `visits` (activity/quiet), `visit_individuals` (signups, `consumer_converted` → conversion, `verification_status` → qualified). No event store, no ETL.
+Targets + thresholds live in `program_config`, **keyed per role within a company** — `kpi.field_agent`, `kpi.team_leader`, `kpi.area_manager`, `kpi.general_manager`. `value_json = { signups_per_day, conversion_floor_pct, drop_pct, quiet_days, baseline_window_days }`. Same table + company-override-wins (`getConfig`, `config.js:11-18`) convergence already uses. Absent role config = that role has no cockpit thresholds (feature off for them).
+`ponytail:` aggregate-on-query; add a nightly rollup table only if query latency bites — do NOT build it up front.
+
+**6B. The four signals (per agent, per day).**
+1. **Below target** — `signups_today < target.signups_per_day`.
+2. **Dropped vs baseline** — trailing avg is > `drop_pct` below the agent's *own* baseline (prior `baseline_window_days`-day average). Self-relative — no manual absolute.
+3. **Gone quiet** — zero `visits` rows in the last `quiet_days` days.
+4. **Low conversion** — conversion rate < `conversion_floor_pct` over the trailing window.
+Each signal is a pure function of (agent's rows, role config) — unit-testable in node env, no DB.
+
+**6C. Surfaces (all four roles).**
+- **Field agent** — mobile `/agent` self-view: own 4 KPIs vs target (ring/bar). No roster.
+- **Team leader** — mobile + desktop: roster of their agents, signal badges per row; tap a flagged agent → remediation sheet.
+- **Area/regional manager** — mobile + desktop: team rollup, drill into any agent.
+- **General manager** — web Overview tile + existing digest (all `general_manager` in tenant). GM-web-Overview-only rule preserved; no new GM web surface.
+Hierarchy roll-up reuses the existing field hierarchy (agent → team leader → area manager). No new org structure.
+
+**6D. Remediation (one tap on a flagged agent).**
+- **Call** — launches the in-app voice call already shipped (Phases A–D). Cockpit row → call that agent.
+- **Nudge** — web-push via existing `src/lib/web-push.js`; preset message ("below target today") or typed. Ephemeral VAPID in tests, never the real key.
+- **Coaching note** — new `coaching_notes` table: `id, tenant_id, company_id, manager_id, agent_id, signal_type, action, note, created_at`. Only genuinely new persisted data in §6; starts empty. Makes repeat cases visible and the intervention auditable.
+No per-agent target write (thresholds are per-role, §6A).
+
+**6E. Historic data — baselines come free.**
+No separate KPI migration. Signals read the same `visits`/`visit_individuals` rows §2 normalizes, so **baselines backfill automatically from history** — day-one baselines are real, no cold-start. `coaching_notes` starts empty (nothing to migrate). The §2c money-gate already asserts signup/qualified/converted counts are unchanged, which are the same counts the KPIs sum — so KPI correctness rides the existing gate.
+
+## Section 7 — Cockpit testing
+
+Pure-function-first, same node-env harness (append each new file to `vitest.node.config.js` — explicit include, not a glob).
+
+- **Signal functions** — each of the four signals: fires exactly at the threshold boundary, silent below it; `dropped-vs-baseline` uses the agent's own trailing window, not a global; empty history → no false signal.
+- **Role config resolver** — `kpi.<role>` lookup; company-override-wins; absent role config → cockpit off for that role (no crash, no default bar).
+- **KPI aggregation** — signups/qualified/converted counts over a fixture set match the pre-migration totals the §2c gate asserts (shared fixture — one source of truth for "the numbers").
+- **Remediation wiring** — call target resolves to the agent's call identity; nudge builds a valid web-push payload with an ephemeral VAPID key; coaching-note insert round-trips.
+- **Rollout** — cockpit ships behind role config, so a company with no `kpi.*` rows sees today's app unchanged. Same `dev`-first, no-autonomous-prod rule as §5.
+
+---
+
 ## Files touched (map for the plan)
 
 **Backend (`workers-api/src/`):**
@@ -184,4 +229,16 @@ Money-critical, so verification is the spine.
 - `pages/field-operations/reports/` — retire `Goldrush*.tsx`; unified reports gain company filter + config columns.
 - `App.tsx`, `config/navigation.ts`, `components/navigation/Breadcrumbs.tsx` — re-point routing.
 
-**Tests (`workers-api/tests/unit/`):** new files per Section 5, each appended to `vitest.node.config.js`.
+**Cockpit backend (`workers-api/src/`):**
+- New `routes/field-ops/kpi.js` — KPI aggregation + signal endpoints (roster for a manager, self-view for an agent), reading `visits`/`visit_individuals`.
+- New pure module `services/kpiSignals.js` — the four signal functions (no DB), imported by the route and by tests.
+- `routes/field-ops/config.js` — `kpi.<role>` config keys documented/seeded.
+- `schema.sql` + `database/schema.js` — new `coaching_notes` table.
+- Remediation reuses existing `durable/CallRoom.js` (call) + `lib/web-push.js` (nudge) — no new infra.
+
+**Cockpit frontend (`frontend/src/`):**
+- `pages/agent/` — agent self-view KPI card; manager roster + remediation sheet (mobile).
+- `pages/field-operations/` — manager roster/drill-down (desktop); GM Overview tile.
+- Reuse existing voice-call launch component for the Call action.
+
+**Tests (`workers-api/tests/unit/`):** new files per Sections 5 and 7, each appended to `vitest.node.config.js`.
