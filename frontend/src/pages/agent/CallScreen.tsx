@@ -29,9 +29,12 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   const location = useLocation()
   const nav = (location.state || {}) as NavState
 
-  const callId = incoming ? nav.callId! : params.callId!
+  // Push-opened windows (app was closed) carry callId/peerName in the query
+  // string, not nav state — fall back to those.
+  const query = new URLSearchParams(location.search)
+  const callId = incoming ? (nav.callId || query.get('callId') || '') : params.callId!
   const iceServers = nav.iceServers || [{ urls: 'stun:stun.l.google.com:19302' }]
-  const peerName = nav.peerName || (incoming ? 'Incoming call' : 'Calling')
+  const peerName = nav.peerName || query.get('callerName') || (incoming ? 'Incoming call' : 'Calling')
 
   const [state, setState] = useState<CallState>('connecting')
   const [muted, setMuted] = useState(false)

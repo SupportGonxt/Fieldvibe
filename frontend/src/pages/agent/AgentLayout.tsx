@@ -4,6 +4,7 @@ import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, Phone
 import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
 import { apiClient } from '../../services/api.service'
+import { ensurePushSubscription } from '../../services/push'
 
 // Poll for a ringing call aimed at this user. Call screens render outside this
 // layout, so AgentLayout unmounts during a call and polling pauses on its own.
@@ -24,7 +25,25 @@ function useIncomingCallPoll() {
       } catch { /* offline / transient — try again next tick */ }
     }
     const id = setInterval(tick, 5000)
-    return () => { active = false; clearInterval(id) }
+
+    // Web Push: subscribe once (best-effort) and route SW notificationclick
+    // messages straight to the call screen when the PWA is already open.
+    ensurePushSubscription()
+    const onSwMessage = (ev: MessageEvent) => {
+      const d = ev.data
+      if (d?.type === 'incoming_call' && d.callId) {
+        navigate('/agent/call/incoming', {
+          state: { callId: d.callId, peerName: d.callerName },
+        })
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', onSwMessage)
+
+    return () => {
+      active = false
+      clearInterval(id)
+      navigator.serviceWorker?.removeEventListener('message', onSwMessage)
+    }
   }, [navigate])
 }
 

@@ -7,6 +7,7 @@
  */
 import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
+import { sendPush } from '../../lib/web-push.js';
 
 const app = new Hono();
 
@@ -91,9 +92,41 @@ app.post('/calls/start', boOnly, async (c) => {
      VALUES (?, ?, ?, ?, ?, 'ringing', ?, ?)`
   ).bind(callId, tenantId, body.company_id ?? null, callerId, calleeId, now, now).run();
 
-  // ponytail: Web Push ring is Phase C; Phase A returns the call handle only.
+  // Ring the callee's devices via Web Push. Fire-and-forget: a push failure
+  // must not fail the call — the caller still opens the room; the agent just
+  // doesn't ring unless their app is already open (poller fallback covers it).
+  const callerName = await callerDisplayName(db, tenantId, callerId);
+  ringCallee(c, tenantId, calleeId, callId, callerName);
+
   return c.json({ success: true, callId, iceServers: await iceServers(c.env) });
 });
+
+async function callerDisplayName(db, tenantId, callerId) {
+  const u = await db.prepare(
+    `SELECT first_name || ' ' || last_name AS name FROM users WHERE id = ? AND tenant_id = ?`
+  ).bind(callerId, tenantId).first();
+  return (u?.name || '').trim() || 'Back office';
+}
+
+// Best-effort push ring to every subscription the callee has registered.
+// Prunes subscriptions the push service reports gone (404/410).
+async function ringCallee(c, tenantId, calleeId, callId, callerName) {
+  const db = c.env.DB;
+  const subs = await db.prepare(
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
+  ).bind(tenantId, calleeId).all();
+  const rows = subs.results || [];
+  if (!rows.length) return;
+  const payload = { type: 'incoming_call', callId, callerName };
+  const work = Promise.all(rows.map(async (sub) => {
+    const r = await sendPush(c.env, sub, payload);
+    if (r && (r.status === 404 || r.status === 410)) {
+      await db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(sub.endpoint).run();
+    }
+  }));
+  // Keep the worker alive for the pushes without blocking the response.
+  if (c.executionCtx?.waitUntil) c.executionCtx.waitUntil(work); else await work;
+}
 
 app.post('/calls/:id/answer', async (c) => {
   const db = c.env.DB;
