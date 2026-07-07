@@ -1,55 +1,62 @@
 /**
- * Incentive engine tier logic — the money-critical step function.
- * tierAmount pays the highest tier whose min <= avg; nextTier is the one above.
+ * Incentive engine two-gate tier logic — the money-critical step function.
+ * A tier pays only when BOTH gates clear: avgSignups >= t.signups AND avgDeposits >= t.deposits.
+ * The tier reached is min(signup_tier, deposit_tier) — the lower gate governs.
  */
 import { describe, it, expect } from 'vitest';
-import { tierAmount, nextTier, extractGoldrushIds, dueEscalation } from '../../src/services/incentiveService.js';
+import { tierFor, nextGate, extractGoldrushIds, dueEscalation } from '../../src/services/incentiveService.js';
 
-// Default Goldrush scale: avg>=20 -> 3500, >=15 -> 2500, >=10 -> 2000, else 0.
+// Governing Goldrush agent/team-lead scale (per working day).
 const TIERS = [
-  { min: 10, amount: 2000 },
-  { min: 15, amount: 2500 },
-  { min: 20, amount: 3500 },
+  { signups: 8,  deposits: 5,  amount: 1500 },
+  { signups: 10, deposits: 8,  amount: 2500 },
+  { signups: 15, deposits: 10, amount: 3500 },
+  { signups: 20, deposits: 15, amount: 4500 },
 ];
 
-describe('tierAmount', () => {
-  it('pays 0 below the lowest tier', () => {
-    expect(tierAmount(TIERS, 0)).toBe(0);
-    expect(tierAmount(TIERS, 9.9)).toBe(0);
+describe('tierFor', () => {
+  it('pays 0 below the lowest gate', () => {
+    expect(tierFor(TIERS, 0, 0)).toBe(0);
+    expect(tierFor(TIERS, 7.9, 5)).toBe(0);   // signups short
+    expect(tierFor(TIERS, 8, 4.9)).toBe(0);   // deposits short
   });
 
-  it('pays each tier at its exact boundary', () => {
-    expect(tierAmount(TIERS, 10)).toBe(2000);
-    expect(tierAmount(TIERS, 15)).toBe(2500);
-    expect(tierAmount(TIERS, 20)).toBe(3500);
+  it('pays the tier where both gates clear at the exact boundary', () => {
+    expect(tierFor(TIERS, 8, 5)).toBe(1500);
+    expect(tierFor(TIERS, 10, 8)).toBe(2500);
+    expect(tierFor(TIERS, 15, 10)).toBe(3500);
+    expect(tierFor(TIERS, 20, 15)).toBe(4500);
   });
 
-  it('pays the highest tier reached between boundaries', () => {
-    expect(tierAmount(TIERS, 14.9)).toBe(2000);
-    expect(tierAmount(TIERS, 19.9)).toBe(2500);
-    expect(tierAmount(TIERS, 100)).toBe(3500);
+  it('the lower gate governs: min(signup_tier, deposit_tier)', () => {
+    // Signups reach R4500 but deposits only clear the R1500 gate -> R1500.
+    expect(tierFor(TIERS, 20, 5)).toBe(1500);
+    // Signups clear R3500 gate, deposits clear R2500 gate -> R2500.
+    expect(tierFor(TIERS, 15, 8)).toBe(2500);
+    // Deposits reach top but signups only clear R1500 -> R1500.
+    expect(tierFor(TIERS, 8, 15)).toBe(1500);
   });
 
   it('handles empty / missing tiers as 0', () => {
-    expect(tierAmount([], 50)).toBe(0);
-    expect(tierAmount(undefined, 50)).toBe(0);
+    expect(tierFor([], 50, 50)).toBe(0);
+    expect(tierFor(undefined, 50, 50)).toBe(0);
   });
 });
 
-describe('nextTier', () => {
-  it('returns the next tier up from the current avg', () => {
-    expect(nextTier(TIERS, 0)).toEqual({ min: 10, amount: 2000 });
-    expect(nextTier(TIERS, 12)).toEqual({ min: 15, amount: 2500 });
-    expect(nextTier(TIERS, 17)).toEqual({ min: 20, amount: 3500 });
+describe('nextGate', () => {
+  it('returns the next unreached tier with the shortfall on each gate', () => {
+    expect(nextGate(TIERS, 0, 0)).toMatchObject({ amount: 1500, needSignups: 8, needDeposits: 5 });
+    expect(nextGate(TIERS, 8, 5)).toMatchObject({ amount: 2500, needSignups: 2, needDeposits: 3 });
   });
 
-  it('returns null once at or above the top tier', () => {
-    expect(nextTier(TIERS, 20)).toBeNull();
-    expect(nextTier(TIERS, 25)).toBeNull();
+  it('a met gate reports 0 shortfall on that axis', () => {
+    // Already at R1500; next is R2500 (needs 10/8). Signups 12 covers it, deposits 6 short by 2.
+    expect(nextGate(TIERS, 12, 6)).toMatchObject({ amount: 2500, needSignups: 0, needDeposits: 2 });
   });
 
-  it('at an exact boundary, points to the tier above (not the current one)', () => {
-    expect(nextTier(TIERS, 10)).toEqual({ min: 15, amount: 2500 });
+  it('returns null once the top tier is reached', () => {
+    expect(nextGate(TIERS, 20, 15)).toBeNull();
+    expect(nextGate(TIERS, 25, 20)).toBeNull();
   });
 });
 

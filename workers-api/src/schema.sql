@@ -2168,6 +2168,20 @@ CREATE TABLE IF NOT EXISTS goldrush_imports (
   FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
+-- Phase A: BackOffice-confirmed Goldrush deposits. One authoritative row per goldrush_id
+-- (the bank confirmed a real deposit). The two-gate incentive engine reads this to count
+-- an agent's deposits — separate from the self-reported consumer_converted flag.
+CREATE TABLE IF NOT EXISTS goldrush_deposits (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT,
+  goldrush_id TEXT NOT NULL, deposit_date TEXT, amount REAL,
+  source_batch TEXT, uploaded_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+-- A goldrush_id deposits once per tenant; re-upload is idempotent (INSERT OR IGNORE).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_goldrush_deposits_uniq ON goldrush_deposits(tenant_id, goldrush_id);
+CREATE INDEX IF NOT EXISTS idx_goldrush_deposits_batch ON goldrush_deposits(tenant_id, source_batch);
+
 CREATE INDEX IF NOT EXISTS idx_incentive_scales_lookup ON incentive_scales(tenant_id, company_id, role, active);
 CREATE INDEX IF NOT EXISTS idx_program_config_lookup ON program_config(tenant_id, company_id, key);
 -- ponytail: NULLs are distinct in a UNIQUE index, so tenant-level rows (company_id NULL) aren't

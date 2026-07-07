@@ -96,11 +96,15 @@ app.get('/incentives/hero', async (c) => {
       week: weekRow?.c || 0,
       month: inc.count,
       converted: inc.converted,
-      provisionalAvg: inc.provisionalAvg,
+      deposits: inc.deposits,
+      provisionalSignups: inc.provisionalSignups, // avg signups/day
+      provisionalDeposits: inc.provisionalDeposits, // avg deposits/day
       provisionalPace: inc.provisionalPace, // R on track at current pace
       payable: inc.payable,                 // R already qualified
-      nextTier: next,                        // { min, amount } | null
-      toNextTier: next ? round1(next.min - inc.provisionalAvg) : null, // avg/day gap to next tier
+      baseSalary: inc.baseSalary,
+      nextTier: next,                        // { signups, deposits, amount, needSignups, needDeposits } | null
+      toNextSignups: next ? round1(next.needSignups) : null, // avg/day signup gap to next tier
+      toNextDeposits: next ? round1(next.needDeposits) : null, // avg/day deposit gap to next tier
       rank,
       totalPeers,
     },

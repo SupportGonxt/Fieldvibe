@@ -9,11 +9,13 @@
 import { getScale, getConfig } from '../routes/field-ops/config.js';
 import { subtreeAgentIds } from './hierarchyService.js';
 
-// Highest tier whose min <= value, else 0.
-export function tierAmount(tiers, value) {
+// Two-gate tier: highest-amount tier where BOTH gates clear
+// (avgSignups >= t.signups AND avgDeposits >= t.deposits), else 0. Because gate
+// thresholds rise with amount, this naturally yields min(signup_tier, deposit_tier).
+export function tierFor(tiers, avgSignups, avgDeposits) {
   return (tiers || [])
-    .filter((t) => value >= t.min)
-    .sort((a, b) => b.min - a.min)[0]?.amount ?? 0;
+    .filter((t) => avgSignups >= t.signups && avgDeposits >= t.deposits)
+    .sort((a, b) => b.amount - a.amount)[0]?.amount ?? 0;
 }
 
 // Reconciliation upload → deduped list of 9-digit Goldrush IDs. Accepts an explicit
@@ -43,11 +45,18 @@ export function dueEscalation(steps, excessMin) {
     .sort((a, b) => Number(b.after_min) - Number(a.after_min))[0] ?? null;
 }
 
-// Next tier above the current value → { min, amount } or null if already top.
-export function nextTier(tiers, value) {
-  return (tiers || [])
-    .filter((t) => t.min > value)
-    .sort((a, b) => a.min - b.min)[0] ?? null;
+// Next unreached tier → the tier itself plus the shortfall on each gate
+// (needSignups/needDeposits, 0 on an already-met gate), or null if top reached.
+export function nextGate(tiers, avgSignups, avgDeposits) {
+  const t = (tiers || [])
+    .filter((x) => !(avgSignups >= x.signups && avgDeposits >= x.deposits))
+    .sort((a, b) => a.amount - b.amount)[0];
+  if (!t) return null;
+  return {
+    ...t,
+    needSignups: Math.max(0, t.signups - avgSignups),
+    needDeposits: Math.max(0, t.deposits - avgDeposits),
+  };
 }
 
 // period 'YYYY-MM' (defaults handled by caller). Returns {start, end} ISO dates.
@@ -107,38 +116,47 @@ export async function agentCount(db, tenantId, agentId, period, status) {
   const { start, end } = monthBounds(period);
   let statusClause = "AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'";
   if (status === 'qualified') statusClause = "AND json_extract(vi.custom_field_values,'$.verification_status') = 'qualified'";
+  // deposits = period signups whose canonical goldrush id has a BackOffice-confirmed
+  // goldrush_deposits row. Canonical id: new capture writes goldrush_id_entry, legacy goldrush_id.
   const row = await db.prepare(
     `SELECT COUNT(*) c,
-            SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) converted
+            SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) converted,
+            SUM(CASE WHEN gd.id IS NOT NULL THEN 1 ELSE 0 END) deposits
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     LEFT JOIN goldrush_deposits gd ON gd.tenant_id = v.tenant_id
+       AND gd.goldrush_id = COALESCE(json_extract(vi.custom_field_values,'$.goldrush_id_entry'), json_extract(vi.custom_field_values,'$.goldrush_id'))
      WHERE v.tenant_id = ? AND v.agent_id = ?
        AND vi.created_at >= ? AND vi.created_at < ? ${statusClause}`
   ).bind(tenantId, agentId, start, end).first();
-  return { count: row?.c || 0, converted: row?.converted || 0 };
+  return { count: row?.c || 0, converted: row?.converted || 0, deposits: row?.deposits || 0 };
 }
 
-// Agent metric: {count, converted, avg} — avg = count / working days elapsed.
+// Agent metric: signups & deposits, each averaged per working day elapsed.
+// avg === avgSignups (kept for callers that read .avg as the signup pace).
 export async function agentMetric(db, tenantId, companyId, agentId, period, asOf, status) {
-  const [{ count, converted }, wd] = await Promise.all([
+  const [{ count, converted, deposits }, wd] = await Promise.all([
     agentCount(db, tenantId, agentId, period, status),
     workingDaysElapsed(db, tenantId, companyId, period, asOf),
   ]);
-  return { count, converted, avg: count / wd, workingDays: wd };
+  return { count, converted, deposits, avg: count / wd, avgSignups: count / wd, avgDeposits: deposits / wd, workingDays: wd };
 }
 
-// Team metric: mean of member agent avgs (each agent's own count/workingDays).
+// Team metric: mean of member agent avgs (each agent's own count/workingDays), both gates.
 export async function teamMetric(db, tenantId, companyId, userId, role, period, asOf, status) {
   const agentIds = await subtreeAgentIds(db, tenantId, userId, role);
-  if (!agentIds.length) return { avg: 0, count: 0, converted: 0, agents: 0 };
+  if (!agentIds.length) return { avg: 0, avgSignups: 0, avgDeposits: 0, count: 0, converted: 0, deposits: 0, agents: 0 };
   const wd = await workingDaysElapsed(db, tenantId, companyId, period, asOf);
-  let sumAvg = 0, totCount = 0, totConv = 0;
+  let sumSignups = 0, sumDeposits = 0, totCount = 0, totConv = 0, totDep = 0;
   for (const id of agentIds) {
-    const { count, converted } = await agentCount(db, tenantId, id, period, status);
-    sumAvg += count / wd;
+    const { count, converted, deposits } = await agentCount(db, tenantId, id, period, status);
+    sumSignups += count / wd;
+    sumDeposits += deposits / wd;
     totCount += count;
     totConv += converted;
+    totDep += deposits;
   }
-  return { avg: sumAvg / agentIds.length, count: totCount, converted: totConv, agents: agentIds.length };
+  const n = agentIds.length;
+  return { avg: sumSignups / n, avgSignups: sumSignups / n, avgDeposits: sumDeposits / n, count: totCount, converted: totConv, deposits: totDep, agents: n };
 }
 
 // Full incentive for a user (agent uses own metric; team roles use team avg).
@@ -156,18 +174,27 @@ export async function computeIncentive(db, tenantId, companyId, userId, role, pe
     : await teamMetric(db, tenantId, companyId, userId, role, period, asOf, 'qualified');
 
   const wdMonth = await workingDaysInMonth(db, tenantId, companyId, period);
-  const projectedAvg = provisional.avg; // pace already normalised per working day
+  // Below the lowest gate the earner still gets a configurable per-role base salary.
+  const bases = (await getConfig(db, tenantId, companyId, 'role_base_salary')) || {};
+  const baseKey = isAgent ? 'agent' : role === 'manager' ? 'manager' : 'team_lead';
+  const base = Number(bases[baseKey]) || 0;
+  const withBase = (amt) => Math.max(amt, base);
+
   return {
     period,
     role,
-    metricValue: round1(qualified.avg),
-    provisionalAvg: round1(provisional.avg),
+    metricSignups: round1(qualified.avgSignups),
+    metricDeposits: round1(qualified.avgDeposits),
+    provisionalSignups: round1(provisional.avgSignups),
+    provisionalDeposits: round1(provisional.avgDeposits),
     count: provisional.count,
     converted: provisional.converted,
+    deposits: provisional.deposits,
     workingDaysInMonth: wdMonth,
-    payable: tierAmount(tiers, qualified.avg),        // paid on reconciled/qualified only
-    provisionalPace: tierAmount(tiers, projectedAvg), // on-track amount at current pace
-    nextTier: nextTier(tiers, provisional.avg),
+    baseSalary: base,
+    payable: withBase(tierFor(tiers, qualified.avgSignups, qualified.avgDeposits)),        // paid on reconciled/qualified only
+    provisionalPace: withBase(tierFor(tiers, provisional.avgSignups, provisional.avgDeposits)), // on-track at current pace
+    nextTier: nextGate(tiers, provisional.avgSignups, provisional.avgDeposits),
     tiers,
   };
 }

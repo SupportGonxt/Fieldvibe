@@ -112,15 +112,26 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const companyId = body.company_id ?? null;
 
-  const signupTiers = [
-    { min: 10, amount: 2000 },
-    { min: 15, amount: 2500 },
-    { min: 20, amount: 3500 },
+  // GOVERNING two-gate Goldrush pay scale — live on deploy. Both gates are per-working-day
+  // averages; a tier pays only when signups AND deposits both clear (min(signup,deposit) tier).
+  // Agents (own metric) and Team Leads (team average) share the same thresholds/amounts.
+  const fieldTiers = [
+    { signups: 8,  deposits: 5,  amount: 1500 },
+    { signups: 10, deposits: 8,  amount: 2500 },
+    { signups: 15, deposits: 10, amount: 3500 },
+    { signups: 20, deposits: 15, amount: 4500 },
+  ];
+  // Management (org average): same gates, management-scale amounts.
+  const mgmtTiers = [
+    { signups: 8,  deposits: 5,  amount: 10000 },
+    { signups: 10, deposits: 8,  amount: 20000 },
+    { signups: 15, deposits: 10, amount: 35000 },
+    { signups: 20, deposits: 15, amount: 45000 },
   ];
   const scales = [
-    { role: 'agent', metric: 'qualified_signups', tiers: signupTiers },
-    { role: 'team_lead', metric: 'team_avg_signups', tiers: signupTiers },
-    { role: 'manager', metric: 'team_avg_signups', tiers: signupTiers },
+    { role: 'agent', metric: 'signups_deposits', tiers: fieldTiers },
+    { role: 'team_lead', metric: 'team_avg_signups_deposits', tiers: fieldTiers },
+    { role: 'manager', metric: 'org_avg_signups_deposits', tiers: mgmtTiers },
     { role: 'backoffice_admin', metric: 'reactivations', tiers: [{ min: 1, amount: 50 }] },
   ];
   for (const s of scales) {
