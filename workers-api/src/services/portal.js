@@ -8,11 +8,17 @@ export const PORTAL_AGENT_FIELDS = [
   'commission_earnings', 'commission', 'tier', 'base_salary',
 ];
 
+// The raw survey/qualification JSON blob is an unaudited passthrough (any
+// future key staff add ships straight to the customer) — never let it survive
+// serialization even if a query re-selects it. Known scalars extracted from it
+// (e.g. `converted`) are selected as their own column and are NOT stripped.
+const PORTAL_BLOB_FIELDS = ['custom_field_values'];
+
 function stripAgentFields(row) {
   if (!row || typeof row !== 'object') return row;
   const out = {};
   for (const k of Object.keys(row)) {
-    if (!PORTAL_AGENT_FIELDS.includes(k)) out[k] = row[k];
+    if (!PORTAL_AGENT_FIELDS.includes(k) && !PORTAL_BLOB_FIELDS.includes(k)) out[k] = row[k];
   }
   return out;
 }

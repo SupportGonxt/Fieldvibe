@@ -58,6 +58,16 @@ describe('serializeIndividualForPortal / serializeStoreForPortal', () => {
     expect(s).not.toHaveProperty('uploaded_by');
     expect(s.store_name).toBe('X');
   });
+
+  it('never lets the raw custom_field_values blob survive serialization, even if a query ever re-selects it', () => {
+    const row = {
+      id: 'v1', first_name: 'A', converted: 1,
+      custom_field_values: JSON.stringify({ converted: 1, goldrush_id: '123456789', goldrush_id_rejected: 1, goldrush_id_rejection_reason: 'dup' }),
+    };
+    const out = serializeIndividualForPortal(row);
+    expect(out).not.toHaveProperty('custom_field_values');
+    expect(out.converted).toBe(1);
+  });
 });
 
 describe('matchAskIntent', () => {
