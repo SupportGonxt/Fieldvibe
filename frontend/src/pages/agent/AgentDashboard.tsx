@@ -496,10 +496,10 @@ export default function AgentDashboard() {
         <div className="px-5 mb-4">
           <button
             onClick={() => navigate('/agent/team')}
-            className="w-full bg-gradient-to-r from-indigo-600/20 to-cyan-600/20 border border-indigo-500/20 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-indigo-400" />
+            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
+              <Users className="w-5 h-5 text-[#00E87B]" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Team Overview</p>
@@ -527,10 +527,10 @@ export default function AgentDashboard() {
         <div className="px-5 mb-4">
           <button
             onClick={() => navigate('/agent/teams')}
-            className="w-full bg-gradient-to-r from-violet-600/20 to-pink-600/20 border border-violet-500/20 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-violet-400" />
+            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-[#00E87B]" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Organization Overview</p>
@@ -561,17 +561,17 @@ export default function AgentDashboard() {
         <div className="grid grid-cols-2 gap-3 mb-3">
           <button
             onClick={() => navigate('/agent/visits/create?type=store')}
-            className="py-3.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+            className="py-3.5 bg-white/[0.06] border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
           >
-            <Store className="w-4 h-4" />
+            <Store className="w-4 h-4 text-[#00E87B]" />
             Store Visit
           </button>
           {!isStellr && (
             <button
               onClick={() => navigate('/agent/visits/create?type=individual')}
-              className="py-3.5 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white font-bold rounded-2xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="py-3.5 bg-white/[0.06] border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
             >
-              <User className="w-4 h-4" />
+              <User className="w-4 h-4 text-[#00E87B]" />
               Individual Visit
             </button>
           )}
@@ -665,10 +665,10 @@ export default function AgentDashboard() {
           {/* Use memoized target calculations and data props */}
           {targets && dataProps && (
             <>
-              {!isStellr && <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={dataProps.today_individual_visits} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-blue-500" />}
-              <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={dataProps.today_store_visits} target={targets.dailyStoreTarget > 0 ? targets.dailyStoreTarget : undefined} color="bg-purple-500" />
-              {!isStellr && <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={dataProps.month_individual_visits} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-emerald-500" />}
-              <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={dataProps.month_store_visits} target={targets.monthStoreTarget > 0 ? targets.monthStoreTarget : undefined} color="bg-amber-500" />
+              {!isStellr && <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={dataProps.today_individual_visits} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-emerald-600" />}
+              <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={dataProps.today_store_visits} target={targets.dailyStoreTarget > 0 ? targets.dailyStoreTarget : undefined} color="bg-emerald-600" />
+              {!isStellr && <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={dataProps.month_individual_visits} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-emerald-600" />}
+              <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={dataProps.month_store_visits} target={targets.monthStoreTarget > 0 ? targets.monthStoreTarget : undefined} color="bg-emerald-600" />
             </>
           )}
         </div>
