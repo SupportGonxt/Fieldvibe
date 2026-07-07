@@ -15,8 +15,8 @@ import NotFoundPage from './pages/NotFoundPage'
 
 // Chunk load error recovery: when deploying new code, old cached chunks may 404.
 // This wrapper retries the import and forces a page reload if chunks are stale.
-function lazyWithRetry(importFn: () => Promise<{ default: ComponentType<unknown> }>) {
-  return lazy(() =>
+function lazyWithRetry<T extends ComponentType<any>>(importFn: () => Promise<{ default: T }>) {
+  return lazy<T>(() =>
     importFn().catch((error: Error) => {
       // Only auto-reload once to avoid infinite loops
       const hasReloaded = sessionStorage.getItem('chunk_reload');
@@ -492,7 +492,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? '/agent/overview' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? '/dashboard/gm' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />

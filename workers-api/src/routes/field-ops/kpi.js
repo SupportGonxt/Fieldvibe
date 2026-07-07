@@ -178,22 +178,46 @@ app.post('/kpi/remediate/note', async (c) => {
 app.post('/kpi/remediate/nudge', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
   const b = await c.req.json();
-  const subs = (await db.prepare(
-    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id=? AND user_id=?`
-  ).bind(tenantId, b.agentId).all()).results ?? [];
-  if (!subs.length) return c.json({ ok: false, reason: 'no_subscription' }, 404);
-  const payload = { title: 'Performance nudge', body: b.message || 'Check in with your manager.' };
+  const title = 'Performance nudge';
+  const message = b.message || 'Check in with your manager.';
+
+  // Always drop an in-app notification so the nudge lands even with zero push
+  // subs. notifications DDL lives in schema.sql; guard so an unmigrated D1 won't 500.
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS notifications (
+       id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL,
+       type TEXT DEFAULT 'info', title TEXT NOT NULL, message TEXT,
+       is_read INTEGER DEFAULT 0, related_type TEXT, related_id TEXT,
+       created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+  ).run();
+  await db.prepare(
+    `INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id)
+     VALUES (?,?,?,?,?,?,?,?)`
+  ).bind(`nudge-${crypto.randomUUID()}`, tenantId, b.agentId, 'nudge', title, message, 'coaching', userId).run();
+
+  // Best-effort push on top of the in-app notification. The in-app row above is
+  // the real deliverable; push is opportunistic, so any schema drift in
+  // push_subscriptions (prod carries a legacy flat-token table with no
+  // endpoint/p256dh/auth cols) must never fail the nudge. ponytail: swallow it.
   let delivered = 0;
-  for (const sub of subs) {
-    const { ok, status } = await sendPush(c.env, sub, payload);
-    if (ok) delivered++;
-    else if (status === 404 || status === 410) {
-      await db.prepare(`DELETE FROM push_subscriptions WHERE tenant_id=? AND user_id=? AND endpoint=?`)
-        .bind(tenantId, b.agentId, sub.endpoint).run();
+  try {
+    const subs = (await db.prepare(
+      `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id=? AND user_id=?`
+    ).bind(tenantId, b.agentId).all()).results ?? [];
+    for (const sub of subs) {
+      const { ok, status } = await sendPush(c.env, sub, { title, body: message });
+      if (ok) delivered++;
+      else if (status === 404 || status === 410) {
+        await db.prepare(`DELETE FROM push_subscriptions WHERE tenant_id=? AND user_id=? AND endpoint=?`)
+          .bind(tenantId, b.agentId, sub.endpoint).run();
+      }
     }
+  } catch {
+    // push table not on the expected schema (or push transport failed) — in-app notification already landed.
   }
-  return c.json({ ok: delivered > 0, delivered });
+  return c.json({ ok: true, delivered });
 });
 
 app.post('/kpi/remediate/call', async (c) => {

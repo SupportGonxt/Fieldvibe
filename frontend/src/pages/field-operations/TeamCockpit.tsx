@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
@@ -93,13 +94,14 @@ function NoteBox({ agentId, signalType, onDone }: { agentId: string; signalType?
 }
 
 function AgentRow({ a }: { a: RosterAgent }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
 
   const call = async () => {
     try {
-      await apiClient.post('/field-ops/kpi/remediate/call', { agentId: a.agentId })
-      toast.success(`Calling ${a.name}…`)
+      const { data } = await apiClient.post('/field-ops/calls/start', { callee_id: a.agentId })
+      navigate(`/agent/call/${data.callId}`, { state: { peerName: a.name, iceServers: data.iceServers } })
     } catch {
       toast.error('Could not start call')
     }
@@ -108,7 +110,7 @@ function AgentRow({ a }: { a: RosterAgent }) {
     try {
       const res = await apiClient.post('/field-ops/kpi/remediate/nudge', { agentId: a.agentId })
       if (res.data?.ok) toast.success(`Nudge sent to ${a.name}`)
-      else toast(`${a.name} has no device registered`, { icon: '📵' })
+      else toast(`Could not reach ${a.name}`)
     } catch {
       toast.error('Nudge failed')
     }

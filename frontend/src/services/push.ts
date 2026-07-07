@@ -3,7 +3,7 @@ import { apiClient } from './api.service'
 // VAPID public key (safe to ship — it's the applicationServerKey the browser
 // needs). Backend holds the matching private key as a Cloudflare secret.
 const VAPID_PUBLIC_KEY =
-  'BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw'
+  'BJ4L8SDZ8swmv4P_NFWJv8azlow_piVQOjzcmMTETD75HniyQjUpvI2M7LRvzM-5Sq58FYNwWNYkk_8w126Ndb8'
 
 function urlB64ToUint8Array(b64: string): Uint8Array {
   const padding = '='.repeat((4 - (b64.length % 4)) % 4)
@@ -32,7 +32,7 @@ export async function ensurePushSubscription(): Promise<void> {
       (await reg.pushManager.getSubscription()) ||
       (await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       }))
     await apiClient.post('/field-ops/calls/push/subscribe', sub.toJSON())
   } catch {

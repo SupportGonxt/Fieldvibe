@@ -12,7 +12,7 @@ import { sendPush } from '../../lib/web-push.js';
 const app = new Hono();
 
 const DEFAULT_TARGET = 20;
-const BO_ROLES = ['admin', 'backoffice_admin', 'general_manager', 'manager'];
+const BO_ROLES = ['admin', 'backoffice_admin', 'general_manager', 'manager', 'team_lead', 'super_admin'];
 const boOnly = requireRole(...BO_ROLES);
 
 // --- ICE servers -------------------------------------------------------------
