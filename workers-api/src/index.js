@@ -18888,6 +18888,78 @@ api.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c)
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
+api.post('/field-ops/portal/users', authMiddleware, requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  await ensurePortalTables(db);
+  const tenantId = c.get('tenantId');
+  const staffId = c.get('userId');
+  const { email, company_id } = await c.req.json();
+  if (!email || !company_id) return c.json({ success: false, message: 'email and company_id are required' }, 400);
+  const companyId = await resolveReportCompanyId(db, tenantId, company_id);
+  if (!companyId) return c.json({ success: false, message: 'Company not found' }, 404);
+  const normEmail = String(email).toLowerCase().trim();
+  const existing = await db.prepare('SELECT id, status FROM portal_users WHERE tenant_id = ? AND email = ?').bind(tenantId, normEmail).first();
+  const id = existing ? existing.id : crypto.randomUUID();
+  const inviteToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+  const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+  if (existing) {
+    await db.prepare("UPDATE portal_users SET company_id = ?, invite_token = ?, invite_expires_at = ?, status = 'invited' WHERE id = ?").bind(companyId, inviteToken, expires, id).run();
+  } else {
+    await db.prepare("INSERT INTO portal_users (id, tenant_id, company_id, email, invite_token, invite_expires_at, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'invited', ?)").bind(id, tenantId, companyId, normEmail, inviteToken, expires, staffId).run();
+  }
+  const portalBase = (c.env.PORTAL_URL || c.env.FRONTEND_URL || '').replace(/\/$/, '');
+  return c.json({ success: true, data: { id, invite_token: inviteToken, invite_url: `${portalBase}/accept-invite?token=${inviteToken}` } });
+});
+
+api.get('/field-ops/portal/users', authMiddleware, requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  await ensurePortalTables(db);
+  const tenantId = c.get('tenantId');
+  const { company_id } = c.req.query();
+  let sql = 'SELECT id, tenant_id, company_id, email, status, invite_expires_at, created_by, created_at FROM portal_users WHERE tenant_id = ?';
+  const binds = [tenantId];
+  if (company_id) { sql += ' AND company_id = ?'; binds.push(company_id); }
+  const rows = await db.prepare(sql + ' ORDER BY created_at DESC').bind(...binds).all();
+  return c.json({ success: true, data: rows.results || [] });
+});
+
+api.delete('/field-ops/portal/users/:id', authMiddleware, requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  await ensurePortalTables(db);
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  await db.prepare("UPDATE portal_users SET status = 'disabled' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
+  return c.json({ success: true });
+});
+
+api.get('/field-ops/portal/dashboard-config', authMiddleware, requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  await ensurePortalTables(db);
+  const tenantId = c.get('tenantId');
+  const { company_id } = c.req.query();
+  const companyId = await resolveReportCompanyId(db, tenantId, company_id || null);
+  if (!companyId) return c.json({ success: false, message: 'Company not found' }, 404);
+  const row = await db.prepare('SELECT widgets FROM portal_dashboard_config WHERE company_id = ? AND tenant_id = ?').bind(companyId, tenantId).first();
+  const widgets = row ? JSON.parse(row.widgets) : defaultDashboardConfig(companyId).widgets;
+  return c.json({ success: true, data: { company_id: companyId, widgets } });
+});
+
+api.put('/field-ops/portal/dashboard-config', authMiddleware, requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  await ensurePortalTables(db);
+  const tenantId = c.get('tenantId');
+  const staffId = c.get('userId');
+  const { company_id, widgets } = await c.req.json();
+  const companyId = await resolveReportCompanyId(db, tenantId, company_id || null);
+  if (!companyId) return c.json({ success: false, message: 'Company not found' }, 404);
+  if (!Array.isArray(widgets)) return c.json({ success: false, message: 'widgets must be an array' }, 400);
+  await db.prepare(`INSERT INTO portal_dashboard_config (company_id, tenant_id, widgets, updated_by, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(company_id) DO UPDATE SET widgets = excluded.widgets, updated_by = excluded.updated_by, updated_at = datetime('now')`)
+    .bind(companyId, tenantId, JSON.stringify(widgets), staffId).run();
+  return c.json({ success: true, data: { company_id: companyId, widgets } });
+});
+
 function emptyIndividualInsights() {
   return { totals: { individuals: 0, converted: 0, with_id: 0, with_suggestion: 0, conversion_rate: 0 }, visitsOverTime: [], topAgents: [], satisfaction: {}, competitors: [], productInterest: [], suggestionsTop: [], geo: { with_gps: 0 } };
 }
