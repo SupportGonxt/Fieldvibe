@@ -445,7 +445,7 @@ export default function AgentDashboard() {
           {isAgentRole && (
             <div className="px-5 mb-4">
               <button
-                onClick={() => navigate('/agent/signup')}
+                onClick={() => navigate('/agent/visits/create?type=individual')}
                 className="w-full flex items-center gap-3 bg-[#00E87B] text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
               >
                 <Zap className="w-6 h-6 flex-shrink-0" />
