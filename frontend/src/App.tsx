@@ -187,6 +187,7 @@ const FieldOperationsProductivityReport = lazyWithRetry(() => import('./pages/re
 const FieldOpsInsights = lazyWithRetry(() => import('./pages/insights/FieldOpsInsights'))
 // FieldOpsPerformancePage consolidated into FieldOpsComprehensiveReport (Performance tab)
 const FieldOpsSettingsPage = lazyWithRetry(() => import('./pages/field-operations/FieldOpsSettingsPage'))
+const PortalSetup = lazyWithRetry(() => import('./pages/field-operations/PortalSetup'))
 const MonthlyTargetsPage = lazyWithRetry(() => import('./pages/field-operations/MonthlyTargetsPage'))
 const TargetCommissionsPage = lazyWithRetry(() => import('./pages/field-operations/TargetCommissionsPage'))
 const TeamCockpit = lazyWithRetry(() => import('./pages/field-operations/TeamCockpit'))
@@ -1106,6 +1107,7 @@ function App() {
             <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><IndividualInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><StoreInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-upload-failures" element={<PageLoader><CaptureFailuresReport /></PageLoader>} />
+            <Route path="field-operations/portal-setup" element={<ProtectedRoute requiredRole="admin"><PageLoader><PortalSetup /></PageLoader></ProtectedRoute>} />
 
             {/* Stellr → merged into Stores Report */}
             <Route path="field-operations/reports/stellr" element={<Navigate to="/field-operations/reports/goldrush-stores" replace />} />
