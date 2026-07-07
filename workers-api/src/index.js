@@ -10,6 +10,7 @@ import incentiveRoutes from './routes/field-ops/incentives.js';
 import callRoutes from './routes/field-ops/calls.js';
 import gmRoutes, { buildGmOverview, digestSlot } from './routes/field-ops/gm.js';
 import kpiRoutes from './routes/field-ops/kpi.js';
+import depositRoutes from './routes/field-ops/deposits.js';
 import { dueEscalation } from './services/incentiveService.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 export { CallRoom } from './durable/CallRoom.js';
@@ -20823,6 +20824,7 @@ api.route('/field-ops', incentiveRoutes);
 api.route('/field-ops', callRoutes);
 api.route('/field-ops', gmRoutes);
 api.route('/field-ops', kpiRoutes);
+api.route('/field-ops', depositRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 app.route('/api', api);
