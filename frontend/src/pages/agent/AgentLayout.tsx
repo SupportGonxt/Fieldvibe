@@ -1,6 +1,6 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard } from 'lucide-react'
+import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard, Banknote } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
 import { apiClient } from '../../services/api.service'
@@ -84,6 +84,7 @@ function getTabsForRole(role: string | undefined) {
     return [
       ...baseTabs,
       { path: '/agent/reconcile', label: 'Reconcile', icon: ClipboardCheck },
+      { path: '/agent/deposits', label: 'Deposits', icon: Banknote },
       { path: '/agent/call-list', label: 'Agents', icon: PhoneCall },
       { path: '/agent/profile', label: 'Profile', icon: User },
     ]

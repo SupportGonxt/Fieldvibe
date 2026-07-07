@@ -59,6 +59,7 @@ const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTraini
 const GoldrushFastEntry = lazyWithRetry(() => import('./pages/agent/GoldrushFastEntry'))
 const BackOfficeCallList = lazyWithRetry(() => import('./pages/agent/BackOfficeCallList'))
 const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOfficeReconcile'))
+const BackOfficeDeposits = lazyWithRetry(() => import('./pages/agent/BackOfficeDeposits'))
 const GMPnl = lazyWithRetry(() => import('./pages/agent/GMPnl'))
 const GmOverview = lazyWithRetry(() => import('./pages/agent/GmOverview'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
@@ -1129,6 +1130,7 @@ function App() {
             <Route path="visits/create" element={<PageLoader><VisitCreate /></PageLoader>} />
             <Route path="signup" element={<PageLoader><GoldrushFastEntry /></PageLoader>} />
             <Route path="reconcile" element={<PageLoader><BackOfficeReconcile /></PageLoader>} />
+            <Route path="deposits" element={<PageLoader><BackOfficeDeposits /></PageLoader>} />
             <Route path="call-list" element={<PageLoader><BackOfficeCallList /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
             <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
