@@ -6,6 +6,7 @@ import KpiWidget, { Kpis } from '../components/KpiWidget';
 import IndividualsTable from '../components/IndividualsTable';
 import StoresTable from '../components/StoresTable';
 import InsightsWidget from '../components/InsightsWidget';
+import AskPanel from '../components/AskPanel';
 
 interface Widget {
   type: string;
@@ -87,6 +88,7 @@ export default function Dashboard() {
 
       {!loading && !error && (
         <div className="space-y-6">
+          <AskPanel />
           {visibleWidgets.map((widget, i) => {
             const content = renderWidget(widget, kpis);
             if (content === null) return null;

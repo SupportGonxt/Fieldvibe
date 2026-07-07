@@ -6,6 +6,7 @@ import {
   serializeIndividualForPortal,
   serializeStoreForPortal,
   PORTAL_AGENT_FIELDS,
+  matchAskIntent,
 } from '../../src/services/portal.js';
 
 describe('defaultDashboardConfig', () => {
@@ -56,5 +57,18 @@ describe('serializeIndividualForPortal / serializeStoreForPortal', () => {
     expect(s).not.toHaveProperty('agent_name');
     expect(s).not.toHaveProperty('uploaded_by');
     expect(s.store_name).toBe('X');
+  });
+});
+
+describe('matchAskIntent', () => {
+  it('maps a sign-ups question to total_individuals', () => {
+    expect(matchAskIntent('how many sign ups do we have')).toBe('total_individuals');
+    expect(matchAskIntent('registrations so far')).toBe('total_individuals');
+  });
+  it('maps a share-of-wall question to share_of_wall', () => {
+    expect(matchAskIntent('what is our share of wall')).toBe('share_of_wall');
+  });
+  it('returns null for gibberish', () => {
+    expect(matchAskIntent('asdfqwer zzz')).toBeNull();
   });
 });

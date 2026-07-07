@@ -14,7 +14,7 @@ import depositRoutes from './routes/field-ops/deposits.js';
 import { dueEscalation } from './services/incentiveService.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 import { clampSharePct, parseStoreInsights } from './services/goldrushVision.js';
-import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal } from './services/portal.js';
+import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal, matchAskIntent } from './services/portal.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -9319,6 +9319,80 @@ app.get('/portal/media/:id', portalAuthMiddleware, async (c) => {
   // Path C: r2_url is a plain remote URL — redirect.
   if (row.r2_url) return c.redirect(row.r2_url, 302);
   return c.json({ success: false, message: 'No image' }, 404);
+});
+
+// Ask-panel (Phase F7). Bounded NL query: matchAskIntent maps the question onto
+// ONE of a fixed set of metric intents (never free SQL from the question text),
+// we compute that single scoped aggregate ourselves, then ask Workers AI to
+// phrase a short sentence over ONLY that number. company/tenant come ONLY from
+// the portal token context set by portalAuthMiddleware — never from the body.
+app.post('/portal/ask', portalAuthMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('portalTenantId');
+  const companyId = c.get('portalCompanyId');
+  let question = '';
+  try {
+    const body = await c.req.json();
+    question = typeof body?.question === 'string' ? body.question : '';
+  } catch {
+    question = '';
+  }
+  const intent = matchAskIntent(question);
+  if (!intent) {
+    return c.json({ success: true, data: {
+      answer: 'I can answer questions about registrations, qualification, and store share-of-wall.',
+      intent: null,
+      data: null,
+    } });
+  }
+
+  let data;
+  if (intent === 'total_individuals') {
+    const row = await db.prepare(`SELECT COUNT(*) AS n FROM visits v
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'`).bind(tenantId, companyId).first();
+    data = { total_individuals: row?.n || 0 };
+  } else if (intent === 'qualification_rate') {
+    const row = await db.prepare(`SELECT COUNT(*) AS n,
+        SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values,'$.converted'),0)=1 THEN 1 ELSE 0 END) AS converted
+      FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'`).bind(tenantId, companyId).first();
+    const total = row?.n || 0;
+    data = { qualification_rate: total ? Math.round(((row?.converted || 0) / total) * 1000) / 10 : 0 };
+  } else if (intent === 'share_of_wall') {
+    const row = await db.prepare(`SELECT
+        AVG((SELECT MAX(vp.ai_share_of_voice) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_share_of_voice IS NOT NULL)) AS avg_sow
+      FROM visits v WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='store'`).bind(tenantId, companyId).first();
+    data = { avg_share_of_wall: row?.avg_sow != null ? Math.round(row.avg_sow * 10) / 10 : null };
+  } else if (intent === 'store_coverage') {
+    const row = await db.prepare(`SELECT COUNT(*) AS n FROM visits v
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='store'`).bind(tenantId, companyId).first();
+    data = { store_coverage: row?.n || 0 };
+  } else if (intent === 'trend_over_time') {
+    const rows = await db.prepare(`SELECT DATE(v.created_at) AS day, COUNT(*) AS n
+      FROM visits v
+      WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'
+        AND v.created_at >= datetime('now', '-30 days')
+      GROUP BY day ORDER BY day`).bind(tenantId, companyId).all();
+    data = { trend: (rows.results || []).map(r => ({ day: r.day, n: r.n })) };
+  }
+
+  let answer = '';
+  try {
+    const aiResponse = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [
+        { role: 'system', content: 'You answer questions about a retail field-marketing dashboard using ONLY the numbers given to you. Never invent, estimate, or assume any data not present in the JSON provided. Reply in one or two short sentences.' },
+        { role: 'user', content: `Question: ${question}\nComputed data: ${JSON.stringify(data)}` },
+      ],
+    });
+    answer = (aiResponse?.response || aiResponse?.result?.response || '').trim();
+  } catch (aiErr) {
+    console.error('portal ask AI error:', aiErr);
+  }
+  if (!answer) {
+    answer = `Here is the data for your question: ${JSON.stringify(data)}`;
+  }
+
+  return c.json({ success: true, data: { answer, intent, data } });
 });
 
 async function ensureCaptureFailures(db) {

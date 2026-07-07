@@ -51,3 +51,22 @@ export function inviteTokenExpired(expiresAtIso, nowSec) {
   if (Number.isNaN(t)) return true;
   return Math.floor(t / 1000) <= nowSec;
 }
+
+// Ask-panel intent matcher (Phase F7). Bounded on purpose: NOT free SQL, just
+// a keyword map over a fixed set of metrics. First match wins; no match -> null.
+const ASK_INTENT_KEYWORDS = [
+  ['total_individuals', ['sign up', 'sign-up', 'signup', 'registration', 'registered', 'how many people', 'how many individuals']],
+  ['qualification_rate', ['qualification', 'qualify', 'qualified', 'conversion', 'converted']],
+  ['share_of_wall', ['share of wall', 'share of voice', 'wall share', 'shelf share']],
+  ['store_coverage', ['store coverage', 'how many stores', 'stores visited', 'store visits']],
+  ['trend_over_time', ['trend', 'over time', 'per day', 'daily', 'last 30 days', 'last month']],
+];
+
+export function matchAskIntent(question) {
+  if (!question || typeof question !== 'string') return null;
+  const q = question.toLowerCase();
+  for (const [intentKey, keywords] of ASK_INTENT_KEYWORDS) {
+    if (keywords.some(k => q.includes(k))) return intentKey;
+  }
+  return null;
+}
