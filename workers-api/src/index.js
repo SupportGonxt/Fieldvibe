@@ -17952,10 +17952,10 @@ api.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
 // player photo and compare it to the ID the agent typed in the form.
 api.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
   try {
-    const { photo_data, typed_goldrush_id } = await c.req.json();
-    // typed_goldrush_id is optional — the system photo is now captured before the agent
-    // types the Goldrush ID, so at verification time it may not exist yet. The B-Tag and
-    // extracted_id are still returned; the caller checks the ID match later once it's typed.
+    const { photo_data } = await c.req.json();
+    // The OCR pass extracts only the 9-digit Goldrush ID + the btag from the URL bar.
+    // Name is captured manually on the Details step; the caller derives btag-present from
+    // extracted_btag and checks the ID match itself once the agent types the ID.
     if (!photo_data) {
       return c.json({ success: false, error: 'Missing photo_data' }, 400);
     }
@@ -17963,28 +17963,24 @@ api.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
     if (!base64Match) return c.json({ success: false, error: 'Invalid photo format' }, 400);
     const imageBytes = Uint8Array.from(atob(base64Match[1]), ch => ch.charCodeAt(0));
     if (imageBytes.length > 4_000_000) {
-      return c.json({ success: true, match: null, extracted_id: null, has_btag: null, extracted_btag: null, confidence: 'unreadable', reason: 'Image too large' });
+      return c.json({ success: true, extracted_id: null, extracted_btag: null, confidence: 'unreadable', reason: 'Image too large' });
     }
     const prompt = `This is a screenshot from the Goldrush gaming/betting system opened in a browser.
 
 Task 1 — Player ID: Find the 9-digit Goldrush player ID number visible in the image (printed on a card or shown on screen).
 
-Task 2 — Player Name: Find the player's first name and last name if they are visible on screen (e.g. on an account/profile page).
-
-Task 3 — B-Tag URL: Look at the browser address bar at the very top of the screenshot. Check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
+Task 2 — B-Tag URL: Look at the browser address bar at the very top of the screenshot. Check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
 
 Return ONLY a JSON object, no prose, no markdown:
-{"extracted_id": "123456789", "extracted_first_name": "John", "extracted_last_name": "Doe", "has_btag": true, "extracted_btag": "123456789", "confidence": "high"}
+{"extracted_id": "123456789", "extracted_btag": "123456789", "confidence": "high"}
 
 Rules:
 - extracted_id: the 9-digit player ID, or null if not found
-- extracted_first_name / extracted_last_name: the player's name exactly as shown, or null if not visible
-- has_btag: true if the URL bar shows goldrush.co.za with btag=<numbers>, false if URL bar is visible but no btag, null if URL bar is not visible in the image
-- extracted_btag: the btag number string, or null
+- extracted_btag: the btag number string from the URL bar, or null if not present/visible
 - confidence: "high", "medium", or "low"
 
 Output JSON only.`;
-    let extractedId = null, confidence = 'low', hasBtag = null, extractedBtag = null, extractedFirstName = null, extractedLastName = null;
+    let extractedId = null, confidence = 'low', extractedBtag = null;
     try {
       const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
         prompt,
@@ -17998,20 +17994,15 @@ Output JSON only.`;
         const parsed = JSON.parse(clean.slice(jsonStart, jsonEnd + 1));
         extractedId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : null;
         confidence = parsed.confidence || 'low';
-        hasBtag = parsed.has_btag === true ? true : parsed.has_btag === false ? false : null;
         extractedBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : null;
-        extractedFirstName = parsed.extracted_first_name ? String(parsed.extracted_first_name).trim() : null;
-        extractedLastName = parsed.extracted_last_name ? String(parsed.extracted_last_name).trim() : null;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
     }
-    const typedClean = typed_goldrush_id ? String(typed_goldrush_id).replace(/\D/g, '') : '';
-    const match = (extractedId && typedClean) ? extractedId === typedClean : null;
-    return c.json({ success: true, match, extracted_id: extractedId, has_btag: hasBtag, extracted_btag: extractedBtag, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, confidence });
+    return c.json({ success: true, extracted_id: extractedId, extracted_btag: extractedBtag, confidence });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);
-    return c.json({ success: true, match: null, extracted_id: null, has_btag: null, extracted_btag: null, confidence: 'unreadable', reason: 'Verification failed' });
+    return c.json({ success: true, extracted_id: null, extracted_btag: null, confidence: 'unreadable', reason: 'Verification failed' });
   }
 });
 
