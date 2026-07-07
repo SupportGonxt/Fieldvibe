@@ -158,6 +158,8 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
       { after_min: 60, to: 'manager' },
     ],
     salaries: { manager: 0, bo: 0, gm: 0 },
+    // Below-lowest-gate floor per role (two-gate engine reads this). Editable post-deploy.
+    role_base_salary: { agent: 0, team_lead: 0, manager: 0 },
     leaderboard_visible: true,
     // Inert capture-flag defaults (convergence): goldrush becomes config, not code.
     ...DEFAULT_CAPTURE_CONFIG,
