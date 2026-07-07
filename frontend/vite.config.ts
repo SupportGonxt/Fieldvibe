@@ -27,6 +27,9 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
+        // Fold in the Web Push handlers (push / notificationclick) — kept in a
+        // hand-written file so workbox's generated SW stays untouched.
+        importScripts: ['/push-sw.js'],
         // Precache ONLY static, non-versioned assets. Hashed JS/CSS are
         // CacheFirst at runtime — hash in filename guarantees safety. HTML
         // is never precached so a deploy is always visible immediately on

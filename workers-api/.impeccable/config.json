@@ -1,0 +1,10 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "workers-api/src/index.js",
+      "src/index.js"
+    ],
+    "ignoreValues": []
+  }
+}

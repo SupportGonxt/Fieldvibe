@@ -5,9 +5,11 @@ import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
   Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap, Download, X,
-  DollarSign, Flame, BarChart3, Ban
+  DollarSign, Flame, BarChart3, Ban, AlertTriangle, Zap
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import BOTargetCard from './BOTargetCard'
+import PerformanceCard from './PerformanceCard'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
@@ -16,6 +18,8 @@ import { photoReviewService } from '../../services/insights.service'
 const PerformanceSection = lazy(() => import('./PerformanceSection'))
 const TeamPerformanceSection = lazy(() => import('./TeamPerformanceSection'))
 const PerformanceMessages = lazy(() => import('./PerformanceMessages'))
+const HeroIncentive = lazy(() => import('./HeroIncentive'))
+const Leaderboard = lazy(() => import('./Leaderboard'))
 
 interface TargetSummary {
   target_visits: number
@@ -122,6 +126,10 @@ export default function AgentDashboard() {
   const [rejectedGoldrushCount, setRejectedGoldrushCount] = useState<number>(0)
   const [rejectedGoldrushLoading, setRejectedGoldrushLoading] = useState<boolean>(false)
 
+  // Upload failures KPI state (team leads and managers only)
+  const [uploadFailuresCount, setUploadFailuresCount] = useState<number>(0)
+  const [uploadFailuresLoading, setUploadFailuresLoading] = useState<boolean>(false)
+
   // Fetch rejected photos needing reupload
   useEffect(() => {
     let mounted = true
@@ -149,6 +157,23 @@ export default function AgentDashboard() {
     }).catch(() => setRejectedGoldrushCount(0)).finally(() => { if (mounted) setRejectedGoldrushLoading(false) })
     return () => { mounted = false }
   }, [])
+
+  const authUserForEffect = useAuthStore((s) => s.user)
+
+  // Fetch upload failures for team leads and managers (last 7 days)
+  useEffect(() => {
+    if (authUserForEffect?.role !== 'team_lead' && authUserForEffect?.role !== 'manager') return
+    let mounted = true
+    setUploadFailuresLoading(true)
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).then((res: any) => {
+      if (!mounted) return
+      setUploadFailuresCount(res.data?.total || res.data?.data?.length || 0)
+    }).catch(() => setUploadFailuresCount(0)).finally(() => { if (mounted) setUploadFailuresLoading(false) })
+    return () => { mounted = false }
+  }, [authUserForEffect?.role])
+
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [perfSummary, setPerfSummary] = useState<PerfSummary | null>(null)
@@ -183,6 +208,16 @@ export default function AgentDashboard() {
     if (!data?.companies) return false
     return data.companies.some(c => c.name?.toLowerCase().includes('stellr'))
   }, [data?.companies])
+
+  // Goldrush hero mode — same standard PWA, an exception branch surfacing the incentive engine.
+  const goldrushCompany = useMemo(
+    () => data?.companies?.find(c => c.name?.toLowerCase().includes('goldrush')) ?? null,
+    [data?.companies]
+  )
+  const isAgentRole = ['agent', 'field_agent', 'sales_rep'].includes(authUser?.role || '')
+  // Team roles get the same team-avg hero (computeIncentive/teamMetric already returns their metric),
+  // but not the agent-only Fast Signup + personal Leaderboard.
+  const isTeamRole = ['team_lead', 'manager'].includes(authUser?.role || '')
 
   // Memoize data destructuring to reduce repeated property access
   const dataProps = useMemo(() => {
@@ -390,6 +425,42 @@ export default function AgentDashboard() {
         </p>
       </div>
 
+      {/* BO Home: agents-contacted target card (backoffice only) */}
+      {authUser?.role === 'backoffice_admin' && (
+        <div className="px-5">
+          <BOTargetCard />
+        </div>
+      )}
+
+      {/* Cockpit: agent self-performance KPIs + underperformance signals */}
+      {isAgentRole && (
+        <div className="px-5">
+          <PerformanceCard />
+        </div>
+      )}
+
+      {/* Goldrush hero incentive — exception branch of the standard PWA */}
+      {goldrushCompany && (isAgentRole || isTeamRole) && (
+        <>
+          {isAgentRole && (
+            <div className="px-5 mb-4">
+              <button
+                onClick={() => navigate('/agent/visits/create?type=individual')}
+                className="w-full flex items-center gap-3 bg-[#00E87B] text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
+              >
+                <Zap className="w-6 h-6 flex-shrink-0" />
+                <span className="flex-1 text-left leading-tight">Fast Signup<span className="block text-xs font-medium opacity-70">Snap the photo — one tap</span></span>
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+          <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" /></div>}>
+            <HeroIncentive companyId={goldrushCompany.id} />
+            {isAgentRole && <Leaderboard meId={authUser?.id} />}
+          </Suspense>
+        </>
+      )}
+
       {/* PWA Install Prompt */}
       {showInstallPrompt && (
         <div className="px-5 mb-4">
@@ -433,6 +504,19 @@ export default function AgentDashboard() {
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Team Overview</p>
               <p className="text-xs text-gray-400">View your agents' performance</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          </button>
+          <button
+            onClick={() => navigate('/agent/visits/create?type=store')}
+            className="mt-3 w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
+              <Store className="w-5 h-5 text-[#00E87B]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-white">Store Visit</p>
+              <p className="text-xs text-gray-400">Log a visit to a store</p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-500" />
           </button>
@@ -548,6 +632,29 @@ export default function AgentDashboard() {
             >
               <Ban className="w-4 h-4" />
               {rejectedGoldrushLoading ? 'Checking...' : rejectedGoldrushCount > 0 ? `View ${rejectedGoldrushCount} Rejected` : 'No Rejected IDs'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Failures KPI — team leads and managers only */}
+      {!isStellr && (authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+        <div className="px-5 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              icon={<AlertTriangle className="w-5 h-5" />}
+              label="Not Loaded (7 days)"
+              value={uploadFailuresCount}
+              color="bg-red-600"
+            />
+            <button
+              onClick={() => navigate('/field-operations/reports/goldrush-upload-failures')}
+              className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              disabled={uploadFailuresLoading}
+              style={{ opacity: uploadFailuresCount === 0 ? 0.5 : 1 }}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              {uploadFailuresLoading ? 'Checking...' : uploadFailuresCount > 0 ? `View ${uploadFailuresCount} Not Loaded` : 'Nothing Not Loaded'}
             </button>
           </div>
         </div>

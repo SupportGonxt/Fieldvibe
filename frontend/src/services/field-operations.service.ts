@@ -1392,6 +1392,34 @@ class FieldOperationsService extends ApiService {
     const response = await this.post('/migrations/create-process-flows')
     return response.data || response
   }
+
+  // ==================== FIELD OPS: INCENTIVES (hero / leaderboard) ====================
+  // Compact hero stats for the fast-entry PWA: today/week/month, pace, next tier, rank.
+  async getHero(companyId?: string) {
+    const params = companyId ? `?company_id=${companyId}` : ''
+    const response = await this.get(`/field-ops/incentives/hero${params}`)
+    return response.data || response
+  }
+
+  // Full incentive breakdown for the caller (tiers, provisional vs qualified, payable).
+  async getMyIncentive(filter: { period?: string; company_id?: string } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/incentives/me?${params.toString()}`)
+    return response.data || response
+  }
+
+  // Agents ranked by period signup count (respects leaderboard_visible config).
+  async getLeaderboard(filter: { period?: string; limit?: number } = {}) {
+    const params = new URLSearchParams()
+    Object.entries(filter).forEach(([key, value]) => {
+      if (value) params.append(key, String(value))
+    })
+    const response = await this.get(`/field-ops/leaderboard?${params.toString()}`)
+    return response.data || response
+  }
 }
 
 export const fieldOperationsService = new FieldOperationsService()

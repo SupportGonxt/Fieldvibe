@@ -50,6 +50,10 @@ export default function DashboardLayout() {
   if (user?.role === 'agent') {
     return <Navigate to="/agent/dashboard" replace />
   }
+  // GM web surface is the Overview dashboard only; funnel any other web page there.
+  if (user?.role === 'general_manager' && location.pathname !== '/dashboard/gm') {
+    return <Navigate to="/dashboard/gm" replace />
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#06090F] text-gray-900 dark:text-gray-100 flex">

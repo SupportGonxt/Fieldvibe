@@ -83,6 +83,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Working Days', href: '/field-operations/working-days', permission: null, description: 'Working days configuration', group: 'Master Data' },
       { name: 'Process Flows', href: '/field-operations/process-flows', permission: null, description: 'Manage visit workflow steps per company', group: 'Master Data' },
       { name: 'Settings', href: '/field-operations/settings', permission: null, description: 'Field ops global settings', group: 'Master Data' },
+      { name: 'Portal Setup', href: '/field-operations/portal-setup', permission: null, description: 'Invite customer portal users & curate their dashboard', group: 'Master Data' },
 
       // ── Targets & Commissions ──
       { name: 'Daily Targets', href: '/field-operations/daily-targets', permission: null, description: 'Daily targets per agent', group: 'Targets & Commissions' },
@@ -98,6 +99,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Company Logins', href: '/field-operations/company-logins', permission: null, description: 'Company portal logins', group: 'Activity' },
 
       // ── Review ──
+      { name: 'Team Cockpit', href: '/field-operations/team-cockpit', permission: null, description: 'Team performance roster + one-tap remediation', group: 'Review' },
       { name: 'Photo Review', href: '/field-operations/photo-review', permission: null, description: 'Review, approve or reject agent-uploaded photos', group: 'Review' },
 
       // ── Reports ──

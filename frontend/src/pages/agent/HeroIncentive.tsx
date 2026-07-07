@@ -1,0 +1,120 @@
+import React, { useEffect, useState } from 'react'
+import { Flame, Trophy, TrendingUp, Award } from 'lucide-react'
+import { fieldOperationsService } from '../../services/field-operations.service'
+
+interface Hero {
+  period: string
+  today: number
+  week: number
+  month: number
+  converted: number
+  provisionalAvg: number
+  provisionalPace: number      // R on track at current pace
+  payable: number              // R already qualified (no clawback)
+  nextTier: { min: number; amount: number } | null
+  toNextTier: number | null    // avg/day still needed to reach nextTier
+  rank: number | null
+  totalPeers: number | null
+}
+
+const rand = (n: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n || 0)
+
+// Adaptive coaching — always pushes the agent toward the next win.
+function coach(h: Hero): { push: string; sub: string; hot: boolean } {
+  const gap = h.toNextTier != null ? Math.max(0.1, Math.round(h.toNextTier * 10) / 10) : null
+  if (h.nextTier && gap != null) {
+    return {
+      push: `+${gap}/day to reach ${rand(h.nextTier.amount)}`,
+      sub: h.provisionalPace > 0 ? "Don't stop now — push past this tier." : `Lift your average to unlock ${rand(h.nextTier.amount)}.`,
+      hot: gap <= 2, // within striking distance
+    }
+  }
+  // top tier reached
+  return {
+    push: h.rank === 1 ? "You're #1 — defend it." : 'Top tier locked. Hold the pace.',
+    sub: h.rank && h.rank > 1 ? `Close the gap to #1.` : "Don't ease off — every signup counts.",
+    hot: true,
+  }
+}
+
+// Goldrush hero card — pace, rank and next-tier gap. Fast-glance motivation for the fast-entry PWA.
+export default function HeroIncentive({ companyId }: { companyId?: string }) {
+  const [hero, setHero] = useState<Hero | null>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    fieldOperationsService.getHero(companyId)
+      .then((res: any) => { if (mounted) setHero(res?.hero || res) })
+      .catch(() => { if (mounted) setError(true) })
+    return () => { mounted = false }
+  }, [companyId])
+
+  if (error) return null
+  if (!hero) {
+    return (
+      <div className="px-5 mb-4">
+        <div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" />
+      </div>
+    )
+  }
+
+  const paceColor = hero.provisionalPace > 0 ? 'text-[#00E87B]' : 'text-gray-400'
+  const c = coach(hero)
+
+  return (
+    <div className="px-5 mb-4">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-[#00E87B]/20 rounded-2xl p-4">
+        {/* rank badge */}
+        {hero.rank != null && (
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1">
+            <Trophy className={`w-3.5 h-3.5 ${hero.rank <= 3 ? 'text-amber-400' : 'text-gray-500'}`} />
+            <span className="text-xs font-bold text-white">#{hero.rank}</span>
+            {hero.totalPeers ? <span className="text-[10px] text-gray-500">/ {hero.totalPeers}</span> : null}
+          </div>
+        )}
+
+        {/* pace headline */}
+        <div className="flex items-center gap-2 mb-1">
+          <Flame className="w-4 h-4 text-orange-400" />
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">On Track This Month</span>
+        </div>
+        <p className={`text-3xl font-extrabold ${paceColor}`}>{rand(hero.provisionalPace)}</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {hero.provisionalAvg}/day avg · {hero.month} signups
+        </p>
+
+        {/* coaching push — always prompts the agent to do better */}
+        <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 border ${c.hot ? 'bg-orange-500/10 border-orange-500/30' : 'bg-[#00E87B]/10 border-[#00E87B]/20'}`}>
+          {c.hot ? <Flame className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" /> : <TrendingUp className="w-4 h-4 text-[#00E87B] flex-shrink-0 mt-0.5" />}
+          <div>
+            <p className={`text-sm font-bold ${c.hot ? 'text-orange-300' : 'text-[#00E87B]'}`}>{c.push}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">{c.sub}</p>
+          </div>
+        </div>
+
+        {/* qualified payable (already locked in) */}
+        {hero.payable > 0 && (
+          <div className="mt-2 flex items-center gap-2 px-1">
+            <Award className="w-3.5 h-3.5 text-amber-400" />
+            <p className="text-xs text-gray-400">
+              <span className="font-bold text-amber-400">{rand(hero.payable)}</span> qualified
+            </p>
+          </div>
+        )}
+
+        {/* today / week counters */}
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="bg-white/5 rounded-xl px-3 py-2">
+            <p className="text-[10px] text-gray-500 uppercase">Today</p>
+            <p className="text-lg font-bold text-white">{hero.today}</p>
+          </div>
+          <div className="bg-white/5 rounded-xl px-3 py-2">
+            <p className="text-[10px] text-gray-500 uppercase">This Week</p>
+            <p className="text-lg font-bold text-white">{hero.week}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

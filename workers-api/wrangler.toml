@@ -11,6 +11,10 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
+# VAPID public key is safe to ship (it's the applicationServerKey the browser needs).
+# VAPID_PRIVATE_KEY is a secret: `wrangler secret put VAPID_PRIVATE_KEY` (per env).
+VAPID_PUBLIC_KEY = "BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw"
+VAPID_SUBJECT = "mailto:reshigan@vantax.co.za"
 
 [[d1_databases]]
 binding = "DB"
@@ -25,6 +29,14 @@ bucket_name = "fieldvibe-uploads"
 [ai]
 binding = "AI"
 
+[[durable_objects.bindings]]
+name = "CALL_ROOM"
+class_name = "CallRoom"
+
+[[migrations]]
+tag = "v1-callroom"
+new_classes = ["CallRoom"]
+
 [placement]
 mode = "smart"
 
@@ -36,7 +48,7 @@ crons = ["0 4 * * *", "0 6 * * *", "0 7 * * *", "0 8 * * *", "0 9 * * *", "0 10 
 # ─────────────────────────────────────────
 [env.preview]
 name = "fieldvibe-api-preview"
-vars = { ENVIRONMENT = "preview" }
+vars = { ENVIRONMENT = "preview", VAPID_PUBLIC_KEY = "BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw", VAPID_SUBJECT = "mailto:reshigan@vantax.co.za" }
 
 routes = [
   { pattern = "fieldvibe-api-preview.vantax.co.za/*", zone_name = "vantax.co.za" }
@@ -44,6 +56,14 @@ routes = [
 
 [env.preview.ai]
 binding = "AI"
+
+[[env.preview.durable_objects.bindings]]
+name = "CALL_ROOM"
+class_name = "CallRoom"
+
+[[env.preview.migrations]]
+tag = "v1-callroom"
+new_classes = ["CallRoom"]
 
 [[env.preview.d1_databases]]
 binding = "DB"

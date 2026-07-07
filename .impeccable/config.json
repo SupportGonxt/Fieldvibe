@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "helvetica",
+        "reason": "Helvetica in transactional email HTML templates (MailChannels) — web-safe font required for email clients, intentional",
+        "createdAt": "2026-07-05T17:03:02.691Z"
+      }
+    ]
+  }
+}

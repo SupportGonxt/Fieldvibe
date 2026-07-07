@@ -49,12 +49,18 @@ const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'
 const AdminPage = lazyWithRetry(() => import('./pages/admin/AdminPage'))
 const AgentDashboard = lazyWithRetry(() => import('./pages/agent/AgentDashboard'))
 const AgentLayout = lazyWithRetry(() => import('./pages/agent/AgentLayout'))
+const CallScreen = lazyWithRetry(() => import('./pages/agent/CallScreen'))
 const AgentVisits = lazyWithRetry(() => import('./pages/agent/AgentVisits'))
 const AgentStats = lazyWithRetry(() => import('./pages/agent/AgentStats'))
 const AgentProfile = lazyWithRetry(() => import('./pages/agent/AgentProfile'))
 const AgentOnboarding = lazyWithRetry(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinManagement'))
 const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTrainingGuide'))
+const BackOfficeCallList = lazyWithRetry(() => import('./pages/agent/BackOfficeCallList'))
+const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOfficeReconcile'))
+const BackOfficeDeposits = lazyWithRetry(() => import('./pages/agent/BackOfficeDeposits'))
+const GMPnl = lazyWithRetry(() => import('./pages/agent/GMPnl'))
+const GmOverview = lazyWithRetry(() => import('./pages/agent/GmOverview'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
 const ManagerTeamsTab = lazyWithRetry(() => import('./pages/agent/ManagerTeamsTab'))
 const AgentDetailPage = lazyWithRetry(() => import('./pages/agent/AgentDetailPage'))
@@ -152,6 +158,7 @@ const CustomersAdvanced = lazyWithRetry(() => import('./pages/CustomersAdvanced'
 const CustomersPage = lazyWithRetry(() => import('./pages/customers/CustomersPage'))
 const DailyTargetsPage = lazyWithRetry(() => import('./pages/field-operations/DailyTargetsPage'))
 const DashboardPage = lazyWithRetry(() => import('./pages/dashboard/DashboardPage'))
+const GmOverviewPage = lazyWithRetry(() => import('./pages/dashboard/GmOverviewPage'))
 const DataImportExportPage = lazyWithRetry(() => import('./pages/admin/DataImportExportPage'))
 const DeliveryDetail = lazyWithRetry(() => import('./pages/orders/deliveries/DeliveryDetail'))
 const DeliveryEdit = lazyWithRetry(() => import('./pages/orders/deliveries/DeliveryEdit'))
@@ -180,8 +187,10 @@ const FieldOperationsProductivityReport = lazyWithRetry(() => import('./pages/re
 const FieldOpsInsights = lazyWithRetry(() => import('./pages/insights/FieldOpsInsights'))
 // FieldOpsPerformancePage consolidated into FieldOpsComprehensiveReport (Performance tab)
 const FieldOpsSettingsPage = lazyWithRetry(() => import('./pages/field-operations/FieldOpsSettingsPage'))
+const PortalSetup = lazyWithRetry(() => import('./pages/field-operations/PortalSetup'))
 const MonthlyTargetsPage = lazyWithRetry(() => import('./pages/field-operations/MonthlyTargetsPage'))
 const TargetCommissionsPage = lazyWithRetry(() => import('./pages/field-operations/TargetCommissionsPage'))
+const TeamCockpit = lazyWithRetry(() => import('./pages/field-operations/TeamCockpit'))
 const WorkingDaysConfigPage = lazyWithRetry(() => import('./pages/field-operations/WorkingDaysConfigPage'))
 const FinanceDashboard = lazyWithRetry(() => import('./pages/finance/FinanceDashboard'))
 const FinanceInvoiceCreate = lazyWithRetry(() => import('./pages/finance/InvoiceCreate'))
@@ -432,11 +441,9 @@ const VisitsList = lazyWithRetry(() => import('./pages/field-operations/visits/V
 
 // Field Operations Reports — consolidated comprehensive report + Goldrush custom reports
 const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/operations/FieldOpsComprehensiveReport'))
-const GoldrushIndividualReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualReport'))
-const GoldrushStoreReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreReport'))
-const GoldrushIndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushIndividualInsights'))
-const GoldrushStoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushStoreInsights'))
-const GoldrushTrackingReport = lazyWithRetry(() => import('./pages/field-operations/reports/GoldrushTrackingReport'))
+const IndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/IndividualInsights'))
+const StoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/StoreInsights'))
+const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operations/reports/CaptureFailuresReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
 function PageLoader({ children }: { children: React.ReactNode }) {
@@ -451,7 +458,7 @@ function PageLoader({ children }: { children: React.ReactNode }) {
   )
 }
 
-const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager']
+const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager', 'backoffice_admin', 'general_manager']
 
 function App() {
   const { isAuthenticated, isLoading, initialize, hydrated, user } = useAuthStore()
@@ -485,7 +492,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to={user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? '/agent/overview' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />
@@ -510,6 +517,7 @@ function App() {
           }>
             {/* Dashboard Routes */}
             <Route path="dashboard" element={<PageLoader><DashboardPage /></PageLoader>} />
+            <Route path="dashboard/gm" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GmOverviewPage /></PageLoader></ProtectedRoute>} />
             <Route path="analytics" element={<PageLoader><AnalyticsPage /></PageLoader>} />
             
             <Route path="analytics-dashboard/*" element={<Navigate to="/insights" replace />} />
@@ -592,6 +600,7 @@ function App() {
             {/* Field Operations Refactor: New Routes */}
             <Route path="field-operations/performance" element={<Navigate to="/reports/operations/field-ops" replace />} />
             <Route path="field-operations/daily-targets" element={<PageLoader><DailyTargetsPage /></PageLoader>} />
+            <Route path="field-operations/team-cockpit" element={<PageLoader><TeamCockpit /></PageLoader>} />
             <Route path="field-operations/individuals" element={<PageLoader><IndividualRegistrationPage /></PageLoader>} />
             <Route path="field-operations/companies" element={<PageLoader><CompanyManagementPage /></PageLoader>} />
             <Route path="field-operations/company-dashboard/:companyId" element={<PageLoader><CompanyDashboardPage /></PageLoader>} />
@@ -1093,11 +1102,12 @@ function App() {
             <Route path="field-operations/reports/export" element={<Navigate to="/reports/operations/field-ops" replace />} />
 
             {/* Goldrush custom reports — kept as-is */}
-            <Route path="field-operations/reports/goldrush-individuals" element={<PageLoader><GoldrushIndividualReport /></PageLoader>} />
-            <Route path="field-operations/reports/goldrush-stores" element={<PageLoader><GoldrushStoreReport /></PageLoader>} />
-            <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><GoldrushIndividualInsights /></PageLoader>} />
-            <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><GoldrushStoreInsights /></PageLoader>} />
-            <Route path="field-operations/reports/goldrush-tracking" element={<PageLoader><GoldrushTrackingReport /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-individuals" element={<PageLoader><IndividualInsights /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-stores" element={<PageLoader><StoreInsights /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><IndividualInsights /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><StoreInsights /></PageLoader>} />
+            <Route path="field-operations/reports/goldrush-upload-failures" element={<PageLoader><CaptureFailuresReport /></PageLoader>} />
+            <Route path="field-operations/portal-setup" element={<ProtectedRoute requiredRole="admin"><PageLoader><PortalSetup /></PageLoader></ProtectedRoute>} />
 
             {/* Stellr → merged into Stores Report */}
             <Route path="field-operations/reports/stellr" element={<Navigate to="/field-operations/reports/goldrush-stores" replace />} />
@@ -1119,6 +1129,11 @@ function App() {
             <Route path="dashboard" element={<PageLoader><AgentDashboard /></PageLoader>} />
             <Route path="visits" element={<PageLoader><AgentVisits /></PageLoader>} />
             <Route path="visits/create" element={<PageLoader><VisitCreate /></PageLoader>} />
+            <Route path="reconcile" element={<PageLoader><BackOfficeReconcile /></PageLoader>} />
+            <Route path="deposits" element={<PageLoader><BackOfficeDeposits /></PageLoader>} />
+            <Route path="call-list" element={<PageLoader><BackOfficeCallList /></PageLoader>} />
+            <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
+            <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
@@ -1131,6 +1146,14 @@ function App() {
             <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
             <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
+
+          {/* Full-screen call UI — outside AgentLayout so no nav/header chrome */}
+          <Route path="/agent/call/incoming" element={
+            <ProtectedRoute><PageLoader><CallScreen incoming /></PageLoader></ProtectedRoute>
+          } />
+          <Route path="/agent/call/:callId" element={
+            <ProtectedRoute><PageLoader><CallScreen /></PageLoader></ProtectedRoute>
+          } />
 
           {/* T-17: 404 Not Found page */}
           <Route path="*" element={<NotFoundPage />} />

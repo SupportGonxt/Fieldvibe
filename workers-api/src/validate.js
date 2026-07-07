@@ -36,13 +36,15 @@ export const createUserSchema = z.object({
   first_name: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   last_name: z.string().min(1).optional(),
-  role: z.enum(['admin', 'manager', 'team_lead', 'agent', 'field_agent', 'sales_rep', 'viewer']).default('agent'),
+  role: z.enum(['admin', 'general_manager', 'manager', 'team_lead', 'agent', 'field_agent', 'sales_rep', 'backoffice_admin', 'viewer']).default('agent'),
   agent_type: z.enum(['field_ops', 'marketing', 'both']).optional().nullable(),
   agentType: z.enum(['field_ops', 'marketing', 'both']).optional().nullable(),
   managerId: z.string().optional().nullable(),
   manager_id: z.string().optional().nullable(),
   teamLeadId: z.string().optional().nullable(),
   team_lead_id: z.string().optional().nullable(),
+  gmId: z.string().optional().nullable(),
+  gm_id: z.string().optional().nullable(),
   tenant_id: z.string().optional().nullable(),
 });
 
@@ -53,7 +55,7 @@ export const updateUserSchema = z.object({
   first_name: z.string().min(1).optional().nullable(),
   lastName: z.string().min(1).optional().nullable(),
   last_name: z.string().min(1).optional().nullable(),
-  role: z.enum(['admin', 'manager', 'team_lead', 'agent', 'viewer']).optional().nullable(),
+  role: z.enum(['admin', 'general_manager', 'manager', 'team_lead', 'agent', 'field_agent', 'sales_rep', 'backoffice_admin', 'viewer']).optional().nullable(),
   agent_type: z.enum(['field_ops', 'marketing', 'both']).optional().nullable(),
   agentType: z.enum(['field_ops', 'marketing', 'both']).optional().nullable(),
   status: z.enum(['active', 'inactive', 'suspended']).optional().nullable(),
@@ -62,6 +64,8 @@ export const updateUserSchema = z.object({
   manager_id: z.string().optional().nullable(),
   teamLeadId: z.string().optional().nullable(),
   team_lead_id: z.string().optional().nullable(),
+  gmId: z.string().optional().nullable(),
+  gm_id: z.string().optional().nullable(),
 });
 
 // Sales Orders

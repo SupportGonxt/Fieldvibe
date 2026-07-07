@@ -1,7 +1,51 @@
 import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2 } from 'lucide-react'
+import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard, Banknote } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { NotificationCenter } from '../../components/ui/NotificationCenter'
+import { apiClient } from '../../services/api.service'
+import { ensurePushSubscription } from '../../services/push'
+
+// Poll for a ringing call aimed at this user. Call screens render outside this
+// layout, so AgentLayout unmounts during a call and polling pauses on its own.
+// Web Push (Phase C) will make ring delivery instant; this is the fallback.
+function useIncomingCallPoll() {
+  const navigate = useNavigate()
+  React.useEffect(() => {
+    let active = true
+    const tick = async () => {
+      try {
+        const res = await apiClient.get('/field-ops/calls/incoming')
+        const call = res?.data?.call
+        if (active && call) {
+          navigate('/agent/call/incoming', {
+            state: { callId: call.callId, peerName: call.callerName, iceServers: res.data.iceServers },
+          })
+        }
+      } catch { /* offline / transient — try again next tick */ }
+    }
+    const id = setInterval(tick, 5000)
+
+    // Web Push: subscribe once (best-effort) and route SW notificationclick
+    // messages straight to the call screen when the PWA is already open.
+    ensurePushSubscription()
+    const onSwMessage = (ev: MessageEvent) => {
+      const d = ev.data
+      if (d?.type === 'incoming_call' && d.callId) {
+        navigate('/agent/call/incoming', {
+          state: { callId: d.callId, peerName: d.callerName },
+        })
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', onSwMessage)
+
+    return () => {
+      active = false
+      clearInterval(id)
+      navigator.serviceWorker?.removeEventListener('message', onSwMessage)
+    }
+  }, [navigate])
+}
 
 function getTabsForRole(role: string | undefined) {
   const baseTabs = [
@@ -23,6 +67,25 @@ function getTabsForRole(role: string | undefined) {
       ...baseTabs,
       { path: '/agent/teams', label: 'Teams', icon: Building2 },
       { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
+      { path: '/agent/profile', label: 'Profile', icon: User },
+    ]
+  }
+
+  if (role === 'general_manager') {
+    return [
+      { path: '/agent/overview', label: 'Overview', icon: LayoutDashboard },
+      { path: '/agent/pnl', label: 'P&L', icon: Wallet },
+      { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
+      { path: '/agent/profile', label: 'Profile', icon: User },
+    ]
+  }
+
+  if (role === 'backoffice_admin') {
+    return [
+      ...baseTabs,
+      { path: '/agent/reconcile', label: 'Reconcile', icon: ClipboardCheck },
+      { path: '/agent/deposits', label: 'Deposits', icon: Banknote },
+      { path: '/agent/call-list', label: 'Agents', icon: PhoneCall },
       { path: '/agent/profile', label: 'Profile', icon: User },
     ]
   }
@@ -78,6 +141,7 @@ export default function AgentLayout() {
   const user = useAuthStore((s) => s.user)
   const tabs = getTabsForRole(user?.role)
   const onSubPage = isSubPage(location.pathname)
+  useIncomingCallPoll()
 
   return (
     <div className="min-h-screen bg-[#06090F] flex flex-col">
@@ -94,6 +158,13 @@ export default function AgentLayout() {
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           <h1 className="text-lg font-semibold text-white">{getSubPageTitle(location.pathname)}</h1>
+        </div>
+      )}
+
+      {/* Notification bell — main pages only (sub-pages have their own header) */}
+      {!onSubPage && (
+        <div className="fixed top-3 right-3 z-40">
+          <NotificationCenter />
         </div>
       )}
 

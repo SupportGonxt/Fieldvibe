@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -23,9 +23,11 @@ import {
   CheckCircle,
   Target,
   FileText,
+  Printer,
 } from 'lucide-react'
 import { surveysService } from '../../services/surveys.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { escapeHtml } from '../../utils/export'
 
 // ── Types ──
 
@@ -137,6 +139,133 @@ const FIELD_TYPES = [
   { value: 'textarea', label: 'Long Text' },
   { value: 'image', label: 'Photo Upload' },
 ]
+
+// ── Printable question form (blank answer spaces for agents to fill out) ──
+
+// FieldVibe logo (light-background variant of public/fieldvibe-logo-light.svg),
+// inlined so the print window renders it without waiting on an image request.
+const FIELDVIBE_LOGO_SVG = `<svg viewBox="0 0 280 64" width="170" height="39" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="32" cy="32" r="28" stroke="url(#fvl-grad)" stroke-width="2.5" stroke-dasharray="5 3.5" opacity="0.3"/>
+  <path d="M19 38C19 38 23 25 32 25C41 25 45 38 45 38" stroke="url(#fvl-grad)" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+  <path d="M13 43C13 43 20 18 32 18C44 18 51 43 51 43" stroke="url(#fvl-grad)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <circle cx="32" cy="32" r="6.5" fill="url(#fvl-grad)"/>
+  <circle cx="32" cy="32" r="2.8" fill="white"/>
+  <path d="M32 13L32 23" stroke="#00C968" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M27 18L32 13L37 18" stroke="#00C968" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="74" y="42" font-family="'Outfit', 'SF Pro Display', -apple-system, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#0A0F1C">Field</text>
+  <text x="155" y="42" font-family="'Outfit', 'SF Pro Display', -apple-system, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#00C968">Vibe</text>
+  <defs>
+    <linearGradient id="fvl-grad" x1="10" y1="10" x2="54" y2="54">
+      <stop offset="0%" stop-color="#00C968"/>
+      <stop offset="100%" stop-color="#00E87B"/>
+    </linearGradient>
+  </defs>
+</svg>`
+
+interface PrintFormSection {
+  heading?: string
+  questions: CustomQuestion[]
+}
+
+// Map a survey question onto the shape printQuestionForm knows how to render.
+// Survey rows in the database vary in field naming, so fall back across the
+// known variants rather than assuming question_text/question_type exist.
+function surveyQuestionToPrintable(q: SurveyQuestion, index: number): CustomQuestion {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = q as any
+  const label = raw.question_text || raw.text || raw.question || raw.label || `Question ${index + 1}`
+  const type = raw.question_type || raw.type || 'text'
+  const options = Array.isArray(raw.options)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? raw.options.map((o: any) => typeof o === 'string' ? o : o?.label || o?.value || String(o ?? '')).filter(Boolean)
+    : undefined
+  const fieldType =
+    type === 'multiple_choice' || type === 'rating' ? 'select' :
+    type === 'yes_no' ? 'toggle' :
+    type === 'date' ? 'date' : 'text'
+  return {
+    id: raw.id || `survey-q-${index}`,
+    company_id: '',
+    question_label: label,
+    question_key: '',
+    field_type: fieldType,
+    field_options: type === 'rating' ? ['1', '2', '3', '4', '5'] : options,
+    is_required: !!raw.required,
+    display_order: index,
+    visit_target_type: 'survey',
+  }
+}
+
+function printQuestionForm(sections: PrintFormSection[], title: string) {
+  const answerArea = (q: CustomQuestion): string => {
+    const opts = Array.isArray(q.field_options) ? q.field_options : []
+    if (q.field_type === 'toggle') {
+      return `<div class="options"><span class="opt">&#9744; Yes</span><span class="opt">&#9744; No</span></div>`
+    }
+    if ((q.field_type === 'select' || q.field_type === 'radio' || q.field_type === 'checkbox') && opts.length > 0) {
+      return `<div class="options">${opts.map(o => `<span class="opt">&#9744; ${escapeHtml(o)}</span>`).join('')}</div>`
+    }
+    if (q.field_type === 'textarea') {
+      return `<div class="write-box"></div>`
+    }
+    return `<div class="write-line"></div>`
+  }
+
+  const questionBlock = (q: CustomQuestion, n: number): string => `
+    <div class="question">
+      <div class="q-label">${n}. ${escapeHtml(q.question_label)}${q.is_required ? '<span class="req"> *</span>' : ''}</div>
+      ${answerArea(q)}
+    </div>`
+
+  // Numbering restarts within each section
+  const body = sections.map(section => {
+    const blocks = section.questions.map((q, i) => questionBlock(q, i + 1)).join('')
+    return section.heading
+      ? `<h2 class="company">${escapeHtml(section.heading)}</h2>${blocks}`
+      : blocks
+  }).join('')
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+    <style>
+      @page { size: portrait; margin: 15mm; }
+      body { font-family: -apple-system, sans-serif; color: #1f2937; }
+      .brand { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #00C968; }
+      h1 { font-size: 15pt; margin: 0; }
+      .fill-header { display: flex; gap: 40px; margin: 14px 0 20px; font-size: 10.5pt; }
+      .fill-header span { border-bottom: 1px solid #6b7280; min-width: 200px; display: inline-block; }
+      .company { font-size: 12pt; margin: 22px 0 8px; padding-bottom: 3px; border-bottom: 2px solid #d1d5db; }
+      .question { margin-bottom: 16px; page-break-inside: avoid; }
+      .q-label { font-size: 11pt; font-weight: 600; margin-bottom: 8px; }
+      .req { color: #dc2626; }
+      .options { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 10.5pt; padding-left: 16px; }
+      .opt { white-space: nowrap; }
+      .write-line { border-bottom: 1px solid #9ca3af; height: 22px; margin-left: 16px; }
+      .write-box { border: 1px solid #9ca3af; border-radius: 3px; height: 70px; margin-left: 16px; }
+      .footnote { margin-top: 24px; font-size: 8.5pt; color: #6b7280; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+    </head><body>
+    <div class="brand">
+      ${FIELDVIBE_LOGO_SVG}
+      <h1>${escapeHtml(title)}</h1>
+    </div>
+    <div class="fill-header">
+      <div>Agent Name: <span>&nbsp;</span></div>
+      <div>Date: <span>&nbsp;</span></div>
+    </div>
+    ${body}
+    <div class="footnote">* Required question</div>
+    </body></html>`
+
+  const printWindow = window.open('', '_blank')
+  if (printWindow) {
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+    setTimeout(() => printWindow.print(), 500)
+  }
+}
 
 // ── Main Page Component ──
 
@@ -820,6 +949,34 @@ function CustomQuestionsTab() {
     Array.isArray(questionsResp?.results) ? questionsResp.results :
     Array.isArray(questionsResp) ? questionsResp : []
 
+  const { data: surveysResp } = useQuery({
+    queryKey: ['surveys-list'],
+    queryFn: () => surveysService.getSurveys({}),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const surveys: any[] = Array.isArray(surveysResp?.surveys) ? surveysResp.surveys :
+    Array.isArray(surveysResp?.data) ? surveysResp.data :
+    Array.isArray(surveysResp) ? surveysResp : []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function surveyQuestions(s: any): SurveyQuestion[] {
+    if (Array.isArray(s.questions)) return s.questions
+    if (typeof s.questions === 'string') {
+      try {
+        const parsed = JSON.parse(s.questions)
+        return Array.isArray(parsed) ? parsed : []
+      } catch { return [] }
+    }
+    return []
+  }
+
+  // Surveys allocated to the selected company (or to all companies)
+  const companySurveys = filterCompany
+    ? surveys.filter(s => (s.company_id === filterCompany || !s.company_id) && surveyQuestions(s).length > 0)
+    : []
+  // When the company has no custom questions but does have surveys, show those instead
+  const showCompanySurveys = companySurveys.length > 0 && questions.length === 0
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -888,6 +1045,76 @@ function CustomQuestionsTab() {
     return label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
   }
 
+  // ── Print / Download ──
+  type ExportScope = 'all' | 'store' | 'individual' | 'survey'
+
+  const [showPrintMenu, setShowPrintMenu] = useState(false)
+  const printMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showPrintMenu) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (printMenuRef.current && !printMenuRef.current.contains(e.target as Node)) {
+        setShowPrintMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [showPrintMenu])
+
+  const scopeLabel = (scope: ExportScope) =>
+    scope === 'store' ? 'Store Questions' :
+    scope === 'individual' ? 'Individual Questions' :
+    scope === 'survey' ? 'Survey Questions' : 'All Questions'
+
+  const hasSurveyQuestions = questions.some(q => q.visit_target_type === 'survey') || companySurveys.length > 0
+
+  // Questions marked "both" apply to store and individual visits alike, so they
+  // are included in either scoped export (matching the visit-flow API filter).
+  // Survey questions are only ever survey-targeted.
+  function exportRows(scope: ExportScope) {
+    const scoped = scope === 'all'
+      ? questions
+      : scope === 'survey'
+        ? questions.filter(q => q.visit_target_type === 'survey')
+        : questions.filter(q => (q.visit_target_type || 'both') === scope || (q.visit_target_type || 'both') === 'both')
+    return scoped
+      .slice()
+      .sort((a, b) =>
+        getCompanyName(a.company_id).localeCompare(getCompanyName(b.company_id)) ||
+        (a.visit_target_type || 'both').localeCompare(b.visit_target_type || 'both') ||
+        (a.display_order - b.display_order))
+      .map(q => ({ ...q, company: getCompanyName(q.company_id) }))
+  }
+
+  const exportCompanyLabel = filterCompany ? getCompanyName(filterCompany) : 'All Companies'
+
+  function handlePrint(scope: ExportScope) {
+    setShowPrintMenu(false)
+    const rows = exportRows(scope)
+    const companyGroups = [...new Set(rows.map(q => q.company))]
+    const sections: PrintFormSection[] = companyGroups.map(c => ({
+      heading: companyGroups.length > 1 ? c : undefined,
+      questions: rows.filter(q => q.company === c),
+    }))
+    // Company surveys join the survey scope, and stand in for "all" when the
+    // company has no custom questions of its own
+    if (scope === 'survey' || (scope === 'all' && showCompanySurveys)) {
+      for (const s of companySurveys) {
+        sections.push({
+          heading: `Survey: ${s.title || s.name}`,
+          questions: surveyQuestions(s).map(surveyQuestionToPrintable),
+        })
+      }
+    }
+    if (sections.every(s => s.questions.length === 0) || sections.length === 0) {
+      toast.error(`No ${scopeLabel(scope).toLowerCase()} to print for ${exportCompanyLabel}`)
+      return
+    }
+    const title = `${exportCompanyLabel} — ${scopeLabel(scope)}`
+    printQuestionForm(sections, title)
+  }
+
   if (isLoading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
 
   if (isError) {
@@ -916,10 +1143,45 @@ function CustomQuestionsTab() {
             placeholder="All Companies"
           />
         </div>
-        <button onClick={() => { setShowCreate(true); setEditingQuestion(null) }} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          <span>New Question</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative" ref={printMenuRef}>
+            <button
+              onClick={() => setShowPrintMenu(v => !v)}
+              disabled={questions.length === 0 && companySurveys.length === 0}
+              className="btn-outline flex items-center gap-2 disabled:opacity-50"
+              title="Print questions"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showPrintMenu && (
+              <div className="absolute right-0 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 py-1">
+                <div className="px-4 py-1.5 text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                  {exportCompanyLabel}
+                </div>
+                <button onClick={() => handlePrint('all')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  All Questions
+                </button>
+                <button onClick={() => handlePrint('store')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Store Questions
+                </button>
+                <button onClick={() => handlePrint('individual')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  Individual Questions
+                </button>
+                {hasSurveyQuestions && (
+                  <button onClick={() => handlePrint('survey')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Survey Questions
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <button onClick={() => { setShowCreate(true); setEditingQuestion(null) }} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            <span>New Question</span>
+          </button>
+        </div>
       </div>
 
       {showCreate && (
@@ -1096,11 +1358,73 @@ function CustomQuestionsTab() {
 
       {/* Question Packs - grouped by company and visit type */}
       {questions.length === 0 ? (
-        <div className="card p-12 text-center">
-          <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-          <p className="text-gray-500">No custom questions configured</p>
-          <p className="text-sm text-gray-400 mt-1">Add company-specific questions that appear on the visit Details step</p>
-        </div>
+        showCompanySurveys ? (
+          <>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              No custom questions configured for {exportCompanyLabel} — showing its allocated survey{companySurveys.length !== 1 ? 's' : ''} instead.
+            </div>
+            {companySurveys.map(survey => {
+              const qs = surveyQuestions(survey)
+              return (
+                <div key={survey.id} className="card overflow-hidden">
+                  <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2 flex-wrap">
+                    <FileText className="w-4 h-4 text-purple-500" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{survey.title || survey.name}</h3>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Survey</span>
+                    {!survey.company_id && (
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">All Companies</span>
+                    )}
+                    <span className="text-xs text-gray-400">({qs.length} question{qs.length !== 1 ? 's' : ''})</span>
+                  </div>
+                  {survey.description && (
+                    <div className="px-6 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">{survey.description}</div>
+                  )}
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Question</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Required</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                      {qs.map((q, idx) => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const raw = q as any
+                        const text = raw.question_text || raw.text || raw.question || raw.label || `Question ${idx + 1}`
+                        const type = raw.question_type || raw.type || 'text'
+                        const options = Array.isArray(raw.options)
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          ? raw.options.map((o: any) => typeof o === 'string' ? o : o?.label || o?.value || String(o ?? '')).filter(Boolean)
+                          : []
+                        return (
+                          <tr key={raw.id || idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <td className="px-6 py-3 text-sm text-gray-500">{idx + 1}</td>
+                            <td className="px-6 py-3">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">{text}</div>
+                              {options.length > 0 && (
+                                <div className="text-xs text-gray-400">{options.join(' / ')}</div>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400">{QUESTION_TYPES.find(t => t.value === type)?.label || type}</td>
+                            <td className="px-6 py-3 text-sm">{raw.required ? <span className="text-red-500 font-medium">Yes</span> : 'No'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })}
+          </>
+        ) : (
+          <div className="card p-12 text-center">
+            <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+            <p className="text-gray-500">No custom questions configured</p>
+            <p className="text-sm text-gray-400 mt-1">Add company-specific questions that appear on the visit Details step</p>
+          </div>
+        )
       ) : (
         (() => {
           // Group questions into packs: company -> visit_type -> questions[]
