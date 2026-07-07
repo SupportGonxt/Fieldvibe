@@ -14,6 +14,7 @@ import depositRoutes from './routes/field-ops/deposits.js';
 import { dueEscalation } from './services/incentiveService.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 import { clampSharePct, parseStoreInsights } from './services/goldrushVision.js';
+import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal } from './services/portal.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -510,6 +511,9 @@ const authMiddleware = async (c, next) => {
     if (payload.exp < Math.floor(Date.now() / 1000)) {
       return c.json({ success: false, message: 'Token expired' }, 401);
     }
+    if (payload.aud === 'portal') {
+      return c.json({ success: false, message: 'Portal token not valid for staff API' }, 401);
+    }
     c.set('userId', payload.userId);
     c.set('tenantId', payload.tenantId);
     c.set('role', payload.role);
@@ -570,6 +574,48 @@ app.post('/api/auth/login', rateLimiter(5, 900000), async (c) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    return c.json({ success: false, message: 'Login failed' }, 500);
+  }
+});
+
+// ==================== CUSTOMER PORTAL AUTH (Phase F) ====================
+app.post('/portal/auth/accept-invite', rateLimiter(5, 900000), async (c) => {
+  try {
+    const db = c.env.DB;
+    await ensurePortalTables(db);
+    const { token, password } = await c.req.json();
+    if (!token || !password || String(password).length < 8) {
+      return c.json({ success: false, message: 'Token and an 8+ char password are required' }, 400);
+    }
+    const user = await db.prepare("SELECT * FROM portal_users WHERE invite_token = ? AND status = 'invited'").bind(token).first();
+    if (!user) return c.json({ success: false, message: 'Invalid or already-used invite' }, 400);
+    if (inviteTokenExpired(user.invite_expires_at, Math.floor(Date.now() / 1000))) {
+      return c.json({ success: false, message: 'Invite expired' }, 400);
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await db.prepare("UPDATE portal_users SET password_hash = ?, status = 'active', invite_token = NULL, invite_expires_at = NULL WHERE id = ?").bind(hash, user.id).run();
+    const jwtSecret = c.env.JWT_SECRET;
+    const accessToken = await generateToken({ portalUserId: user.id, tenantId: user.tenant_id, companyId: user.company_id, aud: 'portal' }, jwtSecret);
+    return c.json({ success: true, data: { token: accessToken, access_token: accessToken } });
+  } catch (e) {
+    return c.json({ success: false, message: 'Could not accept invite' }, 500);
+  }
+});
+
+app.post('/portal/auth/login', rateLimiter(5, 900000), async (c) => {
+  try {
+    const db = c.env.DB;
+    await ensurePortalTables(db);
+    const { email, password } = await c.req.json();
+    if (!email || !password) return c.json({ success: false, message: 'Email and password are required' }, 400);
+    const user = await db.prepare("SELECT * FROM portal_users WHERE email = ? AND status = 'active'").bind(String(email).toLowerCase().trim()).first();
+    if (!user || !user.password_hash) return c.json({ success: false, message: 'Invalid credentials' }, 401);
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return c.json({ success: false, message: 'Invalid credentials' }, 401);
+    const jwtSecret = c.env.JWT_SECRET;
+    const accessToken = await generateToken({ portalUserId: user.id, tenantId: user.tenant_id, companyId: user.company_id, aud: 'portal' }, jwtSecret);
+    return c.json({ success: true, data: { token: accessToken, access_token: accessToken } });
+  } catch (e) {
     return c.json({ success: false, message: 'Login failed' }, 500);
   }
 });
@@ -9113,6 +9159,51 @@ async function goldrushIdExists(db, tenantId, goldrushId, excludeVisitId = null)
 // (goldrush_upload_failures kept as a compat VIEW so legacy read sites keep resolving).
 // Idempotent + recovery-safe: safe to call on every write; each abrupt-stop midpoint
 // converges on the next call. ponytail: one sqlite_master probe per call = cheap early-return.
+// Customer-portal auth tables (Phase F). dev D1 doesn't auto-apply schema.sql,
+// so every portal auth path calls this first (mirrors ensureCaptureFailures).
+async function ensurePortalTables(db) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS portal_users (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT NOT NULL,
+    email TEXT NOT NULL, password_hash TEXT, invite_token TEXT, invite_expires_at TEXT,
+    status TEXT NOT NULL DEFAULT 'invited', created_by TEXT, created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+  await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_portal_users_tenant_email ON portal_users(tenant_id, email)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_portal_users_invite ON portal_users(invite_token)`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS portal_dashboard_config (
+    company_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, widgets TEXT NOT NULL,
+    updated_by TEXT, updated_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+}
+
+// Portal JWTs are their own audience (aud: 'portal') so a customer login can
+// never be replayed against staff routes, and vice versa (see authMiddleware's
+// aud guard). Verification mirrors authMiddleware's HMAC-SHA256 check.
+const portalAuthMiddleware = async (c, next) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : c.req.query('access_token');
+    if (!token) return c.json({ success: false, message: 'Unauthorized' }, 401);
+    const parts = token.split('.');
+    if (parts.length !== 3) return c.json({ success: false, message: 'Malformed token' }, 401);
+    const jwtSecret = c.env.JWT_SECRET;
+    if (!jwtSecret) return c.json({ success: false, message: 'Server configuration error' }, 500);
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', encoder.encode(jwtSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const signatureBytes = Uint8Array.from(atob(parts[2].replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
+    const valid = await crypto.subtle.verify('HMAC', key, signatureBytes, encoder.encode(parts[0] + '.' + parts[1]));
+    if (!valid) return c.json({ success: false, message: 'Invalid token signature' }, 401);
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp < Math.floor(Date.now() / 1000)) return c.json({ success: false, message: 'Token expired' }, 401);
+    try { assertPortalToken(payload); } catch { return c.json({ success: false, message: 'Not a portal token' }, 401); }
+    c.set('portalUserId', payload.portalUserId);
+    c.set('portalTenantId', payload.tenantId);
+    c.set('portalCompanyId', payload.companyId);
+    await next();
+  } catch (e) {
+    return c.json({ success: false, message: 'Invalid token' }, 401);
+  }
+};
+
 async function ensureCaptureFailures(db) {
   // Fast path: once the legacy name is a VIEW, migration is complete.
   const meta = await db.prepare(
