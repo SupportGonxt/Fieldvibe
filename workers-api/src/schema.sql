@@ -2191,3 +2191,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_program_config_uniq ON program_config(tena
 CREATE INDEX IF NOT EXISTS idx_inactivity_open ON inactivity_events(tenant_id, resolved_at);
 CREATE INDEX IF NOT EXISTS idx_data_calls_target ON data_calls(tenant_id, target_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_training_days_lookup ON training_days(tenant_id, user_id, date);
+
+-- Customer portal (Phase F): per-customer read-only accounts, one company each.
+CREATE TABLE IF NOT EXISTS portal_users (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  password_hash TEXT,
+  invite_token TEXT,
+  invite_expires_at TEXT,
+  status TEXT NOT NULL DEFAULT 'invited',
+  created_by TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_portal_users_tenant_email ON portal_users(tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_portal_users_invite ON portal_users(invite_token);
+
+-- One dashboard config row per company; widgets is a JSON array.
+CREATE TABLE IF NOT EXISTS portal_dashboard_config (
+  company_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  widgets TEXT NOT NULL,
+  updated_by TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
