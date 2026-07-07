@@ -195,7 +195,7 @@ export default function GoldrushFastEntry() {
       if (warnings && Object.keys(warnings).length > 0) {
         toast.error('Saved with errors — check the ID/photo', 5000)
       } else {
-        toast.success('Signup captured! 🎉')
+        toast.success('Signup captured!')
       }
       setSessionCount(c => c + 1)
       resetForm()
@@ -244,8 +244,9 @@ export default function GoldrushFastEntry() {
 
       <div className="px-5 pt-5 space-y-5">
         {sessionCount > 0 && (
-          <p className="text-center text-sm text-[#00E87B] font-semibold">
-            🔥 {sessionCount} signup{sessionCount > 1 ? 's' : ''} this session — keep the streak going!
+          <p className="flex items-center justify-center gap-1.5 text-center text-sm text-[#00E87B] font-semibold">
+            <Flame className="w-4 h-4 shrink-0" />
+            {sessionCount} signup{sessionCount > 1 ? 's' : ''} this session — keep the streak going!
           </p>
         )}
 
@@ -328,11 +329,11 @@ export default function GoldrushFastEntry() {
           <div className="flex gap-3">
             {(['Yes', 'No'] as const).map(v => (
               <button key={v} type="button" onClick={() => setConverted(v)}
-                className={`flex-1 py-3.5 rounded-2xl text-base font-bold border transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3.5 rounded-2xl text-base font-bold border transition-colors ${
                   converted === v
                     ? v === 'Yes' ? 'bg-[#00E87B] border-[#00E87B] text-[#06090F]' : 'bg-white/10 border-white/30 text-white'
                     : 'bg-white/[0.03] border-white/10 text-gray-400'}`}>
-                {v === 'Yes' ? '✅ Converted' : 'Not yet'}
+                {v === 'Yes' ? <><Check className="w-4 h-4 shrink-0" /> Converted</> : 'Not yet'}
               </button>
             ))}
           </div>
