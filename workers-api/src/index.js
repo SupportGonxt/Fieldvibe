@@ -13,6 +13,7 @@ import kpiRoutes from './routes/field-ops/kpi.js';
 import depositRoutes from './routes/field-ops/deposits.js';
 import { dueEscalation } from './services/incentiveService.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
+import { clampSharePct, parseStoreInsights } from './services/goldrushVision.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -9503,8 +9504,12 @@ api.post('/visits/workflow', authMiddleware, async (c) => {
       try {
         const placeholders = stepPhotoIds.map(() => '?').join(',');
         const savedPhotos = await db.prepare(`SELECT id, r2_key, photo_type FROM visit_photos WHERE id IN (${placeholders}) AND tenant_id = ?`).bind(...stepPhotoIds, tenantId).all();
+        // Cost gate: vision tokens are ~fixed per image, so the real cost lever
+        // is how many photos we analyse. Only the representative store photo
+        // (board/storefront) gets AI — never individual-visit photos.
+        const AI_PHOTO_TYPES = new Set(['board', 'store_front', 'storefront']);
         for (const sp of (savedPhotos?.results || [])) {
-          if (sp.r2_key && !sp.r2_key.startsWith('data:')) {
+          if (sp.r2_key && !sp.r2_key.startsWith('data:') && AI_PHOTO_TYPES.has(sp.photo_type)) {
             try { c.executionCtx.waitUntil(analyzePhotoWithAI(c.env, sp.id, sp.r2_key, tenantId, visitId, sp.photo_type)); } catch { /* AI analysis optional */ }
           }
         }
@@ -14588,18 +14593,23 @@ async function analyzePhotoWithAI(env, photoId, r2Key, tenantId, visitId, photoT
   try {
     const bucket = env.UPLOADS;
     const object = await bucket.get(r2Key);
-    if (!object) return;
-    let imageBytes = new Uint8Array(await object.arrayBuffer());
+    let imageBytes = null;
 
     // Hard cap as defence-in-depth. With image_url + base64 (below) the model
     // tokenizes images via its visual encoder (~1.1K tokens regardless of size),
     // so the byte size doesn't blow the context window — it just bounds the
     // request payload itself.
     const MAX_AI_IMAGE_BYTES = 4_000_000;
-    if (imageBytes.length > MAX_AI_IMAGE_BYTES) {
-      await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image ' + Math.round(imageBytes.length/1024) + 'KB exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB safety cap', photoId).run();
-      return;
+    if (object) {
+      imageBytes = new Uint8Array(await object.arrayBuffer());
+      if (imageBytes.length > MAX_AI_IMAGE_BYTES) {
+        await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image ' + Math.round(imageBytes.length/1024) + 'KB exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB safety cap', photoId).run();
+        return;
+      }
     }
+    // If R2 has no object, this is a body.photos path (Goldrush store/individual
+    // visits store the photo as a base64 data URL in visit_photos.r2_url and never
+    // upload to R2). The stored data URL is resolved into `dataUrl` below.
 
     // Per-photo-type prompts. Tuned for parseable JSON output:
     //   - tight schema with example values
@@ -14661,9 +14671,11 @@ Schema:
   "condition": "good",
   "visibility": "high",
   "board_type": "signage",
+  "share_of_wall_pct": 40,
+  "insights": ["Goldrush branding dominates the storefront wall", "Signage is clean and well-positioned at eye level"],
   "description": "A Goldrush metal sign mounted on the front wall, clearly visible."
 }
-board_type ∈ signage | poster | banner | shelf_talker | other. condition ∈ good | damaged | faded. visibility ∈ low | medium | high. If no board is present, set board_detected false and brand "". Output JSON only.`;
+board_type ∈ signage | poster | banner | shelf_talker | other. condition ∈ good | damaged | faded. visibility ∈ low | medium | high. share_of_wall_pct is 0–100: the estimated percentage of visible wall/signage space occupied by the brand's branding. insights is an array of up to 3 short, customer-facing observations about brand presence and merchandising. If no board is present, set board_detected false, brand "", share_of_wall_pct 0, insights []. Output JSON only.`;
 
     const GENERIC_PROMPT = `You are a retail-marketing auditor. Return ONLY a JSON object — no prose, no markdown, no code fences.
 Schema:
@@ -14691,14 +14703,28 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
     // base64 data URL. The vision encoder consumes a fixed ~1.1K visual
     // tokens regardless of byte size, so a 1MB photo costs the same as a
     // 100KB photo in tokens.
-    const contentType = (object && object.httpMetadata && object.httpMetadata.contentType) || 'image/jpeg';
-    // btoa can't take giant strings on Workers — chunk to keep it stable.
-    let binStr = '';
-    const CHUNK = 32768;
-    for (let i = 0; i < imageBytes.length; i += CHUNK) {
-      binStr += String.fromCharCode.apply(null, imageBytes.subarray(i, i + CHUNK));
+    let dataUrl;
+    if (imageBytes) {
+      const contentType = (object && object.httpMetadata && object.httpMetadata.contentType) || 'image/jpeg';
+      // btoa can't take giant strings on Workers — chunk to keep it stable.
+      let binStr = '';
+      const CHUNK = 32768;
+      for (let i = 0; i < imageBytes.length; i += CHUNK) {
+        binStr += String.fromCharCode.apply(null, imageBytes.subarray(i, i + CHUNK));
+      }
+      dataUrl = `data:${contentType};base64,${btoa(binStr)}`;
+    } else {
+      // body.photos path: use the base64 data URL stored on the row directly.
+      const row = await env.DB.prepare('SELECT r2_url FROM visit_photos WHERE id = ?').bind(photoId).first();
+      if (!row || !row.r2_url || !String(row.r2_url).startsWith('data:')) return;
+      dataUrl = String(row.r2_url);
+      // base64 length * 3/4 ≈ decoded byte size — same 4MB safety cap.
+      const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      if (b64.length * 0.75 > MAX_AI_IMAGE_BYTES) {
+        await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'skipped', ai_raw_response = ? WHERE id = ?").bind('Image exceeds ' + Math.round(MAX_AI_IMAGE_BYTES/1024) + 'KB safety cap', photoId).run();
+        return;
+      }
     }
-    const dataUrl = `data:${contentType};base64,${btoa(binStr)}`;
 
     const aiResponse = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       messages: [
@@ -14751,6 +14777,12 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
       const tenantBrandNames = (tenantBrands.results || []).map(b => b.name.toLowerCase());
       brandFacings = parsed.brands.filter(b => b.name && tenantBrandNames.some(tb => b.name.toLowerCase().includes(tb))).reduce((s, b) => s + (b.facings || 0), 0);
       sovPct = totalFacings > 0 ? Math.round((brandFacings / totalFacings) * 1000) / 10 : 0;
+    }
+    // Board/storefront photos have no shelf facings — the model returns
+    // share_of_wall_pct directly. Use it as the share-of-voice value.
+    {
+      const sow = clampSharePct(parsed.share_of_wall_pct);
+      if (sow != null) sovPct = sow;
     }
 
     // Coerce values for D1 bind. The model occasionally returns a nested
@@ -18279,6 +18311,7 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
 
       // Parse AI data before building return object so board_installed can be updated
       let ai_board_detected = false, ai_brand = '', ai_condition = '', ai_visibility = '', ai_board_type = '', ai_description = '';
+      let ai_insights = [];
       if (row.ai_board_response) {
         try {
           const r = JSON.parse(row.ai_board_response.match(/\{[\s\S]*\}/)?.[0] || '{}');
@@ -18298,6 +18331,7 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
           if (!ai_visibility && r.visibility) ai_visibility = r.visibility;
           if (!ai_board_type && r.board_type) ai_board_type = r.board_type;
           if (r.description) ai_description = r.description;
+          ai_insights = parseStoreInsights(row.ai_raw_response);
           if (r.brands && Array.isArray(r.brands) && r.brands.length > 0 && !ai_brand) {
             ai_brand = r.brands.map(b => b.name || b).filter(Boolean).join(', ');
           }
@@ -18344,6 +18378,7 @@ api.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         ai_visibility,
         ai_board_type,
         ai_description,
+        ai_insights,
       };
     });
 

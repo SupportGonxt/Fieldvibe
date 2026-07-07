@@ -46,7 +46,7 @@ interface GoldrushStore {
   competitor_products: string; competitor_prices: string; has_advertising: string
   other_ad_brands: string; board_installed: string
   ai_status: string; ai_board_detected: boolean; ai_photos_analyzed: number; ai_share_of_voice: number
-  ai_brand: string; ai_condition: string; ai_visibility: string; ai_board_type: string; ai_description: string
+  ai_brand: string; ai_condition: string; ai_visibility: string; ai_board_type: string; ai_description: string; ai_insights?: string[]
 }
 interface StellrVisit {
   id: string; visit_date: string; status: string; store_name: string; store_address: string
@@ -896,6 +896,11 @@ export default function StoreInsights() {
                                 <div>Visibility: {store.ai_visibility || '—'}</div>
                                 <div>SoV: {store.ai_share_of_voice != null ? `${store.ai_share_of_voice}%` : '—'}</div>
                                 <div>Type: {store.ai_board_type || '—'}</div>
+                                {store.ai_insights && store.ai_insights.length > 0 && (
+                                  <ul className="mt-1 list-disc list-inside text-gray-500 dark:text-gray-400">
+                                    {store.ai_insights.map((ins, i) => <li key={i}>{ins}</li>)}
+                                  </ul>
+                                )}
                               </div>
                             ) : store.ai_status === 'processing' ? (
                               <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Loader2 className="w-3 h-3 animate-spin" /> Processing…</span>
