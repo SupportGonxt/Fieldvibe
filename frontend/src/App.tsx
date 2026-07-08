@@ -492,8 +492,8 @@ function App() {
       <ToastContainer />
       <div className="min-h-screen bg-[#06090F]">
         <Routes>
-          {/* Marketing Landing Page (installed PWA skips it: /auth redirects by role, or shows login) */}
-          <Route path="/" element={isStandalonePwa() ? <Navigate to="/auth" replace /> : <PageLoader><LandingPage /></PageLoader>} />
+          {/* Marketing Landing Page (installed PWA + logged-in users skip it: /auth redirects by role, or shows login) */}
+          <Route path="/" element={isStandalonePwa() || isAuthenticated ? <Navigate to="/auth" replace /> : <PageLoader><LandingPage /></PageLoader>} />
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
@@ -1121,8 +1121,9 @@ function App() {
             <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
             <Route path="more" element={<PageLoader><MoreMenuPage /></PageLoader>} />
 
-            {/* Default redirect */}
-            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* ponytail: no index route — pathless-parent index outranks the explicit path="/" route
+                (index bonus in route scoring), which hijacked "/" and sent standalone PWA users to
+                the full admin app. "/" is handled by the top-level route + /auth role redirect. */}
           </Route>
 
           {/* Agent Routes - separate layout without admin chrome */}
