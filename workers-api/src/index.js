@@ -738,9 +738,10 @@ app.get('/api/agent/store-search', authMiddleware, async (c) => {
     const params = [tenantId];
 
     if (company_id) {
-      // Filter by stores visited for this company, or stores linked to this company
-      where += ' AND (c.id IN (SELECT DISTINCT customer_id FROM visits WHERE tenant_id = ? AND company_id = ? AND customer_id IS NOT NULL) OR c.company_id = ?)';
-      params.push(tenantId, company_id, company_id);
+      // Filter by stores visited for this company. (customers has no company_id
+      // column in prod — the old `OR c.company_id = ?` 500'd this route.)
+      where += ' AND c.id IN (SELECT DISTINCT customer_id FROM visits WHERE tenant_id = ? AND company_id = ? AND customer_id IS NOT NULL)';
+      params.push(tenantId, company_id);
     }
 
     if (search) {
@@ -748,14 +749,20 @@ app.get('/api/agent/store-search', authMiddleware, async (c) => {
       params.push('%' + search + '%', '%' + search + '%', '%' + search + '%', '%' + search + '%');
     }
 
+    // Derived table over this agent's visits (one index pass) instead of
+    // LEFT JOIN + GROUP BY over every customer×visit pair — was 97% of all D1 reads.
     const customers = await db.prepare(
       `SELECT c.id, c.name, c.code, c.contact_person, c.contact_phone, c.address, c.latitude, c.longitude, c.customer_type,
-        MAX(v.visit_date) as last_visit_date
+        lv.last_visit_date
       FROM customers c
-      LEFT JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id AND v.agent_id = ?
-      ${where} GROUP BY c.id, c.name, c.code, c.contact_person, c.contact_phone, c.address, c.latitude, c.longitude, c.customer_type
-      ORDER BY last_visit_date DESC NULLS LAST, c.name LIMIT ?`
-    ).bind(userId, ...params, limitNum).all();
+      LEFT JOIN (
+        SELECT customer_id, MAX(visit_date) AS last_visit_date
+        FROM visits WHERE tenant_id = ? AND agent_id = ? AND customer_id IS NOT NULL
+        GROUP BY customer_id
+      ) lv ON lv.customer_id = c.id
+      ${where}
+      ORDER BY lv.last_visit_date DESC NULLS LAST, c.name LIMIT ?`
+    ).bind(tenantId, userId, ...params, limitNum).all();
 
     return c.json({ success: true, data: customers.results || [] });
   } catch (err) {
@@ -15570,49 +15577,35 @@ api.get('/visit-photos/needs-reupload', authMiddleware, async (c) => {
     }
     let rejectedVisits = [];
     try {
+      // Drive from visit_photos (small table) instead of scanning all visits per run.
       const res = await db.prepare(`
-        SELECT DISTINCT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status,
+        SELECT v.id, v.visit_date, v.visit_type, v.visit_target_type, v.status,
                c.name as store_name, v.individual_name, v.individual_surname,
                u.first_name || ' ' || u.last_name as agent_name,
-               (
-                 SELECT COUNT(*)
-                 FROM visit_photos vp2
-                 WHERE vp2.visit_id = v.id
-                   AND vp2.tenant_id = v.tenant_id
-                   AND vp2.review_status = 'rejected'
-                   AND NOT EXISTS (
-                     SELECT 1
-                     FROM visit_photos newer
-                     WHERE newer.visit_id = vp2.visit_id
-                       AND newer.tenant_id = vp2.tenant_id
-                       AND newer.photo_type = vp2.photo_type
-                       AND newer.review_status = 'pending'
-                       AND datetime(newer.created_at) > datetime(vp2.created_at)
-                   )
-               ) as rejected_count
-        FROM visits v
+               rej.rejected_count
+        FROM (
+          SELECT vp.visit_id, COUNT(*) as rejected_count
+          FROM visit_photos vp
+          WHERE vp.tenant_id = ?
+            AND vp.review_status = 'rejected'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM visit_photos newer
+              WHERE newer.visit_id = vp.visit_id
+                AND newer.tenant_id = vp.tenant_id
+                AND newer.photo_type = vp.photo_type
+                AND newer.review_status = 'pending'
+                AND datetime(newer.created_at) > datetime(vp.created_at)
+            )
+          GROUP BY vp.visit_id
+        ) rej
+        CROSS JOIN visits v ON v.id = rej.visit_id
         LEFT JOIN customers c ON v.customer_id = c.id
         LEFT JOIN users u ON v.agent_id = u.id
         WHERE v.tenant_id = ? ${agentFilter}
-          AND EXISTS (
-            SELECT 1
-            FROM visit_photos vp
-            WHERE vp.visit_id = v.id
-              AND vp.tenant_id = v.tenant_id
-              AND vp.review_status = 'rejected'
-              AND NOT EXISTS (
-                SELECT 1
-                FROM visit_photos newer
-                WHERE newer.visit_id = vp.visit_id
-                  AND newer.tenant_id = vp.tenant_id
-                  AND newer.photo_type = vp.photo_type
-                  AND newer.review_status = 'pending'
-                  AND datetime(newer.created_at) > datetime(vp.created_at)
-              )
-          )
         ORDER BY v.visit_date DESC
         LIMIT 100
-      `).bind(...params).all();
+      `).bind(tenantId, ...params).all();
       rejectedVisits = res.results || [];
     } catch { /* review_status column may not exist */ }
     return c.json({ success: true, data: rejectedVisits });
