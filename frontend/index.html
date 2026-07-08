@@ -79,6 +79,24 @@
         function showRecovery() {
           var script = document.querySelector('script[type=module]')
           var chunkUrl = script ? script.src : ''
+          // poisoned-cache heal: a bad immutable HTTP-cache entry makes the
+          // script tag fail while the URL fetches fine; a cache-busting query
+          // bypasses it — retry once before showing the recovery screen
+          if (chunkUrl && !sessionStorage.getItem('fv-chunk-retry') && bootErrors.join('|').indexOf('failed to load') !== -1) {
+            sessionStorage.setItem('fv-chunk-retry', '1')
+            var retry = document.createElement('script')
+            retry.type = 'module'
+            retry.src = chunkUrl + (chunkUrl.indexOf('?') === -1 ? '?fv=' : '&fv=') + Date.now()
+            document.body.appendChild(retry)
+            setTimeout(function () {
+              var root = document.getElementById('root')
+              if (!root || root.childElementCount === 0) renderRecovery(chunkUrl)
+            }, 4000)
+            return
+          }
+          renderRecovery(chunkUrl)
+        }
+        function renderRecovery(chunkUrl) {
           var lines = bootErrors.slice(0, 3)
           lines.push(navigator.userAgent)
           var root = document.getElementById('root')
