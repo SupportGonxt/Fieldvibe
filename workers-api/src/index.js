@@ -5174,7 +5174,7 @@ api.post('/orders', authMiddleware, async (c) => {
   await db.prepare('INSERT INTO sales_orders (id, tenant_id, order_number, customer_id, agent_id, status, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)').bind(id, tenantId, orderNum, body.customer_id, userId, 'pending', body.total_amount || 0, body.notes || '').run();
   if (body.items && Array.isArray(body.items)) {
     for (const item of body.items) {
-      await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?, ?)').bind(uuidv4(), id, item.product_id, item.quantity, item.unit_price).run();
+      await db.prepare('INSERT INTO sales_order_items (id, sales_order_id, product_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?)').bind(uuidv4(), id, item.product_id, item.quantity || 0, item.unit_price || 0, (item.quantity || 0) * (item.unit_price || 0)).run();
     }
   }
   return c.json({ success: true, data: { id, order_number: orderNum }, message: 'Order created' }, 201);
