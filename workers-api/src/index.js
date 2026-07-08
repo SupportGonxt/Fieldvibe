@@ -18075,7 +18075,12 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       binds.push('2000-01-01', endDate);
     }
     // If NEITHER startDate nor endDate provided, no date filter is applied (all-time)
-    
+
+    // Row cap: all-time spans 23k+ rows with large JSON blobs and times the worker out.
+    // Callers can raise via ?limit= up to 10000; response sets truncated=true when hit.
+    const limitRaw = parseInt(c.req.query('limit') || '5000', 10);
+    const rowCap = Math.min(Math.max(Number.isNaN(limitRaw) ? 5000 : limitRaw, 1), 10000);
+
     // DEBUG: Log what we received and what filter we're applying
     console.log(`[GoldrushIndividuals] Query params - startDate: "${startDate}", endDate: "${endDate}"`);
     console.log(`[GoldrushIndividuals] Applying dateFilter: "${dateFilter}"`);
@@ -18107,7 +18112,9 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za' AND u.email != 'luke.templeman@gonxt.tech'))
         AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}
       ORDER BY v.created_at DESC
-    `).bind(...binds).all();
+      LIMIT ?
+    `).bind(...binds, rowCap).all();
+    const truncated = (result.results || []).length === rowCap;
 
     // Look up custom company questions with field_type='image' to extract photos from custom question responses
     let customImageKeys = [];
@@ -18217,8 +18224,8 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       };
     });
 
-    console.log(`[GoldrushIndividuals] Returning ${data.length} records`);
-    return c.json({ success: true, data, total: data.length });
+    console.log(`[GoldrushIndividuals] Returning ${data.length} records${truncated ? ' (truncated at cap)' : ''}`);
+    return c.json({ success: true, data, total: data.length, truncated });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
