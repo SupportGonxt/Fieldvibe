@@ -2,15 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { periodRange } from '../../src/routes/field-ops/gm.js';
 
 describe('periodRange', () => {
-  it('month: first to next-month-first', () => {
+  it('current month is month-to-date (first to tomorrow)', () => {
     const r = periodRange('month', '2026-07-06T09:00:00.000Z');
     expect(r.start).toBe('2026-07-01');
-    expect(r.end).toBe('2026-08-01');
+    expect(r.end).toBe('2026-07-07');
     expect(r.today).toBe('2026-07-06');
     expect(r.mode).toBe('month');
   });
-  it('month wraps December to next year', () => {
-    const r = periodRange('month', '2026-12-15T09:00:00.000Z');
+  it('past month via anchor spans full month, wraps December to next year', () => {
+    const r = periodRange('month', '2027-02-10T09:00:00.000Z', '2026-12-15');
     expect(r.start).toBe('2026-12-01');
     expect(r.end).toBe('2027-01-01');
   });

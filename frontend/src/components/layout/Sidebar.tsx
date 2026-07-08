@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-rea
 import { useAuthStore, hasPermission } from '../../store/auth.store'
 import { navigation, navigationBySection } from '../../config/navigation'
 import type { NavigationItem, NavigationChild } from '../../config/navigation'
+import { gmAllModulesEnabled } from '../../utils/gmModules'
 
 interface SidebarProps {
   onNavigate?: () => void
@@ -42,8 +43,8 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   const isNavItemVisible = (item: NavigationItem) => {
-    // GM sees the field-operations module only (for now)
-    if (user?.role === 'general_manager' && item.href !== '/field-operations') return false
+    // GM sees the field-operations module only, unless they unlock all modules
+    if (user?.role === 'general_manager' && !gmAllModulesEnabled() && item.href !== '/field-operations') return false
     if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') return false
     // If item has a permission requirement, check it
     if (item.permission && !hasPermission(item.permission)) return false

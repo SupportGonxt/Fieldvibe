@@ -464,7 +464,7 @@ export default function AgentDashboard() {
       {/* PWA Install Prompt */}
       {showInstallPrompt && (
         <div className="px-5 mb-4">
-          <div className="bg-gradient-to-r from-[#00E87B]/10 to-cyan-500/10 border border-[#00E87B]/20 rounded-2xl p-4 relative">
+          <div className="bg-[#00E87B]/10 border border-[#00E87B]/20 rounded-2xl p-4 relative">
             <button
               onClick={dismissInstall}
               className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
@@ -699,7 +699,7 @@ export default function AgentDashboard() {
       {perfSummary?.team_performance && (
         <Suspense fallback={
           <div className="px-5 mb-4">
-            <div className="bg-gradient-to-r from-indigo-600/20 to-cyan-600/20 border border-indigo-500/30 rounded-2xl p-4">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
               <div className="w-32 h-4 bg-gray-700 rounded animate-pulse mb-3" />
               <div className="w-48 h-4 bg-gray-700 rounded animate-pulse mb-3" />
               <div className="grid grid-cols-2 gap-3">
@@ -813,10 +813,10 @@ export default function AgentDashboard() {
                   {/* Store vs Individual split */}
                   <div className="grid grid-cols-2 gap-2 mt-1">
                     {(ct.store_target_per_month > 0 || ct.store_actual_month > 0) && (
-                      <div className="bg-purple-500/10 rounded-lg p-2">
+                      <div className="bg-amber-500/10 rounded-lg p-2">
                         <div className="flex items-center gap-1 mb-1">
-                          <Store className="w-3 h-3 text-purple-400" />
-                          <span className="text-[10px] text-purple-300 font-medium">Store</span>
+                          <Store className="w-3 h-3 text-amber-400" />
+                          <span className="text-[10px] text-amber-300 font-medium">Store</span>
                         </div>
                         <p className="text-xs text-white">
                           <span className="font-semibold">{ct.store_actual_today}</span>
@@ -828,10 +828,10 @@ export default function AgentDashboard() {
                       </div>
                     )}
                     {(ct.individual_target_per_month > 0 || ct.individual_actual_month > 0) && (
-                      <div className="bg-cyan-500/10 rounded-lg p-2">
+                      <div className="bg-blue-500/10 rounded-lg p-2">
                         <div className="flex items-center gap-1 mb-1">
-                          <User className="w-3 h-3 text-cyan-400" />
-                          <span className="text-[10px] text-cyan-300 font-medium">Individual</span>
+                          <User className="w-3 h-3 text-blue-400" />
+                          <span className="text-[10px] text-blue-300 font-medium">Individual</span>
                         </div>
                         <p className="text-xs text-white">
                           <span className="font-semibold">{ct.individual_actual_today}</span>
@@ -921,8 +921,8 @@ export default function AgentDashboard() {
                     {visit.customer_name || visit.individual_name || 'Visit'}
                   </p>
                   <p className="text-xs text-gray-500 flex items-center gap-1">
-                    {(visit.visit_type || '').toLowerCase() === 'store' ? <Store className="w-3 h-3 text-purple-400" /> :
-                     (visit.visit_type || '').toLowerCase() === 'individual' ? <User className="w-3 h-3 text-cyan-400" /> : null}
+                    {(visit.visit_type || '').toLowerCase() === 'store' ? <Store className="w-3 h-3 text-amber-400" /> :
+                     (visit.visit_type || '').toLowerCase() === 'individual' ? <User className="w-3 h-3 text-blue-400" /> : null}
                     {visit.visit_type} &middot; {visit.visit_date}
                   </p>
                 </div>

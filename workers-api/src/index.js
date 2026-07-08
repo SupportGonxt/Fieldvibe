@@ -1951,6 +1951,37 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
       allAgents = { results: [] };
     }
 
+    // Compute date boundaries for week and prior month (period breakdowns)
+    const todayDate = new Date(today);
+    const dayOfWeek = todayDate.getDay();
+    const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const weekStartDate = new Date(todayDate);
+    weekStartDate.setDate(todayDate.getDate() - mondayOffset);
+    const weekStart = weekStartDate.toISOString().split('T')[0];
+    const priorMonthDate = new Date(parseInt(currentMonth.split('-')[0]), parseInt(currentMonth.split('-')[1]) - 2, 1);
+    const priorMonth = priorMonthDate.getFullYear() + '-' + String(priorMonthDate.getMonth() + 1).padStart(2, '0');
+
+    const nextMonth = currentMonth.split('-')[1] === '12'
+      ? `${parseInt(currentMonth.split('-')[0]) + 1}-01-01`
+      : `${currentMonth.split('-')[0]}-${String(parseInt(currentMonth.split('-')[1]) + 1).padStart(2, '0')}-01`;
+
+    // One bulk query for today/week/prior-month splits across all agents + team leads
+    const periodUserIds = [...(allAgents.results || []).map(a => a.id), ...teamLeadIds];
+    const bulkPeriodCounts = periodUserIds.length > 0
+      ? await getBulkAgentVisitCounts(db, tenantId, periodUserIds, today, currentMonth + '-01', nextMonth, weekStart, priorMonth + '-01', mgrCompanyIds)
+      : new Map();
+    const sumBulk = (ids, map) => {
+      const t = { today_visits: 0, today_individual: 0, today_store: 0, week_visits: 0, week_individual: 0, week_store: 0, prior_month_visits: 0, prior_month_individual: 0, prior_month_store: 0 };
+      for (const id of ids) {
+        const c = map.get(id);
+        if (!c) continue;
+        t.today_visits += c.today_visits; t.today_individual += c.today_individual; t.today_store += c.today_store;
+        t.week_visits += c.week_visits; t.week_individual += c.week_individual; t.week_store += c.week_store;
+        t.prior_month_visits += c.prior_month_visits; t.prior_month_individual += c.prior_month_individual; t.prior_month_store += c.prior_month_store;
+      }
+      return t;
+    };
+
     // Build team lead breakdown with their agents' performance — all team leads in parallel
     const teamsData = await Promise.all((teamLeads.results || []).map(async (tl) => {
       const members = (allAgents.results || []).filter(a => a.team_lead_id === tl.id);
@@ -2007,12 +2038,20 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
       teamTargetRegs += tlOwnTgtTR;
       teamActualRegs += (tlOwnRC?.count || 0);
 
+      const tp = sumBulk([...memberIds, tl.id], bulkPeriodCounts);
+
       return {
         team_lead_id: tl.id,
         team_lead_name: tl.first_name + ' ' + tl.last_name,
         agent_count: memberIds.length,
         month_visits: teamVisits,
         month_stores: teamRegs,
+        today_visits: tp.today_individual,
+        today_stores: tp.today_store,
+        week_visits: tp.week_individual,
+        week_stores: tp.week_store,
+        prior_month_visits: tp.prior_month_individual,
+        prior_month_stores: tp.prior_month_store,
         target_visits: teamTargetVisits,
         actual_visits: teamActualVisits,
         target_stores: teamTargetRegs,
@@ -2047,12 +2086,22 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         uaTargetVisits = ruleTotals.totalTargetVisits;
         uaActualVisits = ruleTotals.totalActualVisits;
       }
+      const uaBulk = mgrCompanyIds.length > 0
+        ? await getBulkAgentVisitCounts(db, tenantId, unassignedIds, today, currentMonth + '-01', nextMonth, weekStart, priorMonth + '-01', [])
+        : bulkPeriodCounts;
+      const up = sumBulk(unassignedIds, uaBulk);
       unassignedTeam = {
         team_lead_id: null,
         team_lead_name: 'Unassigned Agents',
         agent_count: unassignedIds.length,
         month_visits: uaIRes?.count || 0,
         month_stores: uaRRes?.count || 0,
+        today_visits: up.today_individual,
+        today_stores: up.today_store,
+        week_visits: up.week_individual,
+        week_stores: up.week_store,
+        prior_month_visits: up.prior_month_individual,
+        prior_month_stores: up.prior_month_store,
         target_visits: uaTargetVisits,
         actual_visits: uaActualVisits,
         target_stores: uaTargetRegs,
@@ -2124,6 +2173,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     ]);
 
     const mgrTiers = mgrCommTiers.results || [];
+    const op = sumBulk(allAgentIds, bulkPeriodCounts);
     const orgAch = orgTargetVisits > 0 ? Math.round((orgActualVisits / orgTargetVisits) * 100) : 0;
     let currentOrgTier = null;
     for (const tier of mgrTiers) {
@@ -2148,6 +2198,14 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
           today_store_visits: orgTodayStoreV,
           month_individual_visits: orgMonthIndividual,
           month_store_visits: orgMonthStoreV,
+          week_visits: op.week_visits,
+          week_stores: op.week_store,
+          week_individual_visits: op.week_individual,
+          week_store_visits: op.week_store,
+          prior_month_visits: op.prior_month_visits,
+          prior_month_stores: op.prior_month_store,
+          prior_month_individual_visits: op.prior_month_individual,
+          prior_month_store_visits: op.prior_month_store,
         },
         org_targets: {
           target_visits: orgTargetVisits,

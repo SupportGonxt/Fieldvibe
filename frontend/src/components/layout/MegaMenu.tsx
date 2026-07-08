@@ -4,6 +4,7 @@ import { ChevronDown, Search } from 'lucide-react'
 import { useAuthStore, hasPermission } from '../../store/auth.store'
 import { navigation, navigationByCategory } from '../../config/navigation'
 import type { NavigationItem } from '../../config/navigation'
+import { gmAllModulesEnabled } from '../../utils/gmModules'
 
 export default function MegaMenu() {
   const { user } = useAuthStore()
@@ -13,8 +14,8 @@ export default function MegaMenu() {
   const closeTimerRef = useRef<number | null>(null)
 
   const isNavItemVisible = (item: NavigationItem) => {
-    // GM sees the field-operations module only (for now)
-    if (user?.role === 'general_manager' && item.href !== '/field-operations') return false
+    // GM sees the field-operations module only, unless they unlock all modules
+    if (user?.role === 'general_manager' && !gmAllModulesEnabled() && item.href !== '/field-operations') return false
     if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') {
       return false
     }

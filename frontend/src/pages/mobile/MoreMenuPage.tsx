@@ -4,9 +4,10 @@ import {
   Settings, Users, Package, BarChart3, FileText, Shield, Bell,
   HelpCircle, LogOut, ChevronRight, UserCircle, Building2,
   MapPin, Target, Wallet, Truck, ClipboardList, Camera,
-  Globe, Database, Key, Palette, CreditCard, Tag
+  Globe, Database, Key, Palette, CreditCard, Tag, LayoutGrid
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { gmAllModulesEnabled, setGmAllModules } from '../../utils/gmModules'
 
 interface MenuItem {
   label: string
@@ -83,6 +84,15 @@ export default function MoreMenuPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const userRole = user?.role || 'agent'
+  const [allModules, setAllModules] = React.useState(gmAllModulesEnabled())
+
+  const toggleAllModules = () => {
+    const next = !allModules
+    setGmAllModules(next)
+    setAllModules(next)
+    // Bottom tabs read the flag on render - reload so they pick it up immediately
+    window.location.reload()
+  }
 
   const handleLogout = () => {
     logout()
@@ -108,8 +118,8 @@ export default function MoreMenuPage() {
 
       {/* Menu sections */}
       <div className="px-4 py-4 space-y-6">
-        {/* GM sees the field-operations module only (for now) */}
-        {(userRole === 'general_manager'
+        {/* GM sees the field-operations module only, unless they unlock all modules */}
+        {(userRole === 'general_manager' && !allModules
           ? menuSections.filter(s => s.title === 'Field Operations' || s.title === 'Settings')
           : menuSections
         ).map(section => {
@@ -152,6 +162,25 @@ export default function MoreMenuPage() {
           )
         })}
       </div>
+
+      {/* GM module unlock */}
+      {userRole === 'general_manager' && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={toggleAllModules}
+            className="w-full flex items-center gap-3 px-4 py-3.5 bg-white dark:bg-night-50 rounded-xl border border-gray-200 dark:border-night-100 text-left"
+          >
+            <LayoutGrid className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">All modules</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Show every module, not just Field Operations</div>
+            </div>
+            <div className={`w-10 h-6 rounded-full p-0.5 transition-colors flex-shrink-0 ${allModules ? 'bg-blue-600' : 'bg-gray-300 dark:bg-night-100'}`}>
+              <div className={`w-5 h-5 rounded-full bg-white transition-transform ${allModules ? 'translate-x-4' : ''}`} />
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Logout */}
       <div className="px-4 pb-8">

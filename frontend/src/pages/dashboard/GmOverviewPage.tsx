@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { formatCurrency, formatNumber } from '../../utils/format'
@@ -15,17 +15,31 @@ type Period = 'day' | 'week' | 'month'
 
 interface Leader { id: string; name: string; signups: number; converted: number }
 interface Agent { id: string; name: string; phone?: string; today?: number; last_activity?: string }
+interface Company { id: string; name: string }
+interface Team {
+  id: string; name: string; managerId: string | null; agents: number; activeAgents: number
+  signups: number; converted: number; conversionRate: number
+  prev: { signups: number; converted: number }
+}
+interface Manager { id: string; name: string; teamLeads: number; agents: number; signups: number; converted: number; lastSeen: string | null }
+interface BoAdmin { id: string; name: string; calls: number; answered: number; reached: number; durationS: number; lastSeen: string | null }
+interface Risk { id: string; severity: 'high' | 'medium'; label: string; detail: string }
 interface Overview {
   period: Period
+  companyId: string | null
+  companies: Company[]
   window: { start: string; end: string; prevStart: string; prevEnd: string; today: string; isCurrent: boolean }
   money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean; prevRevenue: number }
   funnel: {
     signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number
     prev: { signups: number; converted: number; conversionRate: number }
   }
-  field: { activeAgents: number; totalAgents: number; leastActive: Agent[] }
+  field: { activeAgents: number; totalAgents: number; leastActive: Agent[]; unassignedAgents: number }
   leaders: Leader[]
   calls: { contacted: number; target: number }
+  teams: Team[]
+  management: { managers: Manager[]; boAdmins: BoAdmin[] }
+  risks: Risk[]
 }
 
 interface TenantSignals {
@@ -89,6 +103,19 @@ const SIGNAL_LABELS: { key: keyof TenantSignals['counts']; label: string }[] = [
   { key: 'low_conversion', label: 'Low conversion' },
 ]
 
+function agoLabel(iso: string | null): { text: string; stale: boolean } {
+  if (!iso) return { text: 'never seen', stale: true }
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (days <= 0) return { text: 'today', stale: false }
+  if (days === 1) return { text: 'yesterday', stale: false }
+  return { text: `${days}d ago`, stale: days >= 7 }
+}
+
+function fmtDuration(s: number): string {
+  const m = Math.round(s / 60)
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
+}
+
 function Kpi({ icon: Icon, label, value, sub, delta, tone = 'blue' }: {
   icon: any; label: string; value: string; sub?: string; delta?: ReactNode; tone?: 'blue' | 'green' | 'amber' | 'red'
 }) {
@@ -112,6 +139,7 @@ function Kpi({ icon: Icon, label, value, sub, delta, tone = 'blue' }: {
 export default function GmOverviewPage() {
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState<string | null>(null) // null = current period
+  const [company, setCompany] = useState<string | null>(null) // null = all companies
 
   const today = new Date().toISOString().slice(0, 10)
   const atCurrent = !anchor || anchor >= today
@@ -125,9 +153,9 @@ export default function GmOverviewPage() {
   }
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['gm-overview', period, anchor],
+    queryKey: ['gm-overview', period, anchor, company],
     queryFn: async () => (await apiClient.get<Overview & { success: boolean }>(
-      `/field-ops/gm/overview?period=${period}${anchor ? `&anchor=${anchor}` : ''}`
+      `/field-ops/gm/overview?period=${period}${anchor ? `&anchor=${anchor}` : ''}${company ? `&company_id=${company}` : ''}`
     )).data,
     staleTime: 1000 * 60 * 2,
   })
@@ -142,8 +170,9 @@ export default function GmOverviewPage() {
   if (isLoading) return <div className="p-8 flex justify-center"><LoadingSpinner /></div>
   if (error || !data) return <ErrorState message="Could not load the GM overview." onRetry={() => refetch()} />
 
-  const { money, funnel, field, leaders, calls } = data
+  const { money, funnel, field, leaders, calls, teams, management, risks, companies } = data
   const callPct = calls.target ? Math.round((calls.contacted / calls.target) * 100) : 0
+  const maxTeamSignups = Math.max(1, ...(teams || []).map(t => t.signups))
 
   return (
     <div className="space-y-6">
@@ -153,6 +182,29 @@ export default function GmOverviewPage() {
           <p className="text-content-secondary text-sm">The numbers driving the business right now.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {companies && companies.length > 1 && (
+            <div className="inline-flex rounded-xl bg-surface-secondary p-1">
+              <button
+                onClick={() => setCompany(null)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  company === null ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
+                }`}
+              >
+                All companies
+              </button>
+              {companies.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCompany(c.id)}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    company === c.id ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="inline-flex rounded-xl bg-surface-secondary p-1">
             {PERIODS.map((p) => (
               <button
@@ -207,6 +259,26 @@ export default function GmOverviewPage() {
         )}
       </div>
 
+      {/* Risks */}
+      {risks && risks.length > 0 && (
+        <div className="card">
+          <h2 className="font-semibold mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600" /> Risks
+          </h2>
+          <ul className="space-y-2">
+            {risks.map((r) => (
+              <li key={r.id} className="flex items-start gap-3 p-2.5 bg-surface-secondary rounded-lg">
+                <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${r.severity === 'high' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{r.label}</p>
+                  <p className="text-xs text-content-secondary mt-0.5">{r.detail}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Funnel */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={UserCheck} label="Sign-ups" value={formatNumber(funnel.signups)}
@@ -256,6 +328,87 @@ export default function GmOverviewPage() {
         </div>
         <p className="text-xs text-content-secondary mt-2">{callPct}% of daily call target reached.</p>
       </div>
+
+      {/* Teams */}
+      {teams && teams.length > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold flex items-center gap-2"><Users className="w-4 h-4 text-content-secondary" /> Teams</h2>
+            {field.unassignedAgents > 0 && (
+              <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                {field.unassignedAgents} agent{field.unassignedAgents === 1 ? '' : 's'} without a team lead
+              </span>
+            )}
+          </div>
+          <ul className="space-y-2">
+            {teams.map((t) => (
+              <li key={t.id} className="p-2.5 bg-surface-secondary rounded-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-sm truncate">{t.name}</span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Delta now={t.signups} prev={t.prev.signups} suffix={PREV_LABEL[period]} />
+                    <span className="text-sm font-semibold tabular-nums">{formatNumber(t.signups)}</span>
+                  </div>
+                </div>
+                <div className="mt-2 h-1.5 rounded-full bg-white overflow-hidden">
+                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${(t.signups / maxTeamSignups) * 100}%` }} />
+                </div>
+                <p className="text-xs text-content-secondary mt-1.5">
+                  {t.activeAgents}/{t.agents} agents active · {formatNumber(t.converted)} converted ({t.conversionRate}%)
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Management */}
+      {management && (management.managers.length > 0 || management.boAdmins.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card">
+            <h2 className="font-semibold mb-3 flex items-center gap-2"><Briefcase className="w-4 h-4 text-content-secondary" /> Managers</h2>
+            {management.managers.length === 0 ? <p className="text-sm text-content-secondary">No managers on roster.</p> : (
+              <ul className="space-y-2">
+                {management.managers.map((m) => {
+                  const seen = agoLabel(m.lastSeen)
+                  return (
+                    <li key={m.id} className="p-2.5 bg-surface-secondary rounded-lg">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-sm truncate">{m.name}</span>
+                        <span className={`text-xs shrink-0 ${seen.stale ? 'text-amber-600 font-medium' : 'text-content-secondary'}`}>{seen.text}</span>
+                      </div>
+                      <p className="text-xs text-content-secondary mt-1">
+                        {m.teamLeads} team lead{m.teamLeads === 1 ? '' : 's'} · {m.agents} agents · {formatNumber(m.signups)} sign-ups · {formatNumber(m.converted)} converted
+                      </p>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+          <div className="card">
+            <h2 className="font-semibold mb-3 flex items-center gap-2"><Headphones className="w-4 h-4 text-content-secondary" /> Back office</h2>
+            {management.boAdmins.length === 0 ? <p className="text-sm text-content-secondary">No back-office activity this period.</p> : (
+              <ul className="space-y-2">
+                {management.boAdmins.map((b) => {
+                  const seen = agoLabel(b.lastSeen)
+                  return (
+                    <li key={b.id} className="p-2.5 bg-surface-secondary rounded-lg">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-sm truncate">{b.name}</span>
+                        <span className={`text-xs shrink-0 ${seen.stale ? 'text-amber-600 font-medium' : 'text-content-secondary'}`}>{seen.text}</span>
+                      </div>
+                      <p className="text-xs text-content-secondary mt-1">
+                        {formatNumber(b.calls)} calls · {formatNumber(b.answered)} answered · {formatNumber(b.reached)} reached · {fmtDuration(b.durationS)}
+                      </p>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Leaders + least active */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
