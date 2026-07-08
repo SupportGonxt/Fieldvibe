@@ -460,6 +460,11 @@ function PageLoader({ children }: { children: React.ReactNode }) {
 
 const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager', 'backoffice_admin', 'general_manager']
 
+// Installed PWA (Android/desktop standalone or iOS home-screen app)
+const isStandalonePwa = () =>
+  window.matchMedia?.('(display-mode: standalone)').matches ||
+  (navigator as { standalone?: boolean }).standalone === true
+
 function App() {
   const { isAuthenticated, isLoading, initialize, hydrated, user } = useAuthStore()
 
@@ -492,7 +497,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? '/dashboard/gm' : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? (isStandalonePwa() ? '/agent/overview' : '/dashboard/gm') : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />
