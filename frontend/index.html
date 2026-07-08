@@ -40,19 +40,49 @@
     <script>
       // Recover from a stale SW-cached index.html: after a deploy, Pages purges
       // old hashed chunks, so a cached shell's script 404s and nothing mounts.
-      // If #root is still empty well after load, purge the navigation cache and
-      // reload once (sessionStorage guard prevents a loop).
-      window.addEventListener('load', function () {
-        setTimeout(function () {
-          var root = document.getElementById('root')
-          if (root && root.childElementCount === 0 && !sessionStorage.getItem('fv-shell-recovered')) {
-            sessionStorage.setItem('fv-shell-recovered', '1')
-            var reload = function () { window.location.reload() }
-            if (window.caches) caches.delete('navigation-cache').then(reload, reload)
-            else reload()
+      // If #root is still empty well after load: first purge the navigation
+      // cache and reload once (sessionStorage guard); if that already happened,
+      // show a recovery screen with the boot error and a full reset button.
+      ;(function () {
+        var bootError = ''
+        window.addEventListener('error', function (e) {
+          if (!bootError) bootError = (e.message || '') + (e.filename ? ' @ ' + e.filename.split('/').pop() : '')
+        })
+        function fullReset() {
+          var reload = function () { window.location.reload() }
+          var jobs = []
+          if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k) })) }))
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister() })) }))
           }
-        }, 4000)
-      })
+          sessionStorage.removeItem('fv-shell-recovered')
+          Promise.all(jobs).then(reload, reload)
+        }
+        function showRecovery() {
+          var root = document.getElementById('root')
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:system-ui,sans-serif;padding:24px;text-align:center">' +
+            '<h1 style="font-size:18px;margin:0">FieldVibe failed to load</h1>' +
+            (bootError ? '<p style="font-size:12px;color:#64748b;word-break:break-all;max-width:480px;margin:0">' + bootError.replace(/</g, '&lt;') + '</p>' : '') +
+            '<button id="fv-reset" style="padding:12px 24px;font-size:16px;border:0;border-radius:8px;background:#00E87B;color:#0A0F1C;font-weight:600">Reset app</button>' +
+            '</div>'
+          document.getElementById('fv-reset').addEventListener('click', fullReset)
+        }
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            var root = document.getElementById('root')
+            if (!root || root.childElementCount !== 0) return
+            if (!sessionStorage.getItem('fv-shell-recovered')) {
+              sessionStorage.setItem('fv-shell-recovered', '1')
+              var reload = function () { window.location.reload() }
+              if (window.caches) caches.delete('navigation-cache').then(reload, reload)
+              else reload()
+            } else {
+              showRecovery()
+            }
+          }, 4000)
+        })
+      })()
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
