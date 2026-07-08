@@ -7,6 +7,12 @@ import { Toaster, toast } from 'react-hot-toast'
 import App from './App'
 import './index.css'
 
+// Changes the entry chunk hash so devices with a poisoned immutable
+// HTTP-cache entry for the old asset URL fetch a fresh one. Bump the
+// date if a stale-asset incident recurs with an unchanged bundle.
+// (window assignment, not console.info — esbuild drops console in prod)
+;(window as any).__FV_BUILD = '2026-07-08'
+
 // Apply persisted theme from localStorage (instead of forcing dark)
 try {
   const stored = localStorage.getItem('fieldvibe-theme')
