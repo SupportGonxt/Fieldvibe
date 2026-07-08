@@ -70,7 +70,10 @@
           if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
             jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister() })) }))
           }
-          sessionStorage.removeItem('fv-shell-recovered')
+          // corrupted persisted state (zustand rehydrate) can crash mount on
+          // every boot — recovery must be total; user just logs in again
+          try { localStorage.clear() } catch (e) {}
+          try { sessionStorage.clear() } catch (e) {}
           Promise.all(jobs).then(reload, reload)
         }
         function showRecovery() {
