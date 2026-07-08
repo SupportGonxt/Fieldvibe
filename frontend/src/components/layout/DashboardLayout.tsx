@@ -10,6 +10,8 @@ import HelpPanel from '../help/HelpPanel'
 import Breadcrumbs from '../navigation/Breadcrumbs'
 import { useKeyboardShortcuts } from '../ui/KeyboardShortcuts'
 import { FloatingActionButton } from '../mobile/FloatingActionButton'
+import PwaInstallBanner from '../PwaInstallBanner'
+import { ensurePushSubscription } from '../../services/push'
 import { useAuthStore } from '../../store/auth.store'
 
 export default function DashboardLayout() {
@@ -34,6 +36,11 @@ export default function DashboardLayout() {
   useEffect(() => {
     setSidebarOpen(false)
   }, [location.pathname])
+
+  // Subscribe staff (team lead/manager/GM) to web push for KPI nudges etc.
+  useEffect(() => {
+    ensurePushSubscription()
+  }, [])
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -116,6 +123,7 @@ export default function DashboardLayout() {
       
       <MobileBottomTabs />
       <OfflineIndicator />
+      <PwaInstallBanner />
 
       {/* ENH-14: Mobile FAB for quick actions */}
       <div className="lg:hidden">
