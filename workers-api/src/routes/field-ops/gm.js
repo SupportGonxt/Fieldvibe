@@ -13,6 +13,10 @@ const app = new Hono();
 const NOT_REJECTED =
   `COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`;
 
+// Test agents (seeded demo data) pollute every KPI — same convention as portal.
+const NOT_TEST_V = `AND v.agent_id NOT LIKE 'agent-test-%'`;
+const NOT_TEST_U = (alias) => `AND ${alias}.id NOT LIKE 'agent-test-%'`;
+
 function nextMonthStart(period) {
   const [y, m] = period.split('-').map(Number);
   return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
@@ -91,7 +95,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted,
        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status')='qualified' THEN 1 ELSE 0 END) qualified
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
-     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V}`
+     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}`
   ).bind(tenantId, start, end, companyId, companyId).first().catch(() => null);
   const signups = agg?.signups || 0, converted = agg?.converted || 0, qualified = agg?.qualified || 0;
   const revenue = converted * rate;
@@ -101,7 +105,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     `SELECT COUNT(*) signups,
        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
-     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V}`
+     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}`
   ).bind(tenantId, prevStart, prevEnd, companyId, companyId).first().catch(() => null);
   const prevSignups = prevAgg?.signups || 0, prevConverted = prevAgg?.converted || 0;
 
@@ -115,7 +119,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       const refDate = minDate(today, addDays(end, -1)); // last displayed day
       const { results: ags } = await db.prepare(
         `SELECT DISTINCT v.agent_id id FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
-         WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? ${CO_V}`
+         WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? ${CO_V} ${NOT_TEST_V}`
       ).bind(tenantId, start, end, companyId, companyId).all();
       let incentiveCost = 0;
       for (const { id } of ags || []) {
@@ -135,7 +139,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id JOIN users u ON u.id = v.agent_id
      WHERE v.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
-       AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V}
+       AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}
      GROUP BY v.agent_id ORDER BY signups DESC LIMIT 5`
   ).bind(tenantId, ...AGENT_ROLES, start, end, companyId, companyId).all().catch(() => ({ results: [] }));
 
@@ -147,7 +151,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
      LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = u.tenant_id ${CO_V}
      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND ${NOT_REJECTED}
      WHERE u.tenant_id = ? AND u.is_active = 1 AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
-       AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both'))
+       AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')) ${NOT_TEST_U('u')}
      GROUP BY u.id ORDER BY today ASC, last_activity ASC`
   ).bind(today, companyId, companyId, tenantId, ...AGENT_ROLES).all().catch(() => ({ results: [] }));
   const totalAgents = (roster || []).length;
@@ -162,12 +166,13 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   ).bind(tenantId, today, companyId, companyId).first().catch(() => null);
   const boCountRow = await db.prepare(
     `SELECT COUNT(*) c FROM users WHERE tenant_id = ? AND is_active = 1
-       AND role IN ('admin','backoffice_admin','general_manager','manager')
+       AND role IN ('admin','backoffice_admin')
        AND (agent_type IS NULL OR agent_type IN ('back_office','both'))`
   ).bind(tenantId).first().catch(() => null);
   const targetRow = await db.prepare(
-    `SELECT COALESCE(SUM(daily_target),0) t FROM bo_call_targets WHERE tenant_id = ?`
-  ).bind(tenantId).first().catch(() => null);
+    `SELECT COALESCE(SUM(daily_target),0) t FROM bo_call_targets
+     WHERE tenant_id = ? AND (? IS NULL OR company_id = ?)`
+  ).bind(tenantId, companyId, companyId).first().catch(() => null);
   const explicitTarget = targetRow?.t || 0;
   const target = explicitTarget > 0 ? explicitTarget : (boCountRow?.c || 0) * 20;
   const contacted = contactedRow?.c || 0;
@@ -186,7 +191,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
        FROM users tl
        LEFT JOIN users a ON a.team_lead_id = tl.id AND a.is_active = 1
          AND a.role IN (${agentRolePh})
-         AND (a.agent_type IS NULL OR a.agent_type IN ('field_ops','both'))
+         AND (a.agent_type IS NULL OR a.agent_type IN ('field_ops','both')) ${NOT_TEST_U('a')}
        LEFT JOIN visits v ON v.agent_id = a.id AND v.tenant_id = tl.tenant_id ${CO_V}
        LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
          AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED}
@@ -200,7 +205,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
        JOIN visits v ON v.agent_id = a.id AND v.tenant_id = a.tenant_id ${CO_V}
        JOIN visit_individuals vi ON vi.visit_id = v.id
          AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED}
-       WHERE a.tenant_id = ? AND a.team_lead_id IS NOT NULL
+       WHERE a.tenant_id = ? AND a.team_lead_id IS NOT NULL ${NOT_TEST_U('a')}
        GROUP BY a.team_lead_id`
     ).bind(companyId, companyId, prevStart, prevEnd, tenantId).all().catch(() => ({ results: [] }));
     const prevByTeam = new Map((prevTeamRows || []).map((r) => [r.tid, r]));
@@ -222,7 +227,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     `SELECT COUNT(*) c FROM users WHERE tenant_id = ? AND is_active = 1
        AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))
-       AND team_lead_id IS NULL`
+       AND team_lead_id IS NULL AND id NOT LIKE 'agent-test-%'`
   ).bind(tenantId, ...AGENT_ROLES).first().catch(() => null);
   const unassignedAgents = unassignedRow?.c || 0;
 

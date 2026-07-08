@@ -17,7 +17,7 @@ type RosterRow = {
   last_activity: string | null
 }
 
-type TargetInfo = { target: number; contacted: number; calls: number }
+type TargetInfo = { target: number; contacted: number; calls: number; missed?: number; contacted_ids?: string[] }
 
 type CallRow = {
   id: string
@@ -89,7 +89,7 @@ export default function BackOfficeCallList() {
       setRoster(rosterRes?.data?.roster || [])
       if (targetRes?.data?.success) {
         const d = targetRes.data
-        setTarget({ target: d.target, contacted: d.contacted, calls: d.calls })
+        setTarget({ target: d.target, contacted: d.contacted, calls: d.calls, missed: d.missed, contacted_ids: d.contacted_ids })
       }
     } catch {
       toast.error('Could not load agents')
@@ -196,6 +196,7 @@ export default function BackOfficeCallList() {
             <div className="flex items-baseline gap-1.5 mb-2">
               <span className="text-2xl font-bold text-white tabular-nums">{target.contacted}</span>
               <span className="text-sm text-gray-500">/ {target.target} agents · {target.calls} calls</span>
+              {(target.missed ?? 0) > 0 && <span className="text-sm text-amber-400">· {target.missed} missed</span>}
             </div>
             <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
               <div
@@ -265,7 +266,10 @@ export default function BackOfficeCallList() {
                 >
                   <div className="flex items-center gap-3 w-full">
                     <div className="flex-1 min-w-0">
-                      <div className="text-white font-medium truncate">{r.name || 'Unnamed agent'}</div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-white font-medium truncate">{r.name || 'Unnamed agent'}</div>
+                        {target?.contacted_ids?.includes(r.id) && <Check className="w-3.5 h-3.5 text-[#00E87B] shrink-0" />}
+                      </div>
                       <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
                         <CircleDot className={`w-3 h-3 ${r.today > 0 ? 'text-[#00E87B]' : 'text-gray-600'}`} />
                         {sinceLabel(r.last_activity)}

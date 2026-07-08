@@ -196,18 +196,22 @@ app.get('/calls/target', async (c) => {
     `SELECT daily_target FROM bo_call_targets WHERE user_id = ? AND tenant_id = ?`
   ).bind(userId, tenantId).first();
   const target = t?.daily_target ?? DEFAULT_TARGET;
-  // contacted = distinct agents actually reached (answered) today.
-  const stats = await db.prepare(
-    `SELECT COUNT(DISTINCT callee_id) AS contacted, COUNT(*) AS calls
-     FROM bo_calls
-     WHERE tenant_id = ? AND caller_id = ? AND status = 'answered'
-       AND substr(started_at, 1, 10) = ?`
-  ).bind(tenantId, userId, today).first();
+  // contacted = distinct agents actually reached (answered) today;
+  // missed = attempts that didn't connect (declined/missed/failed).
+  const rows = await db.prepare(
+    `SELECT callee_id, status FROM bo_calls
+     WHERE tenant_id = ? AND caller_id = ? AND substr(started_at, 1, 10) = ?`
+  ).bind(tenantId, userId, today).all();
+  const todayCalls = rows.results || [];
+  const answered = todayCalls.filter((r) => r.status === 'answered');
+  const contactedIds = [...new Set(answered.map((r) => r.callee_id))];
   return c.json({
     success: true,
     target,
-    contacted: stats?.contacted ?? 0,
-    calls: stats?.calls ?? 0,
+    contacted: contactedIds.length,
+    calls: answered.length,
+    missed: todayCalls.filter((r) => ['declined', 'missed', 'failed'].includes(r.status)).length,
+    contacted_ids: contactedIds,
   });
 });
 

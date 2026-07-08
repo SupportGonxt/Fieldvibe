@@ -15,6 +15,12 @@ type Pnl = {
   revenue: number
   incentiveCost: number
   salaryCost: number
+  boAdminCount?: number
+  boAdminSalary?: number
+  boAdminCost?: number
+  fieldAgentCount?: number
+  phonePerAgent?: number
+  phoneCost?: number
   net: number
   projectedRevenue: number
   projectedIncentiveCost: number
@@ -105,6 +111,12 @@ export default function GMPnl() {
           <Row label="Revenue" sub={`${projected ? pnl.converted : pnl.qualifiedConverted} deposits × ${rand(pnl.commissionPerDeposit)}`} value={rand(revenue)} tone="pos" />
           <Row label="Incentive payouts" value={`-${rand(incentive)}`} tone="neg" />
           <Row label="Salaries" value={`-${rand(pnl.salaryCost)}`} tone="neg" />
+          {(pnl.boAdminCost ?? 0) > 0 && (
+            <Row label="Back office" sub={`${pnl.boAdminCount} admins × ${rand(pnl.boAdminSalary ?? 0)}`} value={`-${rand(pnl.boAdminCost ?? 0)}`} tone="neg" />
+          )}
+          {(pnl.phoneCost ?? 0) > 0 && (
+            <Row label="Phones" sub={`${pnl.fieldAgentCount} agents × ${rand(pnl.phonePerAgent ?? 0)}`} value={`-${rand(pnl.phoneCost ?? 0)}`} tone="neg" />
+          )}
         </div>
 
         {/* Activity */}

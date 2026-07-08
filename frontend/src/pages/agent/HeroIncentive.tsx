@@ -8,25 +8,33 @@ interface Hero {
   week: number
   month: number
   converted: number
-  provisionalAvg: number
+  deposits: number
+  provisionalSignups: number   // avg signups/day
+  provisionalDeposits: number  // avg deposits/day
   provisionalPace: number      // R on track at current pace
   payable: number              // R already qualified (no clawback)
-  nextTier: { min: number; amount: number } | null
-  toNextTier: number | null    // avg/day still needed to reach nextTier
+  nextTier: { signups: number; deposits: number; amount: number; needSignups: number; needDeposits: number } | null
+  toNextSignups: number | null // avg/day signup gap to next tier
+  toNextDeposits: number | null // avg/day deposit gap to next tier
   rank: number | null
   totalPeers: number | null
+  tiers?: { signups: number; deposits: number; amount: number }[]
 }
 
 const rand = (n: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n || 0)
 
-// Adaptive coaching — always pushes the agent toward the next win.
+// Adaptive coaching — both tier gates (signups/day AND deposits/day) must be met.
 function coach(h: Hero): { push: string; sub: string; hot: boolean } {
-  const gap = h.toNextTier != null ? Math.max(0.1, Math.round(h.toNextTier * 10) / 10) : null
-  if (h.nextTier && gap != null) {
+  if (h.nextTier) {
+    const gs = Math.round((h.toNextSignups ?? 0) * 10) / 10
+    const gd = Math.round((h.toNextDeposits ?? 0) * 10) / 10
+    const parts = []
+    if (gs > 0) parts.push(`+${gs} signups/day`)
+    if (gd > 0) parts.push(`+${gd} deposits/day`)
     return {
-      push: `+${gap}/day to reach ${rand(h.nextTier.amount)}`,
-      sub: h.provisionalPace > 0 ? "Don't stop now — push past this tier." : `Lift your average to unlock ${rand(h.nextTier.amount)}.`,
-      hot: gap <= 2, // within striking distance
+      push: parts.length ? `${parts.join(' · ')} for ${rand(h.nextTier.amount)}` : `On the edge of ${rand(h.nextTier.amount)} — keep going.`,
+      sub: h.provisionalPace > 0 ? "Don't stop now — push past this tier." : `Lift your daily average to unlock ${rand(h.nextTier.amount)}.`,
+      hot: Math.max(gs, gd) <= 2, // within striking distance
     }
   }
   // top tier reached
@@ -38,7 +46,7 @@ function coach(h: Hero): { push: string; sub: string; hot: boolean } {
 }
 
 // Goldrush hero card — pace, rank and next-tier gap. Fast-glance motivation for the fast-entry PWA.
-export default function HeroIncentive({ companyId }: { companyId?: string }) {
+export default function HeroIncentive({ companyId, team }: { companyId?: string; team?: boolean }) {
   const [hero, setHero] = useState<Hero | null>(null)
   const [error, setError] = useState(false)
 
@@ -77,11 +85,11 @@ export default function HeroIncentive({ companyId }: { companyId?: string }) {
         {/* pace headline */}
         <div className="flex items-center gap-2 mb-1">
           <Flame className="w-4 h-4 text-orange-400" />
-          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">On Track This Month</span>
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{team ? 'Team On Track This Month' : 'On Track This Month'}</span>
         </div>
         <p className={`text-3xl font-extrabold ${paceColor}`}>{rand(hero.provisionalPace)}</p>
         <p className="text-xs text-gray-500 mt-0.5">
-          {hero.provisionalAvg}/day avg · {hero.month} signups
+          {hero.provisionalSignups}/day signups · {hero.provisionalDeposits}/day deposits{team ? ' (team avg)' : ''}
         </p>
 
         {/* coaching push — always prompts the agent to do better */}
@@ -100,6 +108,34 @@ export default function HeroIncentive({ companyId }: { companyId?: string }) {
             <p className="text-xs text-gray-400">
               <span className="font-bold text-amber-400">{rand(hero.payable)}</span> qualified
             </p>
+          </div>
+        )}
+
+        {/* criteria ladder — managers see every gate, achieved rows lit */}
+        {team && hero.tiers && hero.tiers.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Incentive Criteria (avg/day)</p>
+            <div className="space-y-1">
+              {hero.tiers.map((t) => {
+                const hit = hero.provisionalSignups >= t.signups && hero.provisionalDeposits >= t.deposits
+                const next = !hit && hero.nextTier?.amount === t.amount
+                return (
+                  <div
+                    key={t.amount}
+                    className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 border text-xs ${
+                      hit
+                        ? 'bg-[#00E87B]/10 border-[#00E87B]/30 text-[#00E87B]'
+                        : next
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          : 'bg-white/[0.03] border-white/10 text-gray-500'
+                    }`}
+                  >
+                    <span>{t.signups} signups + {t.deposits} deposits</span>
+                    <span className="font-bold">{rand(t.amount)}</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 

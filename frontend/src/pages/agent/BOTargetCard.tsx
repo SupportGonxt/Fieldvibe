@@ -7,7 +7,7 @@ import { apiClient } from '../../services/api.service'
 // the call list. Self-contained (fetches /calls/target itself); renders nothing
 // until data arrives so it never flashes an empty card on the dashboard.
 
-type Target = { target: number; contacted: number; calls: number }
+type Target = { target: number; contacted: number; calls: number; missed?: number }
 
 export default function BOTargetCard() {
   const navigate = useNavigate()
@@ -38,6 +38,7 @@ export default function BOTargetCard() {
       <div className="flex items-baseline gap-1.5 mb-2">
         <span className="text-2xl font-bold text-white tabular-nums">{t.contacted}</span>
         <span className="text-sm text-gray-500">/ {t.target} · {t.calls} calls</span>
+        {(t.missed ?? 0) > 0 && <span className="text-sm text-amber-400">· {t.missed} missed</span>}
       </div>
       <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
         <div className="h-full rounded-full bg-[#00E87B] transition-[width] duration-500" style={{ width: `${pct}%` }} />
