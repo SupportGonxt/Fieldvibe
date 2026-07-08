@@ -44,12 +44,27 @@
       // cache and reload once (sessionStorage guard); if that already happened,
       // show a recovery screen with the boot error and a full reset button.
       ;(function () {
-        var bootError = ''
+        var bootErrors = []
+        // capture phase: window-level bubble listeners never see resource
+        // (script/css) load failures — those fire on the element only
         window.addEventListener('error', function (e) {
-          if (!bootError) bootError = (e.message || '') + (e.filename ? ' @ ' + e.filename.split('/').pop() : '')
+          if (e.target && e.target !== window && (e.target.src || e.target.href)) {
+            bootErrors.push('failed to load: ' + (e.target.src || e.target.href))
+          } else if (e.message) {
+            bootErrors.push(e.message + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : ''))
+          }
+        }, true)
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason
+          bootErrors.push('rejection: ' + (r && r.message ? r.message : String(r)))
         })
+        function esc(s) { return String(s).replace(/</g, '&lt;') }
         function fullReset() {
-          var reload = function () { window.location.reload() }
+          var btn = document.getElementById('fv-reset')
+          if (btn) { btn.disabled = true; btn.textContent = 'Resetting…' }
+          var done = false
+          var reload = function () { if (done) return; done = true; window.location.reload() }
+          setTimeout(reload, 3000) // force reload even if cache/SW promises hang
           var jobs = []
           if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k) })) }))
           if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
@@ -59,14 +74,25 @@
           Promise.all(jobs).then(reload, reload)
         }
         function showRecovery() {
+          var script = document.querySelector('script[type=module]')
+          var chunkUrl = script ? script.src : ''
+          var lines = bootErrors.slice(0, 3)
+          lines.push(navigator.userAgent)
           var root = document.getElementById('root')
           root.innerHTML =
             '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:system-ui,sans-serif;padding:24px;text-align:center">' +
             '<h1 style="font-size:18px;margin:0">FieldVibe failed to load</h1>' +
-            (bootError ? '<p style="font-size:12px;color:#64748b;word-break:break-all;max-width:480px;margin:0">' + bootError.replace(/</g, '&lt;') + '</p>' : '') +
+            '<p id="fv-diag" style="font-size:12px;color:#64748b;word-break:break-all;max-width:480px;margin:0;white-space:pre-wrap;text-align:left">' + esc(lines.join('\n')) + '</p>' +
             '<button id="fv-reset" style="padding:12px 24px;font-size:16px;border:0;border-radius:8px;background:#00E87B;color:#0A0F1C;font-weight:600">Reset app</button>' +
             '</div>'
           document.getElementById('fv-reset').addEventListener('click', fullReset)
+          if (chunkUrl) {
+            fetch(chunkUrl, { cache: 'no-store' }).then(function (r) {
+              document.getElementById('fv-diag').textContent += '\nchunk ' + chunkUrl.split('/').pop() + ': HTTP ' + r.status
+            }, function (err) {
+              document.getElementById('fv-diag').textContent += '\nchunk fetch failed: ' + (err && err.message)
+            })
+          }
         }
         window.addEventListener('load', function () {
           setTimeout(function () {
