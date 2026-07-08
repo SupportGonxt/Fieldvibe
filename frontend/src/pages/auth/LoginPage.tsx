@@ -19,7 +19,9 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const from = location.state?.from?.pathname || '/dashboard'
+  // No deep-link? Bounce through /auth — its role-aware redirect (App.tsx)
+  // sends GM/manager/backoffice to their app instead of the full dashboard.
+  const from = location.state?.from?.pathname || '/auth'
 
   useEffect(() => {
     setIsFormVisible(true)

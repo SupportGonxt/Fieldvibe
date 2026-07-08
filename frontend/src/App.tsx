@@ -492,8 +492,8 @@ function App() {
       <ToastContainer />
       <div className="min-h-screen bg-[#06090F]">
         <Routes>
-          {/* Marketing Landing Page */}
-          <Route path="/" element={<PageLoader><LandingPage /></PageLoader>} />
+          {/* Marketing Landing Page (installed PWA skips it: /auth redirects by role, or shows login) */}
+          <Route path="/" element={isStandalonePwa() ? <Navigate to="/auth" replace /> : <PageLoader><LandingPage /></PageLoader>} />
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
