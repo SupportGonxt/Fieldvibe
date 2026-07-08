@@ -22,7 +22,7 @@ async function dailyRows(db, tenantId, agentId, sinceDate) {
     `SELECT v.visit_date date,
             COUNT(*) visits,
             SUM(CASE WHEN LOWER(v.visit_type)='individual' THEN 1 ELSE 0 END) signups,
-            SUM(CASE WHEN JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 THEN 1 ELSE 0 END) qualified
+            SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) qualified
      FROM visits v LEFT JOIN visit_individuals vi ON vi.visit_id=v.id
      WHERE v.tenant_id=? AND v.agent_id=? AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date

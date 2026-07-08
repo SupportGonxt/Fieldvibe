@@ -1161,7 +1161,7 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, r
       let storeVisits = 0, individualVisits = 0, actualConvs = 0;
       const [tb, lc] = await Promise.all([
         db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ? AND company_id = ? GROUP BY visit_type").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).all().catch(() => ({ results: [] })),
-        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date < ? AND v.company_id = ?").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).first().catch(() => ({ count: 0 })),
+        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date < ? AND v.company_id = ?").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).first().catch(() => ({ count: 0 })),
       ]);
       for (const row of (tb.results || [])) {
         if ((row.visit_type || '').toLowerCase() === 'store') storeVisits = row.count || 0;
@@ -1436,7 +1436,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
           const [liveVisits, liveRegs, liveConvs, typeBreakdown] = await Promise.all([
             db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ?" + companyFilter).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
             db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date < ?" + companyFilter).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
-            db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 AND v.visit_date >= ? AND v.visit_date < ?" + (companyFilter ? " AND v.company_id = ?" : "")).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
+            db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date < ?" + (companyFilter ? " AND v.company_id = ?" : "")).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
             db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ?" + companyFilter + " GROUP BY visit_type").bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).all().catch(() => ({ results: [] })),
           ]);
           let storeVisits = 0, individualVisits = 0;
@@ -3403,6 +3403,24 @@ api.get('/visits/stats', async (c) => {
     db.prepare('SELECT visit_type, COUNT(*) as count FROM visits WHERE tenant_id = ?' + dateFilter + ' GROUP BY visit_type').bind(...params).all(),
   ]);
   return c.json({ success: true, data: { total: total ? total.count : 0, completed: completed ? completed.count : 0, pending: pending ? pending.count : 0, byType: byType.results || [] } });
+});
+
+// Literal /visits/* stubs must register before /visits/:id or they get shadowed.
+api.get('/visits/analytics', authMiddleware, async (c) => {
+  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.get('/visits/follow-ups', authMiddleware, async (c) => {
+  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.get('/visits/plans', authMiddleware, async (c) => {
+  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.get('/visits/templates', authMiddleware, async (c) => {
+  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
 api.get('/visits/:id', async (c) => {
@@ -5678,6 +5696,7 @@ api.get('/pricing/quote', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { product_id, customer_id, quantity } = c.req.query();
+  if (!product_id) return c.json({ success: false, message: 'product_id required' }, 400);
   const product = await db.prepare('SELECT * FROM products WHERE id = ? AND tenant_id = ?').bind(product_id, tenantId).first();
   if (!product) return c.json({ success: false, message: 'Product not found' }, 404);
   const qty = parseInt(quantity) || 1;
@@ -5787,7 +5806,7 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
                      AND datetime(newer.created_at) > datetime(rp.created_at)
                  )
              ) as rejected_photo_count
-      FROM visits v
+      FROM (SELECT * FROM visits v ${where} ORDER BY v.created_at DESC LIMIT ? OFFSET ?) v
       LEFT JOIN customers c ON v.customer_id = c.id
       LEFT JOIN users u ON v.agent_id = u.id
       LEFT JOIN visit_photos vp ON vp.id = (
@@ -5796,14 +5815,12 @@ api.get('/field-operations/visits', authMiddleware, async (c) => {
         WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL
         LIMIT 1
       )
-      ${where}
       ORDER BY v.created_at DESC
-      LIMIT ? OFFSET ?
     `).bind(...params, parseInt(limit), offset).all();
   } catch {
     // Fallback for tenants that have not yet added photo review columns.
     visits = await db.prepare(
-      "SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, vp.r2_url as thumbnail_url, 0 as rejected_photo_count FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL LIMIT 1) " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?"
+      "SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, vp.r2_url as thumbnail_url, 0 as rejected_photo_count FROM (SELECT * FROM visits v " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?) v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL LIMIT 1) ORDER BY v.created_at DESC"
     ).bind(...params, parseInt(limit), offset).all();
   }
   return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
@@ -6475,6 +6492,16 @@ api.get('/beat-routes', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const routes = await db.prepare('SELECT * FROM routes WHERE tenant_id = ? ORDER BY name LIMIT 500').bind(tenantId).all();
   return c.json({ data: routes.results || [] });
+});
+
+// Literal /beat-routes/* stubs must register before /beat-routes/:id or they get shadowed.
+api.get('/beat-routes/plans', authMiddleware, async (c) => {
+  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+api.get('/beat-routes/stats', authMiddleware, async (c) => {
+  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
+  catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
 api.get('/beat-routes/:id', authMiddleware, async (c) => {
@@ -8092,7 +8119,7 @@ api.post('/field-ops/monthly-targets/:id/recalculate', authMiddleware, async (c)
     if (target.company_id) { companyFilter = ' AND company_id = ?'; }
     const visits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(...baseParams, ...(target.company_id ? [target.company_id] : [])).first();
     const regs = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND created_at <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
-    const convs = await db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
+    const convs = await db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
     await db.prepare('UPDATE monthly_targets SET actual_visits = ?, actual_conversions = ?, actual_registrations = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(visits?.count || 0, convs?.count || 0, regs?.count || 0, id).run();
     // Calculate commission based on achievement
     const achievementPct = target.target_visits > 0 ? ((visits?.count || 0) / target.target_visits) * 100 : 0;
@@ -9213,7 +9240,7 @@ app.get('/portal/overview', portalAuthMiddleware, async (c) => {
     const cfgRow = await db.prepare('SELECT widgets FROM portal_dashboard_config WHERE company_id = ? AND tenant_id = ?').bind(companyId, tenantId).first();
     const widgets = cfgRow ? JSON.parse(cfgRow.widgets) : defaultDashboardConfig(companyId).widgets;
     const ind = await db.prepare(`SELECT COUNT(*) AS n,
-        SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values,'$.converted'),0)=1 THEN 1 ELSE 0 END) AS converted
+        SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted
       FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'
         AND v.agent_id NOT LIKE 'agent-test-%'`).bind(tenantId, companyId).first();
@@ -9249,7 +9276,7 @@ app.get('/portal/individuals', portalAuthMiddleware, async (c) => {
       SELECT v.id, i.first_name, i.last_name, i.phone, i.email,
         (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) AS thumbnail_url,
         (SELECT vp.id FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) AS photo_id,
-        COALESCE(JSON_EXTRACT(vi.custom_field_values,'$.converted'),0) AS converted,
+        (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted,
         v.visit_date, v.created_at
       FROM visits v
       LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
@@ -9380,7 +9407,7 @@ app.post('/portal/ask', portalAuthMiddleware, async (c) => {
       data = { total_individuals: row?.n || 0 };
     } else if (intent === 'qualification_rate') {
       const row = await db.prepare(`SELECT COUNT(*) AS n,
-          SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values,'$.converted'),0)=1 THEN 1 ELSE 0 END) AS converted
+          SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted
         FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
         WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'
           AND v.agent_id NOT LIKE 'agent-test-%'`).bind(tenantId, companyId).first();
@@ -9925,7 +9952,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       // Agent sees own performance
       const [visits, conversions, targets, individualVisits, storeVisits] = await Promise.all([
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
         db.prepare("SELECT * FROM daily_targets WHERE agent_id = ? AND tenant_id = ? AND target_date = ?").bind(userId, tenantId, today.toISOString().split('T')[0]).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.agent_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhere.replace(/(\b)(?=company_id|status)/g, 'v.')}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store'${cWhere}`).bind(userId, tenantId, startD, endD, ...cBind).first(),
@@ -9959,7 +9986,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
         db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
       ]);
@@ -10039,7 +10066,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       // agentIds already scopes to this team; no company_id filter on visits (handles NULL company_id for Goldrush)
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
         db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
       ]);
@@ -10118,7 +10145,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
       // is handled above via agent_company_links so we don't miss NULL company_id rows).
       const [allVisits, allConvs, allIndivVisits, allStoreVisits] = await Promise.all([
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD).all(),
         db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD).all(),
         db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
       ]);
@@ -10242,7 +10269,7 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       headers = ['Metric', 'Value', 'Target', 'Achievement %'];
       const [visits, conversions, targets, individualVisits, storeVisits] = await Promise.all([
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(userId, tenantId, startD, endD).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND v.visit_date >= ? AND v.visit_date <= ?").bind(userId, tenantId, startD, endD).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(userId, tenantId, startD, endD).first(),
         db.prepare("SELECT * FROM daily_targets WHERE agent_id = ? AND tenant_id = ? AND target_date = ?").bind(userId, tenantId, today.toISOString().split('T')[0]).first(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(userId, tenantId, startD, endD).first(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(userId, tenantId, startD, endD).first()
@@ -10275,7 +10302,7 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       
       data.push([]); // Empty row
       data.push(['--- Individual Details ---']);
-      const regDetails = await db.prepare("SELECT v.created_at, i.first_name, i.last_name, i.phone, COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) as converted, fc.name as company_name FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.agent_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 50").bind(userId, tenantId, startD, endD).all();
+      const regDetails = await db.prepare("SELECT v.created_at, i.first_name, i.last_name, i.phone, (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted, fc.name as company_name FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.agent_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 50").bind(userId, tenantId, startD, endD).all();
       for (const r of (regDetails.results || [])) {
         data.push(['Individual', r.created_at, '', '', r.created_at, r.converted ? 'Converted' : 'Pending', `${r.first_name} ${r.last_name} (${r.company_name || 'N/A'})`]);
       }
@@ -10328,7 +10355,7 @@ api.get('/field-ops/performance/export', authMiddleware, async (c) => {
       // Add drilldown: detailed individual list for all agents
       data.push([]); // Empty row
       data.push(['--- Detailed Individuals (All Agents) ---']);
-      const allRegDetails = await db.prepare("SELECT v.created_at, i.first_name, i.last_name, i.phone, COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) as converted, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (" + placeholders + ") AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 100").bind(tenantId, ...agentIds, startD, endD).all();
+      const allRegDetails = await db.prepare("SELECT v.created_at, i.first_name, i.last_name, i.phone, (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (" + placeholders + ") AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 100").bind(tenantId, ...agentIds, startD, endD).all();
       data.push(['Date', 'Agent', 'Name', 'Phone', 'Status', 'Company']);
       for (const r of (allRegDetails.results || [])) {
         data.push([r.created_at, r.agent_name, `${r.first_name} ${r.last_name}`, r.phone || '', r.converted ? 'Converted' : 'Pending', r.company_name || 'N/A']);
@@ -10761,7 +10788,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...allIds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...allIds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${placeholders}) AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${placeholders}) AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
         ]);
         subordinates.push({ id: tl.id, agent_id: tl.id, agent_name: tl.first_name + ' ' + tl.last_name, email: tl.email, role: 'team_lead', agents_count: (teamAgentIds.results || []).length, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
@@ -10770,7 +10797,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
         ]);
         subordinates.push({ id: agent.id, agent_id: agent.id, agent_name: agent.first_name + ' ' + agent.last_name, email: agent.email, role: 'agent', visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
@@ -10783,7 +10810,7 @@ api.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
         ]);
         agentPerf.push({ id: agent.id, agent_id: agent.id, agent_name: agent.first_name + ' ' + agent.last_name, email: agent.email, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
@@ -10851,7 +10878,7 @@ api.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${ph}) AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...allIds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${ph}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...allIds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${ph}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${ph}) AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${ph}) AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
         ]);
         const ivCount = iv?.count || 0; const cvCount = cv?.count || 0;
         data.push([tl.first_name + ' ' + tl.last_name, 'Team Lead', v?.count || 0, ivCount, sv?.count || 0, cvCount, ivCount > 0 ? Math.round((cvCount / ivCount) * 100) + '%' : '0%']);
@@ -10861,7 +10888,7 @@ api.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
         ]);
         const ivCount = iv?.count || 0; const cvCount = cv?.count || 0;
         data.push([agent.first_name + ' ' + agent.last_name, 'Agent', v?.count || 0, ivCount, sv?.count || 0, cvCount, ivCount > 0 ? Math.round((cvCount / ivCount) * 100) + '%' : '0%']);
@@ -10875,7 +10902,7 @@ api.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
         ]);
         const vCount = v?.count || 0;
         const ivCount = iv?.count || 0;
@@ -10889,7 +10916,7 @@ api.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
       const dailyVisits = await db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
       const dailyIndivs = await db.prepare("SELECT visit_date as day, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
       const dailyStores = await db.prepare("SELECT visit_date as day, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date <= ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
-      const dailyConvs = await db.prepare("SELECT DATE(created_at) as day, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? GROUP BY day ORDER BY day").bind(targetUserId, tenantId, startD, endD).all();
+      const dailyConvs = await db.prepare("SELECT DATE(created_at) as day, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? GROUP BY day ORDER BY day").bind(targetUserId, tenantId, startD, endD).all();
       
       const visitMap = Object.fromEntries((dailyVisits.results || []).map(r => [r.visit_date, r.count]));
       const indivMap = Object.fromEntries((dailyIndivs.results || []).map(r => [r.day, r.count]));
@@ -10947,7 +10974,7 @@ api.get('/field-ops/company-dashboard', authMiddleware, async (c) => {
       db.prepare("SELECT COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.visit_date = ? AND v.tenant_id = ?").bind(company_id, today, tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.visit_date >= ? AND v.tenant_id = ?").bind(company_id, monthStart, tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visits WHERE company_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store'").bind(company_id, tenantId).first(),
-      db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(company_id, tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(company_id, tenantId).first(),
       db.prepare("SELECT v.*, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 10").bind(company_id, tenantId).all()
     ]);
     return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: recentRegs.results || [] });
@@ -10978,9 +11005,9 @@ api.get('/field-ops/brand-insights', authMiddleware, async (c) => {
     let regParams = [tenantId, startD, endD];
     let regFilter = '';
     if (company_id) { regFilter = ' AND ir.company_id = ?'; regParams.push(company_id); }
-    const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)" + regFilter.replace(/ir\./g, "v.")).bind(...regParams).first();
+    const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)" + regFilter.replace(/ir\./g, "v.")).bind(...regParams).first();
     // Conversion by day
-    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)" + regFilter.replace(/ir\./g, "v.") + " GROUP BY day ORDER BY day").bind(...regParams).all();
+    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)" + regFilter.replace(/ir\./g, "v.") + " GROUP BY day ORDER BY day").bind(...regParams).all();
     // KPIs
     const totalVisits = (visitsByDay.results || []).reduce((s, d) => s + d.count, 0);
     const totalAgents = (agentPerf.results || []).length;
@@ -11347,7 +11374,9 @@ api.get('/trade-marketing/merchandising-compliance', authMiddleware, async (c) =
     'MAX(vp.ai_compliance_score) as max_score, ' +
     'MAX(vp.created_at) as last_audited_at ' +
     'FROM visit_photos vp ' +
-    'JOIN visits v ON vp.visit_id = v.id AND v.tenant_id = vp.tenant_id ' +
+    // CROSS JOIN forces SQLite to scan visit_photos (3k rows) first; a plain JOIN can
+    // flip visits (43k rows with fat photo_base64 blobs) outer and blow the D1 CPU limit.
+    'CROSS JOIN visits v ON vp.visit_id = v.id AND v.tenant_id = vp.tenant_id ' +
     'LEFT JOIN customers c ON v.customer_id = c.id ' +
     where + ' GROUP BY v.customer_id, c.name ORDER BY avg_compliance_score ASC LIMIT ?'
   ).bind(...params, limitNum).all();
@@ -13110,7 +13139,7 @@ api.post('/competitor-sightings', async (c) => {
 api.get('/competitor-sightings', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const sightings = await db.prepare("SELECT cs.*, c.name as customer_name FROM competitor_sightings cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.tenant_id = ? ORDER BY cs.created_at DESC").bind(tenantId).all();
+  const sightings = await db.prepare("SELECT cs.*, c.name as customer_name FROM competitor_sightings cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.tenant_id = ? ORDER BY cs.sighting_date DESC").bind(tenantId).all();
   return c.json({ success: true, data: sightings.results || [] });
 });
 
@@ -13137,12 +13166,12 @@ api.get('/anomaly-flags', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { status, type, severity } = c.req.query();
-  let q = "SELECT af.*, u.first_name || ' ' || u.last_name as user_name FROM anomaly_flags af LEFT JOIN users u ON af.user_id = u.id WHERE af.tenant_id = ?";
+  let q = "SELECT af.*, u.first_name || ' ' || u.last_name as user_name FROM anomaly_flags af LEFT JOIN users u ON af.agent_id = u.id WHERE af.tenant_id = ?";
   const params = [tenantId];
   if (status) { q += ' AND af.status = ?'; params.push(status); }
   if (type) { q += ' AND af.anomaly_type = ?'; params.push(type); }
   if (severity) { q += ' AND af.severity = ?'; params.push(severity); }
-  q += ' ORDER BY af.detected_at DESC';
+  q += ' ORDER BY af.created_at DESC';
   const flags = await db.prepare(q).bind(...params).all();
   return c.json({ success: true, data: flags.results || [] });
 });
@@ -13153,7 +13182,7 @@ api.put('/anomaly-flags/:id/acknowledge', requireRole('admin', 'manager'), async
   const userId = c.get('userId');
   const { id } = c.req.param();
   const { notes } = await c.req.json();
-  await db.prepare("UPDATE anomaly_flags SET status = 'ACKNOWLEDGED', resolved_by = ?, resolved_at = datetime('now'), resolution_notes = ? WHERE id = ? AND tenant_id = ?").bind(userId, notes || null, id, tenantId).run();
+  await db.prepare("UPDATE anomaly_flags SET status = 'ACKNOWLEDGED', reviewed_by = ?, reviewed_at = datetime('now'), resolution = ? WHERE id = ? AND tenant_id = ?").bind(userId, notes || null, id, tenantId).run();
   return c.json({ success: true, message: 'Anomaly acknowledged' });
 });
 
@@ -13163,7 +13192,7 @@ api.put('/anomaly-flags/:id/dismiss', requireRole('admin', 'manager'), async (c)
   const userId = c.get('userId');
   const { id } = c.req.param();
   const { notes } = await c.req.json();
-  await db.prepare("UPDATE anomaly_flags SET status = 'DISMISSED', resolved_by = ?, resolved_at = datetime('now'), resolution_notes = ? WHERE id = ? AND tenant_id = ?").bind(userId, notes || null, id, tenantId).run();
+  await db.prepare("UPDATE anomaly_flags SET status = 'DISMISSED', reviewed_by = ?, reviewed_at = datetime('now'), resolution = ? WHERE id = ? AND tenant_id = ?").bind(userId, notes || null, id, tenantId).run();
   return c.json({ success: true, message: 'Anomaly dismissed' });
 });
 
@@ -15351,7 +15380,7 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
              u.first_name || ' ' || u.last_name as agent_name, v.agent_id,
              c.name as store_name, v.individual_name, v.individual_surname
       FROM visit_photos vp
-      JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
+      CROSS JOIN visits v ON vp.visit_id = v.id AND vp.tenant_id = v.tenant_id
       LEFT JOIN users u ON v.agent_id = u.id
       LEFT JOIN customers c ON v.customer_id = c.id
       ${where}
@@ -15366,13 +15395,19 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
     if (agent_id) { vrWhere += ' AND v.agent_id = ?'; vrParams.push(agent_id); }
     if (store_name) { vrWhere += ' AND (c.name LIKE ? OR v.individual_name LIKE ?)'; vrParams.push('%' + store_name + '%', '%' + store_name + '%'); }
     // review_status filter: questionnaire photos are always 'pending' — skip if filtering for approved/rejected
-    const vrRows = (review_status && review_status !== 'pending') ? { results: [] } : await db.prepare(`
+    // CROSS JOIN pins visit_responses as the outer table — letting the planner scan
+    // 43k visits (fat photo_base64 blobs) outer kills the D1 CPU budget. Q2 is
+    // best-effort legacy backfill; if it still exceeds CPU, return Q1 results alone.
+    let vrRows = { results: [] };
+    if (!review_status || review_status === 'pending') {
+      try {
+        vrRows = await db.prepare(`
       SELECT vr.id, vr.visit_id, vr.responses, vr.created_at,
              v.visit_date, v.visit_type, COALESCE(v.visit_target_type, 'store') as visit_target_type, v.status as visit_status,
              u.first_name || ' ' || u.last_name as agent_name, v.agent_id,
              c.name as store_name, v.individual_name, v.individual_surname
       FROM visit_responses vr
-      JOIN visits v ON vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
+      CROSS JOIN visits v ON vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
       LEFT JOIN users u ON v.agent_id = u.id
       LEFT JOIN customers c ON v.customer_id = c.id
       ${vrWhere}
@@ -15383,8 +15418,10 @@ api.get('/visit-photos/admin-review', authMiddleware, async (c) => {
         OR (vr.responses LIKE '%competitor_photo%' AND vr.responses NOT LIKE '%competitor_photo":""%' AND vr.responses NOT LIKE '%competitor_photo":null%')
       )
       ORDER BY vr.created_at DESC
-      LIMIT 2000
+      LIMIT 500
     `).bind(...vrParams).all();
+      } catch { vrRows = { results: [] }; }
+    }
 
     // Expand visit_responses rows into individual photo records
     const vrPhotoRows = [];
@@ -17103,7 +17140,7 @@ app.get('/api/field-ops/company-portal/dashboard', companyAuthMiddleware, async 
       db.prepare("SELECT COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.visit_date = ? AND v.tenant_id = ?").bind(companyId, today, tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.visit_date >= ? AND v.tenant_id = ?").bind(companyId, monthStart, tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visits WHERE company_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store'").bind(companyId, tenantId).first(),
-      db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND JSON_EXTRACT(vi.custom_field_values, '$.converted') = 1 AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(companyId, tenantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(companyId, tenantId).first(),
       db.prepare("SELECT v.*, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 10").bind(companyId, tenantId).all()
     ]);
     return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: recentRegs.results || [] });
@@ -17131,9 +17168,9 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
     const agentPerf = await db.prepare("SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(*) as visit_count, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN users u ON v.agent_id = u.id JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY v.agent_id ORDER BY visit_count DESC LIMIT 20").bind(...baseParams).all();
     // Registration stats
     const regParams = [tenantId, startD, endD, companyId];
-    const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(...regParams).first();
+    const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(...regParams).first();
     // Conversions by day
-    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY day ORDER BY day").bind(...regParams).all();
+    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY day ORDER BY day").bind(...regParams).all();
     // Visits by day of week
     const visitsByDayOfWeek = await db.prepare("SELECT CASE CAST(strftime('%w', v.visit_date) AS INTEGER) WHEN 0 THEN 'Sun' WHEN 1 THEN 'Mon' WHEN 2 THEN 'Tue' WHEN 3 THEN 'Wed' WHEN 4 THEN 'Thu' WHEN 5 THEN 'Fri' WHEN 6 THEN 'Sat' END as day_name, CAST(strftime('%w', v.visit_date) AS INTEGER) as day_num, COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY day_num ORDER BY day_num").bind(...baseParams).all();
     // Daily targets vs actuals
@@ -17301,7 +17338,7 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
     let headers = [];
     if (type === 'registrations') {
       headers = ['Name', 'ID Number', 'Phone', 'Agent', 'Status', 'Date'];
-      const result = await db.prepare("SELECT i.first_name, i.last_name, i.id_number, i.phone, u.first_name || ' ' || u.last_name as agent_name, CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 THEN 'Converted' ELSE 'Pending' END as status, v.created_at FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC").bind(companyId, tenantId, startD, endD).all();
+      const result = await db.prepare("SELECT i.first_name, i.last_name, i.id_number, i.phone, u.first_name || ' ' || u.last_name as agent_name, CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 'Converted' ELSE 'Pending' END as status, v.created_at FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC").bind(companyId, tenantId, startD, endD).all();
       rows = (result.results || []).map(r => [r.first_name + ' ' + r.last_name, r.id_number || '', r.phone || '', r.agent_name || '', r.status, r.created_at]);
     } else {
       headers = ['Date', 'Agent', 'Status', 'Check In', 'Check Out', 'Notes'];
@@ -17812,7 +17849,7 @@ api.get('/field-ops/reports/kpis', authMiddleware, async (c) => {
     const activeAgents = await db.prepare(`SELECT COUNT(DISTINCT v.agent_id) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
     const totalCustomers = await db.prepare(`SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v WHERE v.tenant_id = ? AND v.customer_id IS NOT NULL${dateFilter}`).bind(...binds).first();
     const totalIndividuals = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds).first();
-    const conversions = await db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds).first();
+    const conversions = await db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds).first();
 
     return c.json({ success: true, kpis: {
       total_checkins: totalVisits?.count || 0,
@@ -17868,7 +17905,7 @@ api.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
     const agents = await db.prepare(`
       SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
         COUNT(*) as checkin_count,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.agent_id = v.agent_id AND v2.tenant_id = v.tenant_id AND (COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.consumer_converted'), '')) = 'yes')${subqueryDateFilter}) as conversions
+        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.agent_id = v.agent_id AND v2.tenant_id = v.tenant_id AND (((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.consumer_converted'), '')) = 'yes')${subqueryDateFilter}) as conversions
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
       WHERE v.tenant_id = ?${agentFilter}${dateFilter}
@@ -17983,7 +18020,7 @@ api.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
     }
 
     const total = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ?${dateFilter}`).bind(...binds).first();
-    const converted = await db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds).first();
+    const converted = await db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds).first();
     const totalRegs = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds).first();
     const storeVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_type = 'store'${dateFilter}`).bind(...binds).first();
 
@@ -18060,7 +18097,7 @@ api.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
       SELECT v.id, i.first_name, i.last_name, i.id_number, i.phone, i.email,
         (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
         JSON_EXTRACT(vi.custom_field_values, '$.product_app_player_id') as product_app_player_id,
-        COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) as converted,
+        (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted,
         JSON_EXTRACT(vi.custom_field_values, '$.conversion_date') as conversion_date,
         v.notes, v.latitude as gps_latitude, v.longitude as gps_longitude,
         v.created_at, v.id as visit_id,
@@ -19211,20 +19248,29 @@ api.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       : await db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first();
 
     const havingClause = dateBinds.length > 0 ? 'HAVING total_checkins > 0' : '';
+    // Conversions as a grouped derived table, not a per-customer correlated subquery —
+    // 2.5k customers x correlated scan over 40k visit_individuals blows the D1 CPU
+    // budget. Also joins v2.customer_id (was wrongly v2.company_id = c.id).
     const shops = await db.prepare(`
       SELECT c.id, c.name, c.address, c.latitude, c.longitude,
         COUNT(v.id) as total_checkins,
         SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as approved_checkins,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.company_id = c.id AND v2.tenant_id = c.tenant_id AND COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.converted'), 0) = 1${dateFilter.replace(/v\./g, 'v2.')}) as conversions,
+        COALESCE(MAX(conv.cnt), 0) as conversions,
         MAX(v.visit_date) as last_visit
       FROM customers c
       LEFT JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id${dateFilter}
+      LEFT JOIN (
+        SELECT v2.customer_id, COUNT(*) as cnt
+        FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id
+        WHERE v2.tenant_id = ? AND ((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes')${dateFilter.replace(/v\./g, 'v2.')}
+        GROUP BY v2.customer_id
+      ) conv ON conv.customer_id = c.id
       WHERE c.tenant_id = ?
       GROUP BY c.id
       ${havingClause}
       ORDER BY total_checkins DESC
       LIMIT ? OFFSET ?
-    `).bind(...dateBinds, ...dateBinds, tenantId, parseInt(limit), offset).all();
+    `).bind(...dateBinds, tenantId, ...dateBinds, tenantId, parseInt(limit), offset).all();
 
     return c.json({ success: true, shops: shops.results || [], total: totalResult?.count || 0 });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
@@ -19243,7 +19289,7 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
         (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
         (SELECT vi2.custom_field_values FROM visit_individuals vi2 WHERE vi2.visit_id = v.id LIMIT 1) as custom_field_values,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses,
-        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1) as converted,
+        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes')) as converted,
         v.notes as responses
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
@@ -19305,7 +19351,7 @@ api.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     const stats = await db.prepare(`
       SELECT COUNT(*) as total_checkins,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.converted'), 0) = 1) as conversions
+        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND ((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes')) as conversions
       FROM visits WHERE customer_id = ? AND tenant_id = ?
     `).bind(shopId, tenantId, shopId, tenantId).first();
 
@@ -19334,7 +19380,7 @@ api.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
         v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
         fc.name as shop_name, v.company_id as shop_id,
         v.notes as responses,
-        COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) as converted,
+        (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted,
         0 as already_betting
       FROM visits v
       LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
@@ -19348,7 +19394,7 @@ api.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
 
     const statsResult = await db.prepare(`
       SELECT COUNT(*) as total_customers,
-        SUM(CASE WHEN COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.converted'), 0) = 1 OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
+        SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
         0 as already_betting
       FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}
     `).bind(...binds).first();
@@ -21001,16 +21047,6 @@ api.get('/visits/templates/:templateId/create-visit', authMiddleware, async (c) 
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// beat-routes additional routes (restored - stubs after real routes can't shadow)
-api.get('/beat-routes/plans', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/beat-routes/stats', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-
 // inventory additional routes (restored)
 api.get('/inventory/:id', authMiddleware, async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
@@ -21186,24 +21222,6 @@ api.get('/van-sales/:id', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// visits additional routes (restored)
-api.get('/visits/analytics', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/visits/follow-ups', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/visits/plans', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/visits/templates', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-
 // warehouses routes
 api.get('/warehouses/:warehouseId/inventory', authMiddleware, async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
@@ -21240,12 +21258,6 @@ api.route('/field-ops', callRoutes);
 api.route('/field-ops', gmRoutes);
 api.route('/field-ops', kpiRoutes);
 api.route('/field-ops', depositRoutes);
-
-// ==================== MOUNT AND EXPORT ====================
-app.route('/api', api);
-
-// Catch-all for unmatched routes
-app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 
 // ==================== SECTION 9: SCHEDULED JOBS ====================
 
@@ -21901,6 +21913,14 @@ async function reapStuckAiProcessing(db) {
     console.error('reapStuckAiProcessing failed', err && err.message);
   }
 }
+
+// ==================== MOUNT AND EXPORT ====================
+// Mounted last so every api.get/post above (including routes declared late in
+// this file) is registered before Hono copies routes at mount time.
+app.route('/api', api);
+
+// Catch-all for unmatched routes
+app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 
 export default {
   fetch: app.fetch,
