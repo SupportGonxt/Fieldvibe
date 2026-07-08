@@ -37,6 +37,23 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Recover from a stale SW-cached index.html: after a deploy, Pages purges
+      // old hashed chunks, so a cached shell's script 404s and nothing mounts.
+      // If #root is still empty well after load, purge the navigation cache and
+      // reload once (sessionStorage guard prevents a loop).
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var root = document.getElementById('root')
+          if (root && root.childElementCount === 0 && !sessionStorage.getItem('fv-shell-recovered')) {
+            sessionStorage.setItem('fv-shell-recovered', '1')
+            var reload = function () { window.location.reload() }
+            if (window.caches) caches.delete('navigation-cache').then(reload, reload)
+            else reload()
+          }
+        }, 4000)
+      })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
