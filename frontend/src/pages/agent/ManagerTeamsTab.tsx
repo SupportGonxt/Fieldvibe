@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Target, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, AlertCircle, Star, Shield } from 'lucide-react'
+import { Users, MapPin, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, AlertCircle, Star, Shield } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 
 interface TeamStat {
@@ -20,6 +20,13 @@ interface TeamStat {
     target_stores: number
     actual_stores: number
   }
+  // Period breakdowns (optional: older API responses won't have them)
+  today_visits?: number
+  today_stores?: number
+  week_visits?: number
+  week_stores?: number
+  prior_month_visits?: number
+  prior_month_stores?: number
 }
 
 interface CommissionRule {
@@ -57,6 +64,10 @@ interface ManagerData {
     today_store_visits?: number
     month_individual_visits?: number
     month_store_visits?: number
+    week_individual_visits?: number
+    week_store_visits?: number
+    prior_month_individual_visits?: number
+    prior_month_store_visits?: number
   }
   org_targets: {
     target_visits: number
@@ -103,6 +114,14 @@ function progressColor(pct: number): string {
   return '#EF4444'
 }
 
+const PERIODS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'prior_month', label: 'Prior Mo' },
+] as const
+type PeriodKey = typeof PERIODS[number]['key']
+
 export default function ManagerTeamsTab() {
   const navigate = useNavigate()
   const [data, setData] = useState<ManagerData | null>(null)
@@ -110,6 +129,7 @@ export default function ManagerTeamsTab() {
   const [refreshing, setRefreshing] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
+  const [period, setPeriod] = useState<PeriodKey>('today')
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -147,6 +167,21 @@ export default function ManagerTeamsTab() {
   const rules = data?.commission_rules || []
   const tiers = data?.commission_tiers || []
   const currentTier = data?.current_org_tier
+  const periodLabel = PERIODS.find(p => p.key === period)!.label
+
+  // ?? 0 fallbacks: older API responses lack the period fields
+  const ot = data?.org_totals
+  const orgPeriod =
+    period === 'today' ? { ind: ot?.today_individual_visits ?? ot?.today_visits ?? 0, store: ot?.today_store_visits ?? 0 }
+    : period === 'week' ? { ind: ot?.week_individual_visits ?? 0, store: ot?.week_store_visits ?? 0 }
+    : period === 'month' ? { ind: ot?.month_individual_visits ?? ot?.month_visits ?? 0, store: ot?.month_store_visits ?? 0 }
+    : { ind: ot?.prior_month_individual_visits ?? 0, store: ot?.prior_month_store_visits ?? 0 }
+
+  const teamPeriod = (team: TeamStat) =>
+    period === 'today' ? { ind: team.today_visits ?? 0, store: team.today_stores ?? 0 }
+    : period === 'week' ? { ind: team.week_visits ?? 0, store: team.week_stores ?? 0 }
+    : period === 'month' ? { ind: team.month_visits, store: team.month_stores }
+    : { ind: team.prior_month_visits ?? 0, store: team.prior_month_stores ?? 0 }
 
   return (
     <div className="min-h-screen bg-[#06090F] pb-24">
@@ -163,36 +198,37 @@ export default function ManagerTeamsTab() {
         </div>
       </div>
 
+      {/* Period selector */}
+      <div className="px-5 pt-4">
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-1 flex">
+          {PERIODS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`flex-1 py-1.5 rounded-xl text-xs font-semibold transition-colors ${period === p.key ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400'}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Org KPIs */}
-      <div className="px-5 pt-4 pb-2">
+      <div className="px-5 pt-3 pb-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-4 h-4 text-blue-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Individual</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">{periodLabel} Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.today_individual_visits ?? data?.org_totals?.today_visits ?? 0}</p>
+            <p className="text-xl font-bold text-white">{orgPeriod.ind}</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-purple-500/10"><UserCheck className="w-4 h-4 text-purple-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Today Store</span>
+              <div className="p-1.5 rounded-lg bg-amber-500/10"><UserCheck className="w-4 h-4 text-amber-400" /></div>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">{periodLabel} Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.today_store_visits ?? 0}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Individual</span>
-            </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.month_individual_visits ?? data?.org_totals?.month_visits ?? 0}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-amber-500/10"><Target className="w-4 h-4 text-amber-400" /></div>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Month Store</span>
-            </div>
-            <p className="text-xl font-bold text-white">{data?.org_totals?.month_store_visits ?? 0}</p>
+            <p className="text-xl font-bold text-white">{orgPeriod.store}</p>
           </div>
         </div>
       </div>
@@ -246,7 +282,7 @@ export default function ManagerTeamsTab() {
               </span>
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', backgroundColor: '#8B5CF6' }} />
+              <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', backgroundColor: '#F59E0B' }} />
             </div>
           </div>
 
@@ -371,8 +407,8 @@ export default function ManagerTeamsTab() {
           <div className="space-y-2.5">
             {/* Manager's Own Score */}
             <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                <Shield className="w-4 h-4 text-purple-400" />
+              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-[#00E87B]" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-gray-400">My Score (Org Total)</p>
@@ -389,7 +425,7 @@ export default function ManagerTeamsTab() {
               const tlAch = team.achievement || 0
               return (
                 <div key={team.team_lead_id} className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                     <Users className="w-4 h-4 text-blue-400" />
                   </div>
                   <div className="flex-1">
@@ -427,8 +463,8 @@ export default function ManagerTeamsTab() {
                     onClick={() => setExpandedTeam(isExpanded ? null : team.team_lead_id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-4 h-4 text-indigo-400" />
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-4 h-4 text-blue-400" />
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium text-white truncate">{team.team_lead_name}</p>
@@ -445,12 +481,12 @@ export default function ManagerTeamsTab() {
                     <div className="px-3 pb-3 pt-0 border-t border-white/5">
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Individual</p>
-                          <p className="text-sm font-semibold text-white">{team.month_visits}</p>
+                          <p className="text-[10px] text-gray-500">{periodLabel} Individual</p>
+                          <p className="text-sm font-semibold text-white">{teamPeriod(team).ind}</p>
                         </div>
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Store</p>
-                          <p className="text-sm font-semibold text-white">{team.month_stores}</p>
+                          <p className="text-[10px] text-gray-500">{periodLabel} Store</p>
+                          <p className="text-sm font-semibold text-white">{teamPeriod(team).store}</p>
                         </div>
                       </div>
                       {/* Individual target progress */}
@@ -470,7 +506,7 @@ export default function ManagerTeamsTab() {
                           <span className="text-white">{team.actual_stores}/{team.target_stores} <span className={pctClass(teamRPct)}>({teamRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: teamRPct + '%', backgroundColor: '#8B5CF6' }} />
+                          <div className="h-full rounded-full" style={{ width: teamRPct + '%', backgroundColor: '#F59E0B' }} />
                         </div>
                       </div>
                       {/* Drill-down button */}
