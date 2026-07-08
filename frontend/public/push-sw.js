@@ -1,31 +1,57 @@
 /* Web Push handlers, imported into the workbox-generated service worker.
- * Payload shape (from backend ringCallee): { type, callId, callerName }. */
+ * Call payload (from backend ringCallee): { type: 'incoming_call', callId, callerName }.
+ * Generic payload (e.g. KPI nudge): { title, body, url? }. */
 
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { /* non-JSON push */ }
-  if (data.type !== 'incoming_call' || !data.callId) return;
 
-  const title = data.callerName || 'Back office';
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body: 'Incoming call',
-      tag: 'call-' + data.callId, // collapse repeat rings for the same call
-      requireInteraction: true,   // keep ringing until the agent acts
-      renotify: true,
-      data: { callId: data.callId, callerName: title },
-      actions: [
-        { action: 'answer', title: 'Answer' },
-        { action: 'decline', title: 'Decline' },
-      ],
-    })
-  );
+  if (data.type === 'incoming_call' && data.callId) {
+    const title = data.callerName || 'Back office';
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body: 'Incoming call',
+        tag: 'call-' + data.callId, // collapse repeat rings for the same call
+        requireInteraction: true,   // keep ringing until the agent acts
+        renotify: true,
+        data: { callId: data.callId, callerName: title },
+        actions: [
+          { action: 'answer', title: 'Answer' },
+          { action: 'decline', title: 'Decline' },
+        ],
+      })
+    );
+    return;
+  }
+
+  if (data.title) {
+    event.waitUntil(
+      self.registration.showNotification(data.title, {
+        body: data.body || '',
+        tag: data.tag || 'fieldvibe-generic',
+        data: { url: data.url || '/' },
+      })
+    );
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const { callId, callerName } = event.notification.data || {};
-  if (!callId || event.action === 'decline') return;
+  const { callId, callerName, url } = event.notification.data || {};
+
+  if (!callId) {
+    // Generic notification: focus an open window, else open the target URL
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const c of clients) {
+          if ('focus' in c) return c.focus();
+        }
+        return self.clients.openWindow(url || '/');
+      })
+    );
+    return;
+  }
+  if (event.action === 'decline') return;
 
   const target = '/agent/call/incoming?callId=' + encodeURIComponent(callId) +
     '&callerName=' + encodeURIComponent(callerName || '');
