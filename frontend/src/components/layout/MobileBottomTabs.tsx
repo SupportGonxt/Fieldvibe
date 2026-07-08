@@ -25,10 +25,14 @@ export default function MobileBottomTabs() {
     if (userStr) userRole = JSON.parse(userStr).role || 'admin'
   } catch { /* malformed localStorage - default to admin */ }
 
+  // GM sees the field-operations module only (for now)
+  const gmPaths = ['/dashboard', '/field-operations', '/more']
+
   // Filter tabs by role - show max 5 tabs on mobile
-  const visibleTabs = allTabs
-    .filter(tab => !tab.roles || tab.roles.includes(userRole))
-    .slice(0, 5)
+  const visibleTabs = (userRole === 'general_manager'
+    ? allTabs.filter(tab => gmPaths.includes(tab.path))
+    : allTabs.filter(tab => !tab.roles || tab.roles.includes(userRole))
+  ).slice(0, 5)
 
   // Always ensure More tab is included
   const moreDef = allTabs.find(t => t.path === '/more')!

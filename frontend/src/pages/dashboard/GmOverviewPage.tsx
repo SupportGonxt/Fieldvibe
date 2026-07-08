@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { formatCurrency, formatNumber } from '../../utils/format'
@@ -16,8 +17,12 @@ interface Leader { id: string; name: string; signups: number; converted: number 
 interface Agent { id: string; name: string; phone?: string; today?: number; last_activity?: string }
 interface Overview {
   period: Period
-  money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean }
-  funnel: { signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number }
+  window: { start: string; end: string; prevStart: string; prevEnd: string; today: string; isCurrent: boolean }
+  money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean; prevRevenue: number }
+  funnel: {
+    signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number
+    prev: { signups: number; converted: number; conversionRate: number }
+  }
   field: { activeAgents: number; totalAgents: number; leastActive: Agent[] }
   leaders: Leader[]
   calls: { contacted: number; target: number }
@@ -30,10 +35,52 @@ interface TenantSignals {
 }
 
 const PERIODS: { key: Period; label: string }[] = [
-  { key: 'day', label: 'Today' },
-  { key: 'week', label: 'This week' },
-  { key: 'month', label: 'This month' },
+  { key: 'day', label: 'Day' },
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
 ]
+
+const PREV_LABEL: Record<Period, string> = { day: 'vs prev day', week: 'vs prev week', month: 'vs prev month' }
+
+// Step an anchor date one period back/forward (UTC date math, backend clamps to today).
+function shiftAnchor(anchor: string, period: Period, dir: -1 | 1): string {
+  const d = new Date(`${anchor}T00:00:00Z`)
+  if (period === 'day') d.setUTCDate(d.getUTCDate() + dir)
+  else if (period === 'week') d.setUTCDate(d.getUTCDate() + 7 * dir)
+  else d.setUTCMonth(d.getUTCMonth() + dir, 1)
+  return d.toISOString().slice(0, 10)
+}
+
+const fmtDay = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+const fmtShort = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+
+// Human label for the displayed window (end is exclusive).
+function windowLabel(w: Overview['window'], period: Period): string {
+  if (period === 'day') return w.start === w.today ? `Today · ${fmtDay(w.start)}` : fmtDay(w.start)
+  const last = shiftAnchor(w.end, 'day', -1)
+  if (period === 'month') {
+    const m = new Date(`${w.start}T00:00:00Z`).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    return w.isCurrent ? `${m} · to date` : m
+  }
+  return `${fmtShort(w.start)} – ${fmtShort(last)}${w.isCurrent ? ' · to date' : ''}`
+}
+
+// Compact vs-previous delta chip.
+function Delta({ now, prev, suffix }: { now: number; prev: number; suffix: string }) {
+  if (!now && !prev) return null
+  if (!prev) return <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600"><ArrowUpRight className="w-3 h-3" />new {suffix}</span>
+  const pct = Math.round(((now - prev) / prev) * 100)
+  if (pct === 0) return <span className="inline-flex items-center gap-0.5 text-xs text-content-secondary"><Minus className="w-3 h-3" />flat {suffix}</span>
+  const up = pct > 0
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs ${up ? 'text-emerald-600' : 'text-red-600'}`}>
+      {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+      {up ? '+' : ''}{pct}% {suffix}
+    </span>
+  )
+}
 
 const SIGNAL_LABELS: { key: keyof TenantSignals['counts']; label: string }[] = [
   { key: 'below_target', label: 'Below target' },
@@ -42,8 +89,8 @@ const SIGNAL_LABELS: { key: keyof TenantSignals['counts']; label: string }[] = [
   { key: 'low_conversion', label: 'Low conversion' },
 ]
 
-function Kpi({ icon: Icon, label, value, sub, tone = 'blue' }: {
-  icon: any; label: string; value: string; sub?: string; tone?: 'blue' | 'green' | 'amber' | 'red'
+function Kpi({ icon: Icon, label, value, sub, delta, tone = 'blue' }: {
+  icon: any; label: string; value: string; sub?: string; delta?: ReactNode; tone?: 'blue' | 'green' | 'amber' | 'red'
 }) {
   const tones: Record<string, string> = {
     blue: 'text-blue-600 bg-blue-50', green: 'text-emerald-600 bg-emerald-50',
@@ -55,6 +102,7 @@ function Kpi({ icon: Icon, label, value, sub, tone = 'blue' }: {
         <p className="text-sm text-content-secondary">{label}</p>
         <p className="text-2xl font-semibold mt-1">{value}</p>
         {sub && <p className="text-xs text-content-secondary mt-1">{sub}</p>}
+        {delta && <div className="mt-1">{delta}</div>}
       </div>
       <div className={`p-2.5 rounded-xl ${tones[tone]}`}><Icon className="w-5 h-5" /></div>
     </div>
@@ -63,10 +111,24 @@ function Kpi({ icon: Icon, label, value, sub, tone = 'blue' }: {
 
 export default function GmOverviewPage() {
   const [period, setPeriod] = useState<Period>('day')
+  const [anchor, setAnchor] = useState<string | null>(null) // null = current period
+
+  const today = new Date().toISOString().slice(0, 10)
+  const atCurrent = !anchor || anchor >= today
+
+  const pickPeriod = (p: Period) => { setPeriod(p); setAnchor(null) }
+  const stepBack = () => setAnchor(shiftAnchor(anchor || today, period, -1))
+  const stepForward = () => {
+    if (atCurrent) return
+    const next = shiftAnchor(anchor!, period, 1)
+    setAnchor(next >= today ? null : next)
+  }
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['gm-overview', period],
-    queryFn: async () => (await apiClient.get<Overview & { success: boolean }>(`/field-ops/gm/overview?period=${period}`)).data,
+    queryKey: ['gm-overview', period, anchor],
+    queryFn: async () => (await apiClient.get<Overview & { success: boolean }>(
+      `/field-ops/gm/overview?period=${period}${anchor ? `&anchor=${anchor}` : ''}`
+    )).data,
     staleTime: 1000 * 60 * 2,
   })
 
@@ -90,12 +152,12 @@ export default function GmOverviewPage() {
           <h1 className="text-2xl font-bold">Business overview</h1>
           <p className="text-content-secondary text-sm">The numbers driving the business right now.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-xl bg-surface-secondary p-1">
             {PERIODS.map((p) => (
               <button
                 key={p.key}
-                onClick={() => setPeriod(p.key)}
+                onClick={() => pickPeriod(p.key)}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   period === p.key ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
                 }`}
@@ -103,6 +165,22 @@ export default function GmOverviewPage() {
                 {p.label}
               </button>
             ))}
+          </div>
+          <div className="inline-flex items-center rounded-xl bg-surface-secondary p-1">
+            <button onClick={stepBack} className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm" aria-label="Previous period">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-2 text-sm font-medium whitespace-nowrap min-w-[9rem] text-center">
+              {windowLabel(data.window, period)}
+            </span>
+            <button
+              onClick={stepForward}
+              disabled={atCurrent}
+              className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+              aria-label="Next period"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
           <button onClick={() => refetch()} className="p-2 rounded-lg hover:bg-surface-secondary" aria-label="Refresh">
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
@@ -113,7 +191,8 @@ export default function GmOverviewPage() {
       {/* Money */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={DollarSign} tone="green" label="Revenue" value={formatCurrency(money.revenue)}
-          sub={`${formatNumber(funnel.converted)} deposits × ${formatCurrency(funnel.commissionPerDeposit)}`} />
+          sub={`${formatNumber(funnel.converted)} deposits × ${formatCurrency(funnel.commissionPerDeposit)}`}
+          delta={<Delta now={money.revenue} prev={money.prevRevenue} suffix={PREV_LABEL[period]} />} />
         {money.costsAvailable ? (
           <>
             <Kpi icon={TrendingUp} tone="amber" label="Incentive cost" value={formatCurrency(money.incentiveCost || 0)} />
@@ -123,16 +202,18 @@ export default function GmOverviewPage() {
         ) : (
           <div className="card sm:col-span-2 lg:col-span-3 flex items-center gap-3 text-content-secondary">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-            <span className="text-sm">Cost &amp; net figures are computed monthly. Switch to <strong>This month</strong> to see the full P&amp;L.</span>
+            <span className="text-sm">Cost &amp; net figures are computed monthly. Switch to <strong>Month</strong> to see the full P&amp;L.</span>
           </div>
         )}
       </div>
 
       {/* Funnel */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi icon={UserCheck} label="Sign-ups" value={formatNumber(funnel.signups)} />
+        <Kpi icon={UserCheck} label="Sign-ups" value={formatNumber(funnel.signups)}
+          delta={<Delta now={funnel.signups} prev={funnel.prev.signups} suffix={PREV_LABEL[period]} />} />
         <Kpi icon={Target} tone="green" label="Converted" value={formatNumber(funnel.converted)}
-          sub={`${funnel.conversionRate}% conversion`} />
+          sub={`${funnel.conversionRate}% conversion`}
+          delta={<Delta now={funnel.converted} prev={funnel.prev.converted} suffix={PREV_LABEL[period]} />} />
         <Kpi icon={Award} label="Qualified" value={formatNumber(funnel.qualified)} />
         <Kpi icon={Users} tone={field.activeAgents ? 'green' : 'red'} label="Agents active"
           value={`${field.activeAgents}/${field.totalAgents}`} sub="active today" />

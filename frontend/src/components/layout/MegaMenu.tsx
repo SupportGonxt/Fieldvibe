@@ -13,6 +13,8 @@ export default function MegaMenu() {
   const closeTimerRef = useRef<number | null>(null)
 
   const isNavItemVisible = (item: NavigationItem) => {
+    // GM sees the field-operations module only (for now)
+    if (user?.role === 'general_manager' && item.href !== '/field-operations') return false
     if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') {
       return false
     }

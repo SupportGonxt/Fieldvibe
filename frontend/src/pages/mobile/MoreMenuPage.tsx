@@ -108,7 +108,11 @@ export default function MoreMenuPage() {
 
       {/* Menu sections */}
       <div className="px-4 py-4 space-y-6">
-        {menuSections.map(section => {
+        {/* GM sees the field-operations module only (for now) */}
+        {(userRole === 'general_manager'
+          ? menuSections.filter(s => s.title === 'Field Operations' || s.title === 'Settings')
+          : menuSections
+        ).map(section => {
           const visibleItems = section.items.filter(
             item => !item.roles || item.roles.includes(userRole)
           )

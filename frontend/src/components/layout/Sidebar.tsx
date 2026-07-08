@@ -42,6 +42,8 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   const isNavItemVisible = (item: NavigationItem) => {
+    // GM sees the field-operations module only (for now)
+    if (user?.role === 'general_manager' && item.href !== '/field-operations') return false
     if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') return false
     // If item has a permission requirement, check it
     if (item.permission && !hasPermission(item.permission)) return false
