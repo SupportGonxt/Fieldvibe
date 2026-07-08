@@ -2337,12 +2337,12 @@ app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
 
     // Verify caller is a manager or admin
     const caller = await db.prepare("SELECT role FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
-    if (!caller || !['manager', 'admin', 'super_admin'].includes(caller.role)) {
+    if (!caller || !['manager', 'general_manager', 'admin', 'super_admin'].includes(caller.role)) {
       return c.json({ success: false, message: 'Access denied. Manager role required.' }, 403);
     }
 
-    // Verify team lead exists and is under this manager (or admin sees all)
-    const isAdmin = ['admin', 'super_admin'].includes(caller.role);
+    // Verify team lead exists and is under this manager (GM/admin sees all)
+    const isAdmin = ['general_manager', 'admin', 'super_admin'].includes(caller.role);
     const tlQuery = isAdmin
       ? "SELECT id, first_name, last_name, phone, role FROM users WHERE id = ? AND tenant_id = ? AND role = 'team_lead' AND is_active = 1"
       : "SELECT id, first_name, last_name, phone, role FROM users WHERE id = ? AND tenant_id = ? AND role = 'team_lead' AND is_active = 1 AND manager_id = ?";
@@ -2431,7 +2431,7 @@ app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
 
     // Verify caller is a manager or admin
     const caller = await db.prepare("SELECT role FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
-    if (!caller || !['manager', 'admin', 'super_admin'].includes(caller.role)) {
+    if (!caller || !['manager', 'general_manager', 'admin', 'super_admin'].includes(caller.role)) {
       return c.json({ success: false, message: 'Access denied. Manager role required.' }, 403);
     }
 
@@ -2441,8 +2441,8 @@ app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
       return c.json({ success: false, message: 'Agent not found.' }, 404);
     }
 
-    // For non-admin managers, verify agent is under one of their team leads
-    const isAdmin = ['admin', 'super_admin'].includes(caller.role);
+    // For non-admin managers, verify agent is under one of their team leads (GM sees all)
+    const isAdmin = ['general_manager', 'admin', 'super_admin'].includes(caller.role);
     if (!isAdmin) {
       if (!agent.team_lead_id) {
         return c.json({ success: false, message: 'Agent not in your organization.' }, 403);

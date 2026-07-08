@@ -107,6 +107,7 @@ app.get('/incentives/hero', async (c) => {
       toNextDeposits: next ? round1(next.needDeposits) : null, // avg/day deposit gap to next tier
       rank,
       totalPeers,
+      tiers: inc.tiers || [],               // full ladder for criteria view
     },
   });
 });
@@ -239,6 +240,8 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
   const rate = (await getConfig(db, tenantId, companyId, 'commission_per_deposit')) || 0;
   const salaries = (await getConfig(db, tenantId, companyId, 'salaries')) || {};
   const salaryTotal = Object.values(salaries).reduce((s, v) => s + (Number(v) || 0), 0);
+  const boAdminSalary = (await getConfig(db, tenantId, companyId, 'bo_admin_salary')) ?? 25000;
+  const phonePerAgent = (await getConfig(db, tenantId, companyId, 'phone_cost_per_agent')) ?? 179;
 
   // Signups + converted deposits, split provisional (all non-rejected) vs qualified.
   const agg = await db.prepare(
@@ -250,22 +253,52 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
                   AND json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) qualified_converted
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?
+       AND (? IS NULL OR v.company_id = ?) AND v.agent_id NOT LIKE 'agent-test-%'
        AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`
-  ).bind(tenantId, start, end).first();
+  ).bind(tenantId, start, end, companyId, companyId).first();
 
   // Tiered incentive cost: per-agent, avg-based — must run each agent through the engine.
   const { results: agents } = await db.prepare(
     `SELECT DISTINCT v.agent_id id FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
-     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?`
-  ).bind(tenantId, start, end).all();
+     WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?
+       AND (? IS NULL OR v.company_id = ?) AND v.agent_id NOT LIKE 'agent-test-%'`
+  ).bind(tenantId, start, end, companyId, companyId).all();
   let incentiveQualified = 0, incentivePace = 0;
   for (const { id } of agents || []) {
     const u = await db.prepare('SELECT role FROM users WHERE id = ?').bind(id).first();
-    if (!u) continue;
+    if (!u || u.role === 'team_lead' || u.role === 'manager') continue; // team roles handled below
     const inc = await computeIncentive(db, tenantId, companyId, id, u.role, period, asOf);
     incentiveQualified += inc.payable;
     incentivePace += inc.provisionalPace;
   }
+  // Team-lead/manager incentives are team-metric based — they never surface as visit agents.
+  const { results: teamRoles } = await db.prepare(
+    `SELECT id, role FROM users WHERE tenant_id = ? AND is_active = 1
+       AND role IN ('team_lead','manager') AND id NOT LIKE 'agent-test-%'`
+  ).bind(tenantId).all();
+  for (const { id, role } of teamRoles || []) {
+    const inc = await computeIncentive(db, tenantId, companyId, id, role, period, asOf);
+    incentiveQualified += inc.payable;
+    incentivePace += inc.provisionalPace;
+  }
+
+  // Fixed operating costs: BO admin headcount + phone allowance per field agent.
+  const boRow = await db.prepare(
+    `SELECT COUNT(*) c FROM users WHERE tenant_id = ? AND is_active = 1
+       AND role IN ('admin','backoffice_admin')
+       AND (agent_type IS NULL OR agent_type IN ('back_office','both'))`
+  ).bind(tenantId).first();
+  const agentRow = await db.prepare(
+    `SELECT COUNT(*) c FROM users WHERE tenant_id = ? AND is_active = 1
+       AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
+       AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))
+       AND id NOT LIKE 'agent-test-%'`
+  ).bind(tenantId, ...AGENT_ROLES).first();
+  const boAdminCount = boRow?.c || 0;
+  const fieldAgentCount = agentRow?.c || 0;
+  const boAdminCost = boAdminCount * boAdminSalary;
+  const phoneCost = fieldAgentCount * phonePerAgent;
+  const fixedCost = salaryTotal + boAdminCost + phoneCost;
 
   const provRevenue = (agg?.converted || 0) * rate;
   const qualRevenue = (agg?.qualified_converted || 0) * rate;
@@ -282,11 +315,17 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
       revenue: qualRevenue,
       incentiveCost: round1(incentiveQualified),
       salaryCost: salaryTotal,
-      net: round1(qualRevenue - incentiveQualified - salaryTotal),
+      boAdminCount,
+      boAdminSalary,
+      boAdminCost,
+      fieldAgentCount,
+      phonePerAgent,
+      phoneCost,
+      net: round1(qualRevenue - incentiveQualified - fixedCost),
       // provisional (on-pace) view — projection at current activity
       projectedRevenue: provRevenue,
       projectedIncentiveCost: round1(incentivePace),
-      projectedNet: round1(provRevenue - incentivePace - salaryTotal),
+      projectedNet: round1(provRevenue - incentivePace - fixedCost),
     },
   });
 });

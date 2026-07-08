@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Loader2, TrendingUp, TrendingDown, Users, Phone, Award, UserX,
   AlertTriangle, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight,
@@ -85,6 +86,7 @@ export default function GmOverview() {
   const [company, setCompany] = useState<string | null>(null)
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     setLoading(true)
@@ -167,7 +169,7 @@ export default function GmOverview() {
         </div>
 
         {/* Revenue hero */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4">
+        <div onClick={() => navigate('/agent/pnl')} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 uppercase tracking-wide">Revenue</span>
             <Delta now={money.revenue} prev={money.prevRevenue} money />
@@ -199,7 +201,7 @@ export default function GmOverview() {
 
         {/* Net / costs — monthly only */}
         {money.costsAvailable ? (
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/5 mb-4">
+          <div onClick={() => navigate('/agent/pnl')} className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/5 mb-4 cursor-pointer active:bg-white/[0.06]">
             <Row label="Incentive payouts" value={`-${rand(money.incentiveCost || 0)}`} />
             <Row label="Salaries" value={`-${rand(money.salaryCost || 0)}`} />
             <div className="flex items-center justify-between px-4 py-3.5">
@@ -216,8 +218,8 @@ export default function GmOverview() {
 
         {/* Funnel stats */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Stat label="Sign-ups" value={funnel.signups} sub={`${funnel.qualified} qualified`} delta={<Delta now={funnel.signups} prev={funnel.prev.signups} />} />
-          <Stat label="Converted" value={funnel.converted} sub={`${funnel.conversionRate}% rate`} delta={<Delta now={funnel.converted} prev={funnel.prev.converted} />} />
+          <Stat label="Sign-ups" value={funnel.signups} sub={`${funnel.qualified} qualified`} delta={<Delta now={funnel.signups} prev={funnel.prev.signups} />} onClick={() => navigate('/agent/pnl')} />
+          <Stat label="Converted" value={funnel.converted} sub={`${funnel.conversionRate}% rate`} delta={<Delta now={funnel.converted} prev={funnel.prev.converted} />} onClick={() => navigate('/agent/pnl')} />
         </div>
 
         {/* Field force + calls */}
@@ -229,7 +231,7 @@ export default function GmOverview() {
               {field.unassignedAgents > 0 ? <span className="text-amber-400">{field.unassignedAgents} without team lead</span> : 'active today'}
             </div>
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+          <div onClick={() => navigate('/agent/call-list')} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 cursor-pointer active:bg-white/[0.06]">
             <div className="flex items-center gap-2 mb-1"><Phone className="w-4 h-4 text-[#00E87B]" /><span className="text-xs text-gray-500">BO calls</span></div>
             <div className="text-2xl font-bold text-white tabular-nums">{calls.contacted}<span className="text-gray-600">/{calls.target}</span></div>
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-2">
@@ -244,7 +246,7 @@ export default function GmOverview() {
           {teams.length === 0 ? <p className="text-xs text-gray-500">No team leads set up yet.</p> : (
             <div className="space-y-3.5">
               {teams.map((t) => (
-                <div key={t.id}>
+                <div key={t.id} onClick={() => navigate(`/agent/team-detail/${t.id}`)} className="cursor-pointer active:opacity-70">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-white truncate mr-2">{t.name}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -264,7 +266,7 @@ export default function GmOverview() {
           )}
         </div>
 
-        {/* Managers */}
+        {/* Managers — static rows; ponytail: no manager-detail page exists yet, add nav when one does */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3"><Briefcase className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Managers</h2></div>
           {management.managers.length === 0 ? <p className="text-xs text-gray-500">No managers on roster.</p> : (
@@ -293,7 +295,7 @@ export default function GmOverview() {
               {management.boAdmins.map((b) => {
                 const seen = agoLabel(b.lastSeen)
                 return (
-                  <div key={b.id} className="flex items-center justify-between">
+                  <div key={b.id} onClick={() => navigate('/agent/call-list')} className="flex items-center justify-between cursor-pointer active:opacity-70">
                     <div className="min-w-0 mr-2">
                       <div className="text-sm text-white truncate">{b.name}</div>
                       <div className="text-xs text-gray-500 tabular-nums">
@@ -314,7 +316,7 @@ export default function GmOverview() {
           {leaders.length === 0 ? <p className="text-xs text-gray-500">No sign-ups yet this period.</p> : (
             <div className="space-y-2">
               {leaders.map((l, i) => (
-                <div key={l.id} className="flex items-center justify-between">
+                <div key={l.id} onClick={() => navigate(`/agent/agent-detail/${l.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
                   <div className="flex items-center gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-[#00E87B]/15 text-[#00E87B] text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
                     <span className="text-sm text-white">{l.name}</span>
@@ -332,7 +334,7 @@ export default function GmOverview() {
           {field.leastActive.length === 0 ? <p className="text-xs text-gray-500">No agents on roster.</p> : (
             <div className="space-y-2">
               {field.leastActive.map((a) => (
-                <div key={a.id} className="flex items-center justify-between">
+                <div key={a.id} onClick={() => navigate(`/agent/agent-detail/${a.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
                   <span className="text-sm text-white">{a.name}</span>
                   <span className={`text-xs tabular-nums ${(a.today || 0) > 0 ? 'text-gray-500' : 'text-amber-400'}`}>
                     {(a.today || 0) > 0 ? `${a.today} today` : 'nothing today'}
@@ -384,9 +386,9 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Stat({ label, value, sub, delta }: { label: string; value: number; sub: string; delta?: React.ReactNode }) {
+function Stat({ label, value, sub, delta, onClick }: { label: string; value: number; sub: string; delta?: React.ReactNode; onClick?: () => void }) {
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+    <div onClick={onClick} className={`bg-white/[0.03] border border-white/10 rounded-2xl p-4 ${onClick ? 'cursor-pointer active:bg-white/[0.06]' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="text-2xl font-bold text-white tabular-nums">{value}</div>
         {delta}
