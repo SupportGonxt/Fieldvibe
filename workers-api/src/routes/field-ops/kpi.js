@@ -16,18 +16,21 @@ export function resolveRoleKpiKey(role) {
   return 'kpi.agent'; // agent, field_agent, sales_rep, and unknown
 }
 
-// Per-day rows for one agent over a window. company_id may be NULL (goldrush legacy).
-async function dailyRows(db, tenantId, agentId, sinceDate) {
+// Per-day rows for one or more agents over a window (summed per date).
+// company_id may be NULL (goldrush legacy).
+async function dailyRows(db, tenantId, agentIds, sinceDate) {
+  const ids = Array.isArray(agentIds) ? agentIds : [agentIds];
+  if (!ids.length) return [];
   return (await db.prepare(
     `SELECT v.visit_date date,
             COUNT(*) visits,
             SUM(CASE WHEN LOWER(v.visit_type)='individual' THEN 1 ELSE 0 END) signups,
             SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) qualified
      FROM visits v LEFT JOIN visit_individuals vi ON vi.visit_id=v.id
-     WHERE v.tenant_id=? AND v.agent_id=? AND v.visit_date>=? AND v.status='completed'
+     WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date
      ORDER BY v.visit_date`
-  ).bind(tenantId, agentId, sinceDate).all()).results ?? [];
+  ).bind(tenantId, ...ids, sinceDate).all()).results ?? [];
 }
 
 // Aggregate one agent's KPIs + signals over a window. Shared by roster + tenant-signals.
@@ -56,7 +59,8 @@ app.get('/kpi/self', async (c) => {
   since.setDate(since.getDate() - windowDays);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  const rows = await dailyRows(db, tenantId, userId, sinceStr);
+  // team_lead/manager KPIs aggregate their people's visits, not their own
+  const rows = await dailyRows(db, tenantId, await kpiScopeIds(db, tenantId, userId, role), sinceStr);
   const actual = aggregateKpis(rows);
   // baseline = first half of window, recent = whole window (self-relative)
   const baseline = aggregateKpis(rows.slice(0, Math.ceil(rows.length / 2)));
@@ -73,6 +77,21 @@ export function rankRoster(agents) {
     if (bySignals !== 0) return bySignals;
     return (x.actual?.signups_per_day || 0) - (y.actual?.signups_per_day || 0);
   });
+}
+
+// Visit scope for a user's own KPIs: team_lead → whole team's agents,
+// manager → all agents under their team leads, else (or empty team) self.
+async function kpiScopeIds(db, tenantId, userId, role) {
+  let ids = [];
+  if (role === 'team_lead') {
+    ids = await teamMemberIds(db, tenantId, userId, 'team_lead');
+  } else if (role === 'manager') {
+    ids = (await db.prepare(
+      `SELECT a.id FROM users a JOIN users tl ON a.team_lead_id=tl.id
+       WHERE a.tenant_id=? AND tl.manager_id=?`
+    ).bind(tenantId, userId).all()).results.map(r => r.id);
+  }
+  return ids.length ? ids : [userId];
 }
 
 async function teamMemberIds(db, tenantId, me, role) {
@@ -100,7 +119,9 @@ app.get('/kpi/roster', async (c) => {
 
   const agents = [];
   for (const id of memberIds) {
-    const { actual, signals } = await agentSignals(db, tenantId, id, thresholds, since);
+    // manager roster rows = team leads, each scored by their whole team's output
+    const scope = role === 'manager' ? await kpiScopeIds(db, tenantId, id, 'team_lead') : id;
+    const { actual, signals } = await agentSignals(db, tenantId, scope, thresholds, since);
     const u = await db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first();
     agents.push({ agentId: id, name: u?.name || id, actual, signals });
   }
