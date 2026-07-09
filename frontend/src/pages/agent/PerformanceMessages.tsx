@@ -205,7 +205,7 @@ export default function PerformanceMessages() {
             <button
               onClick={(e) => { e.stopPropagation(); handleGenerate() }}
               disabled={generating}
-              className="text-[10px] text-[#00E87B] hover:text-[#00D06E] px-2 py-1 rounded bg-[#00E87B]/10 disabled:opacity-50"
+              className="text-[10px] text-[#00E87B] hover:text-[#00D06E] px-2 min-h-[44px] inline-flex items-center rounded bg-[#00E87B]/10 disabled:opacity-50"
             >
               {generating ? 'Generating...' : 'Refresh'}
             </button>
@@ -357,7 +357,7 @@ export default function PerformanceMessages() {
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="mt-2 text-xs text-[#00E87B] hover:text-[#00D06E] px-3 py-1.5 rounded-lg bg-[#00E87B]/10 disabled:opacity-50"
+                  className="mt-2 text-xs text-[#00E87B] hover:text-[#00D06E] px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg bg-[#00E87B]/10 disabled:opacity-50"
                 >
                   {generating ? 'Generating...' : 'Generate Now'}
                 </button>

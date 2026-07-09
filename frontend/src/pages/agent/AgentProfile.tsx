@@ -122,7 +122,7 @@ export default function AgentProfile() {
             <button
               onClick={handleChangePin}
               disabled={pinLoading}
-              className="w-full py-2.5 bg-[#00E87B] text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
+              className="w-full min-h-[44px] py-2.5 bg-[#00E87B] text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
             >
               {pinLoading ? 'Updating...' : 'Update PIN'}
             </button>
@@ -168,7 +168,7 @@ function PinInput({ label, value, onChange, show, toggle }: { label: string; val
           onChange={(e) => onChange(e.target.value.replace(/\D/g, '').substring(0, 6))}
           className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm tracking-[0.3em] focus:outline-none focus:border-[#00E87B]/50"
         />
-        <button type="button" onClick={toggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+        <button type="button" onClick={toggle} className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500">
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>

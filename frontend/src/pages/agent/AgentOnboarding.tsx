@@ -214,7 +214,7 @@ export default function AgentOnboarding() {
         <div className="flex items-center justify-between mt-2">
           <span className="text-[10px] text-gray-500">Step {currentStep + 1} of {STEPS.length}</span>
           {!isLast && (
-            <button onClick={skip} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            <button onClick={skip} className="min-h-[44px] px-2 inline-flex items-center text-xs text-gray-500 hover:text-gray-300 transition-colors">
               Skip Guide
             </button>
           )}
