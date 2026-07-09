@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
@@ -36,7 +37,9 @@ export default function GMPnl() {
   const [loading, setLoading] = useState(true)
   const [projected, setProjected] = useState(false)
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
-  const [company, setCompany] = useState<string | null>(null)
+  // Open scoped to whatever company the GM was viewing when they tapped through (?company_id=…).
+  const [searchParams] = useSearchParams()
+  const [company, setCompany] = useState<string | null>(searchParams.get('company_id'))
 
   useEffect(() => {
     fieldOperationsService

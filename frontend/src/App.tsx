@@ -8,6 +8,8 @@ import DashboardLayout from './components/layout/DashboardLayout'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import { postLoginTarget } from './utils/workspace'
+import ChooseWorkspace from './pages/auth/ChooseWorkspace'
 import ToastContainer from './components/ui/Toast'
 
 // T-17: NotFoundPage
@@ -458,8 +460,6 @@ function PageLoader({ children }: { children: React.ReactNode }) {
   )
 }
 
-const MOBILE_ROLES = ['agent', 'team_lead', 'field_agent', 'sales_rep', 'manager', 'backoffice_admin', 'general_manager']
-
 // Installed PWA (Android/desktop standalone or iOS home-screen app)
 const isStandalonePwa = () =>
   window.matchMedia?.('(display-mode: standalone)').matches ||
@@ -497,7 +497,7 @@ function App() {
 
           {/* Public Routes */}
           <Route path="/auth/*" element={
-            isAuthenticated ? <Navigate to={user?.role === 'backoffice_admin' ? '/agent/reconcile' : user?.role === 'general_manager' ? (isStandalonePwa() ? '/agent/overview' : '/dashboard/gm') : user?.role && MOBILE_ROLES.includes(user.role) ? '/agent/dashboard' : '/dashboard'} replace /> : <AuthLayout />
+            isAuthenticated ? <Navigate to={postLoginTarget(user?.role, isStandalonePwa())} replace /> : <AuthLayout />
           }>
             <Route path="login" element={<PageLoader><LoginPage /></PageLoader>} />
             <Route path="forgot-password" element={<PageLoader><ForgotPasswordPage /></PageLoader>} />
@@ -505,6 +505,9 @@ function App() {
             <Route path="mobile-login" element={<PageLoader><MobileLoginPage /></PageLoader>} />
             <Route index element={<Navigate to="login" replace />} />
           </Route>
+
+          {/* Workspace chooser — dual-access roles land here after login (browser only) */}
+          <Route path="/choose" element={<ProtectedRoute><ChooseWorkspace /></ProtectedRoute>} />
 
           {/* Legacy login redirect */}
           <Route path="/login" element={<Navigate to="/auth/login" replace />} />

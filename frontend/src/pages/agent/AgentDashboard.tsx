@@ -138,22 +138,6 @@ export default function AgentDashboard() {
   const [uploadFailuresCount, setUploadFailuresCount] = useState<number>(0)
   const [uploadFailuresLoading, setUploadFailuresLoading] = useState<boolean>(false)
 
-  const authUserForEffect = useAuthStore((s) => s.user)
-
-  // Fetch upload failures for team leads and managers (last 7 days)
-  useEffect(() => {
-    if (!isLeader(authUserForEffect?.role)) return
-    let mounted = true
-    setUploadFailuresLoading(true)
-    const today = new Date().toISOString().split('T')[0]
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).then((res: any) => {
-      if (!mounted) return
-      setUploadFailuresCount(res.data?.total || res.data?.data?.length || 0)
-    }).catch(() => setUploadFailuresCount(0)).finally(() => { if (mounted) setUploadFailuresLoading(false) })
-    return () => { mounted = false }
-  }, [authUserForEffect?.role])
-
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [perfSummary, setPerfSummary] = useState<PerfSummary | null>(null)
@@ -226,6 +210,22 @@ export default function AgentDashboard() {
     }).catch(() => setRejectedGoldrushCount(0)).finally(() => { if (mounted) setRejectedGoldrushLoading(false) })
     return () => { mounted = false }
   }, [goldrushCompany])
+
+  // Upload failures (last 7 days) — Goldrush-only leader KPI. Gated on both
+  // goldrushCompany and leader role so non-Goldrush leaders don't fire it.
+  useEffect(() => {
+    if (!goldrushCompany || !isLeader(authUser?.role)) return
+    let mounted = true
+    setUploadFailuresLoading(true)
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).then((res: any) => {
+      if (!mounted) return
+      setUploadFailuresCount(res.data?.total || res.data?.data?.length || 0)
+    }).catch(() => setUploadFailuresCount(0)).finally(() => { if (mounted) setUploadFailuresLoading(false) })
+    return () => { mounted = false }
+  }, [goldrushCompany, authUser?.role])
+
   const isAgentRole = ['agent', 'field_agent', 'sales_rep'].includes(authUser?.role || '')
   // Team roles get the same team-avg hero (computeIncentive/teamMetric already returns their metric),
   // but not the agent-only Fast Signup + personal Leaderboard.
@@ -605,8 +605,8 @@ export default function AgentDashboard() {
         </button>
       </div>
 
-      {/* Rejected Photos KPI */}
-      {!isStellr && (
+      {/* Rejected Photos KPI — Goldrush-only (data fetched only when goldrushCompany) */}
+      {goldrushCompany && (
         <div className="px-5 mb-4">
           <div className="grid grid-cols-2 gap-3">
             <StatCard
@@ -634,8 +634,8 @@ export default function AgentDashboard() {
         </div>
       )}
 
-      {/* Rejected Goldrush ID KPI */}
-      {!isStellr && (
+      {/* Rejected Goldrush ID KPI — Goldrush-only */}
+      {goldrushCompany && (
         <div className="px-5 mb-4">
           <div className="grid grid-cols-2 gap-3">
             <StatCard
@@ -657,8 +657,8 @@ export default function AgentDashboard() {
         </div>
       )}
 
-      {/* Upload Failures KPI — team leads and managers only */}
-      {!isStellr && isLeader(authUser?.role) && (
+      {/* Upload Failures KPI — Goldrush-only, team leads and managers */}
+      {goldrushCompany && isLeader(authUser?.role) && (
         <div className="px-5 mb-4">
           <div className="grid grid-cols-2 gap-3">
             <StatCard

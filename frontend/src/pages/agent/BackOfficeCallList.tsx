@@ -153,14 +153,14 @@ export default function BackOfficeCallList() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleHistory}
-              className={`p-2 rounded-xl border active:scale-95 transition-transform ${showHistory ? 'bg-[#00E87B]/15 border-[#00E87B]/40 text-[#00E87B]' : 'bg-white/[0.04] border-white/10 text-gray-400'}`}
+              className={`p-3 rounded-xl border active:scale-95 transition-transform ${showHistory ? 'bg-[#00E87B]/15 border-[#00E87B]/40 text-[#00E87B]' : 'bg-white/[0.04] border-white/10 text-gray-400'}`}
               aria-label="Call history"
             >
               <History className="w-5 h-5" />
             </button>
             <button
               onClick={load}
-              className="p-2 rounded-xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              className="p-3 rounded-xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
               aria-label="Refresh"
             >
               <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />

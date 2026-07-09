@@ -116,6 +116,8 @@ export default function GmOverview() {
   const { money, funnel, field, leaders, calls, teams, management, risks, companies } = data
   const callPct = calls.target ? Math.min(Math.round((calls.contacted / calls.target) * 100), 100) : 0
   const maxTeamSignups = Math.max(1, ...teams.map((t) => t.signups))
+  // Carry the company scope into P&L so it opens on the same company the GM is viewing.
+  const goPnl = () => navigate(`/agent/pnl${company ? `?company_id=${company}` : ''}`)
 
   return (
     <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
@@ -152,7 +154,7 @@ export default function GmOverview() {
         <div className="flex items-center justify-between mb-5">
           <button
             onClick={() => setAnchor(shiftAnchor(anchor ?? data.window.start, period, -1) ?? shiftAnchor(null, period, -1))}
-            className="p-2 -ml-2 text-gray-400 active:text-white"
+            className="p-3 -ml-3 text-gray-400 active:text-white"
             aria-label="Previous period"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -161,7 +163,7 @@ export default function GmOverview() {
           <button
             onClick={() => setAnchor(anchor ? shiftAnchor(anchor, period, 1) : null)}
             disabled={!anchor}
-            className="p-2 -mr-2 text-gray-400 active:text-white disabled:opacity-30"
+            className="p-3 -mr-3 text-gray-400 active:text-white disabled:opacity-30"
             aria-label="Next period"
           >
             <ChevronRight className="w-5 h-5" />
@@ -169,7 +171,7 @@ export default function GmOverview() {
         </div>
 
         {/* Revenue hero */}
-        <div onClick={() => navigate('/agent/pnl')} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
+        <div onClick={goPnl} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 uppercase tracking-wide">Revenue</span>
             <Delta now={money.revenue} prev={money.prevRevenue} money />
@@ -201,7 +203,7 @@ export default function GmOverview() {
 
         {/* Net / costs — monthly only */}
         {money.costsAvailable ? (
-          <div onClick={() => navigate('/agent/pnl')} className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/5 mb-4 cursor-pointer active:bg-white/[0.06]">
+          <div onClick={goPnl} className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/5 mb-4 cursor-pointer active:bg-white/[0.06]">
             <Row label="Incentive payouts" value={`-${rand(money.incentiveCost || 0)}`} />
             <Row label="Salaries" value={`-${rand(money.salaryCost || 0)}`} />
             <div className="flex items-center justify-between px-4 py-3.5">
@@ -218,8 +220,8 @@ export default function GmOverview() {
 
         {/* Funnel stats */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Stat label="Sign-ups" value={funnel.signups} sub={`${funnel.qualified} qualified`} delta={<Delta now={funnel.signups} prev={funnel.prev.signups} />} onClick={() => navigate('/agent/pnl')} />
-          <Stat label="Converted" value={funnel.converted} sub={`${funnel.conversionRate}% rate`} delta={<Delta now={funnel.converted} prev={funnel.prev.converted} />} onClick={() => navigate('/agent/pnl')} />
+          <Stat label="Sign-ups" value={funnel.signups} sub={`${funnel.qualified} qualified`} delta={<Delta now={funnel.signups} prev={funnel.prev.signups} />} onClick={goPnl} />
+          <Stat label="Converted" value={funnel.converted} sub={`${funnel.conversionRate}% rate`} delta={<Delta now={funnel.converted} prev={funnel.prev.converted} />} onClick={goPnl} />
         </div>
 
         {/* Field force + calls */}

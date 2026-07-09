@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Users, ChevronDown, ChevronUp, ChevronRight, Target, MapPin } from 'lucide-react'
+import { ArrowLeft, Users, ChevronDown, ChevronUp, ChevronRight, MapPin, AlertCircle } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 
 interface AgentStat {
@@ -38,29 +38,51 @@ export default function ManagerTeamDetailPage() {
   const [teamLead, setTeamLead] = useState<{ id: string; first_name: string; last_name: string } | null>(null)
   const [agents, setAgents] = useState<AgentStat[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await apiClient.get(`/manager/team/${teamLeadId}/agents`)
-        if (res.data?.success && res.data?.data) {
-          setTeamLead(res.data.data.team_lead)
-          setAgents(res.data.data.agents || [])
-        }
-      } catch (err) {
-        console.error('Team detail fetch error:', err)
-      } finally {
-        setLoading(false)
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError(false)
+    try {
+      const res = await apiClient.get(`/manager/team/${teamLeadId}/agents`)
+      if (res.data?.success && res.data?.data) {
+        setTeamLead(res.data.data.team_lead)
+        setAgents(res.data.data.agents || [])
+      } else {
+        setError(true)
       }
+    } catch (err) {
+      console.error('Team detail fetch error:', err)
+      setError(true)
+    } finally {
+      setLoading(false)
     }
-    if (teamLeadId) fetchData()
   }, [teamLeadId])
+
+  useEffect(() => {
+    if (teamLeadId) fetchData()
+  }, [teamLeadId, fetchData])
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#06090F] flex items-center justify-center px-6">
+        <div className="text-center">
+          <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">Couldn't load this team.</p>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <button onClick={() => fetchData()} className="text-[#00E87B] text-sm font-medium">Retry</button>
+            <button onClick={() => navigate(-1)} className="text-gray-500 text-sm font-medium">Go back</button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -79,7 +101,12 @@ export default function ManagerTeamDetailPage() {
 
   const totalVisits = agents.reduce((s, a) => s + a.actual_visits, 0)
   const totalTarget = agents.reduce((s, a) => s + a.target_visits, 0)
-  const teamAch = totalTarget > 0 ? Math.round((totalVisits / totalTarget) * 100) : 0
+  const totalStores = agents.reduce((s, a) => s + a.actual_stores, 0)
+  // Match the per-agent achievement rows shown below (server value), not a visits-only
+  // ratio — a manager drilling in from Teams must see the same number, not a contradiction.
+  const teamAch = agents.length > 0
+    ? Math.round(agents.reduce((s, a) => s + (a.achievement || 0), 0) / agents.length)
+    : 0
 
   return (
     <div className="min-h-screen bg-[#06090F] pb-24">
@@ -90,8 +117,8 @@ export default function ManagerTeamDetailPage() {
           <span className="text-xs">Back to Teams</span>
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 flex items-center justify-center">
-            <Users className="w-6 h-6 text-indigo-400" />
+          <div className="w-12 h-12 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
+            <Users className="w-6 h-6 text-[#00E87B]" />
           </div>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-white">{teamLead.first_name} {teamLead.last_name}</h1>
@@ -106,18 +133,18 @@ export default function ManagerTeamDetailPage() {
 
       {/* Team Summary */}
       <div className="px-5 pt-4">
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
             <p className="text-lg font-bold text-white">{agents.length}</p>
             <p className="text-[10px] text-gray-500">Agents</p>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-            <p className="text-lg font-bold text-white">{totalVisits}</p>
-            <p className="text-[10px] text-gray-500">Month Visits</p>
+            <p className="text-lg font-bold text-white">{totalVisits}<span className="text-xs text-gray-500">/{totalTarget}</span></p>
+            <p className="text-[10px] text-gray-500">Individual Visits</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-            <p className="text-lg font-bold text-white">{totalTarget}</p>
-            <p className="text-[10px] text-gray-500">Target</p>
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center col-span-2">
+            <p className="text-lg font-bold text-white">{totalStores}</p>
+            <p className="text-[10px] text-gray-500">Store Visits (month)</p>
           </div>
         </div>
 
@@ -140,7 +167,7 @@ export default function ManagerTeamDetailPage() {
                     onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#00E87B]/10 flex items-center justify-center flex-shrink-0">
                       <span className="text-xs font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
@@ -183,7 +210,7 @@ export default function ManagerTeamDetailPage() {
                           <span className="text-white">{agent.actual_stores}/{agent.target_stores} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: '#8B5CF6' }} />
+                          <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: progressColor(agentRPct) }} />
                         </div>
                       </div>
                       {/* View Details button */}
