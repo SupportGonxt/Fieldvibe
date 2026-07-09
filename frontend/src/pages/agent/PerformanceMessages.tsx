@@ -179,15 +179,15 @@ export default function PerformanceMessages() {
 
   return (
     <div className="px-5 mb-4">
-      <div className="bg-gradient-to-br from-indigo-900/30 via-[#0A1628] to-violet-900/20 border border-indigo-500/20 rounded-2xl overflow-hidden">
+      <div className="bg-gradient-to-br from-[#00E87B]/10 via-[#0A1628] to-[#00D06E]/10 border border-[#00E87B]/20 rounded-2xl overflow-hidden">
         {/* Header */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full px-4 py-3 flex items-center justify-between"
         >
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-              <Bell className="w-4 h-4 text-indigo-400" />
+            <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+              <Bell className="w-4 h-4 text-[#00E87B]" />
             </div>
             <div className="text-left">
               <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
@@ -205,7 +205,7 @@ export default function PerformanceMessages() {
             <button
               onClick={(e) => { e.stopPropagation(); handleGenerate() }}
               disabled={generating}
-              className="text-[10px] text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded bg-indigo-500/10 disabled:opacity-50"
+              className="text-[10px] text-[#00E87B] hover:text-[#00D06E] px-2 min-h-[44px] inline-flex items-center rounded bg-[#00E87B]/10 disabled:opacity-50"
             >
               {generating ? 'Generating...' : 'Refresh'}
             </button>
@@ -222,11 +222,11 @@ export default function PerformanceMessages() {
             {/* Latest summary card */}
             {latestMetrics && latest && (
               <div 
-                className={`rounded-xl p-3 mb-3 border ${!latest.is_read ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-white/5 border-white/10'}`}
+                className={`rounded-xl p-3 mb-3 border ${!latest.is_read ? 'bg-[#00E87B]/10 border-[#00E87B]/20' : 'bg-white/5 border-white/10'}`}
                 onClick={() => { if (!latest.is_read) markAsRead(latest.id) }}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-indigo-300 flex items-center gap-1">
+                  <span className="text-xs font-semibold text-[#00E87B] flex items-center gap-1">
                     <Zap className="w-3 h-3" /> {latest.title}
                   </span>
                   <span className="text-[10px] text-gray-500 flex items-center gap-1">
@@ -245,14 +245,14 @@ export default function PerformanceMessages() {
                   </div>
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <User className="w-3 h-3 text-cyan-400" />
+                      <User className="w-3 h-3 text-[#00E87B]" />
                     </div>
                     <p className="text-lg font-bold text-white">{latestMetrics.todayIndividual}</p>
                     <p className="text-[9px] text-gray-500 uppercase">Individual</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <Store className="w-3 h-3 text-purple-400" />
+                      <Store className="w-3 h-3 text-[#00E87B]" />
                     </div>
                     <p className="text-lg font-bold text-white">{latestMetrics.todayStore}</p>
                     <p className="text-[9px] text-gray-500 uppercase">Store</p>
@@ -319,7 +319,7 @@ export default function PerformanceMessages() {
                     <div
                       key={msg.id}
                       onClick={() => { if (!msg.is_read) markAsRead(msg.id) }}
-                      className={`rounded-lg p-2.5 flex items-center gap-2 cursor-pointer transition-colors ${!msg.is_read ? 'bg-indigo-500/10 border border-indigo-500/15' : 'bg-white/3 border border-white/5 hover:bg-white/5'}`}
+                      className={`rounded-lg p-2.5 flex items-center gap-2 cursor-pointer transition-colors ${!msg.is_read ? 'bg-[#00E87B]/10 border border-[#00E87B]/15' : 'bg-white/3 border border-white/5 hover:bg-white/5'}`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -341,7 +341,7 @@ export default function PerformanceMessages() {
                         </div>
                       </div>
                       {!msg.is_read && (
-                        <div className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0" />
+                        <div className="w-2 h-2 bg-[#00E87B] rounded-full flex-shrink-0" />
                       )}
                     </div>
                   )
@@ -357,7 +357,7 @@ export default function PerformanceMessages() {
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 px-3 py-1.5 rounded-lg bg-indigo-500/10 disabled:opacity-50"
+                  className="mt-2 text-xs text-[#00E87B] hover:text-[#00D06E] px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg bg-[#00E87B]/10 disabled:opacity-50"
                 >
                   {generating ? 'Generating...' : 'Generate Now'}
                 </button>

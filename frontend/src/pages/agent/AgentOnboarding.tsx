@@ -24,7 +24,7 @@ const STEPS = [
     title: 'Logging In',
     subtitle: 'Access your agent account',
     icon: Lock,
-    color: 'from-blue-500 to-blue-600',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'Your manager will provide you with your phone number and a PIN code.',
       'Go to the Agent Login page and enter your phone number (starting with +27) and your PIN (4-6 digits).',
@@ -40,7 +40,7 @@ const STEPS = [
     title: 'Your Dashboard',
     subtitle: 'Everything at a glance',
     icon: Target,
-    color: 'from-purple-500 to-purple-600',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'After logging in, you\'ll see your dashboard with today\'s stats, daily targets, and recent visits.',
       'The dashboard shows your visit count, individual count, and progress towards daily targets for each company.',
@@ -56,7 +56,7 @@ const STEPS = [
     title: 'Store Visits',
     subtitle: 'How to complete a store visit',
     icon: Store,
-    color: 'from-purple-600 to-pink-500',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'Store visits are for shops and businesses. Tap the "Store Visit" button on your dashboard to start.',
     ],
@@ -74,7 +74,7 @@ const STEPS = [
     title: 'Individual Visits',
     subtitle: 'How to complete an individual visit',
     icon: User,
-    color: 'from-cyan-500 to-blue-500',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'Individual visits are for people (customers, prospects). Tap the "Individual Visit" button to start.',
     ],
@@ -92,7 +92,7 @@ const STEPS = [
     title: 'GPS & Location',
     subtitle: 'Why location matters',
     icon: Navigation,
-    color: 'from-emerald-500 to-teal-500',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'FieldVibe uses GPS to verify your visits. You must allow location access when prompted.',
       'Your check-in location is recorded to confirm you were at the right place.',
@@ -126,7 +126,7 @@ const STEPS = [
     title: 'Track Performance',
     subtitle: 'Your stats & achievements',
     icon: BarChart3,
-    color: 'from-pink-500 to-rose-500',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'Use the Stats tab to see your performance metrics — visits completed, individuals, and target achievement.',
       'Your manager can see your stats too, so keep your numbers up!',
@@ -142,7 +142,7 @@ const STEPS = [
     title: 'Pro Tips',
     subtitle: 'Get the most out of FieldVibe',
     icon: Shield,
-    color: 'from-indigo-500 to-violet-500',
+    color: 'from-[#00E87B] to-[#00D06E]',
     content: [
       'Follow these best practices to be a top-performing agent:',
     ],
@@ -214,7 +214,7 @@ export default function AgentOnboarding() {
         <div className="flex items-center justify-between mt-2">
           <span className="text-[10px] text-gray-500">Step {currentStep + 1} of {STEPS.length}</span>
           {!isLast && (
-            <button onClick={skip} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            <button onClick={skip} className="min-h-[44px] px-2 inline-flex items-center text-xs text-gray-500 hover:text-gray-300 transition-colors">
               Skip Guide
             </button>
           )}

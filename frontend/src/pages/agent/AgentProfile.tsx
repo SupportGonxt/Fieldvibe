@@ -85,9 +85,9 @@ export default function AgentProfile() {
       <div className="px-5 pt-4 space-y-3">
         {/* Info Cards */}
         <div className="bg-white/5 border border-white/10 rounded-xl divide-y divide-white/5">
-          <InfoRow icon={<Phone className="w-4 h-4 text-blue-400" />} label="Phone" value={authUser?.phone || 'Not set'} />
-          <InfoRow icon={<Shield className="w-4 h-4 text-purple-400" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
-          <InfoRow icon={<Building2 className="w-4 h-4 text-emerald-400" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
+          <InfoRow icon={<Phone className="w-4 h-4 text-[#00E87B]" />} label="Phone" value={authUser?.phone || 'Not set'} />
+          <InfoRow icon={<Shield className="w-4 h-4 text-[#00E87B]" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
+          <InfoRow icon={<Building2 className="w-4 h-4 text-[#00E87B]" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
         </div>
 
         {/* Change PIN */}
@@ -122,7 +122,7 @@ export default function AgentProfile() {
             <button
               onClick={handleChangePin}
               disabled={pinLoading}
-              className="w-full py-2.5 bg-[#00E87B] text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
+              className="w-full min-h-[44px] py-2.5 bg-[#00E87B] text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
             >
               {pinLoading ? 'Updating...' : 'Update PIN'}
             </button>
@@ -168,7 +168,7 @@ function PinInput({ label, value, onChange, show, toggle }: { label: string; val
           onChange={(e) => onChange(e.target.value.replace(/\D/g, '').substring(0, 6))}
           className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm tracking-[0.3em] focus:outline-none focus:border-[#00E87B]/50"
         />
-        <button type="button" onClick={toggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+        <button type="button" onClick={toggle} className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500">
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>

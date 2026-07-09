@@ -119,7 +119,7 @@ export default function AgentDetailPage() {
         <div className="text-center">
           <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Agent not found</p>
-          <button onClick={() => navigate(-1)} className="mt-3 text-[#00E87B] text-sm font-medium">Go back</button>
+          <button onClick={() => navigate(-1)} className="mt-3 min-h-[44px] px-3 inline-flex items-center text-[#00E87B] text-sm font-medium">Go back</button>
         </div>
       </div>
     )
@@ -132,13 +132,13 @@ export default function AgentDetailPage() {
     <div className="min-h-screen bg-[#06090F] pb-24">
       {/* Header */}
       <div className="bg-[#0A1628] px-5 py-4 border-b border-white/5">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 mb-3">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 mb-3 min-h-[44px] -ml-2 px-2">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-xs">Back</span>
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-            <span className="text-lg font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
+          <div className="w-12 h-12 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
+            <span className="text-lg font-bold text-[#00E87B]">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
           </div>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-white">{agent.first_name} {agent.last_name}</h1>

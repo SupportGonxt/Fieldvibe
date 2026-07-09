@@ -84,7 +84,7 @@ export default function AgentPinManagement() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" fontWeight="bold">Agent PIN Management</Typography>
-        <Button startIcon={<Refresh />} onClick={fetchAgents} variant="outlined" size="small">Refresh</Button>
+        <Button startIcon={<Refresh />} onClick={fetchAgents} variant="outlined" sx={{ minHeight: 44 }}>Refresh</Button>
       </Box>
 
       <Alert severity="info" sx={{ mb: 2 }}>
@@ -135,7 +135,7 @@ export default function AgentPinManagement() {
                   </TableCell>
                   <TableCell align="right">
                     <Tooltip title={agent.has_pin ? 'Reset PIN' : 'Set PIN'}>
-                      <IconButton size="small" onClick={() => openDialog(agent)} color="primary">
+                      <IconButton onClick={() => openDialog(agent)} color="primary" sx={{ minWidth: 44, minHeight: 44 }}>
                         <LockReset />
                       </IconButton>
                     </Tooltip>
@@ -168,8 +168,8 @@ export default function AgentPinManagement() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSetPin} variant="contained" disabled={saving || newPin.length < 4}>
+          <Button onClick={() => setDialogOpen(false)} sx={{ minHeight: 44 }}>Cancel</Button>
+          <Button onClick={handleSetPin} variant="contained" disabled={saving || newPin.length < 4} sx={{ minHeight: 44 }}>
             {saving ? <CircularProgress size={20} /> : (selectedAgent?.has_pin ? 'Reset PIN' : 'Set PIN')}
           </Button>
         </DialogActions>

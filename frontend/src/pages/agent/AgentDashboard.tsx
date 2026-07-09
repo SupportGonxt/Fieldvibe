@@ -685,10 +685,10 @@ export default function AgentDashboard() {
           {/* Use memoized target calculations and data props */}
           {targets && dataProps && (
             <>
-              {!isStellr && <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={dataProps.today_individual_visits} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-emerald-600" />}
-              <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={dataProps.today_store_visits} target={targets.dailyStoreTarget > 0 ? targets.dailyStoreTarget : undefined} color="bg-emerald-600" />
-              {!isStellr && <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={dataProps.month_individual_visits} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-emerald-600" />}
-              <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={dataProps.month_store_visits} target={targets.monthStoreTarget > 0 ? targets.monthStoreTarget : undefined} color="bg-emerald-600" />
+              {!isStellr && <StatCard icon={<MapPin className="w-5 h-5" />} label="Today Individual" value={dataProps.today_individual_visits} target={targets.dailyIndivTarget > 0 ? targets.dailyIndivTarget : undefined} color="bg-[#00D06E]" />}
+              <StatCard icon={<Store className="w-5 h-5" />} label="Today Store" value={dataProps.today_store_visits} target={targets.dailyStoreTarget > 0 ? targets.dailyStoreTarget : undefined} color="bg-[#00D06E]" />
+              {!isStellr && <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Month Individual" value={dataProps.month_individual_visits} target={targets.monthIndivTarget > 0 ? targets.monthIndivTarget : undefined} color="bg-[#00D06E]" />}
+              <StatCard icon={<Target className="w-5 h-5" />} label="Month Store" value={dataProps.month_store_visits} target={targets.monthStoreTarget > 0 ? targets.monthStoreTarget : undefined} color="bg-[#00D06E]" />
             </>
           )}
         </div>
@@ -771,17 +771,17 @@ export default function AgentDashboard() {
               </div>
             )}
             {targets.monthIndivTarget > 0 && (
-              <div className={`border rounded-xl p-3 ${targets.monthIndivActual >= targets.monthIndivTarget ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-white/10'}`}>
+              <div className={`border rounded-xl p-3 ${targets.monthIndivActual >= targets.monthIndivTarget ? 'bg-[#00E87B]/10 border-[#00E87B]/30' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Target className="w-3 h-3 text-emerald-400" />
+                  <Target className="w-3 h-3 text-[#00E87B]" />
                   <span className="text-[10px] text-gray-500 uppercase">Month Individual</span>
                 </div>
                 <p className="text-lg font-bold text-white">{targets.monthIndivActual}<span className="text-sm text-gray-500">/{targets.monthIndivTarget}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthIndivActual / targets.monthIndivTarget) * 100))}%` }} />
+                  <div className="h-full bg-[#00E87B] rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthIndivActual / targets.monthIndivTarget) * 100))}%` }} />
                 </div>
                 {targets.monthIndivActual >= targets.monthIndivTarget && (
-                  <p className="text-[8px] text-emerald-400 mt-1 font-semibold">✓ Month target met! 🏆</p>
+                  <p className="text-[8px] text-[#00E87B] mt-1 font-semibold">✓ Month target met! 🏆</p>
                 )}
                 {targets.monthIndivActual < targets.monthIndivTarget && targets.monthIndivTarget - targets.monthIndivActual > 0 && (
                   <p className="text-[8px] text-amber-400 mt-1">{targets.monthIndivTarget - targets.monthIndivActual} more to go! 💪</p>
@@ -965,8 +965,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/onboarding')}
             className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
           >
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-indigo-400" />
+            <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+              <GraduationCap className="w-4 h-4 text-[#00E87B]" />
             </div>
             <div className="text-left">
               <p className="text-xs font-medium text-white">Get Started</p>
@@ -977,8 +977,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/training')}
             className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
           >
-            <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
-              <BookOpen className="w-4 h-4 text-teal-400" />
+            <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-[#00E87B]" />
             </div>
             <div className="text-left">
               <p className="text-xs font-medium text-white">Training</p>

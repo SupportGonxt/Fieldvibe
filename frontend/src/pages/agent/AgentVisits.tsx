@@ -188,13 +188,13 @@ export default function AgentVisits() {
             <button
               onClick={handleRetry}
               disabled={loading}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-white transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-white transition-colors"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={() => navigate('/agent/visits/create')}
-              className="bg-[#00E87B] text-[#0A1628] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
+              className="bg-[#00E87B] text-[#0A1628] px-3 min-h-[44px] rounded-lg text-xs font-semibold flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" /> New Visit
             </button>
@@ -217,7 +217,7 @@ export default function AgentVisits() {
         <div className="flex gap-2 mb-3">
           <button
             onClick={() => setTypeFilter('all')}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`flex-shrink-0 px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg text-xs font-medium transition-colors ${
               typeFilter === 'all' ? 'bg-[#00E87B] text-[#0A1628]' : 'bg-white/5 text-gray-400 border border-white/10'
             }`}
           >
@@ -225,7 +225,7 @@ export default function AgentVisits() {
           </button>
           <button
             onClick={() => setTypeFilter('store')}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
+            className={`flex-shrink-0 px-3 min-h-[44px] rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
               typeFilter === 'store' ? 'bg-purple-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10'
             }`}
           >
@@ -233,7 +233,7 @@ export default function AgentVisits() {
           </button>
           <button
             onClick={() => setTypeFilter('individual')}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
+            className={`flex-shrink-0 px-3 min-h-[44px] rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
               typeFilter === 'individual' ? 'bg-cyan-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10'
             }`}
           >
@@ -249,7 +249,7 @@ export default function AgentVisits() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex-shrink-0 px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg text-xs font-medium transition-colors ${
                 filter === f
                   ? f === 'rejected_goldrush' ? 'bg-orange-500 text-white' : 'bg-white/20 text-white'
                   : 'bg-white/5 text-gray-400 border border-white/10'
@@ -283,7 +283,7 @@ export default function AgentVisits() {
             <p className="text-gray-600 text-xs mb-4">The server may be slow. Please try again.</p>
             <button
               onClick={handleRetry}
-              className="bg-[#00E87B] text-[#0A1628] px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 mx-auto"
+              className="bg-[#00E87B] text-[#0A1628] px-4 min-h-[44px] rounded-lg text-sm font-semibold flex items-center gap-2 mx-auto"
             >
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
@@ -296,7 +296,7 @@ export default function AgentVisits() {
             <p className="text-gray-500 text-sm">No {typeFilter !== 'all' ? `${typeFilter} ` : ''}visits found</p>
             <button
               onClick={() => navigate(`/agent/visits/create${typeFilter !== 'all' ? `?type=${typeFilter}` : ''}`)}
-              className="mt-3 text-[#00E87B] text-sm font-medium"
+              className="mt-3 min-h-[44px] px-3 inline-flex items-center justify-center mx-auto text-[#00E87B] text-sm font-medium"
             >
               + Create {typeFilter !== 'all' ? `${typeFilter} ` : ''}visit
             </button>
