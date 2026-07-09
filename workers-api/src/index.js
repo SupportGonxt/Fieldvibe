@@ -10139,7 +10139,7 @@ api.get('/field-ops/performance', authMiddleware, async (c) => {
         conversion_rate: totalIV > 0 ? Math.round((totalC / totalIV) * 100) : 0,
         agents: filteredAgentPerf
       });
-    } else if (team_lead_id && (role === 'manager' || role === 'admin' || role === 'super_admin')) {
+    } else if (team_lead_id && (role === 'manager' || role === 'general_manager' || role === 'admin' || role === 'super_admin')) {
       // Manager drilling down into a specific team lead's agents
       const teamAgents = await db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(team_lead_id, tenantId).all();
       const agentIds = [team_lead_id, ...(teamAgents.results || []).map(a => a.id)];
