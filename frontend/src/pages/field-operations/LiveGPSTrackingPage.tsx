@@ -1,19 +1,16 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { MapPin, Navigation, Clock, Activity } from 'lucide-react'
 
 export default function LiveGPSTrackingPage() {
-  const { data: locations, isLoading, isError, refetch } = useQuery({
+  // refetchInterval already polls every 30s; the old manual setInterval+refetch
+  // fired a second, redundant request each window. Dropped it.
+  const { data: locations, isLoading, isError } = useQuery({
     queryKey: ['live-locations'],
     queryFn: () => fieldOperationsService.getLiveLocations(),
     refetchInterval: 30000
   })
-
-  useEffect(() => {
-    const interval = setInterval(() => refetch(), 30000)
-    return () => clearInterval(interval)
-  }, [refetch])
 
   const agents = locations || []
   const activeAgents = agents.filter(a => a.status === 'active')

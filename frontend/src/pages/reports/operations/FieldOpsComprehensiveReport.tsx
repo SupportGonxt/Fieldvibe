@@ -245,8 +245,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
       const res = await apiClient.get(`/field-ops/reports/kpis${dateParams}${companyParam}`)
       return (res.data?.kpis || {}) as KPIs
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const { data: agentPerf = [], isLoading: agentLoading } = useQuery({
@@ -255,8 +254,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
       const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}${companyParam}`)
       return (res.data?.data || []) as AgentPerformance[]
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const { data: hourlyData = [] } = useQuery({
@@ -265,8 +263,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
       const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}${companyParam}`)
       return (res.data?.data || []) as HourlyData[]
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const { data: dailyData = [] } = useQuery({
@@ -275,8 +272,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
       const res = await apiClient.get(`/field-ops/reports/checkins-by-day${dateParams}${companyParam}`)
       return (res.data?.data || []) as DailyData[]
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const { data: conversionStats } = useQuery({
@@ -285,8 +281,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
       const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}${companyParam}`)
       return (res.data?.data || {}) as ConversionStats
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   if (kpisLoading) return <LoadingSpinner />
@@ -1348,8 +1343,7 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
       }
       return fieldOperationsService.getPerformance(params)
     },
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 5,
   })
 
   const handleExport = async (format: 'csv' | 'excel' = 'excel') => {

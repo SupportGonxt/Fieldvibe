@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Package, 
@@ -129,8 +129,9 @@ export default function ProductsPage() {
     }
   }
 
-  // Filter and sort products
-  const filteredProducts = products.filter(product => {
+  // Full filter+sort ran on every keystroke (searchTerm state change re-renders,
+  // re-filtering the whole list). Memo runs it only when inputs actually change.
+  const filteredProducts = useMemo(() => products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -165,7 +166,7 @@ export default function ProductsPage() {
     } else {
       return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
     }
-  })
+  }), [products, searchTerm, selectedCategory, selectedBrand, selectedStatus, stockFilter, sortBy, sortOrder])
 
   // Pagination
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)

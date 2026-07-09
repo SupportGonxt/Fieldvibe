@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Download, Filter, Save, Calendar, RefreshCw } from 'lucide-react'
 
 interface ReportColumn {
@@ -104,19 +104,21 @@ export default function ReportPage({
     }
   }
 
-  const sortedData = [...data].sort((a, b) => {
+  // Sort re-ran on every render (typing, hover, any state change) even when
+  // data/sort were unchanged — memo keys it to what actually affects order.
+  const sortedData = useMemo(() => [...data].sort((a, b) => {
     if (!sortColumn) return 0
-    
+
     const aVal = a[sortColumn]
     const bVal = b[sortColumn]
-    
+
     if (aVal === bVal) return 0
     if (aVal === null || aVal === undefined) return 1
     if (bVal === null || bVal === undefined) return -1
-    
+
     const comparison = aVal < bVal ? -1 : 1
     return sortDirection === 'asc' ? comparison : -comparison
-  })
+  }), [data, sortColumn, sortDirection])
 
   return (
     <div className="space-y-6">
