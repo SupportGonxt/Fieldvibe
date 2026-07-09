@@ -7454,8 +7454,25 @@ api.post('/field-operations/beats', authMiddleware, async (c) => {
 api.get('/field-ops/companies', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const role = c.get('role');
   try {
-    const companies = await db.prepare('SELECT * FROM field_companies WHERE tenant_id = ? ORDER BY name').bind(tenantId).all();
+    // Scope to companies the user is assigned to. Managers/agents see only their
+    // linked companies; admins + GM see all active (org-wide oversight). Mirrors
+    // /api/agent/my-companies so pills reflect who-can-manage-what per user.
+    let companies;
+    if (role === 'admin' || role === 'super_admin' || role === 'general_manager') {
+      companies = await db.prepare("SELECT * FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
+    } else if (role === 'manager') {
+      companies = await db.prepare("SELECT fc.* FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId).all();
+    } else if (role === 'team_lead') {
+      companies = await db.prepare("SELECT fc.* FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId).all();
+      if (!companies.results || companies.results.length === 0) {
+        companies = await db.prepare("SELECT DISTINCT fc.* FROM users u JOIN agent_company_links acl ON acl.agent_id = u.id JOIN field_companies fc ON acl.company_id = fc.id WHERE u.team_lead_id = ? AND u.tenant_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId, tenantId).all();
+      }
+    } else {
+      companies = await db.prepare("SELECT fc.* FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId).all();
+    }
     return c.json({ data: companies.results || [] });
   } catch {
     return c.json({ data: [] });
