@@ -20,10 +20,10 @@ interface TeamPerformanceSectionProps {
 const TeamPerformanceSection = memo(({ teamPerformance }: TeamPerformanceSectionProps) => {
   return (
     <div className="px-5 mb-4">
-      <div className="bg-gradient-to-r from-indigo-600/20 to-cyan-600/20 border border-indigo-500/30 rounded-2xl p-4">
+      <div className="bg-[#00E87B]/10 border border-[#00E87B]/20 rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Users className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs font-semibold text-indigo-300 uppercase">Team Performance</span>
+          <Users className="w-4 h-4 text-[#00E87B]" />
+          <span className="text-xs font-semibold text-[#00E87B] uppercase">Team Performance</span>
         </div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm text-white">

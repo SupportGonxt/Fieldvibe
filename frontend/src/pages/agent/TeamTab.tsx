@@ -244,7 +244,7 @@ export default function TeamTab() {
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-1.5 mb-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10"><TrendingUp className="w-3.5 h-3.5 text-emerald-400" /></div>
+              <div className="p-1.5 rounded-lg bg-[#00E87B]/10"><TrendingUp className="w-3.5 h-3.5 text-[#00E87B]" /></div>
               <span className="text-[10px] text-gray-500">Total</span>
             </div>
             <p className="text-xl font-bold text-white">{teamPeriod.total}</p>
@@ -416,8 +416,8 @@ export default function TeamTab() {
           <div className="space-y-2.5">
             {/* My Score (Team Lead) */}
             <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
-                <Users className="w-4 h-4 text-blue-400" />
+              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                <Users className="w-4 h-4 text-[#00E87B]" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-gray-400">My Score (Team Total)</p>
@@ -432,8 +432,8 @@ export default function TeamTab() {
             {/* Team Lead's Own Contribution */}
             {data?.team_lead_own && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-[#00E87B]" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">My Own Contribution</p>
@@ -449,8 +449,8 @@ export default function TeamTab() {
             {/* Manager Score */}
             {data?.manager_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-purple-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-[#00E87B]" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">Manager</p>
@@ -486,8 +486,8 @@ export default function TeamTab() {
                     onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
+                    <div className="w-9 h-9 rounded-lg bg-[#00E87B]/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-[#00E87B]">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5">

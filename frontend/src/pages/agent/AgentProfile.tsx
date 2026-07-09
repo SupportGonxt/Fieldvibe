@@ -85,9 +85,9 @@ export default function AgentProfile() {
       <div className="px-5 pt-4 space-y-3">
         {/* Info Cards */}
         <div className="bg-white/5 border border-white/10 rounded-xl divide-y divide-white/5">
-          <InfoRow icon={<Phone className="w-4 h-4 text-blue-400" />} label="Phone" value={authUser?.phone || 'Not set'} />
-          <InfoRow icon={<Shield className="w-4 h-4 text-purple-400" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
-          <InfoRow icon={<Building2 className="w-4 h-4 text-emerald-400" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
+          <InfoRow icon={<Phone className="w-4 h-4 text-[#00E87B]" />} label="Phone" value={authUser?.phone || 'Not set'} />
+          <InfoRow icon={<Shield className="w-4 h-4 text-[#00E87B]" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
+          <InfoRow icon={<Building2 className="w-4 h-4 text-[#00E87B]" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
         </div>
 
         {/* Change PIN */}

@@ -372,7 +372,7 @@ function Delta({ now, prev, money }: { now: number; prev: number; money?: boolea
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight
   return (
     <span className={`inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums ${
-      flat ? 'text-gray-500' : up ? 'text-emerald-400' : 'text-red-400'
+      flat ? 'text-gray-500' : up ? 'text-[#00E87B]' : 'text-red-400'
     }`} title={money ? `prev ${rand(prev)}` : `prev ${prev}`}>
       <Icon className="w-3 h-3" />{text}
     </span>

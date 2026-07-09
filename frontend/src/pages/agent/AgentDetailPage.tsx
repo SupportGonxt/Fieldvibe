@@ -137,8 +137,8 @@ export default function AgentDetailPage() {
           <span className="text-xs">Back</span>
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-            <span className="text-lg font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
+          <div className="w-12 h-12 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
+            <span className="text-lg font-bold text-[#00E87B]">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
           </div>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-white">{agent.first_name} {agent.last_name}</h1>

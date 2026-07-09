@@ -463,8 +463,8 @@ function OverviewTab({
           <div className="space-y-2.5">
             {/* My Score */}
             <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
-                <UserCheck className="w-4 h-4 text-emerald-400" />
+              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                <UserCheck className="w-4 h-4 text-[#00E87B]" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-gray-400">My Score</p>
@@ -479,8 +479,8 @@ function OverviewTab({
             {/* Team Lead Score */}
             {perfData?.team_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-indigo-500/20 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-blue-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-[#00E87B]" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">Team Lead</p>
@@ -496,8 +496,8 @@ function OverviewTab({
             {/* Manager Score */}
             {perfData?.manager_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-purple-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-[#00E87B]" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">Manager</p>

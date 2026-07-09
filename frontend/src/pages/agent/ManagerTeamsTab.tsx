@@ -243,7 +243,7 @@ export default function ManagerTeamsTab() {
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-4 h-4 text-blue-400" /></div>
+              <div className="p-1.5 rounded-lg bg-[#00E87B]/10"><MapPin className="w-4 h-4 text-[#00E87B]" /></div>
               <span className="text-[10px] text-gray-500 uppercase tracking-wider">{periodLabel} Individual</span>
             </div>
             <p className="text-xl font-bold text-white">{orgPeriod.ind}</p>
@@ -446,8 +446,8 @@ export default function ManagerTeamsTab() {
                     onClick={() => setExpandedTeam(isExpanded ? null : team.team_lead_id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-4 h-4 text-blue-400" />
+                    <div className="w-9 h-9 rounded-lg bg-[#00E87B]/10 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-4 h-4 text-[#00E87B]" />
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium text-white truncate">{team.team_lead_name}</p>
