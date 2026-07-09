@@ -43,14 +43,17 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 1024 * 1024,
         runtimeCaching: [
           {
-            // Navigations: try the network for ~3s, then fall back to a cached
-            // copy of the last index.html we saw. Ensures users see fresh code
-            // when online; offline still loads the app shell.
+            // Navigations: serve the last cached index.html INSTANTLY, then
+            // revalidate from network in the background. On slow SA mobile the
+            // old NetworkFirst taxed every app-open up to 3s before painting;
+            // SWR paints immediately. Freshness is preserved out-of-band: a new
+            // deploy ships a new sw.js -> controllerchange -> reload (main.tsx),
+            // and the PR#213 stale-shell watchdog is the backstop. Hashed assets
+            // are immutable so the instant paint never mixes old/new chunks.
             urlPattern: ({ request, sameOrigin }) => sameOrigin && request.mode === 'navigate',
-            handler: 'NetworkFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'navigation-cache',
-              networkTimeoutSeconds: 3,
               expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },

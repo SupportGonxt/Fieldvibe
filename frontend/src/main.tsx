@@ -79,7 +79,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   const hadControllerOnLoad = !!navigator.serviceWorker.controller
 
   const register = () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
+    // updateViaCache:'none' — browser bypasses the HTTP cache for BOTH sw.js
+    // and its importScripts (push-sw.js) on every update check. Default 'imports'
+    // reads push-sw.js from HTTP cache, and the vantax.co.za zone Browser Cache
+    // TTL clamps sw.js/push-sw.js to 4h, so a new SW isn't discovered for hours.
+    // This makes update discovery independent of the edge cache config.
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).then((reg) => {
       let refreshing = false
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         // Only reload on a genuine update (post-deploy), not on first install.
