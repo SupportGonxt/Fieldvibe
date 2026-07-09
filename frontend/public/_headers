@@ -5,3 +5,10 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Service workers must revalidate every load, else clients never see a new
+# SW (skipWaiting can't fire on a script the browser HTTP-cached for hours).
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+/push-sw.js
+  Cache-Control: public, max-age=0, must-revalidate
