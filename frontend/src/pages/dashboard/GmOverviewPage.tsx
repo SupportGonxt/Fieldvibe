@@ -43,7 +43,10 @@ interface Overview {
 }
 
 interface TenantSignals {
-  counts: { below_target: number; dropped_vs_baseline: number; gone_quiet: number; low_conversion: number }
+  counts: {
+    below_target: number; dropped_vs_baseline: number; gone_quiet: number; low_conversion: number
+    late_start: number; short_field_day: number; idle_gaps: number; excess_travel: number
+  }
   flaggedAgents: number
   totalAgents: number
 }
@@ -101,6 +104,10 @@ const SIGNAL_LABELS: { key: keyof TenantSignals['counts']; label: string }[] = [
   { key: 'dropped_vs_baseline', label: 'Signups dropped' },
   { key: 'gone_quiet', label: 'Gone quiet' },
   { key: 'low_conversion', label: 'Low conversion' },
+  { key: 'late_start', label: 'Late starts' },
+  { key: 'short_field_day', label: 'Short field days' },
+  { key: 'idle_gaps', label: 'Idle gaps' },
+  { key: 'excess_travel', label: 'Excess travel' },
 ]
 
 function agoLabel(iso: string | null): { text: string; stale: boolean } {

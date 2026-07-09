@@ -33,6 +33,16 @@ function signalText(s: Signal): string {
       return 'Your signups have dropped below your recent average'
     case 'low_conversion':
       return `Low conversion rate — ${Math.round((s.detail?.conversion_pct || 0) * 100)}%`
+    case 'late_start': {
+      const m = s.detail?.avg_start_min ?? 0
+      return `Late starts — first check-in averages ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+    }
+    case 'short_field_day':
+      return `Short field days — ${(Math.round((s.detail?.avg_span_min || 0) / 6) / 10)}h between first and last check-in`
+    case 'idle_gaps':
+      return `Idle gaps — ${Math.round((s.detail?.avg_idle_min || 0) / 60 * 10) / 10}h/day parked with little movement`
+    case 'excess_travel':
+      return `Excess travel — averaging ${s.detail?.avg_km_per_hop ?? '?'}km between stops`
     default:
       return 'Underperformance signal triggered'
   }

@@ -61,3 +61,6 @@ frontend/full-*
 frontend/run-*
 frontend/enterprise-*
 frontend/audit-*
+
+# impeccable design-tool hook cache
+**/.impeccable/

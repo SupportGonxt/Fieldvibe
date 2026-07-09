@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import { getConfig } from './config.js';
 import { aggregateKpis, evaluateSignals } from '../../services/kpiSignals.js';
+import { rootCauseSignals } from '../../services/rootCauseSignals.js';
 import { sendPush } from '../../lib/web-push.js';
 import { requireRole } from '../../middleware/auth.js';
 import { AGENT_ROLES } from '../../services/incentiveService.js';
@@ -33,6 +34,20 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
   ).bind(tenantId, ...ids, sinceDate).all()).results ?? [];
 }
 
+// Per-visit rows (check-in time + GPS) for root-cause (GPS/time) signals.
+// Separate from dailyRows: that sums per day and drops the timestamps/coords these need.
+async function visitDetailRows(db, tenantId, agentIds, sinceDate) {
+  const ids = Array.isArray(agentIds) ? agentIds : [agentIds];
+  if (!ids.length) return [];
+  return (await db.prepare(
+    `SELECT visit_date, check_in_time, latitude, longitude
+     FROM visits
+     WHERE tenant_id=? AND agent_id IN (${ids.map(() => '?').join(',')})
+       AND visit_date>=? AND status='completed' AND check_in_time IS NOT NULL
+     ORDER BY visit_date, check_in_time`
+  ).bind(tenantId, ...ids, sinceDate).all()).results ?? [];
+}
+
 // Aggregate one agent's KPIs + signals over a window. Shared by roster + tenant-signals.
 async function agentSignals(db, tenantId, id, thresholds, since) {
   const rows = await dailyRows(db, tenantId, id, since);
@@ -41,7 +56,10 @@ async function agentSignals(db, tenantId, id, thresholds, since) {
   const lastVisit = rows.length ? rows[rows.length - 1].date : null;
   const daysSinceLastVisit = lastVisit
     ? Math.floor((Date.now() - Date.parse(lastVisit)) / 86400000) : 999;
-  return { actual, signals: evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds }) };
+  const signals = evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds });
+  if (actual.days > 0)
+    signals.push(...rootCauseSignals(await visitDetailRows(db, tenantId, id, since), thresholds));
+  return { actual, signals };
 }
 
 const app = new Hono();
@@ -60,7 +78,8 @@ app.get('/kpi/self', async (c) => {
   const sinceStr = since.toISOString().slice(0, 10);
 
   // team_lead/manager KPIs aggregate their people's visits, not their own
-  const rows = await dailyRows(db, tenantId, await kpiScopeIds(db, tenantId, userId, role), sinceStr);
+  const scopeIds = await kpiScopeIds(db, tenantId, userId, role);
+  const rows = await dailyRows(db, tenantId, scopeIds, sinceStr);
   const actual = aggregateKpis(rows);
   // baseline = first half of window, recent = whole window (self-relative)
   const baseline = aggregateKpis(rows.slice(0, Math.ceil(rows.length / 2)));
@@ -68,6 +87,8 @@ app.get('/kpi/self', async (c) => {
   const daysSinceLastVisit = lastVisit
     ? Math.floor((Date.now() - Date.parse(lastVisit)) / 86400000) : 999;
   const signals = evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds });
+  if (actual.days > 0)
+    signals.push(...rootCauseSignals(await visitDetailRows(db, tenantId, scopeIds, sinceStr), thresholds));
   return c.json({ actual, thresholds, signals });
 });
 
@@ -142,7 +163,10 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
        AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))`
   ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
 
-  const counts = { below_target: 0, dropped_vs_baseline: 0, gone_quiet: 0, low_conversion: 0 };
+  const counts = {
+    below_target: 0, dropped_vs_baseline: 0, gone_quiet: 0, low_conversion: 0,
+    late_start: 0, short_field_day: 0, idle_gaps: 0, excess_travel: 0,
+  };
   let flaggedAgents = 0;
   for (const { id } of agents) {
     const { signals } = await agentSignals(db, tenantId, id, thresholds, since);
