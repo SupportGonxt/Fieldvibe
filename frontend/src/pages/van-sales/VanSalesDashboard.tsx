@@ -57,13 +57,13 @@ export default function VanSalesDashboard() {
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError } = useQuery({
+  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError, refetch: refetchAnalytics } = useQuery({
     queryKey: ['van-sales-analytics', dateRange],
     queryFn: () => vanSalesService.getVanSalesAnalytics(),
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: trends, isLoading: trendsLoading, isError: trendsError } = useQuery({
+  const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends } = useQuery({
     queryKey: ['van-sales-trends', dateRange],
     queryFn: () => vanSalesService.getVanSalesTrends(dateRange),
     staleTime: 1000 * 60 * 5,
@@ -91,10 +91,10 @@ export default function VanSalesDashboard() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState
+          message="Failed to load data"
+          onRetry={() => { refetchStats(); refetchAnalytics(); refetchTrends(); }}
+        />
       </div>
     )
   }

@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/van-sales.service'
-import { DollarSign, TrendingUp, Calendar, AlertCircle } from 'lucide-react'
+import { DollarSign, TrendingUp, Calendar } from 'lucide-react'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 
 export default function VanCashCollectionPage() {
   const [filter, setFilter] = useState({ van_id: '', date: new Date().toISOString().split('T')[0] })
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['van-cash-collection', filter],
     queryFn: () => (vanSalesService as any).getVanCashCollection(filter),
     enabled: !!filter.van_id
@@ -60,7 +61,7 @@ export default function VanCashCollectionPage() {
             {isLoading ? (
               <div className="p-12 text-center"><LoadingSpinner size="lg" /></div>
             ) : error ? (
-              <div className="p-12 text-center text-red-600"><AlertCircle className="h-12 w-12 mx-auto mb-2" /><p>Failed to load cash collections</p></div>
+              <ErrorState message="Failed to load cash collections" onRetry={() => refetch()} />
             ) : collections.length === 0 ? (
               <div className="p-12 text-center text-gray-500"><DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-2" /><p>No cash collections found</p></div>
             ) : (

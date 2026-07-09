@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { ArrowLeft, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 
 import { apiClient } from '../../services/api.service'
 interface CommissionFormData {
@@ -19,7 +20,7 @@ export default function CommissionEdit() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: commission, isLoading, isError } = useQuery({
+  const { data: commission, isLoading, isError, refetch } = useQuery({
     queryKey: ['commission', id],
     queryFn: async () => {
       return {
@@ -59,10 +60,7 @@ export default function CommissionEdit() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }

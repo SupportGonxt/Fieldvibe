@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { vanSalesService } from '../../services/van-sales.service'
-import { Package, TrendingDown, TrendingUp, AlertCircle } from 'lucide-react'
+import { Package, TrendingDown, TrendingUp } from 'lucide-react'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 
 export default function VanInventoryPage() {
@@ -14,7 +15,7 @@ export default function VanInventoryPage() {
       return res.data || res.vans || []
     }
   })
-  const { data: inventory, isLoading, isError, error } = useQuery({
+  const { data: inventory, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['van-inventory', selectedVanId],
     queryFn: () => vanSalesService.getVanInventory(selectedVanId),
     enabled: !!selectedVanId
@@ -53,7 +54,7 @@ export default function VanInventoryPage() {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {!selectedVanId ? <div className="p-12 text-center text-gray-500"><Package className="h-12 w-12 mx-auto text-gray-400 mb-2" /><p>Select a van to view inventory</p></div>
         : isLoading ? <div className="p-12 text-center"><LoadingSpinner size="lg" /></div>
-        : error ? <div className="p-12 text-center text-red-600"><AlertCircle className="h-12 w-12 mx-auto mb-2" /><p>Failed to load</p></div>
+        : error ? <ErrorState message="Failed to load inventory" onRetry={() => refetch()} />
         : inventory && inventory.length === 0 ? <div className="p-12 text-center text-gray-500"><Package className="h-12 w-12 mx-auto text-gray-400 mb-2" /><p>No inventory found</p></div>
         : (
           <div className="overflow-x-auto">

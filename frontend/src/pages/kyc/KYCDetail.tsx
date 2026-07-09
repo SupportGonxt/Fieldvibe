@@ -9,7 +9,7 @@ export default function KYCDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { data: kyc, isLoading, isError } = useQuery({
+  const { data: kyc, isLoading, isError, refetch } = useQuery({
     queryKey: ['kyc', id],
     queryFn: () => customersService.getCustomer(id!),
   })
@@ -21,10 +21,7 @@ export default function KYCDetail() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }

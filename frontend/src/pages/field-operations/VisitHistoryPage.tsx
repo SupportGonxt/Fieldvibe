@@ -2,10 +2,11 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { Calendar, MapPin, Clock, FileText } from 'lucide-react'
+import ErrorState from '../../components/ui/ErrorState'
 
 export default function VisitHistoryPage() {
   const [filter, setFilter] = useState({ page: 1, limit: 20, agent_id: '', start_date: '', end_date: '' })
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['visit-history', filter],
     queryFn: () => fieldOperationsService.getVisitHistory(filter as any)
   })
@@ -14,7 +15,7 @@ export default function VisitHistoryPage() {
   const total = data?.total || 0
 
   if (isLoading) return <div className="p-6"><div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="h-64 bg-gray-200 rounded"></div></div></div>
-  if (error) return <div className="p-6"><div className="bg-red-50 border border-red-200 rounded-lg p-4"><p className="text-red-800">Failed to load visit history.</p></div></div>
+  if (error) return <div className="p-6"><ErrorState message="Failed to load visit history." onRetry={() => refetch()} /></div>
 
   return (
     <div className="p-6 space-y-6">

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 import { Target, Plus, Trash2, Calendar, Users, Building2, Save } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -20,7 +21,7 @@ export default function DailyTargetsPage() {
     target_date: today
   })
 
-  const { data: targets, isLoading, isError } = useQuery({
+  const { data: targets, isLoading, isError, refetch } = useQuery({
     queryKey: ['daily-targets', selectedDate],
     queryFn: () => fieldOperationsService.getDailyTargets({ date: selectedDate }),
   })
@@ -67,10 +68,7 @@ export default function DailyTargetsPage() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }

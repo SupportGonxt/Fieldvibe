@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 import toast from 'react-hot-toast'
 
 interface CommissionRule {
@@ -24,7 +25,7 @@ export const CommissionSettingsPage: React.FC = () => {
     status: 'active'
   })
 
-  const { data: rulesData = [], isLoading, isError } = useQuery({
+  const { data: rulesData = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['commission-rules'],
     queryFn: () => commissionsService.getRules()
   })
@@ -81,10 +82,7 @@ export const CommissionSettingsPage: React.FC = () => {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }

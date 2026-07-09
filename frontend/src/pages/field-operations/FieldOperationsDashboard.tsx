@@ -56,13 +56,13 @@ export default function FieldOperationsDashboard() {
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError } = useQuery({
+  const { data: analytics, isLoading: analyticsLoading, isError: analyticsError, refetch: refetchAnalytics } = useQuery({
     queryKey: ['field-operations-analytics', dateRange],
     queryFn: () => fieldOperationsService.getFieldOperationsAnalytics(dateRange),
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: trends, isLoading: trendsLoading, isError: trendsError } = useQuery({
+  const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends } = useQuery({
     queryKey: ['field-operations-trends', dateRange],
     queryFn: () => fieldOperationsService.getFieldOperationsTrends(dateRange),
     staleTime: 1000 * 60 * 5,
@@ -90,10 +90,10 @@ export default function FieldOperationsDashboard() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState
+          message="Failed to load data"
+          onRetry={() => { refetchStats(); refetchAnalytics(); refetchTrends(); }}
+        />
       </div>
     )
   }

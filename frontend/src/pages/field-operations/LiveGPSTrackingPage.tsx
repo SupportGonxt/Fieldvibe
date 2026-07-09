@@ -2,11 +2,12 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { MapPin, Navigation, Clock, Activity } from 'lucide-react'
+import ErrorState from '../../components/ui/ErrorState'
 
 export default function LiveGPSTrackingPage() {
   // refetchInterval already polls every 30s; the old manual setInterval+refetch
   // fired a second, redundant request each window. Dropped it.
-  const { data: locations, isLoading, isError } = useQuery({
+  const { data: locations, isLoading, isError, refetch } = useQuery({
     queryKey: ['live-locations'],
     queryFn: () => fieldOperationsService.getLiveLocations(),
     refetchInterval: 30000
@@ -22,10 +23,7 @@ export default function LiveGPSTrackingPage() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }

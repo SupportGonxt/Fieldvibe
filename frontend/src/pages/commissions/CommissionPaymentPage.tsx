@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import ErrorState from '../../components/ui/ErrorState'
 import toast from 'react-hot-toast'
 
 interface CommissionPayment {
@@ -23,7 +24,7 @@ export const CommissionPaymentPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const { data: payoutsData, isLoading, isError } = useQuery({
+  const { data: payoutsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['commission-payouts'],
     queryFn: () => commissionsService.getCommissions({ status: 'paid' }),
   })
@@ -47,10 +48,7 @@ export const CommissionPaymentPage: React.FC = () => {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }

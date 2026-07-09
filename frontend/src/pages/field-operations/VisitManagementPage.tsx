@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import LiveVisitMap from '../../components/maps/LiveVisitMap'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import ErrorState from '../../components/ui/ErrorState'
 
 interface VisitManagementPageProps {
   visitType?: 'store' | 'individual'
@@ -32,7 +33,7 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
     setFilter(f => ({ ...f, page: 1 }))
   }, [activeType])
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['visits', filter, activeType],
     queryFn: () => (fieldOperationsService as any).getVisits({ ...filter, ...(activeType ? { visit_type: activeType } : {}) })
   })
@@ -71,7 +72,7 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
     return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{type}</span>
   }
 
-  if (error) return <div className="p-6"><div className="bg-red-50 border border-red-200 rounded-lg p-4"><p className="text-red-800">Failed to load visits.</p></div></div>
+  if (error) return <div className="p-6"><ErrorState message="Failed to load visits." onRetry={() => refetch()} /></div>
   if (isLoading) return <div className="p-6"><div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="h-64 bg-gray-200 rounded"></div></div></div>
 
   return (

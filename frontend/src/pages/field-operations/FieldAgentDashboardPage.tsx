@@ -6,7 +6,7 @@ import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 
 export default function FieldAgentDashboardPage() {
-  const { data: todayVisits, isLoading, isError } = useQuery({
+  const { data: todayVisits, isLoading, isError, refetch } = useQuery({
     queryKey: ['today-visits'],
     queryFn: () => fieldOperationsService.getVisits({ date: new Date().toISOString().split('T')[0] })
   })
@@ -27,10 +27,7 @@ export default function FieldAgentDashboardPage() {
   if (isError) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 text-lg font-medium">Failed to load data</p>
-          <p className="text-gray-500 mt-2">Please try refreshing the page</p>
-        </div>
+        <ErrorState message="Failed to load data" onRetry={() => refetch()} />
       </div>
     )
   }
