@@ -126,6 +126,7 @@ export default function ManagerTeamsTab() {
   const navigate = useNavigate()
   const [data, setData] = useState<ManagerData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
@@ -134,13 +135,17 @@ export default function ManagerTeamsTab() {
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
+    setError(false)
     try {
       const res = await apiClient.get('/manager/dashboard')
       if (res.data?.success && res.data?.data) {
         setData(res.data.data)
+      } else {
+        setError(true)
       }
     } catch (err) {
       console.error('Manager dashboard fetch error:', err)
+      setError(true)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -155,6 +160,23 @@ export default function ManagerTeamsTab() {
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-[#00E87B] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 text-sm">Loading organization data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Fetch failed and we have nothing to show — say so instead of rendering
+  // an all-zero dashboard that looks like real (empty) data.
+  if (error && !data) {
+    return (
+      <div className="min-h-screen bg-[#06090F] flex items-center justify-center px-6">
+        <div className="text-center max-w-xs">
+          <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-sm text-white font-medium mb-1">Couldn't load organization data</p>
+          <p className="text-xs text-gray-500 mb-4">Check your connection and try again.</p>
+          <button onClick={() => fetchData()} className="px-4 py-2 rounded-xl bg-[#00E87B] text-[#0A1628] text-sm font-semibold">
+            Retry
+          </button>
         </div>
       </div>
     )
@@ -182,6 +204,9 @@ export default function ManagerTeamsTab() {
     : period === 'week' ? { ind: team.week_visits ?? 0, store: team.week_stores ?? 0 }
     : period === 'month' ? { ind: team.month_visits, store: team.month_stores }
     : { ind: team.prior_month_visits ?? 0, store: team.prior_month_stores ?? 0 }
+
+  // Worst-first: a manager opens this to find who needs attention, not to admire the leader.
+  const teams = [...(data?.teams || [])].sort((a, b) => (a.achievement || 0) - (b.achievement || 0))
 
   return (
     <div className="min-h-screen bg-[#06090F] pb-24">
@@ -249,7 +274,7 @@ export default function ManagerTeamsTab() {
             </div>
             <div className="flex-1">
               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Org Achievement</p>
-              <p className="text-[10px] text-gray-400">Overall target progress</p>
+              <p className="text-[10px] text-gray-400">Month-to-date vs target · not the {periodLabel} filter above</p>
             </div>
             <div className="text-right">
               <DollarSign className="w-5 h-5 text-amber-400 ml-auto mb-0.5" />
@@ -282,7 +307,7 @@ export default function ManagerTeamsTab() {
               </span>
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', backgroundColor: '#F59E0B' }} />
+              <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', backgroundColor: progressColor(rPct) }} />
             </div>
           </div>
 
@@ -398,62 +423,20 @@ export default function ManagerTeamsTab() {
         </div>
       )}
 
-      {/* Hierarchy Scorecard: Manager Score */}
-      <div className="px-5 py-2">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" /> Hierarchy Scores
-          </h3>
-          <div className="space-y-2.5">
-            {/* Manager's Own Score */}
-            <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                <Shield className="w-4 h-4 text-[#00E87B]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-gray-400">My Score (Org Total)</p>
-                <p className="text-sm font-semibold text-white">Manager</p>
-              </div>
-              <div className="text-right">
-                <span className={`text-lg font-bold ${pctClass(achievement)}`}>{achievement}%</span>
-              </div>
-              <div className={`w-2.5 h-2.5 rounded-full ${achievement >= 100 ? 'bg-[#00E87B]' : achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
-            </div>
-
-            {/* Team Lead Scores */}
-            {(data?.teams || []).map((team) => {
-              const tlAch = team.achievement || 0
-              return (
-                <div key={team.team_lead_id} className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-400">Team Lead</p>
-                    <p className="text-sm font-semibold text-white">{team.team_lead_name}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-lg font-bold ${pctClass(tlAch)}`}>{tlAch}%</span>
-                  </div>
-                  <div className={`w-2.5 h-2.5 rounded-full ${tlAch >= 100 ? 'bg-[#00E87B]' : tlAch >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Team Leads List */}
+      {/* Team Leads List — the team-lead tier of the org drill-down (org ring above → team here → agents on tap) */}
       <div className="px-5 pt-2 pb-4">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Team Performance</h2>
-        {(data?.teams || []).length === 0 ? (
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Team Performance</h2>
+          <span className="text-[10px] text-gray-600">Lowest achievement first</span>
+        </div>
+        {teams.length === 0 ? (
           <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
             <Users className="w-8 h-8 text-gray-600 mx-auto mb-2" />
             <p className="text-sm text-gray-500">No teams found</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {(data?.teams || []).map((team) => {
+            {teams.map((team) => {
               const isExpanded = expandedTeam === team.team_lead_id
               const teamVPct = (team.target_visits || 0) > 0 ? Math.min(100, Math.round((team.actual_visits / team.target_visits) * 100)) : 0
               const teamRPct = (team.target_stores || 0) > 0 ? Math.min(100, Math.round((team.actual_stores / team.target_stores) * 100)) : 0
@@ -506,7 +489,7 @@ export default function ManagerTeamsTab() {
                           <span className="text-white">{team.actual_stores}/{team.target_stores} <span className={pctClass(teamRPct)}>({teamRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: teamRPct + '%', backgroundColor: '#F59E0B' }} />
+                          <div className="h-full rounded-full" style={{ width: teamRPct + '%', backgroundColor: progressColor(teamRPct) }} />
                         </div>
                       </div>
                       {/* Drill-down button */}

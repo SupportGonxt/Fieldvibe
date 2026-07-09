@@ -632,7 +632,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Today&apos;s Targets</h2>
           <div className="space-y-2">
             {dashData.daily_targets.map((t, i) => {
-              const visitPct = t.target_visits > 0 ? Math.min(100, Math.round((t.daily_actual_visits ?? t.actual_visits / t.target_visits) * 100)) : 0
+              const visitPct = t.target_visits > 0 ? Math.min(100, Math.round(((t.daily_actual_visits ?? t.actual_visits) / t.target_visits) * 100)) : 0
               return (
                 <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
