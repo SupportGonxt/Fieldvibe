@@ -767,8 +767,8 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
             <Users className="w-3.5 h-3.5" /> Team Performance
           </h3>
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-              <UserCheck className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-[#00E87B]" />
             </div>
             <div>
               <p className="text-sm font-medium text-white">{team.team_lead_name}&apos;s Team</p>
