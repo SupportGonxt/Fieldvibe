@@ -4,7 +4,7 @@
 
 // Roles with a real field surface AND back-office access. These land on the
 // workspace chooser (in a browser) instead of being force-routed to one app.
-export const DUAL_ACCESS_ROLES = ['manager', 'general_manager', 'backoffice_admin']
+export const DUAL_ACCESS_ROLES = ['manager', 'general_manager', 'backoffice_admin', 'admin', 'super_admin']
 
 export const isDualAccess = (role?: string) => !!role && DUAL_ACCESS_ROLES.includes(role)
 
