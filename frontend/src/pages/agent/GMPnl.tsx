@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
 
 // GM mobile P&L. Confirmed view = money cleared through reconciliation; projected view =
 // on-pace at current activity. Revenue = converted deposits x commission; cost = incentives + salaries.
@@ -34,34 +35,28 @@ export default function GMPnl() {
   const [pnl, setPnl] = useState<Pnl | null>(null)
   const [loading, setLoading] = useState(true)
   const [projected, setProjected] = useState(false)
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [company, setCompany] = useState<string | null>(null)
 
   useEffect(() => {
+    fieldOperationsService
+      .getCompanies()
+      .then((res: any) => setCompanies(res?.companies ?? res ?? []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    setLoading(true)
     apiClient
-      .get('/field-ops/incentives/pnl')
+      .get(`/field-ops/incentives/pnl${company ? `?company_id=${company}` : ''}`)
       .then((res) => setPnl(res?.data?.pnl ?? null))
       .catch(() => setPnl(null))
       .finally(() => setLoading(false))
-  }, [])
+  }, [company])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
-      </div>
-    )
-  }
-
-  if (!pnl) {
-    return (
-      <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24 text-center">
-        <p className="text-gray-500 mt-20">No P&amp;L data available.</p>
-      </div>
-    )
-  }
-
-  const revenue = projected ? pnl.projectedRevenue : pnl.revenue
-  const incentive = projected ? pnl.projectedIncentiveCost : pnl.incentiveCost
-  const net = projected ? pnl.projectedNet : pnl.net
+  const revenue = pnl ? (projected ? pnl.projectedRevenue : pnl.revenue) : 0
+  const incentive = pnl ? (projected ? pnl.projectedIncentiveCost : pnl.incentiveCost) : 0
+  const net = pnl ? (projected ? pnl.projectedNet : pnl.net) : 0
   const positive = net >= 0
 
   return (
@@ -71,8 +66,26 @@ export default function GMPnl() {
           <Wallet className="w-6 h-6 text-[#00E87B]" />
           <h1 className="text-2xl font-bold text-white">P&amp;L</h1>
         </div>
-        <p className="text-sm text-gray-500 mb-5">{pnl.period}</p>
+        <p className="text-sm text-gray-500 mb-5">{pnl?.period ?? ' '}</p>
 
+        {/* Company scope — mirrors GmOverview chips */}
+        {companies.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4 scrollbar-hide">
+            <CompanyChip label="All companies" active={company === null} onClick={() => setCompany(null)} />
+            {companies.map((co) => (
+              <CompanyChip key={co.id} label={co.name} active={company === co.id} onClick={() => setCompany(co.id)} />
+            ))}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-24">
+            <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+          </div>
+        ) : !pnl ? (
+          <p className="text-gray-500 text-center mt-20">No P&amp;L data available.</p>
+        ) : (
+          <>
         {/* Confirmed / Projected toggle */}
         <div className="flex bg-white/[0.04] border border-white/10 rounded-2xl p-1 mb-6">
           {[
@@ -124,8 +137,23 @@ export default function GMPnl() {
           <Stat label="Signups" value={pnl.signups} sub={`${pnl.qualifiedSignups} qualified`} />
           <Stat label="Converted" value={pnl.converted} sub={`${pnl.qualifiedConverted} qualified`} />
         </div>
+          </>
+        )}
       </div>
     </div>
+  )
+}
+
+function CompanyChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+        active ? 'bg-[#00E87B] text-[#0A1628] border-[#00E87B]' : 'bg-white/[0.04] text-gray-400 border-white/10'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 
