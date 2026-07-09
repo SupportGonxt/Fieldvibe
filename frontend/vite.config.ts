@@ -3,6 +3,15 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
+// Forces sw.js bytes to differ on EVERY build. Without this, a frontend-only
+// deploy (new hashed app chunks, no precached static asset changed) makes
+// workbox emit a byte-identical sw.js -> no new SW installs -> controllerchange
+// never fires (main.tsx) -> clients keep serving the prior index.html from
+// navigation-cache and never see the deploy. Bumping the importScripts query
+// makes the new SW install, skipWaiting/clientsClaim, fire controllerchange,
+// and trigger the one auto-reload that pulls the fresh shell.
+const BUILD_ID = Date.now().toString(36)
+
 // https://vitejs.dev/config/
 export default defineConfig({
   // Note: Vite automatically loads .env.production during production builds
@@ -29,7 +38,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         // Fold in the Web Push handlers (push / notificationclick) — kept in a
         // hand-written file so workbox's generated SW stays untouched.
-        importScripts: ['/push-sw.js'],
+        importScripts: [`/push-sw.js?v=${BUILD_ID}`],
         // Precache ONLY static, non-versioned assets. Hashed JS/CSS are
         // CacheFirst at runtime — hash in filename guarantees safety. HTML
         // is never precached so a deploy is always visible immediately on
