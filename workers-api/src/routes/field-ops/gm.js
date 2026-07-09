@@ -80,6 +80,19 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   // (? IS NULL OR col = ?) keeps one SQL string; both placeholders bind companyId.
   const CO_V = `AND (? IS NULL OR v.company_id = ?)`;
 
+  // Company-membership scoping for the team/management block. A real team_lead/
+  // manager is linked to a company (agent_company_links / manager_company_links);
+  // test & orphan users (e.g. Abigail Govender, test team lead, testman man) have
+  // NO active link. Requiring one both splits the roster per selected company AND
+  // drops the link-less users under "all companies" (companyId NULL) — one filter,
+  // no name/email heuristic. Each helper binds companyId twice.
+  const CO_ACL = (a) => `AND EXISTS (SELECT 1 FROM agent_company_links acl
+      WHERE acl.agent_id = ${a}.id AND acl.tenant_id = ${a}.tenant_id AND acl.is_active = 1
+        AND (? IS NULL OR acl.company_id = ?))`;
+  const CO_MCL = (a) => `AND EXISTS (SELECT 1 FROM manager_company_links mcl
+      WHERE mcl.manager_id = ${a}.id AND mcl.tenant_id = ${a}.tenant_id AND mcl.is_active = 1
+        AND (? IS NULL OR mcl.company_id = ?))`;
+
   // Companies with visit data — feeds the customer selector.
   const { results: companies } = await db.prepare(
     `SELECT fc.id, fc.name FROM field_companies fc
@@ -192,12 +205,13 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
        LEFT JOIN users a ON a.team_lead_id = tl.id AND a.is_active = 1
          AND a.role IN (${agentRolePh})
          AND (a.agent_type IS NULL OR a.agent_type IN ('field_ops','both')) ${NOT_TEST_U('a')}
+         ${CO_ACL('a')}
        LEFT JOIN visits v ON v.agent_id = a.id AND v.tenant_id = tl.tenant_id ${CO_V}
        LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
          AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED}
-       WHERE tl.tenant_id = ? AND tl.role = 'team_lead' AND tl.is_active = 1
+       WHERE tl.tenant_id = ? AND tl.role = 'team_lead' AND tl.is_active = 1 ${CO_ACL('tl')}
        GROUP BY tl.id ORDER BY signups DESC, agents DESC`
-    ).bind(...AGENT_ROLES, companyId, companyId, start, end, tenantId).all();
+    ).bind(...AGENT_ROLES, companyId, companyId, companyId, companyId, start, end, tenantId, companyId, companyId).all();
     const { results: prevTeamRows } = await db.prepare(
       `SELECT a.team_lead_id tid, COUNT(vi.id) signups,
          SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
@@ -239,9 +253,10 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
          m.last_activity_at, m.last_login, COUNT(DISTINCT tl.id) team_leads
        FROM users m
        LEFT JOIN users tl ON tl.manager_id = m.id AND tl.is_active = 1 AND tl.role = 'team_lead'
-       WHERE m.tenant_id = ? AND m.role = 'manager' AND m.is_active = 1
+         ${CO_ACL('tl')}
+       WHERE m.tenant_id = ? AND m.role = 'manager' AND m.is_active = 1 ${CO_MCL('m')}
        GROUP BY m.id ORDER BY team_leads DESC`
-    ).bind(tenantId).all();
+    ).bind(companyId, companyId, tenantId, companyId, companyId).all();
     managers = (mgrRows || []).map((m) => {
       const own = teams.filter((t) => t.managerId === m.id);
       return {
@@ -271,8 +286,9 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
        WHERE u.tenant_id = ? AND u.is_active = 1
          AND u.role IN ('admin','backoffice_admin')
          AND (u.agent_type IS NULL OR u.agent_type IN ('back_office','both'))
+         ${CO_MCL('u')}
        GROUP BY u.id ORDER BY calls DESC, name ASC`
-    ).bind(start, end, companyId, companyId, tenantId).all();
+    ).bind(start, end, companyId, companyId, tenantId, companyId, companyId).all();
     boAdmins = (boRows || []).map((r) => ({
       id: r.id, name: r.name,
       calls: r.calls || 0, answered: r.answered || 0, reached: r.reached || 0,
