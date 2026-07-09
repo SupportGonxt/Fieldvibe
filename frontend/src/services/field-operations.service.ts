@@ -637,7 +637,9 @@ class FieldOperationsService extends ApiService {
   // ==================== FIELD OPS: COMPANIES ====================
   async getCompanies() {
     const response = await this.get('/field-ops/companies')
-    return response.data || response
+    // Backend returns { data: [...] }. Unwrap to the array so callers can read
+    // .length / .map directly. Callers using `res?.data || res` still work (array has no .data).
+    return response.data?.data ?? response.data ?? []
   }
 
   async getCompany(id: string) {

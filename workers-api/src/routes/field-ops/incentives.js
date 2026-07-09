@@ -344,7 +344,35 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
 app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffice_admin', 'manager', 'team_lead'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const role = c.get('role');
   const today = new Date().toISOString().slice(0, 10);
+  const companyId = c.req.query('company_id') || null;
+
+  // Caller company scope — admins/GM see every agent; managers/team-leads/BO see only
+  // agents in the companies they're assigned to (mirrors /field-ops/companies). The pill
+  // (company_id) narrows within that set; without it, a scoped caller still can't see
+  // agents outside their companies.
+  let filterIds = null; // null = no company restriction
+  if (!(role === 'admin' || role === 'super_admin' || role === 'general_manager')) {
+    const linkRows = role === 'manager'
+      ? await db.prepare("SELECT company_id FROM manager_company_links WHERE manager_id = ? AND tenant_id = ? AND is_active = 1").bind(userId, tenantId).all()
+      : await db.prepare("SELECT company_id FROM agent_company_links WHERE agent_id = ? AND tenant_id = ? AND is_active = 1").bind(userId, tenantId).all();
+    filterIds = (linkRows.results || []).map((r) => r.company_id);
+  }
+  if (companyId) {
+    // Pill selection: honor only if within the caller's allowed set (or caller is unscoped).
+    filterIds = filterIds && !filterIds.includes(companyId) ? [] : [companyId];
+  }
+
+  let companyClause = '';
+  const companyBinds = [];
+  if (filterIds !== null) {
+    if (filterIds.length === 0) return c.json({ success: true, roster: [] });
+    companyClause = `AND EXISTS (SELECT 1 FROM agent_company_links acl WHERE acl.agent_id = u.id AND acl.tenant_id = u.tenant_id AND acl.is_active = 1 AND acl.company_id IN (${filterIds.map(() => '?').join(',')}))`;
+    companyBinds.push(...filterIds);
+  }
+
   const { results } = await db.prepare(
     `SELECT u.id, u.first_name || ' ' || u.last_name AS name, u.phone,
             COUNT(CASE WHEN date(vi.created_at) = ? THEN 1 END) AS today,
@@ -358,8 +386,9 @@ app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffic
        AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both'))
        AND u.id NOT LIKE 'agent-test-%'
        AND LOWER(TRIM(u.first_name)) != 'test'
+       ${companyClause}
      GROUP BY u.id ORDER BY today ASC, last_activity ASC`
-  ).bind(today, tenantId, ...AGENT_ROLES).all();
+  ).bind(today, tenantId, ...AGENT_ROLES, ...companyBinds).all();
   return c.json({ success: true, roster: results || [] });
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
 import { useToast } from '../../components/ui/Toast'
 
 // Back Office call list: every active field agent with their today's signup count
@@ -65,6 +66,8 @@ export default function BackOfficeCallList() {
   const [targetDraft, setTargetDraft] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState<CallRow[] | null>(null)
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [company, setCompany] = useState<string | null>(null)
 
   async function startCall(r: RosterRow) {
     if (calling) return
@@ -83,7 +86,7 @@ export default function BackOfficeCallList() {
     setLoading(true)
     try {
       const [rosterRes, targetRes] = await Promise.all([
-        apiClient.get('/field-ops/incentives/roster'),
+        apiClient.get(`/field-ops/incentives/roster${company ? `?company_id=${company}` : ''}`),
         apiClient.get('/field-ops/calls/target').catch(() => null),
       ])
       setRoster(rosterRes?.data?.roster || [])
@@ -124,7 +127,14 @@ export default function BackOfficeCallList() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    fieldOperationsService
+      .getCompanies()
+      .then((res: any) => setCompanies(res?.companies ?? res ?? []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { load() }, [company])
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase()
@@ -162,6 +172,16 @@ export default function BackOfficeCallList() {
             ? `${quiet} ${quiet === 1 ? 'agent has' : 'agents have'} no signups today — tap to call.`
             : 'Everyone has logged a signup today.'}
         </p>
+
+        {/* Company scope — only shown when user manages more than one */}
+        {companies.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4 scrollbar-hide">
+            <CompanyChip label="All companies" active={company === null} onClick={() => setCompany(null)} />
+            {companies.map((co) => (
+              <CompanyChip key={co.id} label={co.name} active={company === co.id} onClick={() => setCompany(co.id)} />
+            ))}
+          </div>
+        )}
 
         {/* Today's target progress */}
         {target && (
@@ -292,5 +312,18 @@ export default function BackOfficeCallList() {
         )}
       </div>
     </div>
+  )
+}
+
+function CompanyChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+        active ? 'bg-[#00E87B] text-[#0A1628] border-[#00E87B]' : 'bg-white/[0.04] text-gray-400 border-white/10'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
