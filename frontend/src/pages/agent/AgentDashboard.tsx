@@ -21,6 +21,14 @@ const PerformanceMessages = lazy(() => import('./PerformanceMessages'))
 const HeroIncentive = lazy(() => import('./HeroIncentive'))
 const Leaderboard = lazy(() => import('./Leaderboard'))
 
+// Roles with a team/org view on this dashboard. Mirrors field-operations/
+// TeamCockpit LEADER_ROLES — the === 'manager' gates silently dropped
+// admin/super_admin (who route here), leaving them with the agent-only view.
+const LEADER_ROLES = ['team_lead', 'manager', 'general_manager', 'admin', 'super_admin']
+const MANAGER_ROLES = ['manager', 'general_manager', 'admin', 'super_admin']
+const isLeader = (role?: string) => LEADER_ROLES.includes(role || '')
+const isManagerPlus = (role?: string) => MANAGER_ROLES.includes(role || '')
+
 interface TargetSummary {
   target_visits: number
   actual_visits: number
@@ -162,7 +170,7 @@ export default function AgentDashboard() {
 
   // Fetch upload failures for team leads and managers (last 7 days)
   useEffect(() => {
-    if (authUserForEffect?.role !== 'team_lead' && authUserForEffect?.role !== 'manager') return
+    if (!isLeader(authUserForEffect?.role)) return
     let mounted = true
     setUploadFailuresLoading(true)
     const today = new Date().toISOString().split('T')[0]
@@ -217,7 +225,7 @@ export default function AgentDashboard() {
   const isAgentRole = ['agent', 'field_agent', 'sales_rep'].includes(authUser?.role || '')
   // Team roles get the same team-avg hero (computeIncentive/teamMetric already returns their metric),
   // but not the agent-only Fast Signup + personal Leaderboard.
-  const isTeamRole = ['team_lead', 'manager'].includes(authUser?.role || '')
+  const isTeamRole = isLeader(authUser?.role)
 
   // Memoize data destructuring to reduce repeated property access
   const dataProps = useMemo(() => {
@@ -523,7 +531,7 @@ export default function AgentDashboard() {
         </div>
       )}
 
-      {authUser?.role === 'manager' && (
+      {isManagerPlus(authUser?.role) && (
         <div className="px-5 mb-4">
           <button
             onClick={() => navigate('/agent/teams')}
@@ -542,7 +550,7 @@ export default function AgentDashboard() {
       )}
 
       {/* Performance Messages - Hourly summaries for managers and team leads */}
-      {(authUser?.role === 'manager' || authUser?.role === 'team_lead') && (
+      {isLeader(authUser?.role) && (
         <Suspense fallback={
           <div className="px-5 mb-4">
             <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
@@ -638,7 +646,7 @@ export default function AgentDashboard() {
       )}
 
       {/* Upload Failures KPI — team leads and managers only */}
-      {!isStellr && (authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+      {!isStellr && isLeader(authUser?.role) && (
         <div className="px-5 mb-4">
           <div className="grid grid-cols-2 gap-3">
             <StatCard
