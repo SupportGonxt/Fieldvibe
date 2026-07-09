@@ -283,17 +283,26 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
   }
 
   // Fixed operating costs: BO admin headcount + phone allowance per field agent.
+  // BO admins must be explicitly tagged back_office/both — legacy admins with NULL
+  // agent_type are migration/test artifacts, not payroll.
   const boRow = await db.prepare(
     `SELECT COUNT(*) c FROM users WHERE tenant_id = ? AND is_active = 1
        AND role IN ('admin','backoffice_admin')
-       AND (agent_type IS NULL OR agent_type IN ('back_office','both'))`
+       AND agent_type IN ('back_office','both')`
   ).bind(tenantId).first();
+  // ponytail: first_name='test' heuristic catches UUID-id test users the
+  // 'agent-test-%' pattern misses; add is_test flag column if this ever bites.
   const agentRow = await db.prepare(
-    `SELECT COUNT(*) c FROM users WHERE tenant_id = ? AND is_active = 1
+    `SELECT COUNT(*) c FROM users u WHERE tenant_id = ? AND is_active = 1
        AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))
-       AND id NOT LIKE 'agent-test-%'`
-  ).bind(tenantId, ...AGENT_ROLES).first();
+       AND id NOT LIKE 'agent-test-%'
+       AND LOWER(TRIM(first_name)) != 'test'
+       AND (? IS NULL OR EXISTS (
+         SELECT 1 FROM agent_company_links acl
+         WHERE acl.agent_id = u.id AND acl.company_id = ?
+           AND acl.tenant_id = u.tenant_id AND acl.is_active = 1))`
+  ).bind(tenantId, ...AGENT_ROLES, companyId, companyId).first();
   const boAdminCount = boRow?.c || 0;
   const fieldAgentCount = agentRow?.c || 0;
   const boAdminCost = boAdminCount * boAdminSalary;
@@ -347,6 +356,8 @@ app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffic
      WHERE u.tenant_id = ? AND u.is_active = 1
        AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both'))
+       AND u.id NOT LIKE 'agent-test-%'
+       AND LOWER(TRIM(u.first_name)) != 'test'
      GROUP BY u.id ORDER BY today ASC, last_activity ASC`
   ).bind(today, tenantId, ...AGENT_ROLES).all();
   return c.json({ success: true, roster: results || [] });
