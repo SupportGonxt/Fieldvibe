@@ -904,35 +904,36 @@ export default function VisitCreate() {
         return
       }
 
-      // Capture GPS at photo time
-      let currentGps: GpsLocation | null = null
-      if (navigator.geolocation) {
-        try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
-          })
-          currentGps = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            timestamp: pos.timestamp
-          }
-          setPhotoGps(currentGps)
-        } catch {
-          // GPS may fail at photo time, continue without it
-        }
-      }
-
+      // Add photo immediately so thumbnail + toast are instant. GPS
+      // getCurrentPosition can block up to 10s; resolving it inline made
+      // agents wait and re-tap. Attach GPS async, patch the entry by hash.
       setPhotos(prev => [...prev, {
         boardPlacementLocation: boardPlacementLocation || undefined,
         boardPlacementPosition: boardPlacementPosition || undefined,
         boardCondition: boardCondition || undefined,
         dataUrl,
         hash,
-        gps: currentGps,
+        gps: null,
         timestamp: new Date().toISOString()
       }])
       toast.success('Photo captured successfully')
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const gps: GpsLocation = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+              timestamp: pos.timestamp
+            }
+            setPhotoGps(gps)
+            setPhotos(prev => prev.map(p => (p.hash === hash ? { ...p, gps } : p)))
+          },
+          () => { /* GPS may fail at photo time, keep photo without it */ },
+          { enableHighAccuracy: true, timeout: 10000 }
+        )
+      }
 
       // Auto-verify Goldrush ID for Goldrush individual visits
       const currentCompany = companies.find(c => c.id === selectedCompany)

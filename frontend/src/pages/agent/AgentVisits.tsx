@@ -63,8 +63,14 @@ export default function AgentVisits() {
       const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Visits timeout')), 15000))
       const visitsUrl = '/field-operations/visits?limit=200&agent_id=me'
       const visitsPromise = apiClient.get(visitsUrl, { signal })
-      const rejectedPromise = photoReviewService.getNeedsReupload().catch(() => [])
-      const rejectedGoldrushPromise = apiClient.get('/agent/goldrush-rejected').catch(() => ({ data: { data: [] } }))
+      // Rejected-photos + rejected-Goldrush-ID are Goldrush-only lookups. Non-Goldrush
+      // agents issued both every list load for nothing — skip them unless isGoldrushAgent.
+      const rejectedPromise = isGoldrushAgent
+        ? photoReviewService.getNeedsReupload().catch(() => [])
+        : Promise.resolve([])
+      const rejectedGoldrushPromise = isGoldrushAgent
+        ? apiClient.get('/agent/goldrush-rejected').catch(() => ({ data: { data: [] } }))
+        : Promise.resolve({ data: { data: [] } })
       const [res, rejectedRes, goldrushRes] = await Promise.all([Promise.race([visitsPromise, timeoutPromise]), rejectedPromise, rejectedGoldrushPromise])
       const json = (res as any).data
       // Response format: {data: [...], total: N} (no success field)

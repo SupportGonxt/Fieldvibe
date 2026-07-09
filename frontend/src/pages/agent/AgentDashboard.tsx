@@ -138,34 +138,6 @@ export default function AgentDashboard() {
   const [uploadFailuresCount, setUploadFailuresCount] = useState<number>(0)
   const [uploadFailuresLoading, setUploadFailuresLoading] = useState<boolean>(false)
 
-  // Fetch rejected photos needing reupload
-  useEffect(() => {
-    let mounted = true
-    setRejectedPhotoLoading(true)
-    photoReviewService.getNeedsReupload().then((res: any) => {
-      if (!mounted) return
-      // getNeedsReupload returns visit rows (each with .id = visit ID, and .rejected_count)
-      const items = Array.isArray(res) ? res : Array.isArray(res?.photos) ? res.photos : []
-      const totalRejected = items.reduce((n: number, v: any) => n + (v.rejected_count || 1), 0)
-      setRejectedPhotoCount(totalRejected)
-      const visitIds = [...new Set(items.map((v: any) => v.id).filter(Boolean))] as string[]
-      setRejectedVisitIds(visitIds)
-    }).catch(() => { setRejectedPhotoCount(0); setRejectedVisitIds([]) }).finally(() => setRejectedPhotoLoading(false))
-    return () => { mounted = false }
-  }, [])
-
-  // Fetch visits with rejected Goldrush IDs
-  useEffect(() => {
-    let mounted = true
-    setRejectedGoldrushLoading(true)
-    apiClient.get('/agent/goldrush-rejected').then((res: any) => {
-      if (!mounted) return
-      const count = res.data?.count || res.data?.data?.length || 0
-      setRejectedGoldrushCount(count)
-    }).catch(() => setRejectedGoldrushCount(0)).finally(() => { if (mounted) setRejectedGoldrushLoading(false) })
-    return () => { mounted = false }
-  }, [])
-
   const authUserForEffect = useAuthStore((s) => s.user)
 
   // Fetch upload failures for team leads and managers (last 7 days)
@@ -187,6 +159,7 @@ export default function AgentDashboard() {
   const [perfSummary, setPerfSummary] = useState<PerfSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [noTargets, setNoTargets] = useState(false)
   const [online, setOnline] = useState(navigator.onLine)
   const authUser = useAuthStore((s) => s.user)
   const { showPrompt: showInstallPrompt, promptInstall, dismiss: dismissInstall } = usePwaInstall()
@@ -222,6 +195,37 @@ export default function AgentDashboard() {
     () => data?.companies?.find(c => c.name?.toLowerCase().includes('goldrush')) ?? null,
     [data?.companies]
   )
+
+  // Rejected-photo + rejected-Goldrush-ID KPIs are Goldrush-only. These fired
+  // on every agent's mount before — two wasted requests for non-Goldrush
+  // agents. Gate on goldrushCompany (resolved once dashboard data loads).
+  useEffect(() => {
+    if (!goldrushCompany) return
+    let mounted = true
+    setRejectedPhotoLoading(true)
+    photoReviewService.getNeedsReupload().then((res: any) => {
+      if (!mounted) return
+      // getNeedsReupload returns visit rows (each with .id = visit ID, and .rejected_count)
+      const items = Array.isArray(res) ? res : Array.isArray(res?.photos) ? res.photos : []
+      const totalRejected = items.reduce((n: number, v: any) => n + (v.rejected_count || 1), 0)
+      setRejectedPhotoCount(totalRejected)
+      const visitIds = [...new Set(items.map((v: any) => v.id).filter(Boolean))] as string[]
+      setRejectedVisitIds(visitIds)
+    }).catch(() => { setRejectedPhotoCount(0); setRejectedVisitIds([]) }).finally(() => setRejectedPhotoLoading(false))
+    return () => { mounted = false }
+  }, [goldrushCompany])
+
+  useEffect(() => {
+    if (!goldrushCompany) return
+    let mounted = true
+    setRejectedGoldrushLoading(true)
+    apiClient.get('/agent/goldrush-rejected').then((res: any) => {
+      if (!mounted) return
+      const count = res.data?.count || res.data?.data?.length || 0
+      setRejectedGoldrushCount(count)
+    }).catch(() => setRejectedGoldrushCount(0)).finally(() => { if (mounted) setRejectedGoldrushLoading(false) })
+    return () => { mounted = false }
+  }, [goldrushCompany])
   const isAgentRole = ['agent', 'field_agent', 'sales_rep'].includes(authUser?.role || '')
   // Team roles get the same team-avg hero (computeIncentive/teamMetric already returns their metric),
   // but not the agent-only Fast Signup + personal Leaderboard.
@@ -282,11 +286,12 @@ export default function AgentDashboard() {
       if (json.success && json.data) {
         setData(json.data)
         setCriticalLoaded(true) // Mark critical data as loaded
-        // Show warning if no targets found
-        if ((!json.data.daily_targets?.length && !json.data.company_targets?.length) || 
-            (!json.data.company_target_rules?.length && !json.data.monthly_targets?.target_visits)) {
-          toast.error('No targets found. Please contact your manager to assign you to a company.')
-        }
+        // Surface "no targets" as a persistent inline banner instead of a
+        // toast that re-fired (red) on every dashboard load for unassigned agents.
+        setNoTargets(
+          (!json.data.daily_targets?.length && !json.data.company_targets?.length) ||
+          (!json.data.company_target_rules?.length && !json.data.monthly_targets?.target_visits)
+        )
       }
       // Load performance data separately (non-critical, can be lazy-loaded)
       const perfTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Performance timeout')), 15000))
@@ -432,6 +437,13 @@ export default function AgentDashboard() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {noTargets && (
+        <div className="mx-5 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <p className="text-sm font-medium text-amber-300">No targets assigned</p>
+          <p className="text-xs text-amber-200/70 mt-0.5">Contact your manager to be assigned to a company.</p>
+        </div>
+      )}
 
       {/* BO Home: agents-contacted target card (backoffice only) */}
       {authUser?.role === 'backoffice_admin' && (
