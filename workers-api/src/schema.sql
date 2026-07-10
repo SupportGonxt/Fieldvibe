@@ -582,14 +582,18 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- Web Push (VAPID/aes128gcm). Kept in sync with migrations/0015. The flat-token shape that
+-- used to live here is what made 0012's CREATE TABLE IF NOT EXISTS silently no-op in prod.
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  token TEXT NOT NULL,
-  platform TEXT DEFAULT 'web',
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(tenant_id, user_id);
 
 -- ==================== AUDIT LOG ====================
 
