@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { requestPushPermission } from '../../services/push'
 import toast from 'react-hot-toast'
 
 interface LoginFormData {
@@ -164,6 +165,10 @@ export default function LoginPage() {
         <div>
           <button
             type="submit"
+            // Prompt for notifications inside the tap itself. iOS Safari only honours
+            // requestPermission() while a user gesture is live, so it cannot wait for
+            // login to resolve — the layouts subscribe afterwards using the answer.
+            onClick={requestPushPermission}
             disabled={isLoading}
             className="w-full bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#00E87B]/25 hover:shadow-[#00E87B]/40"
           >

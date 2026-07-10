@@ -7,6 +7,7 @@ import {
   ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
 import { formatCurrency, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
@@ -321,6 +322,10 @@ export default function GmOverviewPage() {
           </div>
         </Link>
       )}
+
+      {/* Accountability — what escalated onto the GM, then who below them is sitting on an issue. */}
+      <MyIssues />
+      <UnmanagedIssues />
 
       {/* BO calls */}
       <div className="card">

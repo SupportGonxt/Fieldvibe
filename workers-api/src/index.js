@@ -9,8 +9,11 @@ import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 import incentiveRoutes from './routes/field-ops/incentives.js';
 import callRoutes from './routes/field-ops/calls.js';
 import gmRoutes, { buildGmOverview, digestSlot } from './routes/field-ops/gm.js';
-import kpiRoutes from './routes/field-ops/kpi.js';
+import kpiRoutes, { agentSignals } from './routes/field-ops/kpi.js';
 import depositRoutes from './routes/field-ops/deposits.js';
+import issueRoutes, { ensureIssues } from './routes/field-ops/issues.js';
+import { severityOf, isBreached, nextOwnerRole, slaClockOf } from './services/issueEngine.js';
+import { sendPush } from './lib/web-push.js';
 import { dueEscalation } from './services/incentiveService.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 import { clampSharePct, parseStoreInsights } from './services/goldrushVision.js';
@@ -21333,6 +21336,7 @@ api.route('/field-ops', callRoutes);
 api.route('/field-ops', gmRoutes);
 api.route('/field-ops', kpiRoutes);
 api.route('/field-ops', depositRoutes);
+api.route('/field-ops', issueRoutes);
 
 // ==================== SECTION 9: SCHEDULED JOBS ====================
 
@@ -21595,6 +21599,229 @@ async function checkInactiveAgents(db) {
       }
     }
   } catch (e) { console.error('checkInactiveAgents error:', e); }
+}
+
+// In-app notification is the deliverable; push is opportunistic on top of it (prod carries a
+// legacy push_subscriptions shape, and a push failure must never break the cron).
+// Idempotent on (type, related_id), so an hourly tick re-firing the same day is a no-op.
+async function notify(db, env, tenantId, userId, type, title, message, relId) {
+  if (!userId) return;
+  const dup = await db.prepare(
+    'SELECT id FROM notifications WHERE tenant_id = ? AND type = ? AND related_id = ?'
+  ).bind(tenantId, type, relId).first();
+  if (dup) return;
+  await db.prepare(
+    `INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'ISSUE', ?, 0, datetime('now'))`
+  ).bind(crypto.randomUUID(), tenantId, userId, type, title, message, relId).run();
+  try {
+    const subs = (await db.prepare(
+      'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?'
+    ).bind(tenantId, userId).all()).results || [];
+    for (const sub of subs) {
+      const { ok, status } = await sendPush(env, sub, { title, body: message });
+      if (!ok && (status === 404 || status === 410)) {
+        await db.prepare('DELETE FROM push_subscriptions WHERE tenant_id = ? AND user_id = ? AND endpoint = ?')
+          .bind(tenantId, userId, sub.endpoint).run();
+      }
+    }
+  } catch { /* push unavailable — the in-app row already landed */ }
+}
+
+// Every remediation channel we have, fired once per issue per day (idempotent across hourly
+// ticks): the owner is told to coach, and the agent is nudged directly. The system acts on its
+// own rather than waiting for a human to open a dashboard.
+async function reactToIssue(db, env, tenantId, issue, name, types, today) {
+  const reasons = types.map((t) => t.replace(/_/g, ' ')).join(', ');
+  await notify(db, env, tenantId, issue.owner_id, 'issue_open',
+    `${name} needs coaching`,
+    `Signals: ${reasons}. Open their card and act — this escalates if left untouched.`,
+    `issue_${issue.id}_owner_${today}`);
+  await notify(db, env, tenantId, issue.subject_id, 'nudge',
+    'You are off target',
+    `We're seeing: ${reasons}. Get to your next signup — your lead has been alerted.`,
+    `issue_${issue.id}_agent_${today}`);
+}
+
+// The reacting half of the accountability spine, run hourly by the scheduled handler.
+// Per agent: read the same signals the roster/GM screens read, keep exactly one live issue,
+// act on it, re-own it one level up the org chain once the owner sits past their SLA
+// (48h lead / 72h manager, see issueEngine), and resolve it when the signal clears.
+// Opt-in per tenant: no kpi.agent thresholds means no signals, so no issues.
+// ponytail: field-performance signals only. BO backlog (deposit/reconciliation aging) is a
+// different signal source; issues.kind + owner_role already carry it when that lands.
+async function reactToIssues(db, env) {
+  try {
+    const now = new Date();
+    const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const sastHour = sast.getUTCHours();
+    const sastDay = sast.getUTCDay();
+    // Work hours only, same window as the other nudging crons — nobody coaches at 3am.
+    if (sastHour < 8 || sastHour >= 18) return;
+    if (sastDay === 0 || sastDay === 6) return;
+
+    await ensureIssues(db);
+    const nowMs = now.getTime();
+    const today = now.toISOString().slice(0, 10);
+
+    const tenants = await db.prepare(
+      "SELECT DISTINCT tenant_id FROM users WHERE role IN ('agent','field_agent','sales_rep') AND is_active = 1"
+    ).all();
+
+    for (const { tenant_id: tenantId } of (tenants.results || [])) {
+      // Subjects of an issue: agents, plus any lead or manager who works the field. Lucky runs
+      // Stellr as manager AND team lead, so the role name alone can't decide this; logging visits
+      // does. Someone who never logs (Lucky, today) is only ever an owner, never a subject — they
+      // answer to the coaching SLA instead.
+      //
+      // The window is deliberately long. At 30 days a leader who STOPS logging silently drops out
+      // of this set, so going quiet would hide them from the very check meant to catch it. Six
+      // months keeps a field-working leader in scope long enough for gone_quiet to fire on them.
+      //
+      // A field subject belongs to exactly one customer, carried on agent_company_links.
+      const leadSince = new Date(nowMs - 180 * 86400000).toISOString().slice(0, 10);
+      const agents = (await db.prepare(
+        `SELECT u.id, u.first_name, u.last_name, u.role, u.team_lead_id, u.manager_id,
+                (SELECT company_id FROM agent_company_links l
+                 WHERE l.agent_id = u.id AND l.is_active = 1 LIMIT 1) company_id
+         FROM users u
+         WHERE u.tenant_id = ? AND u.is_active = 1
+           AND ( (u.role IN ('agent','field_agent','sales_rep')
+                  AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')))
+              OR (u.role IN ('team_lead','manager')
+                  AND EXISTS (SELECT 1 FROM visits v
+                              WHERE v.agent_id = u.id AND v.tenant_id = u.tenant_id AND v.visit_date >= ?)) )`
+      ).bind(tenantId, leadSince).all()).results || [];
+
+      // Who is held to an agent's daily quota. A lead or manager in the field still isn't carrying
+      // one, so the volume targets don't apply to them — quality and drop-off still do.
+      const AGENT_SUBJECT = new Set(['agent', 'field_agent', 'sales_rep']);
+
+      // A kpi.team_lead config overrides this if a program wants leads on their own numbers.
+      const leadDefaults = (t) => ({ ...t, visits_per_day: 0, signups_per_day: 0 });
+
+      // kpi.agent resolves per customer (getConfig prefers a company_id row over the tenant
+      // default). Cached because every agent in a company resolves the same config.
+      const cfgCache = new Map();
+      const thresholdsFor = async (companyId) => {
+        const key = companyId || '';
+        if (!cfgCache.has(key)) cfgCache.set(key, (await getConfig(db, tenantId, companyId, 'kpi.agent')) || {});
+        return cfgCache.get(key);
+      };
+      const leadCfgCache = new Map();
+      const leadThresholdsFor = async (companyId) => {
+        const key = companyId || '';
+        if (!leadCfgCache.has(key)) {
+          const own = await getConfig(db, tenantId, companyId, 'kpi.team_lead');
+          leadCfgCache.set(key, own || leadDefaults(await thresholdsFor(companyId)));
+        }
+        return leadCfgCache.get(key);
+      };
+
+      // Backstop owner. Three org-chart gaps make this load-bearing: agents with neither
+      // team_lead_id nor manager_id (4 live today), managers with a NULL gm_id, and leaders who
+      // sit at the top of their own chain. GMs cover many customers, so prefer
+      // the GM assigned to the subject's customer before falling back to any GM in the tenant.
+      const gmLinks = (await db.prepare(
+        `SELECT m.company_id, m.manager_id FROM manager_company_links m JOIN users u ON u.id = m.manager_id
+         WHERE m.tenant_id = ? AND m.is_active = 1 AND u.is_active = 1 AND u.role IN ('general_manager','admin')
+         ORDER BY (u.role = 'general_manager') DESC, u.id`
+      ).bind(tenantId).all()).results || [];
+      const gmByCompany = new Map();
+      for (const g of gmLinks) if (!gmByCompany.has(g.company_id)) gmByCompany.set(g.company_id, g.manager_id);
+      const tenantGmId = (await db.prepare(
+        `SELECT id FROM users WHERE tenant_id = ? AND role IN ('general_manager','admin') AND is_active = 1
+         ORDER BY (role = 'general_manager') DESC, id LIMIT 1`
+      ).bind(tenantId).first())?.id || null;
+      const gmFor = (companyId) => gmByCompany.get(companyId) || tenantGmId;
+
+      for (const agent of agents) {
+        try {
+          const thresholds = AGENT_SUBJECT.has(agent.role)
+            ? await thresholdsFor(agent.company_id)
+            : await leadThresholdsFor(agent.company_id);
+          if (!Object.keys(thresholds).length) continue; // this customer hasn't opted in
+          const windowDays = thresholds.baseline_window_days || 14;
+          const since = new Date(nowMs - windowDays * 86400000).toISOString().slice(0, 10);
+
+          const { signals } = await agentSignals(db, tenantId, agent.id, thresholds, since);
+          const live = await db.prepare(
+            "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND status != 'resolved'"
+          ).bind(tenantId, agent.id).first();
+
+          if (!signals.length) {
+            if (live) {
+              await db.prepare("UPDATE issues SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
+                .bind(live.id).run();
+            }
+            continue;
+          }
+
+          const types = signals.map((s) => s.type);
+          const worst = [...types].sort((a, b) => severityOf([b]) - severityOf([a]))[0];
+          const severity = severityOf(types);
+          const detail = JSON.stringify(signals);
+          const name = `${agent.first_name || ''} ${agent.last_name || ''}`.trim()
+            || (AGENT_SUBJECT.has(agent.role) ? 'An agent' : 'A team leader');
+
+          if (!live) {
+            // A leader's own issue never lands on a leader (least of all themselves) — it goes up.
+            // Lucky is his own team_lead_id, so this must key off the subject's role, not the link.
+            const leadId = AGENT_SUBJECT.has(agent.role) ? agent.team_lead_id : null;
+            const ownerId = leadId || agent.manager_id || gmFor(agent.company_id);
+            if (!ownerId || ownerId === agent.id) continue; // nobody above them to hold accountable
+            const ownerRole = leadId ? 'team_lead' : agent.manager_id ? 'manager' : 'general_manager';
+            const id = crypto.randomUUID();
+            await db.prepare(
+              `INSERT INTO issues (id, tenant_id, company_id, kind, subject_id, subject_role, owner_id, owner_role, severity, detail)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(id, tenantId, agent.company_id || null, worst, agent.id, agent.role, ownerId, ownerRole, severity, detail).run();
+            await reactToIssue(db, env, tenantId, { id, owner_id: ownerId, subject_id: agent.id }, name, types, today);
+            continue;
+          }
+
+          // Refresh the live row's picture of the problem before judging the SLA.
+          await db.prepare("UPDATE issues SET kind = ?, severity = ?, detail = ?, updated_at = datetime('now') WHERE id = ?")
+            .bind(worst, severity, detail, live.id).run();
+
+          const clock = parseSqlUtc(slaClockOf(live));
+          const owner = await db.prepare(
+            'SELECT id, first_name, last_name, manager_id, gm_id FROM users WHERE id = ? AND tenant_id = ?'
+          ).bind(live.owner_id, tenantId).first();
+          let nextRole = nextOwnerRole(live.owner_role);
+          let nextId = null;
+          if (nextRole === 'manager') {
+            nextId = owner?.manager_id || null;
+            if (!nextId) { nextRole = 'general_manager'; nextId = gmFor(live.company_id); } // lead with no manager: straight to the GM
+          } else if (nextRole === 'general_manager') {
+            nextId = owner?.gm_id || gmFor(live.company_id);
+          }
+          if (nextId === live.owner_id) nextId = null; // never escalate an issue to the person already sitting on it
+
+          // Not breached, top of the chain, or nobody above the owner: keep pressing today's owner.
+          if (!clock || !isBreached(live.owner_role, clock.getTime(), nowMs) || !nextId) {
+            await reactToIssue(db, env, tenantId, live, name, types, today);
+            continue;
+          }
+
+          const escalations = live.escalations + 1;
+          await db.prepare(
+            `UPDATE issues SET owner_id = ?, owner_role = ?, status = 'open', owner_since = datetime('now'),
+             escalations = ?, updated_at = datetime('now') WHERE id = ?`
+          ).bind(nextId, nextRole, escalations, live.id).run();
+
+          // Name the owner who let it lapse — the escalation is the accountability record.
+          const prev = `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() || 'the previous owner';
+          await notify(db, env, tenantId, nextId, 'issue_escalated',
+            `Escalated: ${name}`,
+            `${prev} did not action ${name}'s ${worst.replace(/_/g, ' ')} within SLA. It is yours now.`,
+            `issue_${live.id}_esc_${escalations}`);
+        } catch (agentErr) {
+          console.error(`reactToIssues error for ${agent.id}:`, agentErr);
+        }
+      }
+    }
+  } catch (e) { console.error('reactToIssues error:', e); }
 }
 
 async function checkOverdueInvoices(db) {
@@ -22000,21 +22227,27 @@ app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 export default {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
-    const hour = new Date().getUTCHours();
-    const day = new Date().getUTCDay();
-    const date = new Date().getUTCDate();
+    const now = new Date();
+    const hour = now.getUTCHours();
+    const day = now.getUTCDay();
+    const date = now.getUTCDate();
+    // Everything people-facing is gated in SAST, the timezone the field actually works in.
+    // South Africa has no DST, so UTC+2 is a constant and this needs no tz database.
+    const sastHour = (hour + 2) % 24;
     if (hour === 4) await checkOverdueInvoices(env.DB);
     if (hour === 6) await checkLowStock(env.DB);
     if (hour === 16) await checkStaleVanLoads(env.DB);
     if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);
     if (day === 1 && hour === 5) await generateAgingReport(env.DB);
     if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
-    // GM daily digest at 06/12/18 SAST (04/10/16 UTC).
-    if (hour === 4 || hour === 10 || hour === 16) await generateGmDigest(env);
-    // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
-    if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
+    // GM daily digest, 06:00 / 12:00 / 18:00 SAST.
+    if (sastHour === 6 || sastHour === 12 || sastHour === 18) await generateGmDigest(env);
+    // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
+    if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
-    if (hour >= 6 && hour <= 15) await checkInactiveAgents(env.DB);
+    if (sastHour >= 8 && sastHour <= 17) await checkInactiveAgents(env.DB);
+    // Hourly: open/act/escalate/resolve performance issues (self-gates on SAST inside).
+    if (sastHour >= 8 && sastHour < 18) await reactToIssues(env.DB, env);
     // Reap stuck rows first so they re-enter the drain queue this tick.
     await reapStuckAiProcessing(env.DB);
     // Drain pending AI analysis on every tick. Bounded by AI_DRAIN_BATCH_SIZE; the existing

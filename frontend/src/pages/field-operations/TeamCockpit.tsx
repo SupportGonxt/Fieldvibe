@@ -7,6 +7,8 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { toast } from 'react-hot-toast'
 import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight } from 'lucide-react'
+import { MyIssues, signalText } from '../../components/field-ops/IssueQueue'
+import type { Signal } from '../../components/field-ops/IssueQueue'
 
 // Team-leader / manager performance cockpit. Consumes GET /field-ops/kpi/roster
 // (already ranked worst-first server-side) and the three POST /field-ops/kpi/remediate/*
@@ -21,37 +23,9 @@ type Actual = {
   qualified_pct: number // 0..1
   days: number
 }
-type Signal = { type: string; detail: any }
 type RosterAgent = { agentId: string; name: string; actual: Actual; signals: Signal[] }
 
 const LEADER_ROLES = ['team_lead', 'manager', 'general_manager', 'admin', 'super_admin']
-
-function signalText(s: Signal): string {
-  switch (s.type) {
-    case 'gone_quiet':
-      return `Gone quiet — ${s.detail?.daysSinceLastVisit ?? '?'} days since last visit`
-    case 'below_target': {
-      const m = (s.detail?.metrics || []).map((x: string) => x.replace('_per_day', '/day').replace('_', ' '))
-      return `Below target on ${m.join(' & ') || 'KPIs'}`
-    }
-    case 'dropped_vs_baseline':
-      return 'Signups dropped below recent average'
-    case 'low_conversion':
-      return `Low conversion — ${Math.round((s.detail?.conversion_pct || 0) * 100)}%`
-    case 'late_start': {
-      const m = s.detail?.avg_start_min ?? 0
-      return `Late starts — first check-in ~${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-    }
-    case 'short_field_day':
-      return `Short field days — ${(Math.round((s.detail?.avg_span_min || 0) / 6) / 10)}h on-site span`
-    case 'idle_gaps':
-      return `Idle gaps — ${Math.round((s.detail?.avg_idle_min || 0) / 60 * 10) / 10}h/day parked`
-    case 'excess_travel':
-      return `Excess travel — ~${s.detail?.avg_km_per_hop ?? '?'}km between stops`
-    default:
-      return 'Underperformance signal'
-  }
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -235,6 +209,8 @@ export default function TeamCockpit() {
           </p>
         </div>
       </div>
+
+      <MyIssues />
 
       {roster.length === 0 ? (
         <p className="text-gray-500">No team members report to you yet.</p>
