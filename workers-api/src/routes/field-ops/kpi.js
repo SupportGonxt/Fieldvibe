@@ -227,7 +227,11 @@ app.post('/kpi/remediate/note', async (c) => {
   return c.json({ ok: true, id: row.id });
 });
 
-app.post('/kpi/remediate/nudge', async (c) => {
+// Nudging writes a notification addressed to someone else, so it is a supervisor-only action.
+app.post(
+  '/kpi/remediate/nudge',
+  requireRole('admin', 'super_admin', 'manager', 'team_lead', 'backoffice_admin'),
+  async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -235,24 +239,19 @@ app.post('/kpi/remediate/nudge', async (c) => {
   const title = 'Performance nudge';
   const message = b.message || 'Check in with your manager.';
 
-  // Always drop an in-app notification so the nudge lands even with zero push
-  // subs. notifications DDL lives in schema.sql; guard so an unmigrated D1 won't 500.
-  await db.prepare(
-    `CREATE TABLE IF NOT EXISTS notifications (
-       id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL,
-       type TEXT DEFAULT 'info', title TEXT NOT NULL, message TEXT,
-       is_read INTEGER DEFAULT 0, related_type TEXT, related_id TEXT,
-       created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
-  ).run();
+  // Target must be a real user in the caller's tenant, else this is an arbitrary-notification write.
+  const target = b.agentId && await db.prepare(
+    'SELECT id FROM users WHERE id = ? AND tenant_id = ?'
+  ).bind(b.agentId, tenantId).first();
+  if (!target) return c.json({ ok: false, message: 'Unknown agent' }, 400);
+
   await db.prepare(
     `INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id)
      VALUES (?,?,?,?,?,?,?,?)`
   ).bind(`nudge-${crypto.randomUUID()}`, tenantId, b.agentId, 'nudge', title, message, 'coaching', userId).run();
 
-  // Best-effort push on top of the in-app notification. The in-app row above is
-  // the real deliverable; push is opportunistic, so any schema drift in
-  // push_subscriptions (prod carries a legacy flat-token table with no
-  // endpoint/p256dh/auth cols) must never fail the nudge. ponytail: swallow it.
+  // Push is opportunistic on top of the in-app row, which is the real deliverable — a push
+  // transport failure must never fail the nudge. Logged so delivery stays observable.
   let delivered = 0;
   try {
     const subs = (await db.prepare(
@@ -261,22 +260,18 @@ app.post('/kpi/remediate/nudge', async (c) => {
     for (const sub of subs) {
       const { ok, status } = await sendPush(c.env, sub, { title, body: message });
       if (ok) delivered++;
-      else if (status === 404 || status === 410) {
-        await db.prepare(`DELETE FROM push_subscriptions WHERE tenant_id=? AND user_id=? AND endpoint=?`)
-          .bind(tenantId, b.agentId, sub.endpoint).run();
+      else {
+        console.error(`push fail nudge user=${b.agentId} status=${status}`);
+        if (status === 404 || status === 410) {
+          await db.prepare(`DELETE FROM push_subscriptions WHERE tenant_id=? AND user_id=? AND endpoint=?`)
+            .bind(tenantId, b.agentId, sub.endpoint).run();
+        }
       }
     }
-  } catch {
-    // push table not on the expected schema (or push transport failed) — in-app notification already landed.
+  } catch (e) {
+    console.error(`push error nudge user=${b.agentId}:`, e);
   }
   return c.json({ ok: true, delivered });
-});
-
-app.post('/kpi/remediate/call', async (c) => {
-  const b = await c.req.json();
-  // Reuse the voice-call room path: return a room id the client opens.
-  const roomId = `coach-${c.get('userId')}-${b.agentId}`;
-  return c.json({ ok: true, roomId });
 });
 
 export default app;
