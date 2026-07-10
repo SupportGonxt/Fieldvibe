@@ -208,12 +208,20 @@ async function ensureCoachingNotes(db) {
   ).run();
 }
 
-app.post('/kpi/remediate/note', async (c) => {
+app.post(
+  '/kpi/remediate/note',
+  requireRole('admin', 'super_admin', 'manager', 'team_lead', 'backoffice_admin'),
+  async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const companyId = c.req.query('company_id') || null;
   const b = await c.req.json();
+  // Target must be a real user in the caller's tenant, else this writes a note against an arbitrary id.
+  const target = b.agentId && await db.prepare(
+    'SELECT id FROM users WHERE id = ? AND tenant_id = ?'
+  ).bind(b.agentId, tenantId).first();
+  if (!target) return c.json({ ok: false, message: 'Unknown agent' }, 400);
   const row = coachingNoteRow({
     id: `cn-${userId}-${b.agentId}-${b.created_suffix || ''}`,
     tenantId, companyId, managerId: userId, agentId: b.agentId,
@@ -258,7 +266,7 @@ app.post(
       `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id=? AND user_id=?`
     ).bind(tenantId, b.agentId).all()).results ?? [];
     for (const sub of subs) {
-      const { ok, status } = await sendPush(c.env, sub, { title, body: message });
+      const { ok, status } = await sendPush(c.env, sub, { title, body: message, url: '/agent' });
       if (ok) delivered++;
       else {
         console.error(`push fail nudge user=${b.agentId} status=${status}`);

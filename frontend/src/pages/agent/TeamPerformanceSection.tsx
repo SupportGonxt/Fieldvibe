@@ -8,8 +8,8 @@ interface TeamPerformance {
   total_individuals: number
   target_visits: number
   actual_visits: number
-  target_stores: number
-  actual_stores: number
+  target_registrations: number
+  actual_registrations: number
   achievement: number
 }
 
@@ -41,7 +41,7 @@ const TeamPerformanceSection = memo(({ teamPerformance }: TeamPerformanceSection
           </div>
           <div className="bg-white/5 rounded-lg p-2">
             <p className="text-[10px] text-gray-500 uppercase">Regs</p>
-            <p className="text-sm font-bold text-white">{teamPerformance.actual_stores}<span className="text-gray-500">/{teamPerformance.target_stores}</span></p>
+            <p className="text-sm font-bold text-white">{teamPerformance.actual_registrations}<span className="text-gray-500">/{teamPerformance.target_registrations}</span></p>
           </div>
         </div>
       </div>

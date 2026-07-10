@@ -57,8 +57,6 @@ interface CompanyTarget {
   week_actual_visits: number
   month_target_visits: number
   month_actual_visits: number
-  month_target_stores: number
-  month_actual_stores: number
 }
 
 interface DashboardData {
@@ -90,8 +88,8 @@ interface DashboardData {
     company_name: string
     target_visits: number
     actual_visits: number
-    target_stores: number
-    actual_stores: number
+    target_registrations: number
+    actual_registrations: number
     actual_store_visits?: number
     actual_individual_visits?: number
   }>
@@ -115,8 +113,8 @@ interface PerfSummary {
     total_individuals: number
     target_visits: number
     actual_visits: number
-    target_stores: number
-    actual_stores: number
+    target_registrations: number
+    actual_registrations: number
     achievement: number
   } | null
   manager_performance?: {
@@ -160,7 +158,7 @@ export default function AgentDashboard() {
     const companyTargetSum = data.company_targets?.reduce((s, t) => s + (t.daily_target_visits || 0), 0) || 0
     const companyStoreTargetSum = data.company_targets?.reduce((s, t) => s + (t.daily_target_stores || 0), 0) || 0
     const dailyIndivTarget = companyTargetSum > 0 ? companyTargetSum : (data.daily_targets?.reduce((s, t) => s + (t.target_visits || 0), 0) || 0)
-    const dailyStoreTarget = companyStoreTargetSum > 0 ? companyStoreTargetSum : (data.daily_targets?.reduce((s, t) => s + (t.target_stores || 0), 0) || 0)
+    const dailyStoreTarget = companyStoreTargetSum > 0 ? companyStoreTargetSum : (data.daily_targets?.reduce((s, t) => s + (t.target_registrations || 0), 0) || 0)
     const monthIndivTarget = data.company_targets?.reduce((s, t) => s + (t.month_target_visits || 0), 0) || data.monthly_targets?.target_visits || 0
     const monthStoreTarget = data.company_targets?.reduce((s, t) => s + (t.store_target_per_month || 0), 0) || data.monthly_targets?.target_stores || 0
     const weekIndivTarget = data.company_targets?.reduce((s, t) => s + (t.week_target_visits || 0), 0) || data.weekly_targets?.target_visits || 0
@@ -900,7 +898,7 @@ export default function AgentDashboard() {
                   </div>
                   <div className="flex justify-between mt-1.5">
                     <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Store: {t.actual_stores}/{t.target_stores}</span>
+                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
                   </div>
                   {!isAchieved && remaining > 0 && (
                     <p className="text-[9px] text-amber-400 mt-1.5 flex items-center gap-1">
