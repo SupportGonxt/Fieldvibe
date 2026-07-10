@@ -6,6 +6,7 @@ import {
   Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
 
 // GM mobile cockpit. Same payload as the web /dashboard/gm page.
 // Journey: pick company/period -> pulse (revenue, funnel) -> risks ->
@@ -179,6 +180,11 @@ export default function GmOverview() {
           <div className="text-4xl font-bold tabular-nums text-[#00E87B] mt-1">{rand(money.revenue)}</div>
           <p className="text-xs text-gray-500 mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
         </div>
+
+        {/* Accountability, above the rest of the read-only reporting: what the GM must action
+            themselves, then who below them is sitting on their queue. Both hide when empty. */}
+        <div className="mb-4 empty:hidden"><MyIssues surface="pwa" /></div>
+        <div className="mb-4 empty:hidden"><UnmanagedIssues surface="pwa" /></div>
 
         {/* Risks */}
         {risks.length > 0 && (

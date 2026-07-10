@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, ShieldAlert,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
 import { formatCurrency, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
@@ -24,12 +25,6 @@ interface Team {
 interface Manager { id: string; name: string; teamLeads: number; agents: number; signups: number; converted: number; lastSeen: string | null }
 interface BoAdmin { id: string; name: string; calls: number; answered: number; reached: number; durationS: number; lastSeen: string | null }
 interface Risk { id: string; severity: 'high' | 'medium'; label: string; detail: string }
-// An open issue nobody has actioned yet. owner_name is who is accountable for it right now.
-interface UnmanagedIssue {
-  id: string; kind: string; subject_name: string; owner_name: string
-  escalations: number; owner_since: string; breached: boolean
-  company_name: string | null // null when the subject has no customer link yet
-}
 interface Overview {
   period: Period
   companyId: string | null
@@ -129,12 +124,6 @@ function fmtDuration(s: number): string {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
 }
 
-// D1 hands back `YYYY-MM-DD HH:MM:SS` in UTC with no zone marker; Date.parse would read it as local.
-function hoursHeld(ownerSince: string): number {
-  const t = Date.parse(ownerSince.includes('T') ? ownerSince : ownerSince.replace(' ', 'T') + 'Z')
-  return isNaN(t) ? 0 : Math.floor((Date.now() - t) / 3600000)
-}
-
 function Kpi({ icon: Icon, label, value, sub, delta, tone = 'blue' }: {
   icon: any; label: string; value: string; sub?: string; delta?: ReactNode; tone?: 'blue' | 'green' | 'amber' | 'red'
 }) {
@@ -183,13 +172,6 @@ export default function GmOverviewPage() {
   const { data: signals } = useQuery({
     queryKey: ['gm-tenant-signals'],
     queryFn: async () => (await apiClient.get<TenantSignals>('/field-ops/kpi/tenant-signals')).data,
-    staleTime: 1000 * 60 * 2,
-  })
-
-  // Unactioned issues, breach-first — the leads/managers/BO who are sitting on their own people.
-  const { data: unmanaged } = useQuery({
-    queryKey: ['gm-unmanaged'],
-    queryFn: async () => (await apiClient.get<{ issues: UnmanagedIssue[] }>('/field-ops/issues/unmanaged')).data,
     staleTime: 1000 * 60 * 2,
   })
 
@@ -341,36 +323,9 @@ export default function GmOverviewPage() {
         </Link>
       )}
 
-      {/* Accountability — who is sitting on an issue, and for how long. Breached SLAs first. */}
-      {unmanaged && unmanaged.issues.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <ShieldAlert className="w-4 h-4 text-red-600" />
-            <h2 className="font-semibold">Not being managed</h2>
-            <span className="text-sm text-content-secondary">
-              {unmanaged.issues.filter((i) => i.breached).length} past SLA of {unmanaged.issues.length} open
-            </span>
-          </div>
-          <ul className="divide-y divide-gray-100 dark:divide-night-100">
-            {unmanaged.issues.slice(0, 8).map((i) => (
-              <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-                <span className={`w-1.5 h-6 rounded-full ${i.breached ? 'bg-red-600' : 'bg-amber-500'}`} />
-                <span className="font-medium flex-1 min-w-[10rem]">{i.owner_name || 'Unassigned'}</span>
-                <span className="text-content-secondary flex-1 min-w-[12rem]">
-                  has not actioned {i.subject_name} · {i.kind.replace(/_/g, ' ')}
-                  {i.company_name && ` · ${i.company_name}`}
-                </span>
-                {i.escalations > 0 && (
-                  <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-red-600 text-white">
-                    Escalated ×{i.escalations}
-                  </span>
-                )}
-                <span className="text-content-secondary tabular-nums">{hoursHeld(i.owner_since)}h</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Accountability — what escalated onto the GM, then who below them is sitting on an issue. */}
+      <MyIssues />
+      <UnmanagedIssues />
 
       {/* BO calls */}
       <div className="card">

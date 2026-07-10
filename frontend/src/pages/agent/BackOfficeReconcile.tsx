@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Loader2, CheckCircle2, AlertTriangle, ClipboardCheck } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useToast } from '../../components/ui/Toast'
+import { MyIssues } from '../../components/field-ops/IssueQueue'
 
 // Back Office reconciliation: paste (or CSV-dump) the Goldrush-confirmed 9-digit IDs,
 // preview what matches (dry run), then commit to promote those signups
@@ -53,6 +54,13 @@ export default function BackOfficeReconcile() {
         <p className="text-sm text-gray-500 mb-5">
           Paste the Goldrush-confirmed IDs. Preview the match, then confirm to qualify those signups for payout.
         </p>
+
+        {/* Reconcile is the back office's home screen, so anything the cron routes to them lands here.
+            ponytail: nothing assigns BO admins an issue yet — reactToIssues only emits field-performance
+            signals — so this stays hidden until a backlog-aging detector exists. */}
+        <div className="mb-5 empty:hidden">
+          <MyIssues surface="pwa" />
+        </div>
 
         <textarea
           value={text}

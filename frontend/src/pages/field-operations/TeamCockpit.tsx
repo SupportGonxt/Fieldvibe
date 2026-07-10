@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { toast } from 'react-hot-toast'
-import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight, ShieldAlert, Check } from 'lucide-react'
+import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight } from 'lucide-react'
+import { MyIssues, signalText } from '../../components/field-ops/IssueQueue'
+import type { Signal } from '../../components/field-ops/IssueQueue'
 
 // Team-leader / manager performance cockpit. Consumes GET /field-ops/kpi/roster
 // (already ranked worst-first server-side) and the three POST /field-ops/kpi/remediate/*
@@ -21,37 +23,9 @@ type Actual = {
   qualified_pct: number // 0..1
   days: number
 }
-type Signal = { type: string; detail: any }
 type RosterAgent = { agentId: string; name: string; actual: Actual; signals: Signal[] }
 
 const LEADER_ROLES = ['team_lead', 'manager', 'general_manager', 'admin', 'super_admin']
-
-function signalText(s: Signal): string {
-  switch (s.type) {
-    case 'gone_quiet':
-      return `Gone quiet — ${s.detail?.daysSinceLastVisit ?? '?'} days since last visit`
-    case 'below_target': {
-      const m = (s.detail?.metrics || []).map((x: string) => x.replace('_per_day', '/day').replace('_', ' '))
-      return `Below target on ${m.join(' & ') || 'KPIs'}`
-    }
-    case 'dropped_vs_baseline':
-      return 'Signups dropped below recent average'
-    case 'low_conversion':
-      return `Low conversion — ${Math.round((s.detail?.conversion_pct || 0) * 100)}%`
-    case 'late_start': {
-      const m = s.detail?.avg_start_min ?? 0
-      return `Late starts — first check-in ~${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-    }
-    case 'short_field_day':
-      return `Short field days — ${(Math.round((s.detail?.avg_span_min || 0) / 6) / 10)}h on-site span`
-    case 'idle_gaps':
-      return `Idle gaps — ${Math.round((s.detail?.avg_idle_min || 0) / 60 * 10) / 10}h/day parked`
-    case 'excess_travel':
-      return `Excess travel — ~${s.detail?.avg_km_per_hop ?? '?'}km between stops`
-    default:
-      return 'Underperformance signal'
-  }
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -101,94 +75,6 @@ function NoteBox({ agentId, signalType, onDone }: { agentId: string; signalType?
         <button onClick={onDone} className="text-sm px-3 py-1.5 text-gray-500">Cancel</button>
       </div>
     </div>
-  )
-}
-
-type Issue = {
-  id: string
-  kind: string
-  subject_id: string
-  subject_name: string
-  severity: number
-  status: string
-  escalations: number
-  owner_since: string
-}
-
-function hoursHeld(ownerSince: string): number {
-  const t = Date.parse(ownerSince.includes('T') ? ownerSince : ownerSince.replace(' ', 'T') + 'Z')
-  return isNaN(t) ? 0 : Math.floor((Date.now() - t) / 3600000)
-}
-
-// Issues the cron has assigned to *this* leader, worst-first. Sitting on one escalates it to
-// their manager, so the band leads the page: it is the work, the roster below is the context.
-function MyIssues() {
-  const qc = useQueryClient()
-  const { data } = useQuery({
-    queryKey: ['issues-mine'],
-    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
-  })
-  const issues = data?.issues || []
-  if (!issues.length) return null
-
-  const act = async (id: string, action: 'acknowledged' | 'resolve') => {
-    try {
-      await apiClient.post(`/field-ops/issues/${id}/act`, { action })
-      toast.success(action === 'resolve' ? 'Issue closed' : 'Marked actioned — SLA clock reset')
-      qc.invalidateQueries({ queryKey: ['issues-mine'] })
-    } catch {
-      toast.error('Could not update issue')
-    }
-  }
-
-  return (
-    <section className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/5">
-      <header className="flex items-center gap-2 px-4 pt-4 pb-2">
-        <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
-        <h2 className="font-semibold text-gray-900 dark:text-white">Assigned to you</h2>
-        <span className="text-xs text-gray-600 dark:text-gray-400">
-          {issues.length} open · escalates to your manager if untouched
-        </span>
-      </header>
-      <ul className="divide-y divide-red-100 dark:divide-red-500/20">
-        {issues.map((i) => (
-          <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-            <div className="flex-1 min-w-[12rem]">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-900 dark:text-white">{i.subject_name}</span>
-                {i.escalations > 0 && (
-                  <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-red-600 text-white">
-                    Escalated ×{i.escalations}
-                  </span>
-                )}
-                {i.status === 'acted' && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-                    Actioned
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                {signalText({ type: i.kind, detail: {} })} · held {hoursHeld(i.owner_since)}h
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => act(i.id, 'acknowledged')}
-                className="min-h-[44px] inline-flex items-center gap-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 px-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200"
-              >
-                <Check className="w-4 h-4" /> I actioned this
-              </button>
-              <button
-                onClick={() => act(i.id, 'resolve')}
-                className="min-h-[44px] inline-flex items-center text-sm rounded-lg px-3 bg-red-600 text-white hover:bg-red-700"
-              >
-                Resolve
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
   )
 }
 
