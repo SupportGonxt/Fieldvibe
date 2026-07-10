@@ -22227,23 +22227,27 @@ app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 export default {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
-    const hour = new Date().getUTCHours();
-    const day = new Date().getUTCDay();
-    const date = new Date().getUTCDate();
+    const now = new Date();
+    const hour = now.getUTCHours();
+    const day = now.getUTCDay();
+    const date = now.getUTCDate();
+    // Everything people-facing is gated in SAST, the timezone the field actually works in.
+    // South Africa has no DST, so UTC+2 is a constant and this needs no tz database.
+    const sastHour = (hour + 2) % 24;
     if (hour === 4) await checkOverdueInvoices(env.DB);
     if (hour === 6) await checkLowStock(env.DB);
     if (hour === 16) await checkStaleVanLoads(env.DB);
     if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);
     if (day === 1 && hour === 5) await generateAgingReport(env.DB);
     if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
-    // GM daily digest at 06/12/18 SAST (04/10/16 UTC).
-    if (hour === 4 || hour === 10 || hour === 16) await generateGmDigest(env);
-    // Hourly performance summaries: 6am-3pm UTC = 8am-5pm SAST (Mon-Fri)
-    if (hour >= 6 && hour <= 15) await generatePerformanceSummaries(env.DB);
+    // GM daily digest, 06:00 / 12:00 / 18:00 SAST.
+    if (sastHour === 6 || sastHour === 12 || sastHour === 18) await generateGmDigest(env);
+    // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
+    if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
-    if (hour >= 6 && hour <= 15) await checkInactiveAgents(env.DB);
+    if (sastHour >= 8 && sastHour <= 17) await checkInactiveAgents(env.DB);
     // Hourly: open/act/escalate/resolve performance issues (self-gates on SAST inside).
-    if (hour >= 6 && hour <= 16) await reactToIssues(env.DB, env);
+    if (sastHour >= 8 && sastHour < 18) await reactToIssues(env.DB, env);
     // Reap stuck rows first so they re-enter the drain queue this tick.
     await reapStuckAiProcessing(env.DB);
     // Drain pending AI analysis on every tick. Bounded by AI_DRAIN_BATCH_SIZE; the existing

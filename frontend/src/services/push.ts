@@ -14,19 +14,39 @@ function urlB64ToUint8Array(b64: string): Uint8Array {
   return out
 }
 
+const pushSupported = () =>
+  'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+
+/**
+ * Ask for notification permission. MUST be called synchronously from inside a user
+ * gesture (the login submit) — iOS Safari rejects requestPermission() once an await
+ * has broken the gesture's task, which is why subscribing from a layout's mount effect
+ * silently never prompts there. Returns immediately if already granted or denied.
+ */
+export function requestPushPermission(): void {
+  try {
+    if (!pushSupported() || Notification.permission !== 'default') return
+    // The prompt may still be open when the layout mounts and skips subscribing, so
+    // whoever answers it owns the subscribe. Later app-opens go through the layouts.
+    void Notification.requestPermission().then((perm) => {
+      if (perm === 'granted') void ensurePushSubscription()
+    })
+  } catch {
+    /* unsupported — ensurePushSubscription no-ops later */
+  }
+}
+
 /**
  * Best-effort push subscribe. Degrades silently on every unsupported branch —
  * a call still rings via the 5s poll fallback when push isn't available.
  * Safe to call on every agent app-open; the browser dedupes existing subs.
+ * Never prompts: permission comes from requestPushPermission() at login, so that a
+ * prompt can't fire from a background mount with no gesture behind it.
  */
 export async function ensurePushSubscription(): Promise<void> {
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
-    if (Notification.permission === 'denied') return
-    if (Notification.permission === 'default') {
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') return
-    }
+    if (!pushSupported()) return
+    if (Notification.permission !== 'granted') return
     const reg = await navigator.serviceWorker.ready
     const sub =
       (await reg.pushManager.getSubscription()) ||
