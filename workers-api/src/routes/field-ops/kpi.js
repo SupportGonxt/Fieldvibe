@@ -23,10 +23,12 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
   const ids = Array.isArray(agentIds) ? agentIds : [agentIds];
   if (!ids.length) return [];
   return (await db.prepare(
+    // COUNT(DISTINCT v.id), not COUNT(*): visit_individuals has no unique index on visit_id,
+    // so a visit with N individuals fans out to N joined rows and would be counted N times.
     `SELECT v.visit_date date,
-            COUNT(*) visits,
-            SUM(CASE WHEN LOWER(v.visit_type)='individual' THEN 1 ELSE 0 END) signups,
-            SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) qualified
+            COUNT(DISTINCT v.id) visits,
+            COUNT(DISTINCT CASE WHEN LOWER(v.visit_type)='individual' THEN v.id END) signups,
+            COUNT(DISTINCT CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN v.id END) qualified
      FROM visits v LEFT JOIN visit_individuals vi ON vi.visit_id=v.id
      WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date
@@ -48,8 +50,8 @@ async function visitDetailRows(db, tenantId, agentIds, sinceDate) {
   ).bind(tenantId, ...ids, sinceDate).all()).results ?? [];
 }
 
-// Aggregate one agent's KPIs + signals over a window. Shared by roster + tenant-signals.
-async function agentSignals(db, tenantId, id, thresholds, since) {
+// Aggregate one agent's KPIs + signals over a window. Shared by roster + tenant-signals + reactToIssues cron.
+export async function agentSignals(db, tenantId, id, thresholds, since) {
   const rows = await dailyRows(db, tenantId, id, since);
   const actual = aggregateKpis(rows);
   const baseline = aggregateKpis(rows.slice(0, Math.ceil(rows.length / 2)));

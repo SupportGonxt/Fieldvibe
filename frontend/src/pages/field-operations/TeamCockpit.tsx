@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { toast } from 'react-hot-toast'
-import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight } from 'lucide-react'
+import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight, ShieldAlert, Check } from 'lucide-react'
 
 // Team-leader / manager performance cockpit. Consumes GET /field-ops/kpi/roster
 // (already ranked worst-first server-side) and the three POST /field-ops/kpi/remediate/*
@@ -101,6 +101,94 @@ function NoteBox({ agentId, signalType, onDone }: { agentId: string; signalType?
         <button onClick={onDone} className="text-sm px-3 py-1.5 text-gray-500">Cancel</button>
       </div>
     </div>
+  )
+}
+
+type Issue = {
+  id: string
+  kind: string
+  subject_id: string
+  subject_name: string
+  severity: number
+  status: string
+  escalations: number
+  owner_since: string
+}
+
+function hoursHeld(ownerSince: string): number {
+  const t = Date.parse(ownerSince.includes('T') ? ownerSince : ownerSince.replace(' ', 'T') + 'Z')
+  return isNaN(t) ? 0 : Math.floor((Date.now() - t) / 3600000)
+}
+
+// Issues the cron has assigned to *this* leader, worst-first. Sitting on one escalates it to
+// their manager, so the band leads the page: it is the work, the roster below is the context.
+function MyIssues() {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['issues-mine'],
+    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
+  })
+  const issues = data?.issues || []
+  if (!issues.length) return null
+
+  const act = async (id: string, action: 'acknowledged' | 'resolve') => {
+    try {
+      await apiClient.post(`/field-ops/issues/${id}/act`, { action })
+      toast.success(action === 'resolve' ? 'Issue closed' : 'Marked actioned — SLA clock reset')
+      qc.invalidateQueries({ queryKey: ['issues-mine'] })
+    } catch {
+      toast.error('Could not update issue')
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/5">
+      <header className="flex items-center gap-2 px-4 pt-4 pb-2">
+        <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
+        <h2 className="font-semibold text-gray-900 dark:text-white">Assigned to you</h2>
+        <span className="text-xs text-gray-600 dark:text-gray-400">
+          {issues.length} open · escalates to your manager if untouched
+        </span>
+      </header>
+      <ul className="divide-y divide-red-100 dark:divide-red-500/20">
+        {issues.map((i) => (
+          <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+            <div className="flex-1 min-w-[12rem]">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-900 dark:text-white">{i.subject_name}</span>
+                {i.escalations > 0 && (
+                  <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-red-600 text-white">
+                    Escalated ×{i.escalations}
+                  </span>
+                )}
+                {i.status === 'acted' && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+                    Actioned
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {signalText({ type: i.kind, detail: {} })} · held {hoursHeld(i.owner_since)}h
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => act(i.id, 'acknowledged')}
+                className="min-h-[44px] inline-flex items-center gap-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 px-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200"
+              >
+                <Check className="w-4 h-4" /> I actioned this
+              </button>
+              <button
+                onClick={() => act(i.id, 'resolve')}
+                className="min-h-[44px] inline-flex items-center text-sm rounded-lg px-3 bg-red-600 text-white hover:bg-red-700"
+              >
+                Resolve
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -235,6 +323,8 @@ export default function TeamCockpit() {
           </p>
         </div>
       </div>
+
+      <MyIssues />
 
       {roster.length === 0 ? (
         <p className="text-gray-500">No team members report to you yet.</p>
