@@ -21527,7 +21527,7 @@ function parseSqlUtc(s) {
   const d = new Date(iso);
   return isNaN(d.getTime()) ? null : d;
 }
-async function checkInactiveAgents(db) {
+async function checkInactiveAgents(db, env) {
   try {
     const now = new Date();
     const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
@@ -21575,13 +21575,8 @@ async function checkInactiveAgents(db) {
             : null;
           if (!targetId) continue;
 
-          // One nudge per agent per step per day (idempotent across cron ticks).
+          // One nudge per agent per step per day. notify() dedupes on (type, related_id).
           const relId = `inactive_${agent.id}_${due.to}_${today}`;
-          const dup = await db.prepare(
-            "SELECT id FROM notifications WHERE tenant_id = ? AND type = 'inactivity' AND related_id = ?"
-          ).bind(tenantId, relId).first();
-          if (dup) continue;
-
           const name = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || 'An agent';
           const hrs = Math.floor(idleMin / 60), mins = idleMin % 60;
           const idleStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
@@ -21590,9 +21585,7 @@ async function checkInactiveAgents(db) {
             ? `No signups logged in ${idleStr}. Get back out there — every signup counts toward your bonus.`
             : `${name} has logged no signups in ${idleStr} today. A nudge might help.`;
 
-          await db.prepare(
-            "INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at) VALUES (?, ?, ?, 'inactivity', ?, ?, 'AGENT', ?, 0, datetime('now'))"
-          ).bind(crypto.randomUUID(), tenantId, targetId, title, message, relId).run();
+          await notify(db, env, tenantId, targetId, 'inactivity', title, message, relId, 'AGENT');
         } catch (agentErr) {
           console.error(`Inactivity check error for ${agent.id}:`, agentErr);
         }
@@ -21601,10 +21594,10 @@ async function checkInactiveAgents(db) {
   } catch (e) { console.error('checkInactiveAgents error:', e); }
 }
 
-// In-app notification is the deliverable; push is opportunistic on top of it (prod carries a
-// legacy push_subscriptions shape, and a push failure must never break the cron).
-// Idempotent on (type, related_id), so an hourly tick re-firing the same day is a no-op.
-async function notify(db, env, tenantId, userId, type, title, message, relId) {
+// In-app notification is the deliverable; push is opportunistic on top of it (a push failure must
+// never break the cron). Idempotent on (type, related_id), so an hourly tick re-firing the same
+// day is a no-op. Every cron-side notification routes through here so it gets a push attempt.
+async function notify(db, env, tenantId, userId, type, title, message, relId, relType = 'ISSUE') {
   if (!userId) return;
   const dup = await db.prepare(
     'SELECT id FROM notifications WHERE tenant_id = ? AND type = ? AND related_id = ?'
@@ -21612,20 +21605,24 @@ async function notify(db, env, tenantId, userId, type, title, message, relId) {
   if (dup) return;
   await db.prepare(
     `INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'ISSUE', ?, 0, datetime('now'))`
-  ).bind(crypto.randomUUID(), tenantId, userId, type, title, message, relId).run();
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))`
+  ).bind(crypto.randomUUID(), tenantId, userId, type, title, message, relType, relId).run();
   try {
     const subs = (await db.prepare(
       'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?'
     ).bind(tenantId, userId).all()).results || [];
+    if (!subs.length) console.log(`push skip ${type} user=${userId}: no subscription`);
     for (const sub of subs) {
       const { ok, status } = await sendPush(env, sub, { title, body: message });
-      if (!ok && (status === 404 || status === 410)) {
-        await db.prepare('DELETE FROM push_subscriptions WHERE tenant_id = ? AND user_id = ? AND endpoint = ?')
-          .bind(tenantId, userId, sub.endpoint).run();
+      if (!ok) {
+        console.error(`push fail ${type} user=${userId} status=${status}`);
+        if (status === 404 || status === 410) {
+          await db.prepare('DELETE FROM push_subscriptions WHERE tenant_id = ? AND user_id = ? AND endpoint = ?')
+            .bind(tenantId, userId, sub.endpoint).run();
+        }
       }
     }
-  } catch { /* push unavailable — the in-app row already landed */ }
+  } catch (e) { console.error(`push error ${type} user=${userId}:`, e); }
 }
 
 // Every remediation channel we have, fired once per issue per day (idempotent across hourly
@@ -22245,7 +22242,7 @@ export default {
     // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
     if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
-    if (sastHour >= 8 && sastHour <= 17) await checkInactiveAgents(env.DB);
+    if (sastHour >= 8 && sastHour <= 17) await checkInactiveAgents(env.DB, env);
     // Hourly: open/act/escalate/resolve performance issues (self-gates on SAST inside).
     if (sastHour >= 8 && sastHour < 18) await reactToIssues(env.DB, env);
     // Reap stuck rows first so they re-enter the drain queue this tick.
