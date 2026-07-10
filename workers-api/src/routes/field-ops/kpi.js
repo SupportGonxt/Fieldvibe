@@ -9,6 +9,7 @@ import { rootCauseSignals } from '../../services/rootCauseSignals.js';
 import { sendPush } from '../../lib/web-push.js';
 import { requireRole } from '../../middleware/auth.js';
 import { AGENT_ROLES } from '../../services/incentiveService.js';
+import { severityOf } from '../../services/issueEngine.js';
 
 export function resolveRoleKpiKey(role) {
   if (role === 'team_lead') return 'kpi.team_lead';
@@ -161,7 +162,9 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
   const windowDays = thresholds.baseline_window_days || 14;
   const since = new Date(Date.now() - windowDays * 86400000).toISOString().slice(0, 10);
   const agents = (await db.prepare(
-    `SELECT id FROM users WHERE tenant_id=? AND is_active=1 AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
+    // NULL || x is NULL in SQLite — COALESCE both halves or a missing surname erases the whole name.
+    `SELECT id, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) name
+       FROM users WHERE tenant_id=? AND is_active=1 AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))`
   ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
 
@@ -169,13 +172,15 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
     below_target: 0, dropped_vs_baseline: 0, gone_quiet: 0, low_conversion: 0,
     late_start: 0, short_field_day: 0, idle_gaps: 0, excess_travel: 0,
   };
-  let flaggedAgents = 0;
-  for (const { id } of agents) {
+  const flagged = [];
+  for (const { id, name } of agents) {
     const { signals } = await agentSignals(db, tenantId, id, thresholds, since);
-    if (signals.length) flaggedAgents++;
+    if (signals.length) flagged.push({ id, name, signals, severity: severityOf(signals.map((s) => s.type)) });
     for (const s of signals) if (s.type in counts) counts[s.type]++;
   }
-  return c.json({ counts, flaggedAgents, totalAgents: agents.length });
+  flagged.sort((a, b) => b.severity - a.severity); // worst-first, same ranking the issue ladder uses
+  // counts/flaggedAgents/totalAgents kept verbatim — the web GmOverviewPage tile reads them.
+  return c.json({ counts, flaggedAgents: flagged.length, totalAgents: agents.length, flagged });
 });
 
 // --- Remediation (Task 2.5) ---

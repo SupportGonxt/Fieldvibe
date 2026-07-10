@@ -54,6 +54,7 @@ const AgentLayout = lazyWithRetry(() => import('./pages/agent/AgentLayout'))
 const CallScreen = lazyWithRetry(() => import('./pages/agent/CallScreen'))
 const AgentVisits = lazyWithRetry(() => import('./pages/agent/AgentVisits'))
 const AgentStats = lazyWithRetry(() => import('./pages/agent/AgentStats'))
+const GmStats = lazyWithRetry(() => import('./pages/agent/GmStats'))
 const AgentProfile = lazyWithRetry(() => import('./pages/agent/AgentProfile'))
 const AgentOnboarding = lazyWithRetry(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinManagement'))
@@ -448,6 +449,15 @@ const StoreInsights = lazyWithRetry(() => import('./pages/field-operations/repor
 const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operations/reports/CaptureFailuresReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
+// /agent/stats means different things to different people. AgentStats is scoped to the
+// caller's own targets and earnings; a GM has neither, so it used to render an empty
+// "My Performance" and toast "contact your manager". GMs get the tenant-wide cockpit.
+// ponytail: managers still land on AgentStats — unverified whether they carry personal targets.
+function StatsForRole() {
+  const role = useAuthStore((s) => s.user?.role)
+  return role === 'general_manager' ? <GmStats /> : <AgentStats />
+}
+
 function PageLoader({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={
@@ -1145,7 +1155,7 @@ function App() {
             <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
-            <Route path="stats" element={<PageLoader><AgentStats /></PageLoader>} />
+            <Route path="stats" element={<PageLoader><StatsForRole /></PageLoader>} />
             <Route path="team" element={<PageLoader><TeamTab /></PageLoader>} />
             <Route path="teams" element={<PageLoader><ManagerTeamsTab /></PageLoader>} />
             <Route path="agent-detail/:agentId" element={<PageLoader><AgentDetailPage /></PageLoader>} />

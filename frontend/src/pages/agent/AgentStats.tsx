@@ -624,8 +624,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
           <p className="text-sm text-gray-400">No targets set for this month</p>
           <p className="text-xs text-gray-600 mt-1">Contact your manager to set targets</p>
         </div>
-      )}
-      )}
+      )
+      })()}
 
       {dashData?.daily_targets && dashData.daily_targets.length > 0 && (
         <div>

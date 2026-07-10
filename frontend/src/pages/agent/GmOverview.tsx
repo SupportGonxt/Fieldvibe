@@ -13,7 +13,7 @@ import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue
 // teams -> management (managers + BO admins) -> individuals.
 // Costs/net only resolve on the monthly period (costsAvailable flag).
 
-type Period = 'day' | 'week' | 'month'
+export type Period = 'day' | 'week' | 'month'
 type Leader = { id: string; name: string; signups: number; converted: number }
 type FieldAgent = { id: string; name: string; today?: number }
 type Company = { id: string; name: string }
@@ -32,7 +32,7 @@ type BoAdmin = {
   reached: number; durationS: number; lastSeen: string | null
 }
 type Risk = { id: string; severity: 'high' | 'medium' | string; label: string; detail: string }
-type Overview = {
+export type Overview = {
   period: Period
   companyId: string | null
   companies: Company[]
@@ -47,12 +47,12 @@ type Overview = {
   risks: Risk[]
 }
 
-const rand = (n: number) => 'R' + Math.round(n).toLocaleString('en-ZA')
-const PERIODS: { key: Period; label: string }[] = [
+export const rand = (n: number) => 'R' + Math.round(n).toLocaleString('en-ZA')
+export const PERIODS: { key: Period; label: string }[] = [
   { key: 'day', label: 'Today' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' },
 ]
 
-function shiftAnchor(current: string | null, period: Period, dir: -1 | 1): string | null {
+export function shiftAnchor(current: string | null, period: Period, dir: -1 | 1): string | null {
   const base = current ? new Date(current + 'T00:00:00Z') : new Date()
   const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()))
   if (period === 'day') d.setUTCDate(d.getUTCDate() + dir)
@@ -65,7 +65,7 @@ function shiftAnchor(current: string | null, period: Period, dir: -1 | 1): strin
 const fmtDay = (s: string) =>
   new Date(s + 'T00:00:00Z').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-function windowLabel(w: Overview['window'], period: Period): string {
+export function windowLabel(w: Overview['window'], period: Period): string {
   if (period === 'day') return w.isCurrent ? 'Today' : fmtDay(w.start)
   const last = new Date(w.end + 'T00:00:00Z')
   last.setUTCDate(last.getUTCDate() - 1)
