@@ -35,11 +35,8 @@ interface DashboardData {
     company_name: string
     target_visits: number
     actual_visits: number
-    target_stores: number
-    actual_stores: number
-    daily_actual_visits?: number
-    daily_actual_stores?: number
-    daily_target_stores?: number
+    target_registrations: number
+    actual_registrations: number
   }>
   company_targets?: Array<{
     company_id: string
@@ -69,8 +66,8 @@ interface DashboardData {
     commission_amount: number
     target_visits: number
     actual_visits: number
-    target_stores: number
-    actual_stores: number
+    target_registrations?: number
+    actual_registrations?: number
     store_visits: number
     individual_visits: number
     working_days: number
@@ -84,16 +81,16 @@ interface PerformanceData {
   overall_achievement: number
   total_target_visits: number
   total_actual_visits: number
-  total_target_stores: number
-  total_actual_stores: number
+  total_target_registrations: number
+  total_actual_registrations: number
   total_target_conversions: number
   total_actual_conversions: number
   monthly_targets: Array<{
     company_name: string
     target_visits: number
     actual_visits: number
-    target_stores: number
-    actual_stores: number
+    target_registrations: number
+    actual_registrations: number
     target_conversions: number
     actual_conversions: number
     commission_rate: number
@@ -101,6 +98,10 @@ interface PerformanceData {
     working_days: number
     store_visits?: number
     individual_visits?: number
+    daily_target_visits?: number
+    daily_actual_visits?: number
+    daily_target_registrations?: number
+    daily_actual_registrations?: number
   }>
   commission_summary: {
     pending: number
@@ -158,8 +159,8 @@ interface PerformanceData {
     total_individuals: number
     target_visits: number
     actual_visits: number
-    target_stores: number
-    actual_stores: number
+    target_registrations: number
+    actual_registrations: number
     achievement: number
   } | null
   manager_performance: {
@@ -429,7 +430,7 @@ function OverviewTab({
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Monthly Achievement</h3>
           <div className="space-y-3">
             <ProgressRow label="Individual Visits" actual={perfData.total_actual_visits} target={perfData.total_target_visits} color="#3B82F6" />
-            <ProgressRow label="Store Visits" actual={perfData.total_actual_stores} target={perfData.total_target_stores} color="#8B5CF6" />
+            <ProgressRow label="Store Visits" actual={perfData.total_actual_registrations} target={perfData.total_target_registrations} color="#8B5CF6" />
             {perfData.total_target_conversions > 0 && (
               <ProgressRow label="Conversions" actual={perfData.total_actual_conversions} target={perfData.total_target_conversions} color="#10B981" />
             )}
@@ -534,7 +535,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
         <div>
           <p className="text-sm font-semibold text-white">Monthly Achievement</p>
           <p className="text-xs text-gray-500 mt-0.5">{perfData?.total_actual_visits || 0} of {perfData?.total_target_visits || 0} individual visits</p>
-          <p className="text-xs text-gray-500">{perfData?.total_actual_stores || 0} of {perfData?.total_target_stores || 0} store visits</p>
+          <p className="text-xs text-gray-500">{perfData?.total_actual_registrations || 0} of {perfData?.total_target_registrations || 0} store visits</p>
           {ach >= 100 && (
             <p className="text-xs text-[#00E87B] font-semibold mt-1 flex items-center gap-1">
               <Trophy className="w-3 h-3" /> Target exceeded!
@@ -552,8 +553,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
             {targetsToShow.map((t, i) => {
               const vTarget = t.daily_target_visits ?? t.target_visits ?? 0
               const vActual = t.daily_actual_visits ?? t.actual_visits ?? 0
-              const rTarget = t.daily_target_stores ?? t.target_stores ?? 0
-              const rActual = t.daily_actual_stores ?? t.actual_stores ?? 0
+              const rTarget = t.daily_target_registrations ?? t.target_registrations ?? 0
+              const rActual = t.daily_actual_registrations ?? t.actual_registrations ?? 0
               const vPct = vTarget > 0 ? Math.min(100, Math.round((vActual / vTarget) * 100)) : 0
               const rPct = rTarget > 0 ? Math.min(100, Math.round((rActual / rTarget) * 100)) : 0
               return (
@@ -577,7 +578,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                     <div>
                       <div className="flex justify-between text-xs mb-1">
                         <span className="text-gray-400">Store Visits</span>
-                        <span className="text-white font-medium">{t.daily_actual_stores ?? t.actual_stores}/{t.daily_target_stores ?? t.target_stores} <span className={pctClass(rPct)}>({rPct}%)</span></span>
+                        <span className="text-white font-medium">{rActual}/{rTarget} <span className={pctClass(rPct)}>({rPct}%)</span></span>
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', background: progressBg(rPct, '#8B5CF6') }} />
@@ -632,7 +633,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Today&apos;s Targets</h2>
           <div className="space-y-2">
             {dashData.daily_targets.map((t, i) => {
-              const visitPct = t.target_visits > 0 ? Math.min(100, Math.round(((t.daily_actual_visits ?? t.actual_visits) / t.target_visits) * 100)) : 0
+              const visitPct = t.target_visits > 0 ? Math.min(100, Math.round((t.actual_visits / t.target_visits) * 100)) : 0
               return (
                 <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
@@ -643,8 +644,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                     <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: visitPct + '%' }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
-                    <span className="text-[10px] text-gray-500">Individual: {t.daily_actual_visits ?? t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Store: {t.daily_actual_stores ?? t.actual_stores}/{t.daily_target_stores ?? t.target_stores}</span>
+                    <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
+                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
                   </div>
                 </div>
               )
@@ -658,7 +659,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
 
 function tierColor(tierName: string): string {
   const lower = tierName.toLowerCase()
-  if (lower === 'platinum') return 'text-purple-300'
+  if (lower === 'platinum') return 'text-[#00E87B]'
   if (lower === 'gold') return 'text-amber-400'
   if (lower === 'silver') return 'text-gray-300'
   return 'text-orange-400'
@@ -666,7 +667,7 @@ function tierColor(tierName: string): string {
 
 function tierBg(tierName: string): string {
   const lower = tierName.toLowerCase()
-  if (lower === 'platinum') return 'from-purple-500/20 to-purple-600/10 border-purple-500/20'
+  if (lower === 'platinum') return 'from-[#00E87B]/20 to-[#00D06E]/10 border-[#00E87B]/20'
   if (lower === 'gold') return 'from-amber-500/20 to-amber-600/10 border-amber-500/20'
   if (lower === 'silver') return 'from-gray-400/20 to-gray-500/10 border-gray-400/20'
   return 'from-orange-500/20 to-orange-600/10 border-orange-500/20'
@@ -781,7 +782,7 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
           </div>
           <div className="space-y-2">
             <ProgressRow label="Team Visits" actual={team.actual_visits} target={team.target_visits} color="#3B82F6" />
-            <ProgressRow label="Team Stores" actual={team.actual_stores} target={team.target_stores} color="#8B5CF6" />
+            <ProgressRow label="Team Stores" actual={team.actual_registrations} target={team.target_registrations} color="#8B5CF6" />
           </div>
           <p className="text-[10px] text-gray-600 mt-2">Team targets affect your commission tier and bonus eligibility</p>
         </div>
@@ -946,7 +947,7 @@ export default function AgentStats() {
   }
 
   const dailyTargetVisits = dashData?.daily_targets?.reduce((s, t) => s + (t.target_visits || 0), 0) || 0
-  const dailyActualVisits = dashData?.daily_targets?.reduce((s, t) => s + ((t.daily_actual_visits ?? t.actual_visits) || 0), 0) || 0
+  const dailyActualVisits = dashData?.daily_targets?.reduce((s, t) => s + (t.actual_visits || 0), 0) || 0
   const overallPct = perfData?.overall_achievement ?? (dailyTargetVisits > 0 ? Math.round((dailyActualVisits / dailyTargetVisits) * 100) : 0)
 
   const totalEarnings = (perfData?.commission_summary?.paid || 0) + (perfData?.commission_summary?.approved || 0) + (perfData?.commission_summary?.pending || 0)

@@ -40,13 +40,15 @@ self.addEventListener('notificationclick', (event) => {
   const { callId, callerName, url } = event.notification.data || {};
 
   if (!callId) {
-    // Generic notification: focus an open window, else open the target URL
+    // Generic notification: send an open window to the target URL, else open one there
+    const target = url || '/';
     event.waitUntil(
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
         for (const c of clients) {
+          if ('navigate' in c) return c.navigate(target).then((nc) => (nc || c).focus());
           if ('focus' in c) return c.focus();
         }
-        return self.clients.openWindow(url || '/');
+        return self.clients.openWindow(target);
       })
     );
     return;

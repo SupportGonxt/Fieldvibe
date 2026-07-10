@@ -223,8 +223,16 @@ app.put('/calls/target', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const dt = parseInt(body.daily_target, 10);
   if (!Number.isFinite(dt) || dt < 1) return c.json({ success: false, message: 'daily_target must be >= 1' }, 400);
-  // Manager+ can set anyone's target; others only their own.
-  const targetUser = body.user_id && BO_ROLES.includes(role) ? body.user_id : userId;
+  // Manager+ can set anyone's target; others only their own. The target must be a real
+  // user in the caller's tenant — bo_call_targets keys on user_id alone, so an unscoped
+  // body.user_id would let a manager overwrite another tenant's target.
+  let targetUser = userId;
+  if (body.user_id && BO_ROLES.includes(role)) {
+    const t = await db.prepare('SELECT id FROM users WHERE id = ? AND tenant_id = ?')
+      .bind(body.user_id, tenantId).first();
+    if (!t) return c.json({ success: false, message: 'Unknown user' }, 400);
+    targetUser = body.user_id;
+  }
   await db.prepare(
     `INSERT INTO bo_call_targets (user_id, tenant_id, company_id, daily_target)
      VALUES (?, ?, ?, ?)

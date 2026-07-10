@@ -21613,7 +21613,8 @@ async function notify(db, env, tenantId, userId, type, title, message, relId, re
     ).bind(tenantId, userId).all()).results || [];
     if (!subs.length) console.log(`push skip ${type} user=${userId}: no subscription`);
     for (const sub of subs) {
-      const { ok, status } = await sendPush(env, sub, { title, body: message });
+      // /agent renders PerformanceMessages, the in-app notification list this push mirrors
+      const { ok, status } = await sendPush(env, sub, { title, body: message, url: '/agent' });
       if (!ok) {
         console.error(`push fail ${type} user=${userId} status=${status}`);
         if (status === 404 || status === 410) {
