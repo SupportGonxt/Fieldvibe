@@ -73,4 +73,5 @@ function demo() {
   assert(slaClockOf({ status: 'acted', owner_since: 'A' }) === null, 'no acted_at = no clock, never escalate blind');
   console.log('issueEngine ok');
 }
-if (import.meta.url === `file://${process.argv[1]}`) demo();
+// The Workers runtime has no `process`, and this line runs at import — guard before touching it.
+if (typeof process !== 'undefined' && import.meta.url === `file://${process.argv[1]}`) demo();
