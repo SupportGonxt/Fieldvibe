@@ -23,6 +23,7 @@ import productRoutes from './routes/coreCrud/products.js';
 import userRoutes from './routes/coreCrud/users.js';
 import visitRoutes from './routes/coreCrud/visits.js';
 import orderPaymentRoutes from './routes/coreCrud/ordersPayments.js';
+import { writePaymentLedgerEntries } from './lib/paymentLedger.js';
 import inventoryRoutes from './routes/inventory.js';
 import vanOpsRoutes from './routes/vanOps.js';
 import { extractGoldrushId, goldrushIdExists } from './lib/goldrush.js';
