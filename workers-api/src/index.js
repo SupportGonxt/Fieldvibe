@@ -11,6 +11,7 @@ import callRoutes from './routes/field-ops/calls.js';
 import gmRoutes, { buildGmOverview, digestSlot } from './routes/field-ops/gm.js';
 import kpiRoutes, { agentSignals } from './routes/field-ops/kpi.js';
 import depositRoutes from './routes/field-ops/deposits.js';
+import metricFactsRoutes from './routes/field-ops/metricFacts.js';
 import issueRoutes, { ensureIssues } from './routes/field-ops/issues.js';
 import { severityOf, isBreached, nextOwnerRole, slaClockOf } from './services/issueEngine.js';
 import { sendPush } from './lib/web-push.js';
@@ -21337,6 +21338,7 @@ api.route('/field-ops', callRoutes);
 api.route('/field-ops', gmRoutes);
 api.route('/field-ops', kpiRoutes);
 api.route('/field-ops', depositRoutes);
+api.route('/field-ops', metricFactsRoutes);
 api.route('/field-ops', issueRoutes);
 
 // ==================== SECTION 9: SCHEDULED JOBS ====================
