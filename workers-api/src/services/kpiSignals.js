@@ -46,13 +46,19 @@ export function evaluateSignals({ actual, baseline, daysSinceLastVisit, threshol
   // Insufficient signal → flag nothing. (M-1)
   if (!actual || actual.days === 0) return [];
   const out = [];
-  const bt = signalBelowTarget(actual, thresholds);
-  if (bt.triggered) out.push({ type: 'below_target', detail: bt });
-  const dv = signalDroppedVsBaseline(actual, baseline || {}, thresholds);
-  if (dv.triggered) out.push({ type: 'dropped_vs_baseline', detail: dv });
+  // gone_quiet keys off recency of the last visit, not sample size — a barely-active
+  // agent who then vanished must still flag, so evaluate it regardless of day count.
   const gq = signalGoneQuiet(daysSinceLastVisit ?? 0, thresholds);
   if (gq.triggered) out.push({ type: 'gone_quiet', detail: gq });
-  const lc = signalLowConversion(actual, thresholds);
-  if (lc.triggered) out.push({ type: 'low_conversion', detail: lc });
+  // The rate/volume signals average per active day; below min_days a single slow
+  // day would fire them prematurely. Match rootCauseSignals' min_days floor (default 3).
+  if (actual.days >= (thresholds.min_days ?? 3)) {
+    const bt = signalBelowTarget(actual, thresholds);
+    if (bt.triggered) out.push({ type: 'below_target', detail: bt });
+    const dv = signalDroppedVsBaseline(actual, baseline || {}, thresholds);
+    if (dv.triggered) out.push({ type: 'dropped_vs_baseline', detail: dv });
+    const lc = signalLowConversion(actual, thresholds);
+    if (lc.triggered) out.push({ type: 'low_conversion', detail: lc });
+  }
   return out;
 }

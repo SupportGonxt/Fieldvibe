@@ -21748,13 +21748,13 @@ async function reactToIssues(db, env) {
           ).bind(tenantId, agent.id).first();
 
           if (!signals.length) {
-            // Empty signals mean one of two things: the agent recovered (has activity
-            // in the window, no threshold breached) or the agent is dark the whole
-            // window (actual.days === 0, so evaluateSignals bails before flagging).
-            // Only the first is a real recovery — resolving a dark agent's issue
-            // would clear accountability for the very people who vanished. Resolve
-            // only on positive activity; keep the issue live while dark.
-            if (live && actual.days > 0) {
+            // Empty signals are only a real recovery when we have enough active days
+            // to judge on. A dark window (days === 0) or a thin one (days < min_days)
+            // returns empty because there is too little to score, not because the agent
+            // bounced back — resolving then would clear accountability for the very
+            // people who vanished. Resolve only once activity is substantial enough to
+            // trust the all-clear; keep the issue live while dark or thin.
+            if (live && actual.days >= (thresholds.min_days ?? 3)) {
               await db.prepare("UPDATE issues SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
                 .bind(live.id).run();
             }
@@ -21785,8 +21785,12 @@ async function reactToIssues(db, env) {
           }
 
           // Refresh the live row's picture of the problem before judging the SLA.
-          await db.prepare("UPDATE issues SET kind = ?, severity = ?, detail = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(worst, severity, detail, live.id).run();
+          // company_id too: an agent reassigned to another field_company mid-issue must
+          // re-home the row, else escalation (gmFor(company_id)) and the GM unmanaged
+          // view route it to the old company's manager.
+          await db.prepare("UPDATE issues SET kind = ?, severity = ?, detail = ?, company_id = ?, updated_at = datetime('now') WHERE id = ?")
+            .bind(worst, severity, detail, agent.company_id || null, live.id).run();
+          live.company_id = agent.company_id || null; // keep in-memory row in step for the escalation routing below
 
           const clock = parseSqlUtc(slaClockOf(live));
           const owner = await db.prepare(
