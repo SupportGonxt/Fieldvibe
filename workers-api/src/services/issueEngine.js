@@ -23,10 +23,14 @@ export const ESCALATE_TO = {
 // tops it; root-cause texture signals sit at the floor.
 const KIND_WEIGHT = {
   gone_quiet: 5,
+  below_gate: 4,
   below_target: 4,
   dropped_vs_baseline: 3,
   low_conversion: 2,
-  late_start: 1, short_field_day: 1, idle_gaps: 1, excess_travel: 1,
+  late_start: 1,
+  short_field_day: 1,
+  idle_gaps: 1,
+  excess_travel: 1,
 };
 
 export function severityOf(signalTypes) {
@@ -61,6 +65,7 @@ function demo() {
   assert(severityOf(['low_conversion', 'late_start']) > severityOf(['gone_quiet']) === false, 'heavy single still ranks');
   assert(severityOf(['gone_quiet', 'below_target']) === 5 + 4 + 2, 'multi sums');
   assert(severityOf(['x', 'x']) === 2, 'dedup then default weight 1 + count 1');
+  assert(severityOf(['below_gate']) === 5, 'below_gate weight');
   const H = 3600000;
   assert(isBreached('team_lead', 0, 48 * H) === true, 'lead breaches at 48h');
   assert(isBreached('team_lead', 0, 47 * H) === false, 'lead ok before 48h');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateKpis, evaluateSignals } from './kpiSignals.js';
+import { aggregateKpis, evaluateSignals, signalBelowGate } from './kpiSignals.js';
 
 // Pins the invariants reactToIssues' resolve-gate relies on: a dark or thin window
 // yields no rate/volume signals (too little to judge, so the cron holds the issue),
@@ -30,5 +30,20 @@ describe('evaluateSignals min_days floor', () => {
 
   it('full clean window is a real recovery (empty)', () => {
     expect(evalWith([goodDay, goodDay, goodDay], 0)).toEqual([]);
+  });
+});
+
+describe('signalBelowGate', () => {
+  it('below_gate fires one signal per trailing gate metric', () => {
+    const ng = { amount: 2500, targets: { signups: 10, deposits: 8 }, shortfall: { signups: 1, deposits: 0 } };
+    const out = signalBelowGate({ avgByMetric: { signups: 9, deposits: 8 }, nextGate: ng });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual({ type: 'below_gate', detail: { metric: 'signups', shortfall: 1, target: 10 } });
+  });
+
+  it('below_gate is silent when nothing trails or no next tier', () => {
+    expect(signalBelowGate({ avgByMetric: { signups: 99 }, nextGate: null })).toEqual([]);
+    const met = { amount: 2500, targets: { signups: 10 }, shortfall: { signups: 0 } };
+    expect(signalBelowGate({ avgByMetric: { signups: 10 }, nextGate: met })).toEqual([]);
   });
 });
