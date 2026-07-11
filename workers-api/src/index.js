@@ -1,10 +1,9 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
-import { validate, loginSchema, registerSchema, createUserSchema, updateUserSchema, createSalesOrderSchema, createPaymentSchema, createVanLoadSchema, vanSellSchema, vanReturnSchema, createProductSchema, updateProductSchema, createCustomerSchema, updateCustomerSchema, stockMovementSchema, commissionRuleSchema, territorySchema, campaignSchema, tradePromotionSchema, webhookSchema } from './validate.js';
-import configRoutes, { getConfig } from './routes/field-ops/config.js';
+import { rateLimiter, authMiddleware } from './lib/middleware.js';
+// Route modules
+import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
 import incentiveRoutes from './routes/field-ops/incentives.js';
 import callRoutes from './routes/field-ops/calls.js';
@@ -23,7 +22,6 @@ import productRoutes from './routes/coreCrud/products.js';
 import userRoutes from './routes/coreCrud/users.js';
 import visitRoutes from './routes/coreCrud/visits.js';
 import orderPaymentRoutes from './routes/coreCrud/ordersPayments.js';
-import { writePaymentLedgerEntries } from './lib/paymentLedger.js';
 import inventoryRoutes from './routes/inventory.js';
 import vanOpsRoutes from './routes/vanOps.js';
 import salesRoutes from './routes/sales.js';
@@ -32,7 +30,6 @@ import fieldOpsRoutes from './routes/fieldOps.js';
 import analyticsRoutes from './routes/analytics.js';
 import financeRoutes from './routes/finance.js';
 import platformRoutes from './routes/platform.js';
-import { extractGoldrushId, goldrushIdExists } from './lib/goldrush.js';
 import companyCustomerRoutes from './routes/coreCrud/companiesCustomers.js';
 import mobileDashboardRoutes from './routes/mobileDashboards.js';
 import authRoutes from './routes/auth.js';
@@ -42,18 +39,8 @@ import transactionRoutes from './routes/transactions.js';
 import tradePromotionRoutes from './routes/tradePromotions.js';
 import activationsPosmRoutes from './routes/activationsPosm.js';
 import adminOpsRoutes from './routes/adminOps.js';
-import { buildGoldrushConfig } from './services/programConfig.js';
-import { parseStoreInsights } from './services/goldrushVision.js';
-import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal, matchAskIntent, ensurePortalTables } from './services/portal.js';
-import { cachedD1Query, invalidateCache } from './lib/cache.js';
-import { rateLimiter, authMiddleware, requireRole, requireSuperAdmin } from './lib/middleware.js';
-import { checkIdempotency, saveIdempotency } from './lib/idempotency.js';
-import { generateToken, normalizePhone } from './lib/authUtils.js';
-import { DEFAULT_WD_CONFIG, resolveWorkingDaysConfig, resolveWorkingDaysConfigBatch, countWorkingDaysInMonth, buildFallbackMonthlyTargets, getUserMonthlyTargetFromRules, generateTargetsFromRules, computeTargetTotalsFromRules } from './lib/calendar.js';
-import { getCommissionTotals, getBulkAgentVisitCounts, resolveReportCompanyId } from './lib/aggregates.js';
-import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto } from './lib/photoAi.js';
-import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, computeGoldrushIndividualInsights, computeGoldrushStoreInsights, buildGoldrushWeeklyHtml, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
-import { sendEmailViaMailChannels } from './cron/email.js';
+// Cron jobs (invoked by the scheduled handler)
+import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -140,8 +127,6 @@ app.route('/', mobileDashboardRoutes);
 // ==================== PROTECTED API ROUTES ====================
 const api = new Hono();
 api.use('*', authMiddleware);
-
-// ==================== PAYMENT LEDGER HELPER (item #3) ====================
 // General API rate limiting (100 req/min)
 api.use('*', rateLimiter(100, 60000));
 
@@ -162,20 +147,9 @@ api.route('/', fieldOpsRoutes);
 api.route('/', vanOpsRoutes);
 
 api.route('/', orderPaymentRoutes);
-
-// ==================== PAYMENT LEDGER (item #3) ====================
-// Read-only ledger endpoints. All writes happen via writePaymentLedgerEntries
-// alongside the existing payments inserts. The legacy /payments + sales_orders
-// payment_status flow remains the source of truth; this is a parallel view
-// suitable for finance reporting and future reversal flows.
 api.route('/', financeRoutes);
 api.route('/', commissionRoutes);
 api.route('/', surveyRoutes);
-
-
-// One-shot backfill admin endpoint: walks every payments row and inserts the
-// matching RECEIPT + APPLICATION pair into payment_ledger if not already present.
-// Idempotent — checks for an existing RECEIPT row keyed by payment_id before writing.
 api.route('/', platformRoutes);
 api.route('/', marketingRoutes);
 api.route('/', salesRoutes);
@@ -229,18 +203,7 @@ api.get('/uploads/:key{.+}', async (c) => {
 
 api.route('/', vanSalesRoutes);
 
-
-
-
-
-
-// ==================== FIELD OPERATIONS: VISIT WORKFLOW ====================
-
-// --- Individuals CRUD ---
-
-
-// ==================== Y. DEPLOYMENT & HEALTH ====================
-
+// ==================== DEPLOYMENT & HEALTH ====================
 api.get('/health', async (c) => {
   const db = c.env.DB;
   try {
@@ -257,38 +220,8 @@ api.get('/health', async (c) => {
   }
 });
 
-
-// field-commissions routes
-
-// field-operations routes
-
-// finance routes
-
-// gps-tracking routes
-
-// inventory routes
-
-// kyc routes
-
-// orders routes
-
-// refunds routes (needed by frontend refunds.service.ts)
-
-// pricing routes
-
-// product-distributions routes
-
-// products routes
-
-// promotions routes
-
-// reports routes
-
-// trade-promotion-claims routes
-
 api.route('/', transactionRoutes);
 
-// uploads routes
 api.get('/uploads/:id/:subId', authMiddleware, async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
@@ -297,29 +230,6 @@ api.get('/uploads/:id/metadata', authMiddleware, async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-
-// van-sales routes
-
-// visit-surveys routes (real implementations)
-
-// visits routes
-
-// inventory additional routes (restored)
-
-// kyc additional routes (restored)
-
-// orders additional routes (restored)
-
-// promotions additional routes (restored)
-
-// reports additional routes (restored)
-
-// surveys additional routes (metrics/reports/stats/trends) are registered earlier,
-// before /surveys/:id, so the param route doesn't shadow them.
-
-// van-sales additional routes (restored)
-
-// warehouses routes
 
 // ==================== PUBLIC PHOTO SERVING (no auth required for <img> tags) ====================
 app.get('/api/uploads/:key{.+}', async (c) => {
@@ -349,9 +259,6 @@ api.route('/field-ops', kpiRoutes);
 api.route('/field-ops', depositRoutes);
 api.route('/field-ops', metricFactsRoutes);
 api.route('/field-ops', issueRoutes);
-
-// ==================== DYNAMIC PRICING (SECTION 1) ====================
-
 
 // ==================== MOUNT AND EXPORT ====================
 // Mounted last so every api.get/post above (including routes declared late in
