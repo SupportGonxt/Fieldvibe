@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Loader2, CheckCircle2, AlertTriangle, Banknote, Trash2, RefreshCw, Link2, Unlink } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertTriangle, Banknote, Trash2, RefreshCw, Link2, Unlink, Upload } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { apiClient } from '../../services/api.service'
 import { useToast } from '../../components/ui/Toast'
 
@@ -42,6 +43,29 @@ export default function BackOfficeDeposits() {
   function reset() {
     setPreview(null)
     setUploaded(null)
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    if (!file) return
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      // Flatten every sheet to raw cell text, then pull 9-digit ids (same rule as the server).
+      let dump = ''
+      for (const name of wb.SheetNames) {
+        dump += XLSX.utils.sheet_to_csv(wb.Sheets[name]) + '\n'
+      }
+      const ids = Array.from(dump.matchAll(/(?<!\d)\d{9}(?!\d)/g)).map((m) => m[0])
+      const unique = Array.from(new Set(ids))
+      if (!unique.length) { toast.error('No 9-digit Goldrush IDs found in that file'); return }
+      setText((t) => (t.trim() ? t.trim() + '\n' : '') + unique.join('\n'))
+      reset()
+      toast.success(`${unique.length} ID${unique.length === 1 ? '' : 's'} loaded from ${file.name}`)
+    } catch {
+      toast.error('Could not read that file')
+    }
   }
 
   async function loadList() {
@@ -120,6 +144,12 @@ export default function BackOfficeDeposits() {
         <p className="text-sm text-gray-500 mb-5">
           Upload the Goldrush-confirmed deposit IDs. This clears the deposit gate — signups pay out once both gates are met.
         </p>
+
+        <label className="flex items-center justify-center gap-2 w-full mb-3 bg-white/[0.04] border border-dashed border-white/15 rounded-2xl py-3 text-sm text-gray-300 cursor-pointer active:scale-[0.99] transition-transform">
+          <Upload className="w-4 h-4 text-[#00E87B]" />
+          Upload Excel / CSV file
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
+        </label>
 
         <textarea
           value={text}
