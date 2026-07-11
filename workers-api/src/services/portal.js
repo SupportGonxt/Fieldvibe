@@ -76,3 +76,19 @@ export function matchAskIntent(question) {
   }
   return null;
 }
+
+// Customer-portal auth tables (Phase F). dev D1 doesn't auto-apply schema.sql,
+// so every portal auth path calls this first (mirrors ensureCaptureFailures).
+export async function ensurePortalTables(db) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS portal_users (
+    id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT NOT NULL,
+    email TEXT NOT NULL, password_hash TEXT, invite_token TEXT, invite_expires_at TEXT,
+    status TEXT NOT NULL DEFAULT 'invited', created_by TEXT, created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+  await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_portal_users_tenant_email ON portal_users(tenant_id, email)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_portal_users_invite ON portal_users(invite_token)`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS portal_dashboard_config (
+    company_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, widgets TEXT NOT NULL,
+    updated_by TEXT, updated_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+}

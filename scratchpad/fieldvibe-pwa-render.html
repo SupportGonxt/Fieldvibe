@@ -1,0 +1,1173 @@
+<title>FieldVibe PWA — Role Screens</title>
+<style>
+  :root{
+    --shell:#06090F; --header:#0A1628; --card:rgba(255,255,255,0.045);
+    --card-border:rgba(255,255,255,0.10); --green:#00E87B; --green2:#00D06E;
+    --grad-end:#0E1D35; --profile-end:#0F2140; --blue:#3B82F6; --purple:#8B5CF6;
+    --amber:#F59E0B; --red:#EF4444; --cyan:#22D3EE; --orange:#FB923C;
+    --g300:#D1D5DB; --g400:#9CA3AF; --g500:#6B7280; --g600:#4B5563;
+    --page-bg:#0d1117; --page-fg:#c9d1d9; --page-muted:#8b949e; --page-line:#21262d;
+    --page-panel:#161b22;
+    --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --page-bg:#f6f8fa; --page-fg:#1f2328; --page-muted:#59636e;
+      --page-line:#d0d7de; --page-panel:#ffffff; }
+  }
+  :root[data-theme="dark"]{ --page-bg:#0d1117; --page-fg:#c9d1d9; --page-muted:#8b949e; --page-line:#21262d; --page-panel:#161b22; }
+  :root[data-theme="light"]{ --page-bg:#f6f8fa; --page-fg:#1f2328; --page-muted:#59636e; --page-line:#d0d7de; --page-panel:#ffffff; }
+
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--page-bg); color:var(--page-fg); font-family:var(--ui);
+    -webkit-font-smoothing:antialiased; line-height:1.5; }
+
+  .wrap{ max-width:1400px; margin:0 auto; padding:48px 24px 80px; }
+  header.top{ margin-bottom:8px; }
+  .eyebrow{ font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--green); font-weight:700; }
+  h1.title{ font-size:clamp(30px,5vw,46px); margin:8px 0 10px; letter-spacing:-.02em;
+    text-wrap:balance; font-weight:800; }
+  .lede{ color:var(--page-muted); max-width:70ch; font-size:16px; margin:0; }
+  .lede code{ font-family:var(--mono); font-size:13px; background:var(--page-panel);
+    border:1px solid var(--page-line); border-radius:5px; padding:1px 5px; color:var(--page-fg); }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:14px 22px; margin:26px 0 8px;
+    padding:16px 18px; background:var(--page-panel); border:1px solid var(--page-line);
+    border-radius:12px; font-size:13px; }
+  .legend b{ color:var(--page-fg); }
+  .sw{ display:inline-flex; align-items:center; gap:7px; color:var(--page-muted); }
+  .dot{ width:13px; height:13px; border-radius:4px; display:inline-block; }
+
+  .roles-nav{ display:flex; flex-wrap:wrap; gap:8px; margin:22px 0 34px; }
+  .roles-nav a{ text-decoration:none; font-size:13px; font-weight:600; color:var(--page-fg);
+    background:var(--page-panel); border:1px solid var(--page-line); padding:7px 14px;
+    border-radius:999px; transition:border-color .15s; }
+  .roles-nav a:hover{ border-color:var(--green); }
+  .roles-nav a:focus-visible{ outline:2px solid var(--green); outline-offset:2px; }
+
+  section.role{ margin:0 0 20px; scroll-margin-top:20px; }
+  .role-head{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+    padding-bottom:14px; margin-bottom:26px; border-bottom:1px solid var(--page-line); }
+  .role-head h2{ font-size:26px; margin:0; letter-spacing:-.01em; font-weight:800; }
+  .role-head .who{ color:var(--page-muted); font-size:14px; }
+  .role-head .tabline{ margin-left:auto; font-size:12.5px; color:var(--page-muted);
+    font-family:var(--mono); }
+  .role-head .tabline b{ color:var(--green); }
+
+  .phones{ display:flex; gap:26px; overflow-x:auto; padding:4px 4px 26px;
+    scroll-snap-type:x proximity; }
+  .phone-col{ scroll-snap-align:start; flex:0 0 auto; }
+  .phone-col .cap{ font-size:12.5px; color:var(--page-muted); text-align:center;
+    margin-bottom:11px; font-weight:600; }
+  .phone-col .cap b{ color:var(--page-fg); }
+
+  /* ---- phone frame ---- */
+  .phone{ width:322px; background:var(--shell); border-radius:40px;
+    border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 0 0 10px #05070c, 0 30px 60px -20px rgba(0,0,0,.7);
+    overflow:hidden; position:relative; color:#fff; font-size:14px;
+    display:flex; flex-direction:column; height:712px; }
+  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:130px; height:26px; background:#05070c; border-radius:0 0 16px 16px; z-index:30; }
+  .bell{ position:absolute; top:11px; right:13px; z-index:25; width:30px; height:30px;
+    border-radius:9px; background:rgba(255,255,255,.05); border:1px solid var(--card-border);
+    display:grid; place-items:center; }
+  .screen{ flex:1; overflow-y:auto; overflow-x:hidden; }
+  .screen::-webkit-scrollbar{ width:0; }
+
+  /* status bar (agent-style headers) */
+  .statusbar{ background:var(--header); border-bottom:1px solid rgba(255,255,255,.05);
+    display:flex; justify-content:space-between; align-items:center; padding:8px 16px;
+    font-size:10px; color:var(--g500); }
+  .statusbar .on{ color:var(--green); display:inline-flex; align-items:center; gap:5px; }
+
+  .pad{ padding:18px 18px 84px; }
+  .pad.tight{ padding:24px 16px 84px; }
+
+  .greet .hi{ font-size:13px; color:var(--g500); }
+  .greet .nm{ font-size:23px; font-weight:800; margin:1px 0 3px; letter-spacing:-.01em; }
+  .greet .dt{ font-size:12px; color:var(--g500); display:flex; align-items:center; gap:5px; }
+
+  h1.scr{ font-size:23px; font-weight:800; letter-spacing:-.01em; margin:0; display:flex; align-items:center; gap:8px; }
+  .subttl{ font-size:12.5px; color:var(--g500); margin:5px 0 0; line-height:1.45; }
+
+  .card{ background:var(--card); border:1px solid var(--card-border); border-radius:16px; }
+  .card.p{ padding:15px; }
+  .lbl{ font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--g500); font-weight:600; }
+  .mut{ color:var(--g500); } .mut4{ color:var(--g400); }
+  .num{ font-variant-numeric:tabular-nums; }
+  .grn{ color:var(--green); } .amb{ color:var(--amber); } .rd{ color:var(--red); }
+  .blu{ color:var(--blue); } .pur{ color:var(--purple); } .cyn{ color:var(--cyan); }
+
+  .row{ display:flex; align-items:center; gap:10px; }
+  .between{ display:flex; align-items:center; justify-content:space-between; }
+  .g2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .g3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+  .g4{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stack{ display:flex; flex-direction:column; gap:12px; }
+  .stack.sm{ gap:9px; }
+
+  .chip{ font-size:11px; font-weight:700; padding:6px 12px; border-radius:999px;
+    border:1px solid var(--card-border); color:var(--g400); background:rgba(255,255,255,.04); white-space:nowrap; }
+  .chip.act{ background:var(--green); color:var(--header); border-color:var(--green); }
+  .chips{ display:flex; gap:7px; overflow-x:auto; padding-bottom:2px; }
+
+  .pill{ font-size:11px; font-weight:700; padding:5px 10px; border-radius:999px; }
+  .pill.up{ background:rgba(0,232,123,.14); color:var(--green); }
+  .pill.dn{ background:rgba(239,68,68,.14); color:var(--red); }
+
+  .toggle{ display:inline-flex; background:rgba(255,255,255,.05); border:1px solid var(--card-border);
+    border-radius:12px; padding:3px; gap:2px; }
+  .toggle span{ font-size:11.5px; font-weight:600; padding:6px 13px; border-radius:9px; color:var(--g400); }
+  .toggle span.on{ background:var(--green); color:var(--header); }
+
+  .iconbox{ width:34px; height:34px; border-radius:10px; display:grid; place-items:center; flex:0 0 auto; }
+  .ib-green{ background:rgba(0,232,123,.12); color:var(--green); }
+  .ib-blue{ background:rgba(59,130,246,.14); color:var(--blue); }
+  .ib-pur{ background:rgba(139,92,246,.16); color:var(--purple); }
+  .ib-amb{ background:rgba(245,158,11,.15); color:var(--amber); }
+  .ib-red{ background:rgba(239,68,68,.14); color:var(--red); }
+  .ib-solid{ background:var(--green2); color:#fff; }
+
+  .stat .v{ font-size:21px; font-weight:800; }
+  .stat .lbl{ margin-top:2px; }
+  .badge{ font-size:9px; font-weight:800; padding:2px 6px; border-radius:6px; }
+  .badge.g{ background:rgba(0,232,123,.16); color:var(--green); }
+  .badge.a{ background:rgba(245,158,11,.18); color:var(--amber); }
+
+  .bar{ height:7px; border-radius:999px; background:rgba(255,255,255,.07); overflow:hidden; margin-top:8px; }
+  .bar > i{ display:block; height:100%; border-radius:999px; }
+  .bar.sm{ height:5px; }
+
+  .cta{ display:flex; align-items:center; justify-content:center; gap:8px;
+    background:linear-gradient(135deg,var(--green),var(--green2)); color:var(--header);
+    font-weight:800; font-size:14px; border-radius:16px; padding:14px; }
+  .btn-soft{ background:rgba(255,255,255,.06); border:1px solid var(--card-border);
+    border-radius:16px; padding:13px; font-weight:700; font-size:13px; text-align:center;
+    display:flex; align-items:center; justify-content:center; gap:7px; }
+
+  .hero{ background:linear-gradient(135deg,var(--header),var(--grad-end));
+    border:1px solid rgba(0,232,123,.2); border-radius:18px; padding:16px; }
+
+  .ring{ width:74px; height:74px; border-radius:50%; flex:0 0 auto;
+    display:grid; place-items:center; font-size:16px; font-weight:800; position:relative;
+    background:conic-gradient(var(--rc) calc(var(--pct)*1%), rgba(255,255,255,.09) 0); }
+  .ring::before{ content:""; position:absolute; inset:9px; border-radius:50%; background:var(--shell); }
+  .ring.big::before{ inset:11px; }
+  .ring.big{ width:96px; height:96px; font-size:20px; }
+  .ring .donut-txt{ position:relative; z-index:1; }
+
+  .donut-txt{ font-size:15px; font-weight:800; }
+
+  .avatar{ width:76px; height:76px; border-radius:50%; background:rgba(255,255,255,.1);
+    border:2px solid rgba(0,232,123,.3); display:grid; place-items:center; margin:0 auto; }
+  .prof-head{ background:linear-gradient(135deg,var(--header),var(--profile-end));
+    padding:30px 20px 24px; text-align:center; }
+
+  .navbar{ position:absolute; bottom:0; left:0; right:0; background:rgba(10,22,40,.96);
+    backdrop-filter:blur(12px); border-top:1px solid rgba(255,255,255,.06);
+    display:flex; align-items:flex-end; justify-content:space-around; padding:7px 6px 10px; z-index:20; }
+  .tab{ display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--g600);
+    font-size:10px; font-weight:600; padding:2px 8px; }
+  .tab.on{ color:var(--green); }
+  .tab.on span{ font-weight:700; }
+  .tab.cta-tab{ margin-top:-22px; color:var(--green); }
+  .tab .fab{ width:52px; height:52px; border-radius:16px;
+    background:linear-gradient(135deg,var(--green),var(--green2));
+    display:grid; place-items:center; box-shadow:0 8px 20px -4px rgba(0,232,123,.5); }
+  svg{ display:block; }
+  .ico{ width:18px; height:18px; stroke:currentColor; stroke-width:2; fill:none;
+    stroke-linecap:round; stroke-linejoin:round; }
+  .ico.s{ width:15px; height:15px; } .ico.xs{ width:13px; height:13px; }
+  .ico.l{ width:24px; height:24px; stroke-width:1.9; }
+
+  .divide > * + *{ border-top:1px solid var(--card-border); }
+  .inforow{ padding:12px 14px; }
+  .textarea{ background:rgba(255,255,255,.04); border:1px solid var(--card-border);
+    border-radius:16px; padding:13px; font-family:var(--mono); font-size:12px;
+    color:var(--g500); min-height:120px; white-space:pre; }
+  .fake-input{ background:rgba(255,255,255,.04); border:1px solid var(--card-border);
+    border-radius:14px; padding:11px 13px; font-size:12.5px; color:var(--g500);
+    font-family:var(--mono); width:100%; }
+  .callchip{ display:inline-flex; align-items:center; justify-content:center;
+    width:44px; height:44px; border-radius:14px; background:rgba(0,232,123,.15);
+    border:1px solid rgba(0,232,123,.3); }
+  .thumb{ display:inline-flex; align-items:center; justify-content:center;
+    width:44px; height:44px; border-radius:12px; flex-shrink:0;
+    background:rgba(255,255,255,.04); border:1px solid var(--card-border); }
+  .vbar{ width:100%; border-radius:5px 5px 0 0; background:var(--blue); min-height:4px; }
+  .vbar.grn{ background:var(--green); }
+  .orange{ color:var(--orange); }
+  .bar-col{ flex:1; }
+
+  footer.pg{ margin-top:40px; padding-top:20px; border-top:1px solid var(--page-line);
+    color:var(--page-muted); font-size:13px; }
+  footer.pg code{ font-family:var(--mono); font-size:12px; }
+  @media (max-width:640px){ .wrap{ padding:32px 14px 60px; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">FieldVibe · Progressive Web App</div>
+    <h1 class="title">Five roles, five different apps</h1>
+    <p class="lede">The FieldVibe PWA is one shell (<code>AgentLayout</code>) that reshapes itself per role — different bottom-nav tabs, different landing screen, different data. Below is a faithful render of each role's primary screens, straight from the live components. Scroll each row sideways to move between that role's tabs.</p>
+  </header>
+
+  <div class="legend">
+    <span class="sw"><i class="dot" style="background:#00E87B"></i><b>#00E87B</b> brand green</span>
+    <span class="sw"><i class="dot" style="background:#3B82F6"></i>individual / blue</span>
+    <span class="sw"><i class="dot" style="background:#8B5CF6"></i>store / purple</span>
+    <span class="sw"><i class="dot" style="background:#F59E0B"></i>warning / amber</span>
+    <span class="sw"><i class="dot" style="background:#EF4444"></i>critical / red</span>
+    <span class="sw"><i class="dot" style="background:#0A1628;border:1px solid #ffffff22"></i>shell #06090F / header #0A1628</span>
+  </div>
+
+  <nav class="roles-nav" aria-label="Jump to role">
+    <a href="#gm">General Manager</a>
+    <a href="#manager">Manager</a>
+    <a href="#lead">Team Lead</a>
+    <a href="#bo">Back Office Admin</a>
+    <a href="#agent">Field Agent</a>
+  </nav>
+</div>
+
+<div class="wrap" style="padding-top:0">
+
+<!-- ================= GM ================= -->
+<section class="role" id="gm">
+  <div class="role-head">
+    <h2>General Manager</h2>
+    <span class="who">Rethabile Gigaba · whole-business view</span>
+    <span class="tabline"><b>Overview</b> · P&amp;L · Stats · Profile <span class="mut">(no CTA)</span></span>
+  </div>
+  <div class="phones">
+
+    <!-- GM Overview -->
+    <div class="phone-col">
+      <div class="cap"><b>Overview</b> — /agent/overview</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr">Overview</h1>
+              <p class="subttl">What's driving the business.</p>
+            </div>
+            <div class="chips">
+              <span class="chip act">All companies</span>
+              <span class="chip">Acme Retail</span>
+              <span class="chip">Umoya Telecom</span>
+              <span class="chip">BlueSky</span>
+            </div>
+            <div class="between">
+              <div class="toggle"><span class="on">Today</span><span>Week</span><span>Month</span></div>
+              <div class="row mut" style="gap:6px;font-size:12px">
+                <svg class="ico xs" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Today
+                <svg class="ico xs" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+            </div>
+
+            <!-- revenue hero -->
+            <div class="card p">
+              <div class="between"><span class="lbl">Revenue</span>
+                <span class="pill up">▲ +12%</span></div>
+              <div class="grn num" style="font-size:38px;font-weight:800;line-height:1.05;margin-top:6px">R48,300</div>
+              <div class="mut" style="font-size:12px;margin-top:2px">161 deposits × R300</div>
+            </div>
+
+            <!-- risks -->
+            <div class="card p" style="border-color:rgba(245,158,11,.28);background:rgba(245,158,11,.06)">
+              <div class="row" style="gap:8px"><svg class="ico s amb" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><span class="amb" style="font-weight:700;font-size:13px">Risks</span></div>
+              <div class="mut4" style="font-size:12.5px;margin-top:8px;line-height:1.6">3 agents gone quiet<br>No signups logged in 7+ days</div>
+            </div>
+
+            <!-- net / costs -->
+            <div class="card p stack sm">
+              <div class="between"><span class="mut4" style="font-size:13px">Incentive payouts</span><span class="rd num">−R14,200</span></div>
+              <div class="between"><span class="mut4" style="font-size:13px">Salaries</span><span class="rd num">−R22,000</span></div>
+              <div class="between" style="border-top:1px solid var(--card-border);padding-top:9px">
+                <span style="font-weight:700">Net</span>
+                <span class="grn num row" style="gap:6px;font-weight:800"><svg class="ico xs" viewBox="0 0 24 24"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>R12,100</span></div>
+            </div>
+
+            <!-- funnel -->
+            <div class="g2">
+              <div class="card p stat"><div class="lbl">Sign-ups</div><div class="v num">420</div><div class="mut" style="font-size:11px">380 qualified</div><span class="pill up" style="font-size:9px;margin-top:5px;display:inline-block">+8%</span></div>
+              <div class="card p stat"><div class="lbl">Converted</div><div class="v num grn">161</div><div class="mut" style="font-size:11px">38% rate</div><span class="pill up" style="font-size:9px;margin-top:5px;display:inline-block">+5%</span></div>
+            </div>
+
+            <!-- field force + calls -->
+            <div class="g2">
+              <div class="card p">
+                <div class="row" style="gap:7px"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="lbl">Active agents</span></div>
+                <div class="num" style="font-size:19px;font-weight:800;margin-top:6px">34<span class="mut" style="font-size:13px">/40</span></div>
+                <div class="amb" style="font-size:11px">2 without team lead</div>
+              </div>
+              <div class="card p">
+                <div class="lbl">BO calls</div>
+                <div class="num" style="font-size:19px;font-weight:800;margin-top:6px">210<span class="mut" style="font-size:13px">/300</span></div>
+                <div class="bar sm"><i style="width:70%;background:var(--green)"></i></div>
+              </div>
+            </div>
+
+            <!-- teams -->
+            <div class="card p">
+              <div class="between"><span style="font-weight:700;font-size:14px">Sandton Squad</span><span class="pill up">+11%</span></div>
+              <div class="mut" style="font-size:12px;margin-top:4px">12/15 agents active · 58 converted (41%)</div>
+            </div>
+
+            <!-- top performers -->
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:9px">Top performers</div>
+              <div class="row between">
+                <div class="row" style="gap:9px"><span class="iconbox ib-green num" style="font-size:12px;font-weight:800">1</span><span style="font-weight:600">Sipho Dlamini</span></div>
+                <span class="mut" style="font-size:12px">32 · 15 conv.</span>
+              </div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Overview</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg><span>P&amp;L</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- GM P&L -->
+    <div class="phone-col">
+      <div class="cap"><b>P&amp;L</b> — /agent/pnl</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr"><svg class="ico l grn" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>P&amp;L</h1>
+              <p class="subttl">March 2026</p>
+            </div>
+            <div class="chips"><span class="chip act">All companies</span><span class="chip">Acme Retail</span><span class="chip">Umoya</span></div>
+            <div class="toggle"><span class="on">Confirmed</span><span>On pace</span></div>
+
+            <div class="card p">
+              <div class="row" style="gap:7px"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg><span class="lbl">Net</span></div>
+              <div class="grn num" style="font-size:34px;font-weight:800;margin-top:6px">R12,100</div>
+            </div>
+
+            <div class="card p stack sm">
+              <div class="between"><div><div style="font-size:13px;font-weight:600">Revenue</div><div class="mut" style="font-size:11px">161 deposits × R300</div></div><span class="grn num">R48,300</span></div>
+              <div class="between" style="border-top:1px solid var(--card-border);padding-top:9px"><span class="mut4" style="font-size:13px">Incentive payouts</span><span class="rd num">−R14,200</span></div>
+              <div class="between"><span class="mut4" style="font-size:13px">Salaries</span><span class="rd num">−R22,000</span></div>
+              <div class="between"><div><div class="mut4" style="font-size:13px">Back office</div><div class="mut" style="font-size:11px">3 admins × R8,000</div></div><span class="rd num">−R24,000</span></div>
+              <div class="between"><div><div class="mut4" style="font-size:13px">Phones</div><div class="mut" style="font-size:11px">40 agents × R150</div></div><span class="rd num">−R6,000</span></div>
+            </div>
+
+            <div class="g2">
+              <div class="card p stat"><div class="v num">420</div><div class="lbl">Signups</div><div class="mut" style="font-size:11px">380 qualified</div></div>
+              <div class="card p stat"><div class="v num grn">161</div><div class="lbl">Converted</div><div class="mut" style="font-size:11px">152 qualified</div></div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Overview</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg><span>P&amp;L</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- GM Stats -->
+    <div class="phone-col">
+      <div class="cap"><b>Stats</b> — /agent/stats</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr">Performance</h1>
+              <p class="subttl">1 Mar – 31 Mar (to date)</p>
+            </div>
+            <div class="chips"><span class="chip act">All customers</span><span class="chip">Acme Retail</span></div>
+            <div class="between">
+              <div class="toggle"><span>Today</span><span>Week</span><span class="on">Month</span></div>
+              <div class="row mut" style="gap:8px"><svg class="ico xs" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><svg class="ico xs" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+            </div>
+
+            <div class="g2">
+              <div class="card p stat"><div class="v num">420</div><div class="lbl">Signups</div><span class="pill up" style="font-size:9px;margin-top:4px;display:inline-block">+8%</span></div>
+              <div class="card p stat"><div class="v num">161</div><div class="lbl">Converted</div><span class="pill up" style="font-size:9px;margin-top:4px;display:inline-block">+5%</span></div>
+              <div class="card p stat"><div class="v num">38%</div><div class="lbl">Conversion</div><span class="pill up" style="font-size:9px;margin-top:4px;display:inline-block">+2.0 pts</span></div>
+              <div class="card p stat"><div class="v num grn">R48,300</div><div class="lbl">Revenue</div><span class="pill up" style="font-size:9px;margin-top:4px;display:inline-block">+12%</span></div>
+            </div>
+            <div class="card p between"><div><div class="lbl">Qualified deposits</div><div class="mut" style="font-size:11px;margin-top:2px">R300 commission each</div></div><div class="num" style="font-size:22px;font-weight:800">152</div></div>
+
+            <div class="card p stack sm">
+              <div class="row between"><div class="row" style="gap:8px"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span class="mut4" style="font-size:13px">Agents in the field</span></div><span class="num" style="font-weight:700">34/40 <span class="mut" style="font-size:11px">85%</span></span></div>
+              <div class="row between"><div class="row" style="gap:8px"><svg class="ico s amb" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 8l-4 4M18 8l4 4"/></svg><span class="mut4" style="font-size:13px">Unassigned agents</span></div><span class="amb num" style="font-weight:700">2</span></div>
+              <div class="row between"><div class="row" style="gap:8px"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span class="mut4" style="font-size:13px">Leads contacted</span></div><span class="num" style="font-weight:700">210/300 <span class="mut" style="font-size:11px">70%</span></span></div>
+            </div>
+
+            <div>
+              <div class="between" style="margin-bottom:9px"><span style="font-weight:700;font-size:14px">What's dragging performance</span><span class="mut" style="font-size:11px">6 of 40 flagged</span></div>
+              <div class="stack sm">
+                <div class="card p"><div class="between"><span style="font-size:13px;font-weight:600">Gone quiet</span><span class="rd num" style="font-weight:700">3</span></div><div class="bar"><i style="width:60%;background:var(--red)"></i></div>
+                  <div class="row between" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--card-border)"><div><div style="font-size:12.5px;font-weight:600">Sipho Dlamini</div><div class="mut" style="font-size:11px">No signups in 9 days</div></div><span class="badge a">+2</span></div>
+                </div>
+                <div class="card p"><div class="between"><span style="font-size:13px;font-weight:600">Below target</span><span class="amb num" style="font-weight:700">2</span></div><div class="bar"><i style="width:35%;background:var(--amber)"></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Overview</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg><span>P&amp;L</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- GM Profile -->
+    <div class="phone-col">
+      <div class="cap"><b>Profile</b> — /agent/profile</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div class="prof-head">
+            <div class="avatar"><svg class="ico grn" style="width:40px;height:40px" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div style="font-size:20px;font-weight:800;margin-top:12px">Rethabile Gigaba</div>
+            <div class="mut4" style="font-size:13px;text-transform:capitalize">general manager</div>
+          </div>
+          <div class="pad">
+            <div class="stack">
+              <div class="card divide">
+                <div class="inforow"><div class="lbl grn">Phone</div><div style="font-size:13px;margin-top:3px">+27 82 123 4567</div></div>
+                <div class="inforow"><div class="lbl">Role</div><div style="font-size:13px;margin-top:3px;text-transform:capitalize">general manager</div></div>
+                <div class="inforow"><div class="lbl">Companies</div><div style="font-size:13px;margin-top:3px">Acme Retail, Umoya Telecom</div></div>
+              </div>
+              <div class="card p row between" style="border-color:rgba(245,158,11,.25)"><span class="row amb" style="gap:9px;font-weight:600;font-size:14px"><svg class="ico s" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Change PIN</span><svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+              <div class="card p row rd" style="gap:9px;border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.08);font-weight:600;font-size:14px"><svg class="ico s" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Sign Out</div>
+            </div>
+          </div>
+        </div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Overview</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg><span>P&amp;L</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= MANAGER ================= -->
+<section class="role" id="manager">
+  <div class="role-head">
+    <h2>Manager</h2>
+    <span class="who">Thabo Nkosi · runs several teams</span>
+    <span class="tabline"><b>Home</b> · Teams · Stats · Profile</span>
+  </div>
+  <div class="phones">
+
+    <!-- Manager Home -->
+    <div class="phone-col">
+      <div class="cap"><b>Home</b> — /agent/dashboard</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div class="statusbar"><span class="on"><svg class="ico xs" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="20" r="1"/></svg>Online</span><span class="row" style="gap:10px"><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span></div>
+          <div class="pad">
+            <div class="stack">
+              <div class="greet"><div class="hi">Good morning,</div><div class="nm">Thabo 👋</div><div class="dt"><svg class="ico xs" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Friday, 11 July</div></div>
+
+              <div class="card p" style="background:linear-gradient(135deg,rgba(0,232,123,.14),rgba(0,208,110,.05));border-color:rgba(0,232,123,.22)">
+                <div class="row" style="gap:8px"><span class="iconbox ib-green"><svg class="ico s" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></span><span style="font-weight:700;font-size:14px">On a roll</span></div>
+                <div class="mut4" style="font-size:12.5px;margin-top:7px;line-height:1.5">Teams cleared 78% of target with 3 weeks left. Sandton Squad leads.</div>
+              </div>
+
+              <!-- manager quick-access -->
+              <div class="card p row between" style="border-color:rgba(0,232,123,.2)">
+                <div class="row" style="gap:10px"><span class="iconbox ib-green"><svg class="ico s" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg></span><div><div style="font-weight:600;font-size:13.5px">Organization Overview</div><div class="mut" style="font-size:11px">4 teams · 23 agents</div></div></div>
+                <svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+
+              <div class="lbl">Quick actions</div>
+              <div class="g2">
+                <div class="card p row" style="gap:9px"><span class="iconbox ib-pur"><svg class="ico s" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span><span style="font-size:13px;font-weight:600">Store visit</span></div>
+                <div class="card p row" style="gap:9px"><span class="iconbox ib-blue"><svg class="ico s" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span><span style="font-size:13px;font-weight:600">Individual</span></div>
+              </div>
+
+              <div class="lbl">Today &amp; month</div>
+              <div class="g2">
+                <div class="card p"><div class="lbl blu">Today individual</div><div class="num" style="font-size:22px;font-weight:800;margin-top:3px">12</div><div class="bar sm"><i style="width:30%;background:var(--blue)"></i></div><div class="mut" style="font-size:10px;margin-top:3px">12 / 40</div></div>
+                <div class="card p"><div class="lbl pur">Today store</div><div class="num" style="font-size:22px;font-weight:800;margin-top:3px">8</div><div class="bar sm"><i style="width:53%;background:var(--purple)"></i></div><div class="mut" style="font-size:10px;margin-top:3px">8 / 15</div></div>
+                <div class="card p"><div class="lbl blu">Month individual</div><div class="num" style="font-size:22px;font-weight:800;margin-top:3px">210</div><div class="bar sm"><i style="width:26%;background:var(--blue)"></i></div><div class="mut" style="font-size:10px;margin-top:3px">210 / 800</div></div>
+                <div class="card p"><div class="lbl pur">Month store</div><div class="num" style="font-size:22px;font-weight:800;margin-top:3px">95</div><div class="bar sm"><i style="width:32%;background:var(--purple)"></i></div><div class="mut" style="font-size:10px;margin-top:3px">95 / 300</div></div>
+              </div>
+
+              <div class="card p">
+                <div class="lbl" style="margin-bottom:9px">Recent visits</div>
+                <div class="row between"><div class="row" style="gap:9px"><span class="iconbox ib-blue"><svg class="ico s" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span><div><div style="font-size:13px;font-weight:600">Nomsa Dlamini</div><div class="mut" style="font-size:11px">Individual · 2h ago</div></div></div><span class="badge g">Done</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="navbar">
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg><span>Teams</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Manager Teams -->
+    <div class="phone-col">
+      <div class="cap"><b>Teams</b> — /agent/teams</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr">Organization</h1>
+              <p class="subttl">4 teams · 23 agents</p>
+            </div>
+            <div class="toggle"><span>Today</span><span>Week</span><span class="on">Month</span></div>
+
+            <div class="g2">
+              <div class="card p stat"><div class="v num">305</div><div class="lbl">Signups</div></div>
+              <div class="card p stat"><div class="v num grn">140</div><div class="lbl">Converted</div></div>
+            </div>
+
+            <!-- org achievement donut -->
+            <div class="card p row between">
+              <div>
+                <div class="lbl">Org achievement</div>
+                <div class="grn num" style="font-size:15px;font-weight:700;margin-top:6px">R45,200</div>
+                <div class="mut" style="font-size:11px">of R58,000 target</div>
+              </div>
+              <div class="ring" style="--pct:78; --rc:var(--green)"><span class="donut-txt">78%</span></div>
+            </div>
+
+            <div class="card p row between"><div class="row" style="gap:9px"><span class="iconbox ib-amb"><svg class="ico s" viewBox="0 0 24 24"><path d="M6 9l6-6 6 6M6 9v12h12V9"/><circle cx="12" cy="14" r="2"/></svg></span><div><div style="font-size:13px;font-weight:600">Current tier</div><div class="mut" style="font-size:11px">Commission rules apply</div></div></div><span class="badge a">Gold</span></div>
+
+            <div class="card p" style="border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.06)"><div class="row amb" style="gap:8px;font-size:12.5px;font-weight:600"><svg class="ico s" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>2 agents unassigned</div></div>
+
+            <div>
+              <div class="lbl" style="margin-bottom:9px">Team performance · worst first</div>
+              <div class="stack sm">
+                <div class="card p"><div class="between"><span style="font-size:13px;font-weight:600">Midrand Movers</span><span class="rd num" style="font-weight:700">54%</span></div><div class="bar"><i style="width:54%;background:var(--red)"></i></div><div class="mut" style="font-size:11px;margin-top:5px">5 agents · Lead: Naledi P</div></div>
+                <div class="card p"><div class="between"><span style="font-size:13px;font-weight:600">Rosebank Risers</span><span class="amb num" style="font-weight:700">81%</span></div><div class="bar"><i style="width:81%;background:var(--amber)"></i></div><div class="mut" style="font-size:11px;margin-top:5px">6 agents · Lead: Kabelo M</div></div>
+                <div class="card p"><div class="between"><span style="font-size:13px;font-weight:600">Sandton Squad</span><span class="grn num" style="font-weight:700">104%</span></div><div class="bar"><i style="width:100%;background:var(--green)"></i></div><div class="mut" style="font-size:11px;margin-top:5px">12 agents · Lead: Zanele K</div></div>
+              </div>
+            </div>
+
+            <div class="g3">
+              <div class="card p stat"><div class="v num" style="font-size:17px">23</div><div class="lbl">Agents</div></div>
+              <div class="card p stat"><div class="v num" style="font-size:17px">18</div><div class="lbl">Active</div></div>
+              <div class="card p stat"><div class="v num grn" style="font-size:17px">4</div><div class="lbl">Teams</div></div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg><span>Teams</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Manager Stats -->
+    <div class="phone-col">
+      <div class="cap"><b>Stats</b> — /agent/stats · own perf</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr">My Performance</h1>
+              <p class="subttl">July 2026</p>
+            </div>
+            <div class="toggle"><span class="on">Overview</span><span>Targets</span><span>Earnings</span></div>
+
+            <div class="g3">
+              <div class="card p" style="text-align:center"><div class="ring big" style="--pct:78;--rc:var(--green);margin:0 auto"><span class="donut-txt">78%</span></div><div class="lbl" style="margin-top:8px">Target</div></div>
+              <div class="card p stat"><div class="v num amb">R8,400</div><div class="lbl">Earnings</div></div>
+              <div class="card p stat"><div class="v num orange" style="color:var(--orange)">6</div><div class="lbl">Streak 🔥</div></div>
+            </div>
+
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:10px">This week</div>
+              <div class="row" style="align-items:flex-end;gap:6px;height:70px">
+                <div class="bar-col" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:100%;height:44px;background:var(--green);border-radius:4px 4px 0 0"></div><span class="mut" style="font-size:9px">M</span></div>
+                <div class="bar-col" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:100%;height:30px;background:var(--red);border-radius:4px 4px 0 0"></div><span class="mut" style="font-size:9px">T</span></div>
+                <div class="bar-col" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:100%;height:56px;background:var(--green);border-radius:4px 4px 0 0"></div><span class="mut" style="font-size:9px">W</span></div>
+                <div class="bar-col" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:100%;height:38px;background:var(--green);border-radius:4px 4px 0 0"></div><span class="mut" style="font-size:9px">T</span></div>
+                <div class="bar-col" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:100%;height:22px;background:var(--red);border-radius:4px 4px 0 0"></div><span class="mut" style="font-size:9px">F</span></div>
+              </div>
+            </div>
+
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:10px">Performance summary</div>
+              <div class="stack sm">
+                <div class="between"><span class="mut4" style="font-size:12.5px">Today</span><span class="num" style="font-weight:600">6</span></div>
+                <div class="between"><span class="mut4" style="font-size:12.5px">This week</span><span class="num" style="font-weight:600">28</span></div>
+                <div class="between"><span class="mut4" style="font-size:12.5px">Month to date</span><span class="num grn" style="font-weight:700">210</span></div>
+                <div class="between"><span class="mut4" style="font-size:12.5px">Prior month</span><span class="num mut" style="font-weight:600">188</span></div>
+              </div>
+            </div>
+
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:10px">Hierarchy scores</div>
+              <div class="stack sm">
+                <div class="between"><span class="mut4" style="font-size:12.5px">Org total</span><span class="num grn" style="font-weight:700">78%</span></div>
+                <div class="between"><span class="mut4" style="font-size:12.5px">Own contribution</span><span class="num" style="font-weight:600">70%</span></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg><span>Teams</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= TEAM LEAD ================= -->
+<section class="role" id="lead">
+  <div class="role-head">
+    <h2>Team Lead</h2>
+    <span class="who">Zanele Khumalo · runs one team, still visits</span>
+    <span class="tabline"><b>Home</b> · Visits · <b>New</b> · Team · Profile</span>
+  </div>
+  <div class="phones">
+
+    <!-- Team Lead Home -->
+    <div class="phone-col">
+      <div class="cap"><b>Home</b> — /agent/dashboard</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div class="statusbar"><span class="on"><svg class="ico xs" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="20" r="1"/></svg>Online</span><span class="row" style="gap:10px"><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span></div>
+          <div class="pad">
+            <div class="stack">
+              <div class="greet"><div class="hi">Good morning,</div><div class="nm">Zanele 👋</div><div class="dt"><svg class="ico xs" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Friday, 11 July</div></div>
+
+              <!-- team lead quick-access -->
+              <div class="card p row between" style="border-color:rgba(0,232,123,.2)">
+                <div class="row" style="gap:10px"><span class="iconbox ib-green"><svg class="ico s" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span><div><div style="font-weight:600;font-size:13.5px">Team Overview</div><div class="mut" style="font-size:11px">5 agents · Sandton Squad</div></div></div>
+                <svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+
+              <!-- team performance section -->
+              <div class="card p">
+                <div class="between" style="margin-bottom:11px"><span style="font-weight:700;font-size:14px">Team performance</span><span class="badge g">104%</span></div>
+                <div class="stack sm">
+                  <div class="between"><div class="row" style="gap:9px"><span class="iconbox ib-blue" style="width:30px;height:30px;font-size:11px;font-weight:700">PN</span><div><div style="font-size:12.5px;font-weight:600">Precious Nkosi</div><div class="mut" style="font-size:10.5px">18 signups</div></div></div><span class="amb num" style="font-weight:700;font-size:13px">74%</span></div>
+                  <div class="between"><div class="row" style="gap:9px"><span class="iconbox ib-blue" style="width:30px;height:30px;font-size:11px;font-weight:700">SM</span><div><div style="font-size:12.5px;font-weight:600">Sipho Mbeki</div><div class="mut" style="font-size:10.5px">26 signups</div></div></div><span class="grn num" style="font-weight:700;font-size:13px">110%</span></div>
+                  <div class="between"><div class="row" style="gap:9px"><span class="iconbox ib-red" style="width:30px;height:30px;font-size:11px;font-weight:700">TM</span><div><div style="font-size:12.5px;font-weight:600">Thandi Moyo</div><div class="mut" style="font-size:10.5px">9 signups · quiet 3d</div></div></div><span class="rd num" style="font-weight:700;font-size:13px">41%</span></div>
+                </div>
+              </div>
+
+              <div class="lbl">Today &amp; month</div>
+              <div class="g2">
+                <div class="card p"><div class="lbl blu">Today individual</div><div class="num" style="font-size:22px;font-weight:800;margin-top:3px">7</div><div class="bar sm"><i style="width:70%;background:var(--blue)"></i></div><div class="mut" style="font-size:10px;margin-top:3px">7 / 10</div></div>
+                <div class="card p"><div class="lbl pur">Today store</div><div class="num" style="font-size:22px;font-weight:800;margin-top:3px">3</div><div class="bar sm"><i style="width:60%;background:var(--purple)"></i></div><div class="mut" style="font-size:10px;margin-top:3px">3 / 5</div></div>
+              </div>
+
+              <div class="card p">
+                <div class="lbl" style="margin-bottom:9px">Recent visits</div>
+                <div class="row between"><div class="row" style="gap:9px"><span class="iconbox ib-pur"><svg class="ico s" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span><div><div style="font-size:13px;font-weight:600">Shoprite Sandton</div><div class="mut" style="font-size:11px">Store · 1h ago</div></div></div><span class="badge g">Done</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="navbar">
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Visits</span></div>
+          <div class="tab cta-tab"><div class="fab"><svg class="ico" viewBox="0 0 24 24" style="stroke:#0A1628"><path d="M12 5v14M5 12h14"/></svg></div><span>New</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg><span>Team</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Team Lead Team -->
+    <div class="phone-col">
+      <div class="cap"><b>Team</b> — /agent/team</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr">My Team</h1>
+              <p class="subttl">5 agents · Sandton Squad</p>
+            </div>
+            <div class="toggle"><span>Today</span><span>Week</span><span class="on">Month</span></div>
+
+            <div class="g3">
+              <div class="card p stat"><div class="v num blu" style="font-size:19px">34</div><div class="lbl">Individual</div></div>
+              <div class="card p stat"><div class="v num pur" style="font-size:19px">21</div><div class="lbl">Store</div></div>
+              <div class="card p stat"><div class="v num grn" style="font-size:19px">55</div><div class="lbl">Total</div></div>
+            </div>
+
+            <div class="card p row between">
+              <div>
+                <div class="lbl">Team achievement</div>
+                <div class="grn num" style="font-size:15px;font-weight:700;margin-top:6px">R18,600</div>
+                <div class="mut" style="font-size:11px">of R22,700 target</div>
+              </div>
+              <div class="ring" style="--pct:82;--rc:var(--green)"><span class="donut-txt">82%</span></div>
+            </div>
+
+            <div class="card p row between"><div class="row" style="gap:9px"><span class="iconbox ib-amb"><svg class="ico s" viewBox="0 0 24 24"><path d="M6 9l6-6 6 6M6 9v12h12V9"/><circle cx="12" cy="14" r="2"/></svg></span><span style="font-size:13px;font-weight:600">Current tier</span></div><span class="badge a">Gold</span></div>
+
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:10px">Hierarchy scores</div>
+              <div class="stack sm">
+                <div class="between"><span class="mut4" style="font-size:12.5px">Team total</span><span class="num grn" style="font-weight:700">82%</span></div>
+                <div class="between"><span class="mut4" style="font-size:12.5px">Own contribution</span><span class="num" style="font-weight:600">28/40 · 70%</span></div>
+                <div class="between"><span class="mut4" style="font-size:12.5px">Manager org</span><span class="num" style="font-weight:600">90%</span></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="lbl" style="margin-bottom:9px">Agent performance</div>
+              <div class="stack sm">
+                <div class="card p"><div class="between"><div class="row" style="gap:9px"><span class="iconbox ib-blue" style="width:30px;height:30px;font-size:11px;font-weight:700">PN</span><span style="font-size:13px;font-weight:600">Precious Nkosi</span></div><span class="amb num" style="font-weight:700">74%</span></div><div class="bar" style="margin-top:8px"><i style="width:74%;background:var(--amber)"></i></div></div>
+                <div class="card p"><div class="between"><div class="row" style="gap:9px"><span class="iconbox ib-red" style="width:30px;height:30px;font-size:11px;font-weight:700">TM</span><span style="font-size:13px;font-weight:600">Thandi Moyo</span></div><span class="rd num" style="font-weight:700">41%</span></div><div class="bar" style="margin-top:8px"><i style="width:41%;background:var(--red)"></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Visits</span></div>
+          <div class="tab cta-tab"><div class="fab"><svg class="ico" viewBox="0 0 24 24" style="stroke:#0A1628"><path d="M12 5v14M5 12h14"/></svg></div><span>New</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg><span>Team</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= BACK OFFICE ADMIN ================= -->
+<section class="role" id="bo">
+  <div class="role-head">
+    <h2>Back Office Admin</h2>
+    <span class="who">Lerato Mokoena · reconciles &amp; chases quiet agents</span>
+    <span class="tabline"><b>Home</b> · Reconcile · Deposits · Agents · Profile</span>
+  </div>
+  <div class="phones">
+
+    <!-- BO Home -->
+    <div class="phone-col">
+      <div class="cap"><b>Home</b> — /agent/dashboard</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div class="statusbar"><span class="on"><svg class="ico xs" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="20" r="1"/></svg>Online</span><span class="row" style="gap:10px"><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span></div>
+          <div class="pad">
+            <div class="stack">
+              <div class="greet"><div class="hi">Good morning,</div><div class="nm">Lerato 👋</div><div class="dt"><svg class="ico xs" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Friday, 11 July</div></div>
+
+              <!-- BO target card -->
+              <div class="card" style="padding:18px 20px;border-color:rgba(0,232,123,.22);background:linear-gradient(135deg,rgba(0,232,123,.1),rgba(0,208,110,.03))">
+                <div class="between"><div class="row" style="gap:9px"><span class="iconbox ib-green"><svg class="ico s" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span><span style="font-weight:700;font-size:13.5px">Agents contacted today</span></div><svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+                <div class="row" style="align-items:baseline;gap:8px;margin-top:12px"><span class="num grn" style="font-size:38px;font-weight:800;line-height:1">12</span><span class="mut4" style="font-size:13px">/ 20 · 34 calls</span><span class="amb" style="font-size:12px;font-weight:600">· 3 missed</span></div>
+                <div class="bar" style="margin-top:12px"><i style="width:60%;background:var(--green)"></i></div>
+              </div>
+
+              <div class="lbl">Quick actions</div>
+              <div class="g2">
+                <div class="card p row" style="gap:9px"><span class="iconbox ib-pur"><svg class="ico s" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span><span style="font-size:13px;font-weight:600">Store visit</span></div>
+                <div class="card p row" style="gap:9px"><span class="iconbox ib-blue"><svg class="ico s" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span><span style="font-size:13px;font-weight:600">Individual</span></div>
+              </div>
+              <div class="card p row between" style="border-color:rgba(0,232,123,.25);background:rgba(0,232,123,.06)"><span class="row grn" style="gap:9px;font-weight:700;font-size:13.5px"><svg class="ico s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Start new visit</span><svg class="ico s grn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+
+              <div class="lbl">Today &amp; month</div>
+              <div class="g2">
+                <div class="card p"><div class="lbl blu">Today individual</div><div class="num mut" style="font-size:22px;font-weight:800;margin-top:3px">0</div><div class="mut" style="font-size:10px;margin-top:5px">No target set</div></div>
+                <div class="card p"><div class="lbl pur">Today store</div><div class="num mut" style="font-size:22px;font-weight:800;margin-top:3px">0</div><div class="mut" style="font-size:10px;margin-top:5px">No target set</div></div>
+              </div>
+
+              <div class="card p" style="text-align:center;padding:22px 15px"><div class="mut4" style="font-size:12.5px">No visits logged yet today</div><div class="mut" style="font-size:11px;margin-top:3px">Your logged visits show here.</div></div>
+            </div>
+          </div>
+        </div>
+        <nav class="navbar">
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Reconcile</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><span>Deposits</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span>Agents</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- BO Reconcile -->
+    <div class="phone-col">
+      <div class="cap"><b>Reconcile</b> — /agent/reconcile</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr"><svg class="ico l grn" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Reconcile</h1>
+              <p class="subttl">Paste the Goldrush-confirmed IDs to qualify matching signups.</p>
+            </div>
+
+            <div class="textarea">123456789<br>987654321<br>456123789<br>… or paste a CSV export</div>
+            <div class="g2">
+              <div class="btn-soft">Preview</div>
+              <div class="cta">Confirm &amp; qualify</div>
+            </div>
+
+            <div class="card p">
+              <div class="g2">
+                <div><div class="num" style="font-size:24px;font-weight:800">50</div><div class="lbl">IDs uploaded</div></div>
+                <div><div class="num grn" style="font-size:24px;font-weight:800">42</div><div class="lbl">Match a signup</div></div>
+              </div>
+              <div class="mut4" style="font-size:12px;margin-top:11px;padding-top:11px;border-top:1px solid var(--card-border)">Confirm to qualify 42 signups for commission.</div>
+            </div>
+
+            <div class="card p" style="border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.06)">
+              <div class="row amb" style="gap:8px;font-weight:600;font-size:13px"><svg class="ico s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>8 unmatched</div>
+              <div class="mut" style="font-size:11.5px;margin-top:7px;font-family:var(--mono);line-height:1.7">778812340<br>119923845<br>556677001 …</div>
+            </div>
+
+            <div class="card p" style="border-color:rgba(0,232,123,.3);background:rgba(0,232,123,.06)">
+              <div class="row grn" style="gap:9px;font-weight:700;font-size:13.5px"><svg class="ico s" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4L12 14.01l-3-3"/></svg>42 signups qualified</div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Reconcile</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><span>Deposits</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span>Agents</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- BO Deposits -->
+    <div class="phone-col">
+      <div class="cap"><b>Deposits</b> — /agent/deposits</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div>
+              <h1 class="scr"><svg class="ico l grn" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>Deposits</h1>
+              <p class="subttl">Upload the Goldrush-confirmed deposit IDs.</p>
+            </div>
+
+            <div class="textarea" style="min-height:96px">123456789<br>987654321<br>… or paste a CSV export</div>
+            <input class="fake-input" value="BATCH-07" />
+            <div class="g2">
+              <div class="btn-soft">Preview</div>
+              <div class="cta">Upload deposits</div>
+            </div>
+
+            <div class="between"><span class="lbl">On file</span><div class="row" style="gap:8px"><span class="pill up" style="font-size:10px">Qualify</span><svg class="ico s mut" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg></div></div>
+            <div class="stack sm">
+              <div class="card p between"><div class="row" style="gap:9px"><span class="chip" style="padding:4px 8px;color:var(--green);border-color:rgba(0,232,123,.3)"><svg class="ico xs" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span><div><div class="num" style="font-size:12.5px;font-weight:700;font-family:var(--mono)">123456789</div><div class="mut" style="font-size:10.5px">BATCH-07 · Jul 10</div></div></div><div class="row" style="gap:9px"><span class="num" style="font-weight:700">R500</span><svg class="ico xs rd" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div></div>
+              <div class="card p between"><div class="row" style="gap:9px"><span class="chip" style="padding:4px 8px;color:var(--amber);border-color:rgba(245,158,11,.3)"><svg class="ico xs" viewBox="0 0 24 24"><path d="M18.4 10.6L14 15M9.5 8.5L5 13a5 5 0 0 0 7 7"/><path d="M2 2l20 20"/></svg></span><div><div class="num" style="font-size:12.5px;font-weight:700;font-family:var(--mono)">778812340</div><div class="mut" style="font-size:10.5px">BATCH-07 · Jul 10</div></div></div><div class="row" style="gap:9px"><span class="num" style="font-weight:700">R500</span><svg class="ico xs rd" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></div></div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Reconcile</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><span>Deposits</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span>Agents</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- BO Agents / call-list -->
+    <div class="phone-col">
+      <div class="cap"><b>Agents</b> — /agent/call-list</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div class="between">
+              <h1 class="scr">Agents</h1>
+              <div class="row" style="gap:8px"><span class="chip" style="padding:5px 10px">History</span><svg class="ico s mut" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg></div>
+            </div>
+            <p class="subttl">3 agents have no signups today — tap to call.</p>
+            <div class="chips"><span class="chip act">All companies</span><span class="chip">Acme Retail</span></div>
+
+            <div class="card p">
+              <div class="between"><span class="lbl">Today's target</span><span class="num mut" style="font-size:11px">target <b style="color:var(--green)">20</b></span></div>
+              <div class="row" style="align-items:baseline;gap:8px;margin-top:6px"><span class="num" style="font-size:22px;font-weight:800">12</span><span class="mut" style="font-size:12px">/ 20 agents · 34 calls</span></div>
+              <div class="bar" style="margin-top:9px"><i style="width:60%;background:var(--green)"></i></div>
+            </div>
+
+            <div class="card p row" style="gap:9px"><svg class="ico s mut" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4-4"/></svg><span class="mut" style="font-size:12.5px">Search name or number</span></div>
+
+            <div class="stack sm">
+              <div class="card p between"><div class="row" style="gap:10px"><span class="iconbox ib-red" style="width:34px;height:34px"><svg class="ico xs" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span><div><div style="font-size:13px;font-weight:600">Thandi Moyo</div><div class="mut" style="font-size:11px">Quiet · last seen 3d ago</div></div></div><span class="row" style="gap:8px"><span class="num rd" style="font-weight:700">0</span><span class="callchip"><svg class="ico xs" viewBox="0 0 24 24" style="stroke:#00E87B"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span></span></div>
+              <div class="card p between"><div class="row" style="gap:10px"><span class="iconbox ib-amb" style="width:34px;height:34px"><svg class="ico xs" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span><div><div style="font-size:13px;font-weight:600">Precious Nkosi</div><div class="mut" style="font-size:11px">12m ago</div></div></div><span class="row" style="gap:8px"><span class="num grn" style="font-weight:700">4</span><span class="callchip"><svg class="ico xs" viewBox="0 0 24 24" style="stroke:#00E87B"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span></span></div>
+            </div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span>Reconcile</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><span>Deposits</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span>Agents</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= FIELD AGENT ================= -->
+<section class="role" id="agent">
+  <div class="role-head">
+    <h2>Field Agent</h2>
+    <span class="who">Sipho Mkhize · logs visits, chases the gold rush</span>
+    <span class="tabline"><b>Home</b> · Visits · New · Stats · Profile</span>
+  </div>
+  <div class="phones">
+
+    <!-- Agent Home -->
+    <div class="phone-col">
+      <div class="cap"><b>Home</b> — /agent/dashboard</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div class="statusbar"><span class="on"><svg class="ico xs" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="20" r="1"/></svg>Online</span><span class="mut" style="font-size:10.5px">9:41</span></div>
+          <div class="pad">
+            <div class="stack">
+              <div class="greet"><div class="hi">Good morning,</div><div class="nm">Sipho 👋</div><div class="dt"><svg class="ico xs" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Friday, 11 July</div></div>
+
+              <!-- performance card -->
+              <div class="card" style="padding:16px 18px">
+                <div class="between"><span class="lbl">Today's target</span><span class="pill up">78%</span></div>
+                <div class="row" style="align-items:baseline;gap:8px;margin-top:7px"><span class="num" style="font-size:30px;font-weight:800">7</span><span class="mut" style="font-size:12px">/ 9 visits</span></div>
+                <div class="bar" style="margin-top:10px"><i style="width:78%;background:var(--amber)"></i></div>
+              </div>
+
+              <!-- goldrush fast signup CTA -->
+              <div class="card p row between" style="border-color:rgba(0,232,123,.3);background:linear-gradient(135deg,rgba(0,232,123,.14),rgba(0,208,110,.04))"><span class="row grn" style="gap:9px;font-weight:700;font-size:14px"><svg class="ico s" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>Fast Signup</span><svg class="ico s grn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+
+              <!-- hero incentive -->
+              <div class="card" style="padding:0;overflow:hidden;border-color:rgba(139,92,246,.3)">
+                <div style="background:linear-gradient(135deg,rgba(139,92,246,.22),rgba(59,130,246,.1));padding:16px 18px">
+                  <div class="between"><span class="row" style="gap:8px;font-weight:700;font-size:13.5px"><svg class="ico s" style="stroke:#F59E0B" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17a2 2 0 0 1-.5 1.3L8 20h8l-1.5-1.7A2 2 0 0 1 14 17v-2.3M18 2H6v7a6 6 0 0 0 12 0z"/></svg>Gold Rush</span><span class="badge" style="background:rgba(139,92,246,.25);color:#C4B5FD;font-weight:700">#2 <span style="opacity:.6">/15</span></span></div>
+                  <div class="row" style="gap:8px;margin-top:12px;align-items:center"><svg class="ico s" style="stroke:#FB923C" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.3-2.4 0-5 1-6 .2 2 1.6 3.6 3 5 1.4 1.3 2 3 2 5a6 6 0 1 1-12 0c0-1.5.6-2.9 1.5-4z"/></svg><span style="font-weight:700;font-size:13px;color:#FDBA74">On Track This Month</span></div>
+                  <div class="mut4" style="font-size:11.5px;margin-top:6px">Pace <b style="color:#fff">R4,500</b> · projected payout keeps your #2 spot.</div>
+                </div>
+                <div style="padding:13px 18px">
+                  <div class="card p" style="background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.06)"><div class="mut" style="font-size:11px;line-height:1.6">💡 <b style="color:var(--g300)">Coach:</b> 2 more qualified signups today locks the R500 daily bonus.</div></div>
+                  <div class="between" style="margin-top:11px"><span class="lbl">Payable now</span><span class="num grn" style="font-size:18px;font-weight:800">R3,000</span></div>
+                </div>
+              </div>
+
+              <!-- leaderboard -->
+              <div class="card p">
+                <div class="lbl" style="margin-bottom:9px">Leaderboard</div>
+                <div class="stack sm">
+                  <div class="between"><span class="row" style="gap:9px"><svg class="ico xs" style="stroke:#F59E0B" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5L17 22l-5-3-5 3 1.5-8.5"/></svg><span style="font-size:12.5px;font-weight:600">Thandi N</span></span><span class="num" style="font-weight:700">21</span></div>
+                  <div class="between" style="background:rgba(0,232,123,.1);margin:0 -6px;padding:6px;border-radius:10px"><span class="row" style="gap:9px"><svg class="ico xs" style="stroke:#94A3B8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5L17 22l-5-3-5 3 1.5-8.5"/></svg><span style="font-size:12.5px;font-weight:700;color:var(--green)">Sipho M (you)</span></span><span class="num grn" style="font-weight:800">18</span></div>
+                  <div class="between"><span class="row" style="gap:9px"><svg class="ico xs" style="stroke:#B45309" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5L17 22l-5-3-5 3 1.5-8.5"/></svg><span style="font-size:12.5px;font-weight:600">Precious N</span></span><span class="num" style="font-weight:700">15</span></div>
+                </div>
+              </div>
+
+              <!-- goldrush kpis -->
+              <div class="g2">
+                <div class="card p"><div class="lbl rd">Rejected photos</div><div class="num rd" style="font-size:22px;font-weight:800;margin-top:3px">3</div></div>
+                <div class="card p"><div class="lbl" style="color:var(--orange)">Rejected GR ID</div><div class="num" style="color:var(--orange);font-size:22px;font-weight:800;margin-top:3px">1</div></div>
+              </div>
+
+              <div class="lbl">Today &amp; month</div>
+              <div class="g2">
+                <div class="card p"><div class="lbl blu">Today individual</div><div class="row" style="align-items:baseline;gap:5px;margin-top:3px"><span class="num" style="font-size:22px;font-weight:800">5</span><span class="mut" style="font-size:11px">/6</span></div><div class="bar sm" style="margin-top:7px"><i style="width:83%;background:var(--blue)"></i></div></div>
+                <div class="card p"><div class="lbl pur">Today store</div><div class="row" style="align-items:baseline;gap:5px;margin-top:3px"><span class="num" style="font-size:22px;font-weight:800">2</span><span class="mut" style="font-size:11px">/3</span></div><div class="bar sm" style="margin-top:7px"><i style="width:66%;background:var(--purple)"></i></div></div>
+              </div>
+
+              <div class="lbl">Assigned companies</div>
+              <div class="chips"><span class="chip act">Acme Retail</span><span class="chip">Metro Foods</span><span class="chip">+2</span></div>
+            </div>
+          </div>
+        </div>
+        <nav class="navbar">
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Visits</span></div>
+          <div class="tab cta-tab"><span class="fab"><svg class="ico s" style="stroke:#0A1628" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span>New</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Agent Visits -->
+    <div class="phone-col">
+      <div class="cap"><b>Visits</b> — /agent/visits</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div style="background:var(--header);padding:14px 16px 12px">
+            <div class="between"><h1 class="scr" style="margin:0">My Visits</h1><span class="cta" style="width:auto;padding:8px 13px;font-size:12.5px"><svg class="ico xs" style="stroke:#0A1628" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New</span></div>
+            <div class="card p row" style="gap:9px;margin-top:11px;background:rgba(255,255,255,.05)"><svg class="ico s mut" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4-4"/></svg><span class="mut" style="font-size:12.5px">Search visits</span></div>
+          </div>
+          <div class="pad tight">
+            <div class="stack">
+              <div class="chips"><span class="chip act">All <b>37</b></span><span class="chip pur">Stores <b>12</b></span><span class="chip cyn">Individuals <b>25</b></span></div>
+              <div class="chips"><span class="chip">Pending</span><span class="chip rd">Rejected photos <b>3</b></span><span class="chip" style="color:var(--orange)">Rejected GR ID <b>1</b></span></div>
+
+              <div class="stack sm">
+                <div class="card p row between"><div class="row" style="gap:11px"><span class="thumb" style="border-color:rgba(239,68,68,.4)"><svg class="ico s rd" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span><div><div style="font-size:13px;font-weight:600">Nomsa Dlamini</div><div class="mut" style="font-size:10.5px;margin-top:2px">Individual · 22m ago</div><span class="pill dn" style="margin-top:5px;font-size:9.5px">Rejected photos</span></div></div><svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+                <div class="card p row between"><div class="row" style="gap:11px"><span class="thumb" style="border-color:rgba(139,92,246,.4)"><svg class="ico s pur" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg></span><div><div style="font-size:13px;font-weight:600">Metro Foods · Sandton</div><div class="mut" style="font-size:10.5px;margin-top:2px">Store · 1h ago</div><span class="pill up" style="margin-top:5px;font-size:9.5px">Qualified</span></div></div><svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+                <div class="card p row between"><div class="row" style="gap:11px"><span class="thumb" style="border-color:rgba(34,211,238,.4)"><svg class="ico s cyn" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span><div><div style="font-size:13px;font-weight:600">Bongani Zulu</div><div class="mut" style="font-size:10.5px;margin-top:2px">Individual · 2h ago</div><span class="pill up" style="margin-top:5px;font-size:9.5px">Pending</span></div></div><svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Visits</span></div>
+          <div class="tab cta-tab"><span class="fab"><svg class="ico s" style="stroke:#0A1628" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span>New</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Agent Stats -->
+    <div class="phone-col">
+      <div class="cap"><b>Stats</b> — /agent/stats</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen"><div class="pad tight">
+          <div class="stack">
+            <div class="between">
+              <h1 class="scr" style="margin:0"><svg class="ico l grn" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>My Performance</h1>
+            </div>
+            <div class="card p between"><svg class="ico s mut" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span style="font-size:13px;font-weight:700">July 2026</span><svg class="ico s mut" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+            <div class="chips"><span class="chip act">Overview</span><span class="chip">Targets</span><span class="chip">Earnings</span></div>
+
+            <div class="g3">
+              <div class="card p" style="text-align:center;padding:13px 8px">
+                <div class="ring" style="--pct:78;--rc:var(--amber);margin:0 auto"><span class="donut-txt amb">78%</span></div>
+                <div class="lbl" style="margin-top:8px">Target</div>
+              </div>
+              <div class="card p" style="text-align:center;padding:13px 8px"><div class="num amb" style="font-size:19px;font-weight:800">R12,450</div><div class="lbl" style="margin-top:6px">Earnings</div></div>
+              <div class="card p" style="text-align:center;padding:13px 8px"><div class="row" style="justify-content:center;gap:4px"><svg class="ico s" style="stroke:#FB923C" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.3-2.4 0-5 1-6 .2 2 1.6 3.6 3 5 1.4 1.3 2 3 2 5a6 6 0 1 1-12 0c0-1.5.6-2.9 1.5-4z"/></svg><span class="num" style="font-size:19px;font-weight:800;color:var(--orange)">5</span></div><div class="lbl" style="margin-top:6px">Streak</div></div>
+            </div>
+
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:11px">This week</div>
+              <div class="row" style="align-items:flex-end;gap:6px;height:70px">
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar" style="height:40%"></div><span class="mut" style="font-size:9px">M</span></div>
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar" style="height:65%"></div><span class="mut" style="font-size:9px">T</span></div>
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar" style="height:55%"></div><span class="mut" style="font-size:9px">W</span></div>
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar grn" style="height:90%"></div><span class="mut" style="font-size:9px">T</span></div>
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar" style="height:78%"></div><span class="mut" style="font-size:9px">F</span></div>
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar" style="height:20%;opacity:.4"></div><span class="mut" style="font-size:9px">S</span></div>
+                <div class="stack" style="flex:1;align-items:center;gap:5px"><div class="vbar" style="height:10%;opacity:.4"></div><span class="mut" style="font-size:9px">S</span></div>
+              </div>
+            </div>
+
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:10px">Performance summary</div>
+              <div class="g4" style="text-align:center">
+                <div><div class="num" style="font-size:16px;font-weight:800">7</div><div class="mut" style="font-size:9px;margin-top:2px">Day</div></div>
+                <div><div class="num" style="font-size:16px;font-weight:800">31</div><div class="mut" style="font-size:9px;margin-top:2px">Week</div></div>
+                <div><div class="num grn" style="font-size:16px;font-weight:800">128</div><div class="mut" style="font-size:9px;margin-top:2px">MTD</div></div>
+                <div><div class="num mut" style="font-size:16px;font-weight:800">142</div><div class="mut" style="font-size:9px;margin-top:2px">Prior</div></div>
+              </div>
+            </div>
+
+            <div class="card p between"><span class="row" style="gap:9px"><svg class="ico s" style="stroke:#F59E0B" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17a2 2 0 0 1-.5 1.3L8 20h8l-1.5-1.7A2 2 0 0 1 14 17v-2.3M18 2H6v7a6 6 0 0 0 12 0z"/></svg><span style="font-size:13px;font-weight:700">Current tier</span></span><span class="badge" style="background:rgba(245,158,11,.18);color:var(--amber);font-weight:700">Gold</span></div>
+          </div>
+        </div></div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Visits</span></div>
+          <div class="tab cta-tab"><span class="fab"><svg class="ico s" style="stroke:#0A1628" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span>New</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Stats</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Agent Profile -->
+    <div class="phone-col">
+      <div class="cap"><b>Profile</b> — /agent/profile</div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="bell"><svg class="ico s grn" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <div class="screen">
+          <div class="prof-head">
+            <div class="avatar">SM</div>
+            <div style="text-align:center;margin-top:11px"><div style="font-weight:700;font-size:17px">Sipho Mkhize</div><div class="mut" style="font-size:12px;margin-top:2px">agent</div></div>
+          </div>
+          <div class="pad"><div class="stack">
+            <div class="card p">
+              <div class="lbl" style="margin-bottom:10px">Account info</div>
+              <div class="inforow"><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span class="mut" style="font-size:12px">Phone</span><span style="margin-left:auto;font-size:12.5px;font-weight:600">+27 82 555 0114</span></div>
+              <div class="inforow"><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span class="mut" style="font-size:12px">Role</span><span style="margin-left:auto;font-size:12.5px;font-weight:600">Field agent</span></div>
+              <div class="inforow"><svg class="ico xs mut" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg><span class="mut" style="font-size:12px">Companies</span><span style="margin-left:auto;font-size:12.5px;font-weight:600">4 assigned</span></div>
+            </div>
+
+            <div class="card p between"><span class="row" style="gap:9px"><svg class="ico s" style="stroke:#F59E0B" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span style="font-size:13px;font-weight:600">Change PIN</span></span><svg class="ico s mut amb" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+
+            <div class="card p between" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.05)"><span class="row rd" style="gap:9px;font-weight:600;font-size:13px"><svg class="ico s" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Sign out</span></div>
+          </div></div>
+        </div>
+        <nav class="navbar">
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Home</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Visits</span></div>
+          <div class="tab cta-tab"><span class="fab"><svg class="ico s" style="stroke:#0A1628" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span>New</span></div>
+          <div class="tab"><svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span>Stats</span></div>
+          <div class="tab on"><svg class="ico" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></div>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</div><!-- /.wrap -->
+
+<footer class="pg">
+  <div class="wrap" style="padding-top:0">
+    FieldVibe · Progressive Web App — faithful role-by-role recreation of the live <code>/agent/*</code> screens. Same shell, five different apps: nav, hero, and data shift to fit who's holding the phone.
+  </div>
+</footer>

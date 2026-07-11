@@ -50,7 +50,7 @@ describe('signals', () => {
   });
   it('evaluateSignals collects all triggered', () => {
     const out = evaluateSignals({
-      actual: { visits_per_day: 12, signups_per_day: 5, conversion_pct: 0.2 },
+      actual: { visits_per_day: 12, signups_per_day: 5, conversion_pct: 0.2, days: 5 },
       baseline: { signups_per_day: 10 }, daysSinceLastVisit: 3, thresholds: TH,
     });
     const types = out.map(s => s.type).sort();
