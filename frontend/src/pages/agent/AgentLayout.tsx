@@ -187,6 +187,8 @@ export default function AgentLayout() {
                 return (
                   <button
                     key={tab.path}
+                    data-tour={tab.path}
+                    data-tour-label={tab.label}
                     onClick={() => navigate(tab.path)}
                     className="flex flex-col items-center -mt-5"
                   >
@@ -201,6 +203,8 @@ export default function AgentLayout() {
               return (
                 <button
                   key={tab.path}
+                  data-tour={tab.path}
+                  data-tour-label={tab.label}
                   onClick={() => navigate(tab.path)}
                   className={`flex flex-col items-center py-2 px-3 transition-colors ${
                     isActive ? 'text-[#00E87B]' : 'text-gray-600'
