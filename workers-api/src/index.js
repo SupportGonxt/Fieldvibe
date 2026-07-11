@@ -21717,6 +21717,18 @@ async function reactToIssues(db, env) {
         return leadCfgCache.get(key);
       };
 
+      // Registry gate-metric keys (visibility:'all'), same filter kpi.js's /kpi/self applies —
+      // keeps an admin-configured tier target on a gm-only metric out of agent-facing signals.
+      const gateKeysCache = new Map();
+      const gateKeysFor = async (companyId) => {
+        const key = companyId || '';
+        if (!gateKeysCache.has(key)) {
+          const registry = (await getConfig(db, tenantId, companyId, 'metrics')) || [];
+          gateKeysCache.set(key, new Set(registry.filter((m) => m.gate && m.visibility === 'all').map((m) => m.key)));
+        }
+        return gateKeysCache.get(key);
+      };
+
       // Backstop owner. Three org-chart gaps make this load-bearing: agents with neither
       // team_lead_id nor manager_id (4 live today), managers with a NULL gm_id, and leaders who
       // sit at the top of their own chain. GMs cover many customers, so prefer
@@ -21746,9 +21758,21 @@ async function reactToIssues(db, env) {
           const { actual, signals } = await agentSignals(db, tenantId, agent.id, thresholds, since);
 
           // Pace signal: is this agent trailing the per-working-day gate targets for their next tier?
-          if (AGENT_SUBJECT.has(agent.role)) {
+          // actual.days>0 guard mirrors kpi.js's /kpi/self — without it a brand-new agent with zero
+          // visits floors workingDaysElapsed at 1 with all-zero averages and opens a below_gate issue
+          // on day one.
+          if (AGENT_SUBJECT.has(agent.role) && actual.days > 0) {
             const inc = await computeIncentive(db, tenantId, agent.company_id, agent.id, agent.role, today.slice(0, 7), today);
-            signals.push(...signalBelowGate({ nextGate: inc?.nextTier || null }));
+            const allowedKeys = await gateKeysFor(agent.company_id);
+            const ng = inc?.nextTier || null;
+            const gatedNg = ng
+              ? {
+                  ...ng,
+                  shortfall: Object.fromEntries(Object.entries(ng.shortfall || {}).filter(([k]) => allowedKeys.has(k))),
+                  targets: Object.fromEntries(Object.entries(ng.targets || {}).filter(([k]) => allowedKeys.has(k))),
+                }
+              : null;
+            signals.push(...signalBelowGate({ nextGate: gatedNg }));
           }
 
           const live = await db.prepare(

@@ -111,7 +111,18 @@ app.get('/kpi/self', async (c) => {
       target: ng?.targets?.[m.key] ?? null,
       shortfall: ng?.shortfall?.[m.key] ?? 0,
     }));
-    signals.push(...signalBelowGate({ nextGate: ng }));
+    // nextTier.shortfall/targets come straight from incentive-scale tier config, unfiltered
+    // by registry visibility — restrict to gate metrics (visibility:'all') before this reaches
+    // signalBelowGate, so an admin-configured tier target on a gm-only metric can't surface here.
+    const allowedKeys = new Set(gateMetrics.map((m) => m.key));
+    const gatedNg = ng
+      ? {
+          ...ng,
+          shortfall: Object.fromEntries(Object.entries(ng.shortfall || {}).filter(([k]) => allowedKeys.has(k))),
+          targets: Object.fromEntries(Object.entries(ng.targets || {}).filter(([k]) => allowedKeys.has(k))),
+        }
+      : null;
+    signals.push(...signalBelowGate({ nextGate: gatedNg }));
   }
   return c.json({ actual, thresholds, signals, metrics });
 });
