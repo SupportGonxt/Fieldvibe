@@ -24,6 +24,9 @@ app.post('/deposits', boRoles, async (c) => {
     const m = String(id ?? '').match(/(?<!\d)\d{9}(?!\d)/);
     if (m && !seen.has(m[0])) { seen.add(m[0]); facts.push({ subject_key: m[0] }); }
   };
+  // Legacy body.deposits[] may carry amount/deposit_date, but the metrics registry marks
+  // 'deposits' count-only (config.js value:false) and the 0019 backfill hardcodes amount
+  // NULL — dropped here on purpose, not lost.
   for (const d of Array.isArray(body.deposits) ? body.deposits : []) add(d.goldrush_id);
   for (const id of extractGoldrushIds({ goldrush_ids: body.goldrush_ids, csv: body.csv })) add(id);
   // Rebuild the request body the generalized ingest expects, then delegate.

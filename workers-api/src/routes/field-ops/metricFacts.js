@@ -52,15 +52,41 @@ export async function ingestMetricFacts(c, forcedKey) {
     return c.json({ success: true, dry_run: true, uploaded: rows.length, matched: matched.size, unmatched });
   }
 
+  // Cross-company fan-out guard: a subject_key already on file under a DIFFERENT company_id
+  // (NULL/'' bucketed together, matching the unique index) would insert as a distinct row —
+  // the unique index only collapses same-company re-uploads. agentCount's metric_facts join
+  // has no company_id filter, so a second row for the same subject double-counts deposits on
+  // the commission gate. One batch SELECT, skip the offending rows, report them as conflicts.
+  const ph = rows.map(() => '?').join(',');
+  const { results: crossCompany } = await db.prepare(
+    `SELECT subject_key, company_id FROM metric_facts
+      WHERE tenant_id = ? AND metric_key = ? AND subject_key IN (${ph})
+        AND COALESCE(company_id,'') != COALESCE(?,'')`
+  ).bind(tenantId, metricKey, ...rows.map((r) => r.subject_key), companyId).all();
+  const conflictBySubject = new Map();
+  for (const row of crossCompany || []) {
+    if (!conflictBySubject.has(row.subject_key)) conflictBySubject.set(row.subject_key, row.company_id);
+  }
+  const conflicts = [...conflictBySubject].map(([subject_key, existing_company_id]) => ({ subject_key, existing_company_id }));
+  const acceptedRows = rows.filter((r) => !conflictBySubject.has(r.subject_key));
+
   let inserted = 0;
-  for (const r of rows) {
+  for (const r of acceptedRows) {
     const res = await db.prepare(
       `INSERT OR IGNORE INTO metric_facts (id, tenant_id, company_id, metric_key, subject_key, amount, period, source_batch)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(crypto.randomUUID(), tenantId, companyId, metricKey, r.subject_key, r.amount, period, batch).run();
     inserted += res.meta?.changes ?? 0;
   }
-  return c.json({ success: true, uploaded: rows.length, inserted, duplicates: rows.length - inserted, matched: matched.size, unmatched });
+  return c.json({
+    success: true,
+    uploaded: rows.length,
+    inserted,
+    duplicates: acceptedRows.length - inserted,
+    conflicts,
+    matched: matched.size,
+    unmatched,
+  });
 }
 
 app.post('/metric-facts', boRoles, (c) => ingestMetricFacts(c));
@@ -86,7 +112,12 @@ app.get('/metric-facts', boRoles, async (c) => {
       ORDER BY mf.created_at DESC
       LIMIT ?`
   ).bind(tenantId, companyId, companyId, metricKey, metricKey, batch, batch, limit).all();
-  return c.json({ success: true, facts: (results || []).map((r) => ({ ...r, matched: !!r.matched })) });
+  // Deposit/value rand amounts are GM-only; backoffice_admin sees the facts but not the money.
+  const canSeeAmount = ['admin', 'general_manager'].includes(c.get('role'));
+  return c.json({
+    success: true,
+    facts: (results || []).map((r) => ({ ...r, amount: canSeeAmount ? r.amount : null, matched: !!r.matched })),
+  });
 });
 
 // DELETE /field-ops/metric-facts/:id
