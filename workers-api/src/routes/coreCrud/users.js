@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import bcrypt from 'bcryptjs';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, createUserSchema } from '../../validate.js';

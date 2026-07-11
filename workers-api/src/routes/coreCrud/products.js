@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
+import { validate, createProductSchema, updateProductSchema } from '../../validate.js';
 
 const app = new Hono();
 

@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../lib/middleware.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
+import { rewriteR2Url } from '../lib/photoAi.js';
+import { ensureCaptureFailures } from '../lib/goldrush.js';
+import { parseStoreInsights } from '../services/goldrushVision.js';
 
 const app = new Hono();
 
