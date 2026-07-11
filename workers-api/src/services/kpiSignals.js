@@ -39,6 +39,19 @@ export function signalLowConversion(actual, th) {
     conversion_pct: actual.conversion_pct || 0 };
 }
 
+// A person trailing the pace needed for their next incentive tier. One signal per gate metric
+// still short (shortfall > 0), carrying the metric key, its shortfall, and the target it missed.
+// Pure: callers compute nextGate via incentiveService and pass it in. Silent when on/above pace.
+export function signalBelowGate({ nextGate }) {
+  if (!nextGate) return [];
+  return Object.entries(nextGate.shortfall || {})
+    .filter(([, short]) => short > 0)
+    .map(([metric, shortfall]) => ({
+      type: 'below_gate',
+      detail: { metric, shortfall, target: nextGate.targets[metric] },
+    }));
+}
+
 export function evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds }) {
   // Empty window = no activity captured, not underperformance. The zero-fill +
   // fabricated daysSinceLastVisit=999 would trigger below_target + gone_quiet +

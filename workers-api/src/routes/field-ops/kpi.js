@@ -4,11 +4,11 @@
 // individually (no `auth` object, no companyId in token); companyId comes from ?company_id=.
 import { Hono } from 'hono';
 import { getConfig } from './config.js';
-import { aggregateKpis, evaluateSignals } from '../../services/kpiSignals.js';
+import { aggregateKpis, evaluateSignals, signalBelowGate } from '../../services/kpiSignals.js';
 import { rootCauseSignals } from '../../services/rootCauseSignals.js';
 import { sendPush } from '../../lib/web-push.js';
 import { requireRole } from '../../middleware/auth.js';
-import { AGENT_ROLES } from '../../services/incentiveService.js';
+import { AGENT_ROLES, computeIncentive } from '../../services/incentiveService.js';
 import { severityOf } from '../../services/issueEngine.js';
 
 export function resolveRoleKpiKey(role) {
@@ -76,7 +76,9 @@ app.get('/kpi/self', async (c) => {
   const key = resolveRoleKpiKey(role);
   const thresholds = (await getConfig(db, tenantId, companyId, key)) || {};
   const windowDays = thresholds.baseline_window_days || 14;
-  const since = new Date(Date.parse(c.req.query('today') || '') || Date.now());
+  // Parse 'today' once; a malformed value falls back to now for every derived date below.
+  const todayMs = Date.parse(c.req.query('today') || '') || Date.now();
+  const since = new Date(todayMs);
   since.setDate(since.getDate() - windowDays);
   const sinceStr = since.toISOString().slice(0, 10);
 
@@ -92,7 +94,39 @@ app.get('/kpi/self', async (c) => {
   const signals = evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds });
   if (actual.days > 0)
     signals.push(...rootCauseSignals(await visitDetailRows(db, tenantId, scopeIds, sinceStr), thresholds));
-  return c.json({ actual, thresholds, signals });
+
+  // Registry-driven metric tiles (visibility:'all' gate metrics) + below_gate pace signal.
+  const registry = (await getConfig(db, tenantId, companyId, 'metrics')) || [];
+  const gateMetrics = registry.filter((m) => m.gate && m.visibility === 'all');
+  let metrics = [];
+  if (gateMetrics.length && actual.days > 0) {
+    // per-working-day averages + this person's next-tier shortfall, via the shared engine.
+    const asOf = new Date(todayMs).toISOString().slice(0, 10);
+    const period = c.req.query('period') || asOf.slice(0, 7);
+    const inc = await computeIncentive(db, tenantId, companyId, userId, role, period, asOf);
+    const avgByMetric = inc?.metricByKey || {};
+    const ng = inc?.nextTier || null;
+    metrics = gateMetrics.map((m) => ({
+      key: m.key,
+      label: m.label,
+      value: avgByMetric[m.key] ?? 0,
+      target: ng?.targets?.[m.key] ?? null,
+      shortfall: ng?.shortfall?.[m.key] ?? 0,
+    }));
+    // nextTier.shortfall/targets come straight from incentive-scale tier config, unfiltered
+    // by registry visibility — restrict to gate metrics (visibility:'all') before this reaches
+    // signalBelowGate, so an admin-configured tier target on a gm-only metric can't surface here.
+    const allowedKeys = new Set(gateMetrics.map((m) => m.key));
+    const gatedNg = ng
+      ? {
+          ...ng,
+          shortfall: Object.fromEntries(Object.entries(ng.shortfall || {}).filter(([k]) => allowedKeys.has(k))),
+          targets: Object.fromEntries(Object.entries(ng.targets || {}).filter(([k]) => allowedKeys.has(k))),
+        }
+      : null;
+    signals.push(...signalBelowGate({ nextGate: gatedNg }));
+  }
+  return c.json({ actual, thresholds, signals, metrics });
 });
 
 export function rankRoster(agents) {

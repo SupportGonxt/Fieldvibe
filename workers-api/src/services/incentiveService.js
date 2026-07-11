@@ -9,12 +9,18 @@
 import { getScale, getConfig } from '../routes/field-ops/config.js';
 import { subtreeAgentIds } from './hierarchyService.js';
 
-// Two-gate tier: highest-amount tier where BOTH gates clear
-// (avgSignups >= t.signups AND avgDeposits >= t.deposits), else 0. Because gate
-// thresholds rise with amount, this naturally yields min(signup_tier, deposit_tier).
-export function tierFor(tiers, avgSignups, avgDeposits) {
+// A tier's gate targets, keyed by metric_key. Tolerant of the legacy {amount, signups, deposits}
+// shape so pre-refactor seeded rows and new {amount, targets:{…}} rows both read correctly.
+export function readTargets(tier) {
+  if (tier.targets) return tier.targets;
+  const { amount, ...rest } = tier;
+  return rest; // legacy: every non-amount key is a gate target
+}
+
+// Highest tier amount whose EVERY gate metric average clears its target. 0 if none clear.
+export function tierFor(tiers, avgByMetric) {
   return (tiers || [])
-    .filter((t) => avgSignups >= t.signups && avgDeposits >= t.deposits)
+    .filter((t) => Object.entries(readTargets(t)).every(([k, target]) => (avgByMetric[k] || 0) >= target))
     .sort((a, b) => b.amount - a.amount)[0]?.amount ?? 0;
 }
 
@@ -45,18 +51,16 @@ export function dueEscalation(steps, excessMin) {
     .sort((a, b) => Number(b.after_min) - Number(a.after_min))[0] ?? null;
 }
 
-// Next unreached tier → the tier itself plus the shortfall on each gate
-// (needSignups/needDeposits, 0 on an already-met gate), or null if top reached.
-export function nextGate(tiers, avgSignups, avgDeposits) {
-  const t = (tiers || [])
-    .filter((x) => !(avgSignups >= x.signups && avgDeposits >= x.deposits))
+// The next unmet tier with per-metric shortfall = max(0, target - avg). null if all tiers cleared.
+export function nextGate(tiers, avgByMetric) {
+  const next = (tiers || [])
+    .filter((t) => Object.entries(readTargets(t)).some(([k, target]) => (avgByMetric[k] || 0) < target))
     .sort((a, b) => a.amount - b.amount)[0];
-  if (!t) return null;
-  return {
-    ...t,
-    needSignups: Math.max(0, t.signups - avgSignups),
-    needDeposits: Math.max(0, t.deposits - avgDeposits),
-  };
+  if (!next) return null;
+  const targets = readTargets(next);
+  const shortfall = {};
+  for (const [k, target] of Object.entries(targets)) shortfall[k] = Math.max(0, target - (avgByMetric[k] || 0));
+  return { amount: next.amount, targets, shortfall };
 }
 
 // period 'YYYY-MM' (defaults handled by caller). Returns {start, end} ISO dates.
@@ -123,8 +127,14 @@ export async function agentCount(db, tenantId, agentId, period, status) {
             SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) converted,
             SUM(CASE WHEN gd.id IS NOT NULL THEN 1 ELSE 0 END) deposits
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
-     LEFT JOIN goldrush_deposits gd ON gd.tenant_id = v.tenant_id
-       AND gd.goldrush_id = COALESCE(json_extract(vi.custom_field_values,'$.goldrush_id_entry'), json_extract(vi.custom_field_values,'$.goldrush_id'))
+     -- No company_id in this join: cross-company double-count is prevented upstream by the
+     -- ingest-time conflict guard in metricFacts.js (a subject_key already present under a
+     -- different company_id is skipped), so subject_key alone is safe here.
+     LEFT JOIN metric_facts gd
+       ON gd.tenant_id = v.tenant_id
+      AND gd.metric_key = 'deposits'
+      AND gd.subject_key = COALESCE(json_extract(vi.custom_field_values,'$.goldrush_id_entry'),
+                                    json_extract(vi.custom_field_values,'$.goldrush_id'))
      WHERE v.tenant_id = ? AND v.agent_id = ?
        AND vi.created_at >= ? AND vi.created_at < ? ${statusClause}`
   ).bind(tenantId, agentId, start, end).first();
@@ -138,13 +148,14 @@ export async function agentMetric(db, tenantId, companyId, agentId, period, asOf
     agentCount(db, tenantId, agentId, period, status),
     workingDaysElapsed(db, tenantId, companyId, period, asOf),
   ]);
-  return { count, converted, deposits, avg: count / wd, avgSignups: count / wd, avgDeposits: deposits / wd, workingDays: wd };
+  const avgByMetric = { signups: count / wd, deposits: deposits / wd };
+  return { count, converted, deposits, avg: count / wd, avgByMetric, workingDays: wd };
 }
 
 // Team metric: mean of member agent avgs (each agent's own count/workingDays), both gates.
 export async function teamMetric(db, tenantId, companyId, userId, role, period, asOf, status) {
   const agentIds = await subtreeAgentIds(db, tenantId, userId, role);
-  if (!agentIds.length) return { avg: 0, avgSignups: 0, avgDeposits: 0, count: 0, converted: 0, deposits: 0, agents: 0 };
+  if (!agentIds.length) return { avg: 0, avgByMetric: { signups: 0, deposits: 0 }, count: 0, converted: 0, deposits: 0, agents: 0 };
   const wd = await workingDaysElapsed(db, tenantId, companyId, period, asOf);
   let sumSignups = 0, sumDeposits = 0, totCount = 0, totConv = 0, totDep = 0;
   for (const id of agentIds) {
@@ -156,7 +167,8 @@ export async function teamMetric(db, tenantId, companyId, userId, role, period, 
     totDep += deposits;
   }
   const n = agentIds.length;
-  return { avg: sumSignups / n, avgSignups: sumSignups / n, avgDeposits: sumDeposits / n, count: totCount, converted: totConv, deposits: totDep, agents: n };
+  const avgByMetric = { signups: sumSignups / n, deposits: sumDeposits / n };
+  return { avg: sumSignups / n, avgByMetric, count: totCount, converted: totConv, deposits: totDep, agents: n };
 }
 
 // Full incentive for a user (agent uses own metric; team roles use team avg).
@@ -180,21 +192,27 @@ export async function computeIncentive(db, tenantId, companyId, userId, role, pe
   const base = Number(bases[baseKey]) || 0;
   const withBase = (amt) => Math.max(amt, base);
 
+  const payable = withBase(tierFor(tiers, qualified.avgByMetric));
+  const nextTier = nextGate(tiers, provisional.avgByMetric);
+  // per-metric snapshot for cockpit/GM consumers (avg per working day, keyed by metric)
+  const metricByKey = provisional.avgByMetric;
+
   return {
     period,
     role,
-    metricSignups: round1(qualified.avgSignups),
-    metricDeposits: round1(qualified.avgDeposits),
-    provisionalSignups: round1(provisional.avgSignups),
-    provisionalDeposits: round1(provisional.avgDeposits),
+    metricSignups: round1(qualified.avgByMetric.signups),
+    metricDeposits: round1(qualified.avgByMetric.deposits),
+    provisionalSignups: round1(provisional.avgByMetric.signups),
+    provisionalDeposits: round1(provisional.avgByMetric.deposits),
     count: provisional.count,
     converted: provisional.converted,
     deposits: provisional.deposits,
     workingDaysInMonth: wdMonth,
     baseSalary: base,
-    payable: withBase(tierFor(tiers, qualified.avgSignups, qualified.avgDeposits)),        // paid on reconciled/qualified only
-    provisionalPace: withBase(tierFor(tiers, provisional.avgSignups, provisional.avgDeposits)), // on-track at current pace
-    nextTier: nextGate(tiers, provisional.avgSignups, provisional.avgDeposits),
+    payable,        // paid on reconciled/qualified only
+    provisionalPace: withBase(tierFor(tiers, provisional.avgByMetric)), // on-track at current pace
+    nextTier,
+    metricByKey,
     tiers,
   };
 }
@@ -224,3 +242,24 @@ export async function writePayable(db, tenantId, userId, period, amount, sourceT
 }
 
 export { AGENT_ROLES };
+
+// --- self-check: N-gate parity with the pre-refactor two-gate outcomes ---
+export function demo() {
+  const tiers = [
+    { amount: 1500, targets: { signups: 8,  deposits: 5  } },
+    { amount: 2500, targets: { signups: 10, deposits: 8  } },
+  ];
+  // both gates clear the low tier, neither clears the high tier -> 1500
+  console.assert(tierFor(tiers, { signups: 9, deposits: 6 }) === 1500, 'both-clear low tier');
+  // signups clear but deposits short of even the low gate -> 0 (a gate is a gate)
+  console.assert(tierFor(tiers, { signups: 20, deposits: 4 }) === 0, 'one-short pays nothing');
+  // neither clears -> 0
+  console.assert(tierFor(tiers, { signups: 1, deposits: 1 }) === 0, 'neither-clear');
+  // legacy tier shape (no .targets) still reads
+  console.assert(tierFor([{ amount: 999, signups: 8, deposits: 5 }], { signups: 8, deposits: 5 }) === 999, 'legacy shape');
+  // nextGate reports per-metric shortfall against the first unmet tier
+  const ng = nextGate(tiers, { signups: 9, deposits: 6 });
+  console.assert(ng.amount === 2500 && ng.shortfall.signups === 1 && ng.shortfall.deposits === 2, 'nextGate shortfall');
+  console.log('incentiveService demo OK');
+}
+if (typeof process !== 'undefined' && import.meta.url === `file://${process.argv[1]}`) demo();

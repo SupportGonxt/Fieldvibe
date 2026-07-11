@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
 import { computeIncentive, AGENT_ROLES } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
+import { ensureIssues } from './issues.js';
 
 const app = new Hono();
 
@@ -235,6 +236,40 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       };
     });
   } catch { teams = []; }
+
+  // Accountability column: open vs acted issues per person (as the issue's subject).
+  // One grouped scan, joined in memory — cheaper than a correlated subquery per row.
+  // ensureIssues guards a not-yet-migrated D1 (mirrors issues.js's own routes).
+  try {
+    await ensureIssues(db);
+    const subjectIds = [...new Set([
+      ...(leaders || []).map((r) => r.id),
+      ...teams.map((t) => t.id),
+    ].filter(Boolean))];
+    let issuesBySubject = {};
+    if (subjectIds.length) {
+      const ph = subjectIds.map(() => '?').join(',');
+      const { results: ic } = await db.prepare(
+        `SELECT subject_id,
+                SUM(CASE WHEN status = 'open'  THEN 1 ELSE 0 END) open_issues,
+                SUM(CASE WHEN status = 'acted' THEN 1 ELSE 0 END) acted_issues
+           FROM issues
+          WHERE tenant_id = ? AND status != 'resolved' AND subject_id IN (${ph})
+          GROUP BY subject_id`
+      ).bind(tenantId, ...subjectIds).all();
+      issuesBySubject = Object.fromEntries((ic || []).map((r) => [r.subject_id, r]));
+    }
+    for (const r of leaders || []) {
+      const x = issuesBySubject[r.id] || {};
+      r.open_issues = x.open_issues || 0;
+      r.acted_issues = x.acted_issues || 0;
+    }
+    for (const t of teams) {
+      const x = issuesBySubject[t.id] || {};
+      t.open_issues = x.open_issues || 0;
+      t.acted_issues = x.acted_issues || 0;
+    }
+  } catch { /* issues ledger unavailable — leaders/teams simply lack the accountability column */ }
 
   // Agents with no team lead — a coverage gap the GM should see.
   const unassignedRow = await db.prepare(

@@ -13,7 +13,7 @@ interface Hero {
   provisionalDeposits: number  // avg deposits/day
   provisionalPace: number      // R on track at current pace
   payable: number              // R already qualified (no clawback)
-  nextTier: { signups: number; deposits: number; amount: number; needSignups: number; needDeposits: number } | null
+  nextTier: { amount: number; targets: Record<string, number>; shortfall: Record<string, number> } | null
   toNextSignups: number | null // avg/day signup gap to next tier
   toNextDeposits: number | null // avg/day deposit gap to next tier
   rank: number | null

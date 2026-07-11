@@ -112,21 +112,21 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const companyId = body.company_id ?? null;
 
-  // GOVERNING two-gate Goldrush pay scale — live on deploy. Both gates are per-working-day
-  // averages; a tier pays only when signups AND deposits both clear (min(signup,deposit) tier).
-  // Agents (own metric) and Team Leads (team average) share the same thresholds/amounts.
+  // GOVERNING N-gate pay scale — live on deploy. Each tier clears only when EVERY gate metric's
+  // per-working-day average meets its target (min-tier across gates). targets is keyed by metric_key
+  // so adding a gate metric is config, not code. Agents (own metric) and Team Leads (team avg) share these.
   const fieldTiers = [
-    { signups: 8,  deposits: 5,  amount: 1500 },
-    { signups: 10, deposits: 8,  amount: 2500 },
-    { signups: 15, deposits: 10, amount: 3500 },
-    { signups: 20, deposits: 15, amount: 4500 },
+    { amount: 1500, targets: { signups: 8,  deposits: 5  } },
+    { amount: 2500, targets: { signups: 10, deposits: 8  } },
+    { amount: 3500, targets: { signups: 15, deposits: 10 } },
+    { amount: 4500, targets: { signups: 20, deposits: 15 } },
   ];
   // Management (org average): same gates, management-scale amounts.
   const mgmtTiers = [
-    { signups: 8,  deposits: 5,  amount: 10000 },
-    { signups: 10, deposits: 8,  amount: 20000 },
-    { signups: 15, deposits: 10, amount: 35000 },
-    { signups: 20, deposits: 15, amount: 45000 },
+    { amount: 10000, targets: { signups: 8,  deposits: 5  } },
+    { amount: 20000, targets: { signups: 10, deposits: 8  } },
+    { amount: 35000, targets: { signups: 15, deposits: 10 } },
+    { amount: 45000, targets: { signups: 20, deposits: 15 } },
   ];
   const scales = [
     { role: 'agent', metric: 'signups_deposits', tiers: fieldTiers },
@@ -151,6 +151,13 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
     work_hours: { start: '08:00', end: '17:00' },
     inactivity_minutes: 60,
     working_days_in_month: 22,
+    // Per-company metric registry (Approach A). Drives cockpit tiles, gate engine, GM view.
+    // Goldrush is the live tenant default; Stellr admins override this key per-company via PUT /config
+    // with its own placeholder array (active_users, value_per_user).
+    metrics: [
+      { key: 'signups',  label: 'Signups',  source: 'internal', visibility: 'all', gate: true, value: false },
+      { key: 'deposits', label: 'Deposits', source: 'bo_file',  visibility: 'all', gate: true, value: false },
+    ],
     reactivation_window: 120,
     escalate_steps: [
       { after_min: 0, to: 'employee' },
