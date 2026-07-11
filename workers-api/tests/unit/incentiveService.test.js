@@ -16,47 +16,47 @@ const TIERS = [
 
 describe('tierFor', () => {
   it('pays 0 below the lowest gate', () => {
-    expect(tierFor(TIERS, 0, 0)).toBe(0);
-    expect(tierFor(TIERS, 7.9, 5)).toBe(0);   // signups short
-    expect(tierFor(TIERS, 8, 4.9)).toBe(0);   // deposits short
+    expect(tierFor(TIERS, { signups: 0, deposits: 0 })).toBe(0);
+    expect(tierFor(TIERS, { signups: 7.9, deposits: 5 })).toBe(0);   // signups short
+    expect(tierFor(TIERS, { signups: 8, deposits: 4.9 })).toBe(0);   // deposits short
   });
 
   it('pays the tier where both gates clear at the exact boundary', () => {
-    expect(tierFor(TIERS, 8, 5)).toBe(1500);
-    expect(tierFor(TIERS, 10, 8)).toBe(2500);
-    expect(tierFor(TIERS, 15, 10)).toBe(3500);
-    expect(tierFor(TIERS, 20, 15)).toBe(4500);
+    expect(tierFor(TIERS, { signups: 8, deposits: 5 })).toBe(1500);
+    expect(tierFor(TIERS, { signups: 10, deposits: 8 })).toBe(2500);
+    expect(tierFor(TIERS, { signups: 15, deposits: 10 })).toBe(3500);
+    expect(tierFor(TIERS, { signups: 20, deposits: 15 })).toBe(4500);
   });
 
   it('the lower gate governs: min(signup_tier, deposit_tier)', () => {
     // Signups reach R4500 but deposits only clear the R1500 gate -> R1500.
-    expect(tierFor(TIERS, 20, 5)).toBe(1500);
+    expect(tierFor(TIERS, { signups: 20, deposits: 5 })).toBe(1500);
     // Signups clear R3500 gate, deposits clear R2500 gate -> R2500.
-    expect(tierFor(TIERS, 15, 8)).toBe(2500);
+    expect(tierFor(TIERS, { signups: 15, deposits: 8 })).toBe(2500);
     // Deposits reach top but signups only clear R1500 -> R1500.
-    expect(tierFor(TIERS, 8, 15)).toBe(1500);
+    expect(tierFor(TIERS, { signups: 8, deposits: 15 })).toBe(1500);
   });
 
   it('handles empty / missing tiers as 0', () => {
-    expect(tierFor([], 50, 50)).toBe(0);
-    expect(tierFor(undefined, 50, 50)).toBe(0);
+    expect(tierFor([], { signups: 50, deposits: 50 })).toBe(0);
+    expect(tierFor(undefined, { signups: 50, deposits: 50 })).toBe(0);
   });
 });
 
 describe('nextGate', () => {
   it('returns the next unreached tier with the shortfall on each gate', () => {
-    expect(nextGate(TIERS, 0, 0)).toMatchObject({ amount: 1500, needSignups: 8, needDeposits: 5 });
-    expect(nextGate(TIERS, 8, 5)).toMatchObject({ amount: 2500, needSignups: 2, needDeposits: 3 });
+    expect(nextGate(TIERS, { signups: 0, deposits: 0 })).toMatchObject({ amount: 1500, shortfall: { signups: 8, deposits: 5 } });
+    expect(nextGate(TIERS, { signups: 8, deposits: 5 })).toMatchObject({ amount: 2500, shortfall: { signups: 2, deposits: 3 } });
   });
 
   it('a met gate reports 0 shortfall on that axis', () => {
     // Already at R1500; next is R2500 (needs 10/8). Signups 12 covers it, deposits 6 short by 2.
-    expect(nextGate(TIERS, 12, 6)).toMatchObject({ amount: 2500, needSignups: 0, needDeposits: 2 });
+    expect(nextGate(TIERS, { signups: 12, deposits: 6 })).toMatchObject({ amount: 2500, shortfall: { signups: 0, deposits: 2 } });
   });
 
   it('returns null once the top tier is reached', () => {
-    expect(nextGate(TIERS, 20, 15)).toBeNull();
-    expect(nextGate(TIERS, 25, 20)).toBeNull();
+    expect(nextGate(TIERS, { signups: 20, deposits: 15 })).toBeNull();
+    expect(nextGate(TIERS, { signups: 25, deposits: 20 })).toBeNull();
   });
 });
 
