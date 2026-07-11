@@ -14,7 +14,8 @@ import depositRoutes from './routes/field-ops/deposits.js';
 import issueRoutes, { ensureIssues } from './routes/field-ops/issues.js';
 import { severityOf, isBreached, nextOwnerRole, slaClockOf } from './services/issueEngine.js';
 import { sendPush } from './lib/web-push.js';
-import { dueEscalation } from './services/incentiveService.js';
+import { dueEscalation, computeIncentive } from './services/incentiveService.js';
+import { signalBelowGate } from './services/kpiSignals.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 import { clampSharePct, parseStoreInsights } from './services/goldrushVision.js';
 import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal, matchAskIntent } from './services/portal.js';
@@ -21743,6 +21744,13 @@ async function reactToIssues(db, env) {
           const since = new Date(nowMs - windowDays * 86400000).toISOString().slice(0, 10);
 
           const { actual, signals } = await agentSignals(db, tenantId, agent.id, thresholds, since);
+
+          // Pace signal: is this agent trailing the per-working-day gate targets for their next tier?
+          if (AGENT_SUBJECT.has(agent.role)) {
+            const inc = await computeIncentive(db, tenantId, agent.company_id, agent.id, agent.role, today.slice(0, 7), today);
+            signals.push(...signalBelowGate({ nextGate: inc?.nextTier || null }));
+          }
+
           const live = await db.prepare(
             "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND status != 'resolved'"
           ).bind(tenantId, agent.id).first();
