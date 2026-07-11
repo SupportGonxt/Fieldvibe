@@ -78,4 +78,17 @@ async function getBulkAgentVisitCounts(db, tenantId, agentIds, today, monthStart
   return map;
 }
 
-export { getCommissionTotals, getBulkAgentVisitCounts };
+// Resolve which company a goldrush-family report runs against. Explicit
+// ?company_id= wins (tenant-checked; invalid id → null, no silent fallback so
+// a bad filter returns empty rather than leaking goldrush). No company_id →
+// the legacy name-LIKE goldrush default, preserving pre-parameterization behavior.
+async function resolveReportCompanyId(db, tenantId, companyId) {
+  if (companyId) {
+    const row = await db.prepare('SELECT id FROM field_companies WHERE id = ? AND tenant_id = ?').bind(companyId, tenantId).first();
+    return row ? row.id : null;
+  }
+  const gr = await db.prepare("SELECT id FROM field_companies WHERE LOWER(name) LIKE '%goldrush%' AND tenant_id = ?").bind(tenantId).first();
+  return gr ? gr.id : null;
+}
+
+export { getCommissionTotals, getBulkAgentVisitCounts, resolveReportCompanyId };
