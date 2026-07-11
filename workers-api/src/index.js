@@ -18,6 +18,7 @@ import mobileDashboardRoutes from './routes/mobileDashboards.js';
 import authRoutes from './routes/auth.js';
 import portalRoutes from './routes/portal.js';
 import companyPortalRoutes from './routes/companyPortal.js';
+import transactionRoutes from './routes/transactions.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 import { parseStoreInsights } from './services/goldrushVision.js';
 import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal, matchAskIntent, ensurePortalTables } from './services/portal.js';
@@ -16762,123 +16763,7 @@ api.get('/trade-promotion-claims', authMiddleware, async (c) => {
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
-// transactions routes
-api.get('/transactions', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/:id', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/:id/approve-reversal', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/:id/audit', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/:id/complete', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/:id/process', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/:id/process-reversal', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/:id/reject-reversal', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/:id/reverse', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/batch', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/batch-reverse', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/customers', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/customers/:customerId', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/customers/:customerId/payment', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/customers/:customerId/refund', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/export', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/field-agents', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/field-agents/:id', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/field-agents/:id/board-placement', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/field-agents/:id/commission', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/orders', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/orders/:orderId', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/orders/:orderId/cancel', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.post('/transactions/orders/:orderId/payment', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/products', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/products/:productId', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/products/:productId/adjustment', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/products/:productId/stock-movement', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
-api.get('/transactions/summary', authMiddleware, async (c) => {
-  try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
-});
+api.route('/', transactionRoutes);
 
 // uploads routes
 api.get('/uploads/:id/:subId', authMiddleware, async (c) => {
