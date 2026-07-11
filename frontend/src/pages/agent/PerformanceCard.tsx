@@ -19,7 +19,8 @@ type Thresholds = {
   conversion_floor_pct?: number // percent, e.g. 20
 }
 type Signal = { type: string; detail: any }
-type SelfKpi = { actual: Actual; thresholds: Thresholds; signals: Signal[] }
+type RegistryMetric = { key: string; label: string; value: number; target: number | null; shortfall: number }
+type SelfKpi = { actual: Actual; thresholds: Thresholds; signals: Signal[]; metrics?: RegistryMetric[] }
 
 function signalText(s: Signal): string {
   switch (s.type) {
@@ -43,6 +44,8 @@ function signalText(s: Signal): string {
       return `Idle gaps — ${Math.round((s.detail?.avg_idle_min || 0) / 60 * 10) / 10}h/day parked with little movement`
     case 'excess_travel':
       return `Excess travel — averaging ${s.detail?.avg_km_per_hop ?? '?'}km between stops`
+    case 'below_gate':
+      return `Behind pace on ${String(s.detail?.metric || 'a target').replace('_', ' ')} — ${s.detail?.shortfall ?? '?'}/day short of the next tier`
     default:
       return 'Underperformance signal triggered'
   }
@@ -90,7 +93,9 @@ export default function PerformanceCard({ title = 'Your performance' }: { title?
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <Metric label="Visits/day" value={actual.visits_per_day} target={thresholds.visits_per_day} />
-        <Metric label="Signups/day" value={actual.signups_per_day} target={thresholds.signups_per_day} />
+        {(d.metrics || []).map((m) => (
+          <Metric key={m.key} label={`${m.label}/day`} value={m.value} target={m.target ?? undefined} />
+        ))}
         <Metric label="Conversion" value={actual.conversion_pct * 100} target={thresholds.conversion_floor_pct} suffix="%" />
         <Metric label="Qualified" value={actual.qualified_pct * 100} suffix="%" />
       </div>
