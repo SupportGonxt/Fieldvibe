@@ -76,7 +76,9 @@ app.get('/kpi/self', async (c) => {
   const key = resolveRoleKpiKey(role);
   const thresholds = (await getConfig(db, tenantId, companyId, key)) || {};
   const windowDays = thresholds.baseline_window_days || 14;
-  const since = new Date(Date.parse(c.req.query('today') || '') || Date.now());
+  // Parse 'today' once; a malformed value falls back to now for every derived date below.
+  const todayMs = Date.parse(c.req.query('today') || '') || Date.now();
+  const since = new Date(todayMs);
   since.setDate(since.getDate() - windowDays);
   const sinceStr = since.toISOString().slice(0, 10);
 
@@ -99,7 +101,7 @@ app.get('/kpi/self', async (c) => {
   let metrics = [];
   if (gateMetrics.length && actual.days > 0) {
     // per-working-day averages + this person's next-tier shortfall, via the shared engine.
-    const asOf = c.req.query('today') || new Date().toISOString().slice(0, 10);
+    const asOf = new Date(todayMs).toISOString().slice(0, 10);
     const period = c.req.query('period') || asOf.slice(0, 7);
     const inc = await computeIncentive(db, tenantId, companyId, userId, role, period, asOf);
     const avgByMetric = inc?.metricByKey || {};

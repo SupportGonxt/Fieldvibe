@@ -127,6 +127,9 @@ export async function agentCount(db, tenantId, agentId, period, status) {
             SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) converted,
             SUM(CASE WHEN gd.id IS NOT NULL THEN 1 ELSE 0 END) deposits
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     -- No company_id in this join: cross-company double-count is prevented upstream by the
+     -- ingest-time conflict guard in metricFacts.js (a subject_key already present under a
+     -- different company_id is skipped), so subject_key alone is safe here.
      LEFT JOIN metric_facts gd
        ON gd.tenant_id = v.tenant_id
       AND gd.metric_key = 'deposits'

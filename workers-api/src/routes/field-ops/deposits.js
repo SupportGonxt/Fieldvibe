@@ -42,7 +42,7 @@ app.get('/deposits', boRoles, async (c) => {
   const batch = c.req.query('batch') || null;
   const limit = Math.min(Number(c.req.query('limit')) || 200, 1000);
   const { results } = await db.prepare(
-    `SELECT mf.id, mf.company_id, mf.subject_key AS goldrush_id, mf.amount, mf.source_batch, mf.created_at,
+    `SELECT mf.id, mf.company_id, mf.subject_key AS goldrush_id, mf.source_batch, mf.created_at,
             (SELECT 1 FROM visit_individuals vi
               WHERE vi.tenant_id = mf.tenant_id AND ${GID.replace(/custom_field_values/g, 'vi.custom_field_values')} = mf.subject_key
               LIMIT 1) matched
@@ -52,7 +52,8 @@ app.get('/deposits', boRoles, async (c) => {
         AND (? IS NULL OR mf.source_batch = ?)
       ORDER BY mf.created_at DESC LIMIT ?`
   ).bind(tenantId, companyId, companyId, batch, batch, limit).all();
-  return c.json({ success: true, deposits: (results || []).map((r) => ({ ...r, deposit_date: null, matched: !!r.matched })) });
+  // Deposits are count-only by contract for every backoffice role; deposit RAND revenue is GM/admin-only (see gm.js).
+  return c.json({ success: true, deposits: (results || []).map((r) => ({ ...r, amount: null, deposit_date: null, matched: !!r.matched })) });
 });
 
 // POST /field-ops/deposits/reconcile — promote provisional signups that now have a deposit fact.
