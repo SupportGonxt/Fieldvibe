@@ -20,28 +20,12 @@ import { signalBelowGate } from './services/kpiSignals.js';
 import { buildGoldrushConfig } from './services/programConfig.js';
 import { clampSharePct, parseStoreInsights } from './services/goldrushVision.js';
 import { defaultDashboardConfig, assertPortalToken, inviteTokenExpired, serializeIndividualForPortal, serializeStoreForPortal, matchAskIntent } from './services/portal.js';
+import { cachedD1Query, invalidateCache } from './lib/cache.js';
+import { checkIdempotency, saveIdempotency } from './lib/idempotency.js';
+import { generateToken, normalizePhone } from './lib/authUtils.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
-
-// ==================== IDEMPOTENCY HELPER (BUG-006) ====================
-async function checkIdempotency(c, db, tenantId) {
-  const key = c.req.header('X-Idempotency-Key');
-  if (!key) return null;
-  try {
-    const existing = await db.prepare('SELECT response_body, response_status FROM idempotency_keys WHERE idempotency_key = ? AND tenant_id = ?').bind(key, tenantId).first();
-    if (existing) return c.json(JSON.parse(existing.response_body), existing.response_status);
-  } catch(e) {}
-  return null;
-}
-async function saveIdempotency(db, tenantId, c, responseBody, status) {
-  const key = c.req.header('X-Idempotency-Key');
-  if (!key) return;
-  try {
-    await db.prepare("INSERT OR IGNORE INTO idempotency_keys (id, tenant_id, idempotency_key, response_body, response_status) VALUES (?, ?, ?, ?, ?)").bind(uuidv4(), tenantId, key, JSON.stringify(responseBody), status).run();
-  } catch(e) {}
-}
-
 
 // ==================== GLOBAL ERROR HANDLER (BUG-001) ====================
 // Catches all unhandled exceptions in any route handler, preventing raw 500
@@ -181,41 +165,6 @@ async function resolveWorkingDaysConfig(db, tenantId, companyId, agentId) {
 
 // Batch version: resolves working days configs for multiple companies in 1 query instead of 4*N queries
 const DEFAULT_WD_CONFIG = { monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 0, sunday: 0, public_holidays: '[]' };
-
-// ==================== D1 QUERY CACHE LAYER (P2) ====================
-// Uses the Cloudflare Cache API to cache slow-changing D1 query results.
-// This avoids redundant D1 reads for data that changes infrequently.
-const CACHE_PREFIX = 'https://d1-cache.internal/';
-
-async function cachedD1Query(cacheKey, ttlSeconds, queryFn) {
-  try {
-    const cache = caches.default;
-    const cacheUrl = new Request(CACHE_PREFIX + cacheKey);
-    const cached = await cache.match(cacheUrl);
-    if (cached) {
-      return await cached.json();
-    }
-    const result = await queryFn();
-    // Store in cache with TTL
-    const response = new Response(JSON.stringify(result), {
-      headers: { 'Cache-Control': `public, max-age=${ttlSeconds}` }
-    });
-    // Don't await cache.put — fire and forget to avoid blocking the response
-    cache.put(cacheUrl, response);
-    return result;
-  } catch (e) {
-    // Cache miss or error — fall through to direct query
-    return await queryFn();
-  }
-}
-
-// Invalidate a cached query (call after mutations that affect cached data)
-async function invalidateCache(cacheKey) {
-  try {
-    const cache = caches.default;
-    await cache.delete(new Request(CACHE_PREFIX + cacheKey));
-  } catch (e) { /* ignore */ }
-}
 
 // ==================== SHARED HELPERS (P4) ====================
 // Combine 3 commission status queries into 1 with conditional aggregation
@@ -447,30 +396,6 @@ async function getUserMonthlyTargetFromRules(db, tenantId, userId, currentMonth,
     }
   } catch { /* */ }
   return { target_visits: totalTargetVisits, target_registrations: totalTargetRegs };
-}
-
-// ==================== PHONE NORMALIZATION ====================
-function normalizePhone(phone) {
-  if (!phone) return null;
-  let normalized = phone.replace(/[\s\-]/g, '');
-  if (normalized.startsWith('0')) normalized = '+27' + normalized.substring(1);
-  else if (normalized.startsWith('27') && !normalized.startsWith('+27')) normalized = '+' + normalized;
-  else if (!normalized.startsWith('+')) normalized = '+27' + normalized;
-  return normalized;
-}
-
-// ==================== JWT HELPERS ====================
-async function generateToken(payload, secret, expiresIn = 86400) {
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const now = Math.floor(Date.now() / 1000);
-  const tokenPayload = { ...payload, iat: now, exp: now + expiresIn };
-  const base64Header = btoa(JSON.stringify(header));
-  const base64Payload = btoa(JSON.stringify(tokenPayload));
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(base64Header + '.' + base64Payload));
-  const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signature)));
-  return base64Header + '.' + base64Payload + '.' + base64Signature;
 }
 
 // Auth middleware with HMAC-SHA256 signature verification (Section 1 fix)
