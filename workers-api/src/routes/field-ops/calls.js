@@ -260,6 +260,29 @@ app.post('/calls/push/subscribe', async (c) => {
   return c.json({ success: true });
 });
 
+// Send a test push to the caller's own devices — powers the "test notifications"
+// button in the first-login tour. Mirrors ringCallee's send+prune loop.
+app.post('/calls/push/test', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const subs = await db.prepare(
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
+  ).bind(tenantId, userId).all();
+  const rows = subs.results || [];
+  if (!rows.length) return c.json({ success: false, message: 'no subscription' }, 400);
+  const payload = { title: 'FieldVibe', body: 'Notifications are working ✅', url: '/agent' };
+  let sent = 0;
+  for (const sub of rows) {
+    const r = await sendPush(c.env, sub, payload);
+    if (r && r.ok) sent++;
+    else if (r && (r.status === 404 || r.status === 410)) {
+      await db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(sub.endpoint).run();
+    }
+  }
+  return c.json({ success: sent > 0, sent });
+});
+
 app.post('/calls/push/unsubscribe', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
