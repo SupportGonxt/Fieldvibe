@@ -22297,3 +22297,5 @@ export default {
     ctx.waitUntil(drainAiBacklog(env));
   },
 };
+
+export { app };
