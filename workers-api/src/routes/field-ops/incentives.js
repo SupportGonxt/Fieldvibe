@@ -5,7 +5,7 @@
  */
 import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
-import { computeIncentive, AGENT_ROLES, writePayable, extractGoldrushIds } from '../../services/incentiveService.js';
+import { computeIncentive, AGENT_ROLES, writePayable, extractGoldrushIds, readTargets } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
 
 const app = new Hono();
@@ -102,12 +102,12 @@ app.get('/incentives/hero', async (c) => {
       provisionalPace: inc.provisionalPace, // R on track at current pace
       payable: inc.payable,                 // R already qualified
       baseSalary: inc.baseSalary,
-      nextTier: next,                        // { signups, deposits, amount, needSignups, needDeposits } | null
-      toNextSignups: next ? round1(next.needSignups) : null, // avg/day signup gap to next tier
-      toNextDeposits: next ? round1(next.needDeposits) : null, // avg/day deposit gap to next tier
+      nextTier: next,                        // { amount, targets, shortfall } | null
+      toNextSignups: next ? round1(next.shortfall?.signups ?? 0) : null, // avg/day signup gap to next tier
+      toNextDeposits: next ? round1(next.shortfall?.deposits ?? 0) : null, // avg/day deposit gap to next tier
       rank,
       totalPeers,
-      tiers: inc.tiers || [],               // full ladder for criteria view
+      tiers: (inc.tiers || []).map((t) => ({ amount: t.amount, ...readTargets(t) })), // wire shape stays flat {amount, signups, deposits}; readTargets normalizes new {targets:{…}} rows
     },
   });
 });
