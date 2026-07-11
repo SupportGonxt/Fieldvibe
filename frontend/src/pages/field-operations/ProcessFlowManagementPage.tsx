@@ -1601,6 +1601,81 @@ const ROLE_TABS: { key: RoleType; label: string; color: string; bgColor: string;
   { key: 'manager', label: 'Managers', color: 'text-amber-700 dark:text-amber-300', bgColor: 'bg-amber-50 dark:bg-amber-900/20', borderColor: 'border-amber-200 dark:border-amber-800', icon: '🏢' },
 ]
 
+// Per-company Goldrush KPI targets (signups/day + conversion floor), stored in the
+// kpi.agent program_config and read by the agent cockpit (/kpi/self). Separate from the
+// visit target-rules above — this is the signup/conversion metric, not store visits.
+function GoldrushKpiTargetsCard({ companies }: { companies: { id: string; name: string; code: string }[] }) {
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [signups, setSignups] = useState(0)
+  const [conv, setConv] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!companyId) return
+    let live = true
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fieldOperationsService.getConfig(companyId).then((r: any) => {
+      if (!live) return
+      const k = r?.config?.['kpi.agent'] || {}
+      setSignups(k.signups_per_day ?? 0)
+      setConv(k.conversion_floor_pct ?? 0)
+    }).catch(() => {})
+    return () => { live = false }
+  }, [companyId])
+
+  async function save() {
+    if (!companyId) { toast.error('Select a company'); return }
+    setSaving(true)
+    try {
+      // merge so other kpi.agent thresholds (visits_per_day, quiet_days…) survive the write
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cur: any = await fieldOperationsService.getConfig(companyId)
+      const existing = cur?.config?.['kpi.agent'] || {}
+      await fieldOperationsService.updateConfig(companyId, {
+        'kpi.agent': { ...existing, signups_per_day: signups, conversion_floor_pct: conv },
+      })
+      toast.success('Goldrush signup targets saved')
+    } catch { toast.error('Failed to save signup targets') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="card p-6 border-l-4 border-emerald-300 dark:border-emerald-800">
+      <h3 className="text-lg font-semibold mb-2 text-emerald-700 dark:text-emerald-300">🎯 Goldrush Signup Targets</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Per-company signup/day and conversion floor for the agent performance cockpit. Independent of the visit targets below.
+      </p>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company</label>
+          <SearchableSelect
+            options={companies.map(c => ({ value: c.id, label: c.name }))}
+            value={companyId}
+            onChange={setCompanyId}
+            placeholder="Select company..."
+          />
+        </div>
+        {companyId && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Signups / Day</label>
+              <input type="number" min={0} value={signups} onChange={(e) => setSignups(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Conversion Floor %</label>
+              <input type="number" min={0} max={100} value={conv} onChange={(e) => setConv(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+            </div>
+          </div>
+        )}
+        <button onClick={save} disabled={saving || !companyId} className="btn-primary flex items-center gap-2 disabled:opacity-50">
+          <Save className="w-4 h-4" />
+          {saving ? 'Saving...' : 'Save Signup Targets'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function CompanyTargetRulesTab() {
   const queryClient = useQueryClient()
   const [activeRole, setActiveRole] = useState<RoleType>('agent')
@@ -1710,6 +1785,9 @@ function CompanyTargetRulesTab() {
           </button>
         ))}
       </div>
+
+      {/* Goldrush signup/conversion targets (agent cockpit KPIs) — agent tab only */}
+      {activeRole === 'agent' && <GoldrushKpiTargetsCard companies={companies} />}
 
       {/* Form */}
       <div className={`card p-6 border-l-4 ${activeRoleTab.borderColor}`}>

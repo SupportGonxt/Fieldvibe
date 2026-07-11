@@ -458,10 +458,16 @@ export default function AgentDashboard() {
         </div>
       )}
 
-      {/* Cockpit: agent self-performance KPIs + underperformance signals */}
+      {/* Cockpit: signup/conversion KPIs + underperformance signals. Agent sees own;
+          TL/manager see their team aggregate (kpi/self scopes by role server-side). */}
       {isAgentRole && (
         <div className="px-5">
           <PerformanceCard />
+        </div>
+      )}
+      {(authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+        <div className="px-5">
+          <PerformanceCard title="Team performance" />
         </div>
       )}
 

@@ -731,6 +731,19 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // program_config KPI thresholds (goldrush signup/conversion targets), per-company override.
+  async getConfig(companyId?: string) {
+    const params = companyId ? `?company_id=${companyId}` : ''
+    const response = await this.get(`/field-ops/config${params}`)
+    return response.data || response
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async updateConfig(companyId: string, config: Record<string, any>) {
+    const response = await this.put('/field-ops/config', { company_id: companyId, config })
+    return response.data || response
+  }
+
   async getCommissionEligibility(filter: { date?: string; company_id?: string; agent_id?: string } = {}) {
     const params = new URLSearchParams()
     Object.entries(filter).forEach(([key, value]) => {
