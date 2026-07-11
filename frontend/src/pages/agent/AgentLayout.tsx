@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
 import { apiClient } from '../../services/api.service'
 import { ensurePushSubscription } from '../../services/push'
+import FirstLoginTour from './FirstLoginTour'
 
 // Poll for a ringing call aimed at this user. Call screens render outside this
 // layout, so AgentLayout unmounts during a call and polling pauses on its own.
@@ -145,6 +146,8 @@ export default function AgentLayout() {
 
   return (
     <div className="min-h-screen bg-[#06090F] flex flex-col">
+      <FirstLoginTour />
+
       {/* Sub-page header with back button */}
       {onSubPage && (
         <div className="sticky top-0 z-40 bg-[#0A1628]/95 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center gap-3">

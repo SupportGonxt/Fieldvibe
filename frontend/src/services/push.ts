@@ -59,3 +59,19 @@ export async function ensurePushSubscription(): Promise<void> {
     /* unsupported / permission race / offline — poll fallback covers it */
   }
 }
+
+/**
+ * Fire a test push to this user's own devices. Ensures a subscription exists first
+ * (no-op if permission isn't granted). Returns true only if the backend actually
+ * delivered to at least one device. Powers the first-login tour's test button.
+ */
+export async function sendTestPush(): Promise<boolean> {
+  try {
+    if (!pushSupported() || Notification.permission !== 'granted') return false
+    await ensurePushSubscription()
+    const res = await apiClient.post('/field-ops/calls/push/test', {})
+    return !!res?.data?.success
+  } catch {
+    return false
+  }
+}
