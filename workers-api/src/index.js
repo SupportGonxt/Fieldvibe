@@ -21742,13 +21742,19 @@ async function reactToIssues(db, env) {
           const windowDays = thresholds.baseline_window_days || 14;
           const since = new Date(nowMs - windowDays * 86400000).toISOString().slice(0, 10);
 
-          const { signals } = await agentSignals(db, tenantId, agent.id, thresholds, since);
+          const { actual, signals } = await agentSignals(db, tenantId, agent.id, thresholds, since);
           const live = await db.prepare(
             "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND status != 'resolved'"
           ).bind(tenantId, agent.id).first();
 
           if (!signals.length) {
-            if (live) {
+            // Empty signals mean one of two things: the agent recovered (has activity
+            // in the window, no threshold breached) or the agent is dark the whole
+            // window (actual.days === 0, so evaluateSignals bails before flagging).
+            // Only the first is a real recovery — resolving a dark agent's issue
+            // would clear accountability for the very people who vanished. Resolve
+            // only on positive activity; keep the issue live while dark.
+            if (live && actual.days > 0) {
               await db.prepare("UPDATE issues SET status = 'resolved', updated_at = datetime('now') WHERE id = ?")
                 .bind(live.id).run();
             }
