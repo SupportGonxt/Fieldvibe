@@ -5,7 +5,7 @@
 --   period NULL      = cumulative fact (a deposit exists / doesn't) — counted, never summed by month.
 --   period 'YYYY-MM' = monthly fact (retention, active users) — one row per subject per month.
 --   amount NULL      = count-only metric (deposits); a number for value metrics.
--- Idempotent-additive: UNIQUE blocks a duplicate fact; ingest uses INSERT OR IGNORE. No clawback.
+-- Idempotent-additive: the NULL-safe unique index blocks a duplicate fact; ingest uses INSERT OR IGNORE. No clawback.
 CREATE TABLE IF NOT EXISTS metric_facts (
   id           TEXT PRIMARY KEY,
   tenant_id    TEXT NOT NULL,
@@ -15,9 +15,14 @@ CREATE TABLE IF NOT EXISTS metric_facts (
   amount       REAL,                         -- NULL for count-only metrics; a value for value metrics
   period       TEXT,                         -- NULL = cumulative; 'YYYY-MM' = monthly
   source_batch TEXT,
-  created_at   TEXT DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (tenant_id, company_id, metric_key, subject_key, period)
+  created_at   TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- NULL-safe uniqueness: SQLite treats NULL as distinct in UNIQUE constraints, so a plain
+-- UNIQUE(...) never dedupes period-NULL (cumulative) or company-NULL rows. COALESCE to ''
+-- makes INSERT OR IGNORE a true no-op for a re-uploaded fact.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_metric_facts_unique
+  ON metric_facts (tenant_id, COALESCE(company_id,''), metric_key, subject_key, COALESCE(period,''));
 
 -- Engine join: count facts for one metric_key scoped to a tenant/company/subject.
 CREATE INDEX IF NOT EXISTS idx_metric_facts_lookup
