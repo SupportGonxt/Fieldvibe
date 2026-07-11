@@ -67,7 +67,7 @@ function Metric({ label, value, target, suffix = '' }: { label: string; value: n
   )
 }
 
-export default function PerformanceCard() {
+export default function PerformanceCard({ title = 'Your performance' }: { title?: string } = {}) {
   const [d, setD] = useState<SelfKpi | null>(null)
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function PerformanceCard() {
     <div className="bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 mb-4">
       <div className="flex items-center gap-2 mb-3">
         <Activity className="w-4 h-4 text-[#00E87B]" />
-        <span className="text-xs text-gray-500 uppercase tracking-wide">Your performance · last {actual.days}d</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wide">{title} · last {actual.days}d</span>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <Metric label="Visits/day" value={actual.visits_per_day} target={thresholds.visits_per_day} />

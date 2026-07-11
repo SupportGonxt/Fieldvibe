@@ -47,6 +47,19 @@ app.get('/issues/mine', async (c) => {
   return c.json({ issues: results || [] });
 });
 
+// Owner's accountability KPI: notifications received vs acted on, trailing 7 days.
+// received = issues routed to this owner in the window; acted = those they actioned
+// (acted_at set — survives the cron flipping status to 'resolved'). Drives the BO home card.
+app.get('/issues/stats', async (c) => {
+  const db = c.env.DB;
+  await ensureIssues(db);
+  const row = await db.prepare(
+    `SELECT COUNT(*) received, COUNT(acted_at) acted FROM issues
+     WHERE tenant_id = ? AND owner_id = ? AND owner_since >= datetime('now','-7 days')`
+  ).bind(c.get('tenantId'), c.get('userId')).first();
+  return c.json({ success: true, received: row?.received || 0, acted: row?.acted || 0 });
+});
+
 // GM/admin accountability view: open issues no owner has actioned, breaching-first, with the
 // owner named — this is the "who isn't managing" surface (leads/managers/BO who sit on issues).
 app.get('/issues/unmanaged', requireRole('admin', 'general_manager'), async (c) => {
