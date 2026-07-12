@@ -4,11 +4,12 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Loader2, TrendingUp, TrendingDown, Users, Phone, Award, UserX,
   AlertTriangle, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight,
-  Minus, Briefcase, Headphones, Activity,
+  Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
+import { PulseBar, type Chip } from '../../components/field-ops/PulseBar'
 
 // GM mobile cockpit. Same payload as the web /dashboard/gm page.
 // Journey: pick company/period -> pulse (revenue, funnel) -> risks ->
@@ -390,15 +391,6 @@ export default function GmOverview() {
 
 // Pulse chip tones. Solid fixed colors (not #06090F-relative or white-opacity), so the
 // light-theme override in index.css leaves them alone and contrast holds in both themes.
-type Tone = 'good' | 'warn' | 'bad'
-type Chip = { tone: Tone; label: string }
-const TONE: Record<Tone, string> = {
-  good: 'bg-[#00E87B] text-[#052e1c]',
-  warn: 'bg-amber-400 text-amber-950',
-  bad: 'bg-red-500 text-white',
-}
-const toneRank = (t: Tone) => (t === 'bad' ? 0 : t === 'warn' ? 1 : 2)
-
 // Everything good and bad the GM should see at a glance, worst-first. Pure over the payload
 // plus the two issue lists (already cached) — no fetch, no I/O. Test: buildPulse.selfcheck below.
 export function buildPulse(d: Overview, mine: Issue[], unmanaged: Issue[]): Chip[] {
@@ -426,29 +418,6 @@ export function buildPulse(d: Overview, mine: Issue[], unmanaged: Issue[]): Chip
   const highlights = mine.filter((i) => i.polarity === 'recognition').length
   if (highlights > 0) c.push({ tone: 'good', label: `${highlights} highlight${highlights > 1 ? 's' : ''}` })
   return c
-}
-
-function PulseBar({ chips }: { chips: Chip[] }) {
-  if (!chips.length) return null
-  const sorted = [...chips].sort((a, b) => toneRank(a.tone) - toneRank(b.tone))
-  const good = chips.filter((c) => c.tone === 'good').length
-  const attn = chips.length - good
-  return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Activity className="w-4 h-4 text-[#00E87B]" />
-        <h2 className="text-sm font-semibold text-white">Pulse</h2>
-        <span className="text-xs text-gray-500 ml-auto tabular-nums">
-          {good > 0 ? `${good} good` : ''}{good > 0 && attn > 0 ? ' · ' : ''}{attn > 0 ? `${attn} flagged` : ''}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {sorted.map((c, i) => (
-          <span key={i} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${TONE[c.tone]}`}>{c.label}</span>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function CompanyChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
