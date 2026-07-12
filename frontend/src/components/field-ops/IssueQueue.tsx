@@ -79,7 +79,11 @@ const SKIN = {
       'min-h-[44px] inline-flex items-center gap-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 px-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200',
   },
   pwa: {
-    section: 'rounded-2xl border border-red-500/30 bg-red-500/10',
+    // Solid dark-red card (not translucent) so the white/white-opacity text below stays
+    // legible even in light app-theme, where PWA pages get their #06090F root lightened by
+    // the global override but text-white/NN opacity variants are not remapped. bg-red-900 is
+    // a fixed color the light-mode override never touches, so contrast holds in both themes.
+    section: 'rounded-2xl border border-red-500/40 bg-red-900',
     icon: 'text-red-400',
     title: 'font-semibold text-white',
     sub: 'text-xs text-white/60',
