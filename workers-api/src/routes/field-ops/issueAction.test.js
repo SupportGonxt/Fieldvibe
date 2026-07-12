@@ -51,15 +51,15 @@ describe('resolveAction', () => {
 });
 
 // Schema-sync guard: ensureIssues' CREATE TABLE must carry the polarity column (migration 0020)
-// and the 3-column live-uniqueness index. Capture the SQL passed to db.prepare via a stub.
+// and the company-scoped live-uniqueness index (migration 0021). Capture the SQL via a stub.
 describe('ensureIssues schema', () => {
-  it('creates the issues table with polarity and the 3-column live unique index', async () => {
+  it('creates the issues table with polarity and the company-scoped live unique index', async () => {
     const sqls = [];
     const db = { prepare: (sql) => { sqls.push(sql); return { run: async () => {} }; } };
     await ensureIssues(db);
     const all = sqls.join('\n');
     expect(all).toContain('polarity');
     expect(all).toContain('idx_issues_live');
-    expect(all).toContain('issues(tenant_id, subject_id, polarity)');
+    expect(all).toContain("issues(tenant_id, subject_id, COALESCE(company_id,''), polarity)");
   });
 });

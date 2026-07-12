@@ -348,13 +348,22 @@ async function reactToIssues(db, env) {
         // of this set, so going quiet would hide them from the very check meant to catch it. Six
         // months keeps a field-working leader in scope long enough for gone_quiet to fire on them.
         //
-        // A field subject belongs to exactly one customer, carried on agent_company_links.
+        // A field subject is scoped per active company via agent_company_links, which now
+        // carries a per-company role/team_lead_id/manager_id (0021). One row per (user,
+        // active company): a multi-company person (Lucky: manager in Goldrush, team_lead in
+        // Stellr) is evaluated once per company with that company's role/owner/config.
+        // NULL link columns fall back to the user's global users.* value. BO admin is a
+        // shared tenant-level service — it never joins a company link (company_id stays NULL).
         const leadSince = new Date(nowMs - 180 * 86400000).toISOString().slice(0, 10);
         const agents = (await db.prepare(
-          `SELECT u.id, u.first_name, u.last_name, u.role, u.team_lead_id, u.manager_id,
-                  (SELECT company_id FROM agent_company_links l
-                   WHERE l.agent_id = u.id AND l.is_active = 1 LIMIT 1) company_id
+          `SELECT u.id, u.first_name, u.last_name,
+                  COALESCE(l.role, u.role) role,
+                  COALESCE(l.team_lead_id, u.team_lead_id) team_lead_id,
+                  COALESCE(l.manager_id, u.manager_id) manager_id,
+                  l.company_id company_id
            FROM users u
+           LEFT JOIN agent_company_links l
+             ON l.agent_id = u.id AND l.is_active = 1 AND u.role != 'backoffice_admin'
            WHERE u.tenant_id = ? AND u.is_active = 1
              AND ( (u.role IN ('agent','field_agent','sales_rep')
                     AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')))
@@ -493,8 +502,8 @@ async function reactToIssues(db, env) {
 
             // --- Deficit branch: unchanged breach/escalation logic, now scoped to polarity='deficit'. ---
             const live = await db.prepare(
-              "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND polarity = 'deficit' AND status != 'resolved'"
-            ).bind(tenantId, agent.id).first();
+              "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND COALESCE(company_id,'') = COALESCE(?,'') AND polarity = 'deficit' AND status != 'resolved'"
+            ).bind(tenantId, agent.id, agent.company_id || null).first();
 
             if (!deficitSignals.length) {
               // Empty signals are only a real recovery when we have enough active days
@@ -582,8 +591,8 @@ async function reactToIssues(db, env) {
               const rSeverity = severityOf(rTypes);
               const rDetail = JSON.stringify(recognitionSignals);
               const rLive = await db.prepare(
-                "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND polarity = 'recognition' AND status != 'resolved'"
-              ).bind(tenantId, agent.id).first();
+                "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND COALESCE(company_id,'') = COALESCE(?,'') AND polarity = 'recognition' AND status != 'resolved'"
+              ).bind(tenantId, agent.id, agent.company_id || null).first();
 
               if (!rLive) {
                 const { ownerId, ownerRole } = defaultOwner();

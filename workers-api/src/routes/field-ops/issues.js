@@ -24,7 +24,7 @@ export async function ensureIssues(db) {
        acted_at TEXT, acted_by TEXT, last_action TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`
   ).run();
   await db.prepare(
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_live ON issues(tenant_id, subject_id, polarity) WHERE status != 'resolved'`
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_live ON issues(tenant_id, subject_id, COALESCE(company_id,''), polarity) WHERE status != 'resolved'`
   ).run();
 }
 

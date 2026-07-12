@@ -122,22 +122,31 @@ export const SIGNAL_REGISTRY = {
 
 export function aggregateKpis(rows) {
   const days = rows.length || 0;
-  const totV = rows.reduce((a, r) => a + (r.visits || 0), 0);
-  const totS = rows.reduce((a, r) => a + (r.signups || 0), 0);
-  const totQ = rows.reduce((a, r) => a + (r.qualified || 0), 0);
+  const sum = (k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
+  const totV = sum('visits'), totS = sum('signups'), totQ = sum('qualified');
+  const qSum = sum('quality_sum'), qN = sum('quality_n');
   return {
     visits_per_day: days ? totV / days : 0,
     signups_per_day: days ? totS / days : 0,
     conversion_pct: safeDiv(totS, totV),
     qualified_pct: safeDiv(totQ, totS),
+    boards_per_day: days ? sum('boards') / days : 0,
+    surveys_per_day: days ? sum('surveys') / days : 0,
+    board_quality: safeDiv(qSum, qN),
     days,
   };
 }
 
+// The metric keys below_target can flag. A metric fires only when the company's
+// kpi.<role> config sets a threshold for it AND actual is under it, so Goldrush
+// (sign-ups/visits) and Stellr (boards/surveys/quality/coverage) share one code path
+// and differ only by config. conversion has its own signal (low_conversion), not here.
+const TARGET_KEYS = ['visits_per_day', 'signups_per_day', 'boards_per_day', 'surveys_per_day', 'board_quality'];
+
 export function signalBelowTarget(actual, th) {
-  const metrics = [];
-  if (actual.visits_per_day != null && actual.visits_per_day < th.visits_per_day) metrics.push('visits_per_day');
-  if (actual.signups_per_day != null && actual.signups_per_day < th.signups_per_day) metrics.push('signups_per_day');
+  const metrics = TARGET_KEYS.filter(
+    (k) => th[k] != null && actual[k] != null && actual[k] < th[k]
+  );
   return { triggered: metrics.length > 0, metrics };
 }
 
