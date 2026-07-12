@@ -43,6 +43,20 @@ function issueText(i: Issue): string {
   return signalText({ type: i.kind, detail: parseDetail(i.detail) })
 }
 
+// Bucket issues by company so a multi-company subject's rows sit under their own company
+// heading instead of one conflated pile. First-seen order; NULL company (tenant-level, e.g.
+// BO admin) collects under "Unassigned". Callers show the heading only when >1 group exists.
+export function groupByCompany(items: Issue[]): { company: string; items: Issue[] }[] {
+  const order: string[] = []
+  const byCompany = new Map<string, Issue[]>()
+  for (const i of items) {
+    const key = i.company_name || 'Unassigned'
+    if (!byCompany.has(key)) { byCompany.set(key, []); order.push(key) }
+    byCompany.get(key)!.push(i)
+  }
+  return order.map((company) => ({ company, items: byCompany.get(company)! }))
+}
+
 // D1 hands back `YYYY-MM-DD HH:MM:SS` in UTC with no zone marker; Date.parse would read it as local.
 export function hoursHeld(ownerSince: string): number {
   const t = Date.parse(ownerSince.includes('T') ? ownerSince : ownerSince.replace(' ', 'T') + 'Z')
@@ -156,7 +170,12 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
       {deficit.length > 0 && (
         <>
           {highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
-          <ul className={s.divide}>{deficit.map(renderIssue)}</ul>
+          {groupByCompany(deficit).map((g, _gi, arr) => (
+            <div key={g.company}>
+              {arr.length > 1 && <p className={`${s.sub} px-4 pt-2 uppercase tracking-wide`}>{g.company}</p>}
+              <ul className={s.divide}>{g.items.map(renderIssue)}</ul>
+            </div>
+          ))}
         </>
       )}
       {highlights.length > 0 && (
@@ -213,7 +232,12 @@ export function UnmanagedIssues({ surface = 'web' }: { surface?: Surface }) {
       {deficit.length > 0 && (
         <>
           {highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
-          <ul className={s.divide}>{deficit.map(renderIssue)}</ul>
+          {groupByCompany(deficit).map((g, _gi, arr) => (
+            <div key={g.company}>
+              {arr.length > 1 && <p className={`${s.sub} px-4 pt-2 uppercase tracking-wide`}>{g.company}</p>}
+              <ul className={s.divide}>{g.items.map(renderIssue)}</ul>
+            </div>
+          ))}
         </>
       )}
       {highlights.length > 0 && (
