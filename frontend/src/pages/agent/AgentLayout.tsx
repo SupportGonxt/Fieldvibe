@@ -79,6 +79,7 @@ function getTabsForRole(role: string | undefined) {
     return [
       { path: '/agent/overview', label: 'Overview', icon: LayoutDashboard },
       { path: '/agent/pnl', label: 'P&L', icon: Wallet },
+      { path: '/agent/teams', label: 'Team', icon: Users },
       { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
       { path: '/agent/profile', label: 'Profile', icon: User },
     ]

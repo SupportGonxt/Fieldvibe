@@ -1151,14 +1151,15 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = today.substring(0, 7);
 
-    // Verify caller is a manager or admin
+    // Verify caller is a manager, GM, or admin
     const caller = await db.prepare("SELECT role, first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first();
-    if (!caller || !['manager', 'admin', 'super_admin'].includes(caller.role)) {
+    if (!caller || !['manager', 'general_manager', 'admin', 'super_admin'].includes(caller.role)) {
       return c.json({ success: false, message: 'Access denied. Manager role required.' }, 403);
     }
 
-    // Get all team leads under this manager (or all if admin)
-    const isAdmin = ['admin', 'super_admin'].includes(caller.role);
+    // Get all team leads under this manager (or all if org-wide role).
+    // GM sits above managers so sees the whole org, same scope as admin.
+    const isAdmin = ['admin', 'super_admin', 'general_manager'].includes(caller.role);
 
     // Get manager's company IDs — scope visit counts to their company only (skip for admins)
     let mgrCompanyIds = [];
