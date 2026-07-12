@@ -25,13 +25,6 @@ const TAB_HELP: Record<string, string> = {
   '/agent/profile': 'Profile — your account, settings and sign-out.',
 }
 
-const GREETING: Record<string, string> = {
-  team_lead: 'Welcome, Team Lead',
-  manager: 'Welcome, Manager',
-  general_manager: 'Welcome, GM',
-  backoffice_admin: 'Welcome, Back Office',
-}
-
 type Frame =
   | { kind: 'welcome' }
   | { kind: 'tab'; path: string; label: string }
@@ -190,7 +183,7 @@ export default function FirstLoginTour() {
           </>
         ) : (
           <>
-            <h2 className="text-xl font-semibold text-white mb-2">{GREETING[user.role] || 'Welcome to FieldVibe'}</h2>
+            <h2 className="text-xl font-semibold text-white mb-2">{user.first_name ? `Welcome, ${user.first_name}` : 'Welcome to FieldVibe'}</h2>
             <p className="text-gray-300 leading-relaxed">
               Quick tour — we’ll point out what each button does. Takes ten seconds.
             </p>
