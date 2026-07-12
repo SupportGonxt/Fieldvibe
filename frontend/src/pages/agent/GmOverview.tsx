@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Loader2, TrendingUp, TrendingDown, Users, Phone, Award, UserX,
   AlertTriangle, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight,
-  Minus, Briefcase, Headphones,
+  Minus, Briefcase, Headphones, Activity,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
-import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
+import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 
 // GM mobile cockpit. Same payload as the web /dashboard/gm page.
@@ -100,6 +101,17 @@ export default function GmOverview() {
       .finally(() => setLoading(false))
   }, [period, anchor, company])
 
+  // Same query keys as the MyIssues/UnmanagedIssues cards below — react-query dedupes, so these
+  // feed the pulse counts without a second network round-trip.
+  const { data: mineData } = useQuery({
+    queryKey: ['issues-mine'],
+    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
+  })
+  const { data: unmanagedData } = useQuery({
+    queryKey: ['gm-unmanaged'],
+    queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[] }),
+  })
+
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
@@ -120,6 +132,12 @@ export default function GmOverview() {
   const maxTeamSignups = Math.max(1, ...teams.map((t) => t.signups))
   // Carry the company scope into P&L so it opens on the same company the GM is viewing.
   const goPnl = () => navigate(`/agent/pnl${company ? `?company_id=${company}` : ''}`)
+
+  const mine = mineData?.issues ?? []
+  const unmanaged = unmanagedData?.issues ?? []
+  const pulse = buildPulse(data, mine, unmanaged)
+  const mineOpen = mine.filter((i) => i.polarity !== 'recognition').length
+  const hasExceptions = mineOpen > 0 || unmanaged.length > 0 || risks.length > 0
 
   return (
     <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
@@ -172,25 +190,23 @@ export default function GmOverview() {
           </button>
         </div>
 
-        {/* Revenue hero */}
-        <div onClick={goPnl} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Revenue</span>
-            <Delta now={money.revenue} prev={money.prevRevenue} money />
-          </div>
-          <div className="text-4xl font-bold tabular-nums text-[#00E87B] mt-1">{rand(money.revenue)}</div>
-          <p className="text-xs text-gray-500 mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
-        </div>
+        {/* Pulse — one-glance good/bad, derived from the payload plus the shared issue-cache
+            counts. Solid-color chips (fixed colors the light-theme override never remaps) so
+            they read in both app themes. */}
+        <PulseBar chips={pulse} />
 
-        {/* Accountability, above the rest of the read-only reporting: what the GM must action
-            themselves, then who below them is sitting on their queue. Both hide when empty. */}
+        {/* Exceptions first — what the GM must action, ahead of any read-only reporting.
+            PresenceAlerts/MyIssues/UnmanagedIssues self-hide when empty. */}
+        {hasExceptions && (
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Needs action</p>
+        )}
         <div className="mb-4 empty:hidden"><PresenceAlerts /></div>
         <div className="mb-4 empty:hidden"><MyIssues surface="pwa" /></div>
         <div className="mb-4 empty:hidden"><UnmanagedIssues surface="pwa" /></div>
 
         {/* Risks */}
         {risks.length > 0 && (
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
+          <div className="bg-white/[0.03] border border-red-500/20 rounded-2xl p-4 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
               <h2 className="text-sm font-semibold text-white">Risks</h2>
@@ -208,6 +224,19 @@ export default function GmOverview() {
             </div>
           </div>
         )}
+
+        {/* The numbers — read-only reporting, below the exceptions. */}
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2 mt-1">The numbers</p>
+
+        {/* Revenue hero */}
+        <div onClick={goPnl} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500 uppercase tracking-wide">Revenue</span>
+            <Delta now={money.revenue} prev={money.prevRevenue} money />
+          </div>
+          <div className="text-4xl font-bold tabular-nums text-[#00E87B] mt-1">{rand(money.revenue)}</div>
+          <p className="text-xs text-gray-500 mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
+        </div>
 
         {/* Net / costs — monthly only */}
         {money.costsAvailable ? (
@@ -354,6 +383,69 @@ export default function GmOverview() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Pulse chip tones. Solid fixed colors (not #06090F-relative or white-opacity), so the
+// light-theme override in index.css leaves them alone and contrast holds in both themes.
+type Tone = 'good' | 'warn' | 'bad'
+type Chip = { tone: Tone; label: string }
+const TONE: Record<Tone, string> = {
+  good: 'bg-[#00E87B] text-[#052e1c]',
+  warn: 'bg-amber-400 text-amber-950',
+  bad: 'bg-red-500 text-white',
+}
+const toneRank = (t: Tone) => (t === 'bad' ? 0 : t === 'warn' ? 1 : 2)
+
+// Everything good and bad the GM should see at a glance, worst-first. Pure over the payload
+// plus the two issue lists (already cached) — no fetch, no I/O. Test: buildPulse.selfcheck below.
+export function buildPulse(d: Overview, mine: Issue[], unmanaged: Issue[]): Chip[] {
+  const c: Chip[] = []
+  const mineOpen = mine.filter((i) => i.polarity !== 'recognition').length
+  if (mineOpen > 0) c.push({ tone: 'bad', label: `${mineOpen} on you` })
+  const breached = unmanaged.filter((i) => i.breached).length
+  const unmanagedOpen = unmanaged.filter((i) => i.polarity !== 'recognition').length
+  if (breached > 0) c.push({ tone: 'bad', label: `${breached} past SLA` })
+  else if (unmanagedOpen > 0) c.push({ tone: 'warn', label: `${unmanagedOpen} unmanaged` })
+  const highRisks = d.risks.filter((r) => r.severity === 'high').length
+  if (highRisks > 0) c.push({ tone: 'bad', label: `${highRisks} high risk${highRisks > 1 ? 's' : ''}` })
+  else if (d.risks.length > 0) c.push({ tone: 'warn', label: `${d.risks.length} risk${d.risks.length > 1 ? 's' : ''}` })
+  if (d.field.unassignedAgents > 0) c.push({ tone: 'warn', label: `${d.field.unassignedAgents} no lead` })
+  const idle = d.field.leastActive.filter((a) => (a.today || 0) === 0).length
+  if (idle > 0) c.push({ tone: 'warn', label: `${idle} idle` })
+  if (d.calls.target > 0 && d.calls.contacted < d.calls.target)
+    c.push({ tone: 'warn', label: `calls ${d.calls.contacted}/${d.calls.target}` })
+  const revPct = d.money.prevRevenue ? Math.round(((d.money.revenue - d.money.prevRevenue) / d.money.prevRevenue) * 100) : null
+  if (revPct !== null) c.push({ tone: revPct >= 0 ? 'good' : 'bad', label: `rev ${revPct > 0 ? '+' : ''}${revPct}%` })
+  if (d.funnel.prev.conversionRate)
+    c.push({ tone: d.funnel.conversionRate >= d.funnel.prev.conversionRate ? 'good' : 'warn', label: `conv ${d.funnel.conversionRate}%` })
+  const top = d.leaders[0]
+  if (top && top.signups > 0) c.push({ tone: 'good', label: `top ${top.name.split(' ')[0]} ${top.signups}` })
+  const highlights = mine.filter((i) => i.polarity === 'recognition').length
+  if (highlights > 0) c.push({ tone: 'good', label: `${highlights} highlight${highlights > 1 ? 's' : ''}` })
+  return c
+}
+
+function PulseBar({ chips }: { chips: Chip[] }) {
+  if (!chips.length) return null
+  const sorted = [...chips].sort((a, b) => toneRank(a.tone) - toneRank(b.tone))
+  const good = chips.filter((c) => c.tone === 'good').length
+  const attn = chips.length - good
+  return (
+    <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Activity className="w-4 h-4 text-[#00E87B]" />
+        <h2 className="text-sm font-semibold text-white">Pulse</h2>
+        <span className="text-xs text-gray-500 ml-auto tabular-nums">
+          {good > 0 ? `${good} good` : ''}{good > 0 && attn > 0 ? ' · ' : ''}{attn > 0 ? `${attn} flagged` : ''}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {sorted.map((c, i) => (
+          <span key={i} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${TONE[c.tone]}`}>{c.label}</span>
+        ))}
       </div>
     </div>
   )
