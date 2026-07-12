@@ -7,7 +7,7 @@ import { getConfig } from '../routes/field-ops/config.js';
 import { severityOf, isBreached, nextOwnerRole, slaClockOf, slaAppliesTo } from '../services/issueEngine.js';
 import { sendPush } from '../lib/web-push.js';
 import { dueEscalation, computeIncentive } from '../services/incentiveService.js';
-import { signalBelowGate, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
+import { signalBelowGate, signalLabel, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 
 // ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
@@ -300,14 +300,14 @@ async function notify(db, env, tenantId, userId, type, title, message, relId, re
 // ticks): the owner is told to coach, and the agent is nudged directly. The system acts on its
 // own rather than waiting for a human to open a dashboard.
 async function reactToIssue(db, env, tenantId, issue, name, types, today) {
-  const reasons = types.map((t) => t.replace(/_/g, ' ')).join(', ');
+  const reasons = types.map(signalLabel).join(', ');
   await notify(db, env, tenantId, issue.owner_id, 'issue_open',
-    `${name} needs coaching`,
-    `Signals: ${reasons}. Open their card and act — this escalates if left untouched.`,
+    `${name} could use a hand`,
+    `What we're seeing: ${reasons}. Open their card and act — it escalates if left untouched.`,
     `issue_${issue.id}_owner_${today}`);
   await notify(db, env, tenantId, issue.subject_id, 'nudge',
-    'You are off target',
-    `We're seeing: ${reasons}. Get to your next signup — your lead has been alerted.`,
+    'Let\'s get back on track',
+    `What we're seeing: ${reasons}. Head to your next sign-up — your lead's been looped in to help.`,
     `issue_${issue.id}_agent_${today}`);
 }
 
@@ -348,13 +348,22 @@ async function reactToIssues(db, env) {
         // of this set, so going quiet would hide them from the very check meant to catch it. Six
         // months keeps a field-working leader in scope long enough for gone_quiet to fire on them.
         //
-        // A field subject belongs to exactly one customer, carried on agent_company_links.
+        // A field subject is scoped per active company via agent_company_links, which now
+        // carries a per-company role/team_lead_id/manager_id (0021). One row per (user,
+        // active company): a multi-company person (Lucky: manager in Goldrush, team_lead in
+        // Stellr) is evaluated once per company with that company's role/owner/config.
+        // NULL link columns fall back to the user's global users.* value. BO admin is a
+        // shared tenant-level service — it never joins a company link (company_id stays NULL).
         const leadSince = new Date(nowMs - 180 * 86400000).toISOString().slice(0, 10);
         const agents = (await db.prepare(
-          `SELECT u.id, u.first_name, u.last_name, u.role, u.team_lead_id, u.manager_id,
-                  (SELECT company_id FROM agent_company_links l
-                   WHERE l.agent_id = u.id AND l.is_active = 1 LIMIT 1) company_id
+          `SELECT u.id, u.first_name, u.last_name,
+                  COALESCE(l.role, u.role) role,
+                  COALESCE(l.team_lead_id, u.team_lead_id) team_lead_id,
+                  COALESCE(l.manager_id, u.manager_id) manager_id,
+                  l.company_id company_id
            FROM users u
+           LEFT JOIN agent_company_links l
+             ON l.agent_id = u.id AND l.is_active = 1 AND u.role != 'backoffice_admin'
            WHERE u.tenant_id = ? AND u.is_active = 1
              AND ( (u.role IN ('agent','field_agent','sales_rep')
                     AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')))
@@ -493,8 +502,8 @@ async function reactToIssues(db, env) {
 
             // --- Deficit branch: unchanged breach/escalation logic, now scoped to polarity='deficit'. ---
             const live = await db.prepare(
-              "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND polarity = 'deficit' AND status != 'resolved'"
-            ).bind(tenantId, agent.id).first();
+              "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND COALESCE(company_id,'') = COALESCE(?,'') AND polarity = 'deficit' AND status != 'resolved'"
+            ).bind(tenantId, agent.id, agent.company_id || null).first();
 
             if (!deficitSignals.length) {
               // Empty signals are only a real recovery when we have enough active days
@@ -565,7 +574,7 @@ async function reactToIssues(db, env) {
                     const prev = `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() || 'the previous owner';
                     await notify(db, env, tenantId, nextId, 'issue_escalated',
                       `Escalated: ${name}`,
-                      `${prev} did not action ${name}'s ${worst.replace(/_/g, ' ')} within SLA. It is yours now.`,
+                      `${prev} didn't get to ${name}'s ${signalLabel(worst)} in time. It's yours now.`,
                       `issue_${live.id}_esc_${escalations}`);
                   }
                 }
@@ -582,8 +591,8 @@ async function reactToIssues(db, env) {
               const rSeverity = severityOf(rTypes);
               const rDetail = JSON.stringify(recognitionSignals);
               const rLive = await db.prepare(
-                "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND polarity = 'recognition' AND status != 'resolved'"
-              ).bind(tenantId, agent.id).first();
+                "SELECT * FROM issues WHERE tenant_id = ? AND subject_id = ? AND COALESCE(company_id,'') = COALESCE(?,'') AND polarity = 'recognition' AND status != 'resolved'"
+              ).bind(tenantId, agent.id, agent.company_id || null).first();
 
               if (!rLive) {
                 const { ownerId, ownerRole } = defaultOwner();
@@ -595,7 +604,7 @@ async function reactToIssues(db, env) {
                   ).bind(rId, tenantId, agent.company_id || null, rWorst, agent.id, agent.role, ownerId, ownerRole, rSeverity, rDetail).run();
                   await notify(db, env, tenantId, agent.id, 'recognition',
                     `${name} earned a highlight`,
-                    `Signals: ${rTypes.map((t) => t.replace(/_/g, ' ')).join(', ')}. Nice work.`,
+                    `What stood out: ${rTypes.map(signalLabel).join(', ')}. Nice work!`,
                     `issue_${rId}_recognition_${today}`);
                 }
               } else {

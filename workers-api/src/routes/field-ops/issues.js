@@ -24,7 +24,7 @@ export async function ensureIssues(db) {
        acted_at TEXT, acted_by TEXT, last_action TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`
   ).run();
   await db.prepare(
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_live ON issues(tenant_id, subject_id, polarity) WHERE status != 'resolved'`
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_live ON issues(tenant_id, subject_id, COALESCE(company_id,''), polarity) WHERE status != 'resolved'`
   ).run();
 }
 
@@ -258,7 +258,9 @@ app.get('/issues/mine', async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const { results } = await db.prepare(
-    `SELECT i.*, ${nameCol} subject_name FROM issues i
+    `SELECT i.*, ${nameCol} subject_name,
+            (SELECT name FROM field_companies WHERE id = i.company_id) company_name
+     FROM issues i
      WHERE i.tenant_id = ? AND i.owner_id = ? AND i.status != 'resolved'
      ORDER BY (i.status='acted') ASC, i.severity DESC, i.owner_since ASC`
   ).bind(tenantId, userId).all();

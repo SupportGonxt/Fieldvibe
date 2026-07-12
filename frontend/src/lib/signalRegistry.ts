@@ -15,18 +15,31 @@ function minToClock(min: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+// DB metric keys -> plain English. Mirrors METRIC_LABELS in
+// workers-api/src/services/kpiSignals.js — keep in sync.
+const METRIC_LABELS: Record<string, string> = {
+  visits_per_day: 'daily visits', signups_per_day: 'daily sign-ups',
+  conversion_pct: 'conversion rate', qualified_pct: 'qualified rate',
+  visits: 'visits', signups: 'sign-ups', deposits: 'deposits', qualified: 'qualified leads',
+}
+function metricLabel(key: string): string {
+  if (!key) return 'target'
+  return METRIC_LABELS[key] ||
+    String(key).replace(/_per_day$/, '').replace(/_pct$/, ' rate').replace(/_/g, ' ')
+}
+
 export const SIGNAL_REGISTRY: Record<string, RegistryEntry> = {
   gone_quiet: {
     polarity: 'deficit', severityWeight: 5, label: 'Gone quiet',
     buildText: (d) => `Gone quiet — ${d.daysSinceLastVisit} day${d.daysSinceLastVisit === 1 ? '' : 's'} since last visit`,
   },
   below_gate: {
-    polarity: 'deficit', severityWeight: 4, label: 'Trailing gate',
-    buildText: (d) => `Trailing incentive gate on ${d.metric} — short ${d.shortfall} of target ${d.target}`,
+    polarity: 'deficit', severityWeight: 4, label: 'Behind on pace',
+    buildText: (d) => `Behind on incentive pace for ${metricLabel(d.metric)} — short ${d.shortfall} of ${d.target}`,
   },
   below_target: {
     polarity: 'deficit', severityWeight: 4, label: 'Below target',
-    buildText: (d) => `Below target on ${(d.metrics || []).join(', ')}`,
+    buildText: (d) => `Below target on ${(d.metrics || []).map(metricLabel).join(', ')}`,
   },
   dropped_vs_baseline: {
     polarity: 'deficit', severityWeight: 3, label: 'Dropped vs baseline',
@@ -54,11 +67,11 @@ export const SIGNAL_REGISTRY: Record<string, RegistryEntry> = {
   },
   declining_trend: {
     polarity: 'deficit', severityWeight: 2, label: 'Declining trend',
-    buildText: (d) => `${d.metric} declining (${d.pct}% vs prior period)`,
+    buildText: (d) => `${metricLabel(d.metric)} trending down (${d.pct}% vs prior period)`,
   },
   improving_trend: {
     polarity: 'recognition', severityWeight: 2, label: 'Improving trend',
-    buildText: (d) => `${d.metric} improving (${d.pct > 0 ? '+' : ''}${d.pct}% vs prior period)`,
+    buildText: (d) => `${metricLabel(d.metric)} trending up (${d.pct > 0 ? '+' : ''}${d.pct}% vs prior period)`,
   },
   team_bottom: {
     polarity: 'deficit', severityWeight: 2, label: 'Bottom of roster',
@@ -69,8 +82,8 @@ export const SIGNAL_REGISTRY: Record<string, RegistryEntry> = {
     buildText: (d) => `Top of roster (${d.rank} of ${d.of})`,
   },
   at_risk_gate: {
-    polarity: 'deficit', severityWeight: 3, label: 'At risk of gate',
-    buildText: (d) => `Sliding off pace for ${d.metric} gate (${d.pct}% vs baseline, still clearing today)`,
+    polarity: 'deficit', severityWeight: 3, label: 'Slipping off pace',
+    buildText: (d) => `Slipping off incentive pace for ${metricLabel(d.metric)} (${d.pct}% vs baseline, still clearing today)`,
   },
   hit_gate_early: {
     polarity: 'recognition', severityWeight: 3, label: 'Hit gate early',

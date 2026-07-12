@@ -7,7 +7,7 @@ describe('signalText', () => {
   it('below_gate renders real registry text mentioning the metric', () => {
     const out = signalText({ type: 'below_gate', detail: { metric: 'signups', shortfall: 1, target: 10 } })
     expect(out).not.toBe('Underperformance signal')
-    expect(out).toContain('signups')
+    expect(out).toContain('sign-ups') // humanized metric label, not the raw key
   })
 
   it('unknown type falls back to a humanized string, never the generic label', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  aggregateKpis, evaluateSignals, signalBelowGate, SIGNAL_REGISTRY,
+  aggregateKpis, evaluateSignals, signalBelowGate, signalBelowTarget, SIGNAL_REGISTRY,
   signalTrend, peerSignals, signalAtRiskGate, signalHitGateEarly, evaluateBoSignals,
 } from './kpiSignals.js';
 
@@ -120,5 +120,43 @@ describe('evaluateBoSignals', () => {
   });
   it('clean case (all within threshold) flags nothing', () => {
     expect(evaluateBoSignals({ avgResponseMins: 10, oldestOpenHours: 5, oldestReconHours: 2 })).toEqual([]);
+  });
+});
+
+describe('aggregateKpis boards/surveys/quality superset', () => {
+  it('averages boards and surveys per day and quality across scored visits', () => {
+    const rows = [
+      { date: '2026-07-01', visits: 4, signups: 2, qualified: 1, boards: 2, surveys: 3, quality_sum: 1.6, quality_n: 2 },
+      { date: '2026-07-02', visits: 6, signups: 3, qualified: 2, boards: 4, surveys: 5, quality_sum: 0.9, quality_n: 1 },
+    ];
+    const a = aggregateKpis(rows);
+    expect(a.boards_per_day).toBeCloseTo(3);          // (2+4)/2
+    expect(a.surveys_per_day).toBeCloseTo(4);         // (3+5)/2
+    expect(a.board_quality).toBeCloseTo(2.5 / 3);     // (1.6+0.9)/(2+1)
+    expect(a.visits_per_day).toBeCloseTo(5);          // existing keys unchanged
+  });
+
+  it('board_quality is 0 when no visit carried a match score', () => {
+    const rows = [{ date: '2026-07-01', visits: 1, signups: 0, qualified: 0, boards: 0, surveys: 0, quality_sum: 0, quality_n: 0 }];
+    expect(aggregateKpis(rows).board_quality).toBe(0);
+  });
+});
+
+describe('signalBelowTarget config-driven', () => {
+  const actual = {
+    visits_per_day: 3, signups_per_day: 1, boards_per_day: 2, surveys_per_day: 1, board_quality: 0.5,
+  };
+  it('Goldrush config flags only its configured sign-up/visit metrics', () => {
+    const r = signalBelowTarget(actual, { visits_per_day: 5, signups_per_day: 4 });
+    expect(r.triggered).toBe(true);
+    expect(r.metrics.sort()).toEqual(['signups_per_day', 'visits_per_day']);
+  });
+  it('Stellr config flags boards/surveys/quality, never sign-ups it does not configure', () => {
+    const r = signalBelowTarget(actual, { boards_per_day: 4, surveys_per_day: 3, board_quality: 0.7, visits_per_day: 2 });
+    expect(r.metrics.sort()).toEqual(['board_quality', 'boards_per_day', 'surveys_per_day']);
+    expect(r.metrics).not.toContain('signups_per_day'); // Stellr doesn't do sign-ups
+  });
+  it('nothing configured under target → not triggered', () => {
+    expect(signalBelowTarget(actual, { visits_per_day: 1, boards_per_day: 1 }).triggered).toBe(false);
   });
 });

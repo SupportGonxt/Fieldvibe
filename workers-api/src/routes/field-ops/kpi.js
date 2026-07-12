@@ -40,13 +40,26 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
   const ids = Array.isArray(agentIds) ? agentIds : [agentIds];
   if (!ids.length) return [];
   return (await db.prepare(
-    // COUNT(DISTINCT v.id), not COUNT(*): visit_individuals has no unique index on visit_id,
-    // so a visit with N individuals fans out to N joined rows and would be counted N times.
+    // vi pre-aggregated to one row per visit → the join is 1:1, so v-level board/quality
+    // columns aren't fanned out by the individual count. surveys/qualified stay individual-grain
+    // (summed/OR-ed inside the subquery). survey_completed lives on visit_individuals.
     `SELECT v.visit_date date,
-            COUNT(DISTINCT v.id) visits,
-            COUNT(DISTINCT CASE WHEN LOWER(v.visit_type)='individual' THEN v.id END) signups,
-            COUNT(DISTINCT CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN v.id END) qualified
-     FROM visits v LEFT JOIN visit_individuals vi ON vi.visit_id=v.id
+            COUNT(v.id) visits,
+            SUM(CASE WHEN LOWER(v.visit_type)='individual' THEN 1 ELSE 0 END) signups,
+            SUM(COALESCE(vi.qualified_flag, 0)) qualified,
+            SUM(CASE WHEN v.board_placement_location IS NOT NULL THEN 1 ELSE 0 END) boards,
+            SUM(COALESCE(vi.surveys, 0)) surveys,
+            SUM(CASE WHEN v.sample_board_match_score IS NOT NULL THEN v.sample_board_match_score ELSE 0 END) quality_sum,
+            SUM(CASE WHEN v.sample_board_match_score IS NOT NULL THEN 1 ELSE 0 END) quality_n
+     FROM visits v
+     LEFT JOIN (
+       SELECT visit_id,
+              SUM(CASE WHEN survey_completed = 1 THEN 1 ELSE 0 END) surveys,
+              MAX(CASE WHEN (JSON_EXTRACT(custom_field_values,'$.converted')=1
+                          OR JSON_EXTRACT(custom_field_values,'$.consumer_converted')='Yes')
+                       THEN 1 ELSE 0 END) qualified_flag
+       FROM visit_individuals GROUP BY visit_id
+     ) vi ON vi.visit_id = v.id
      WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date
      ORDER BY v.visit_date`
