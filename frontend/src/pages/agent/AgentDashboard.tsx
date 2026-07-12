@@ -13,8 +13,10 @@ import PerformanceCard from './PerformanceCard'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
-import { MyIssues } from '../../components/field-ops/IssueQueue'
+import { useQuery } from '@tanstack/react-query'
+import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
+import { PulseBar, type Chip, type Tone } from '../../components/field-ops/PulseBar'
 
 // Lazy load non-critical sections (code splitting)
 const PerformanceSection = lazy(() => import('./PerformanceSection'))
@@ -30,6 +32,62 @@ const LEADER_ROLES = ['team_lead', 'manager', 'general_manager', 'admin', 'super
 const MANAGER_ROLES = ['manager', 'general_manager', 'admin', 'super_admin']
 const isLeader = (role?: string) => LEADER_ROLES.includes(role || '')
 const isManagerPlus = (role?: string) => MANAGER_ROLES.includes(role || '')
+
+// At-a-glance chips for the shared Home. Pure off already-loaded state, so it's
+// unit-testable and adds zero fetches. Role-tailored: agents get pace/streak/
+// reshoots, leaders get team health, org leaders get the unmanaged queue. Bad
+// chips sort first inside PulseBar (exceptions-first). GM sibling: GmOverview.buildPulse.
+export type HomePulseCtx = {
+  agent: boolean
+  leader: boolean
+  orgLeader: boolean
+  mine: Issue[]
+  unmanaged: Issue[]
+  todayIndiv: number
+  dailyIndivTarget: number
+  monthAchievement: number
+  streak: number
+  teamAchievement: number | null
+  reshoots: number
+  idRejects: number
+  uploadFails: number
+}
+
+const achTone = (pct: number): Tone => (pct >= 100 ? 'good' : pct >= 75 ? 'warn' : 'bad')
+
+export function buildHomePulse(ctx: HomePulseCtx): Chip[] {
+  const c: Chip[] = []
+  const openMine = ctx.mine.filter((i) => i.polarity !== 'recognition').length
+  if (openMine > 0) c.push({ tone: 'bad', label: `${openMine} on you` })
+
+  if (ctx.orgLeader) {
+    const breached = ctx.unmanaged.filter((i) => i.breached).length
+    const openUnmanaged = ctx.unmanaged.filter((i) => i.polarity !== 'recognition').length
+    if (breached > 0) c.push({ tone: 'bad', label: `${breached} past SLA` })
+    else if (openUnmanaged > 0) c.push({ tone: 'warn', label: `${openUnmanaged} unmanaged` })
+  }
+
+  if (ctx.leader) {
+    if (ctx.teamAchievement != null) c.push({ tone: achTone(ctx.teamAchievement), label: `team ${Math.round(ctx.teamAchievement)}%` })
+    if (ctx.uploadFails > 0) c.push({ tone: 'bad', label: `${ctx.uploadFails} upload fail${ctx.uploadFails > 1 ? 's' : ''}` })
+  }
+
+  if (ctx.agent) {
+    if (ctx.dailyIndivTarget > 0) {
+      const hit = ctx.todayIndiv >= ctx.dailyIndivTarget
+      c.push({ tone: hit ? 'good' : 'warn', label: `today ${ctx.todayIndiv}/${ctx.dailyIndivTarget}` })
+    }
+    if (ctx.reshoots > 0) c.push({ tone: 'bad', label: `${ctx.reshoots} reshoot${ctx.reshoots > 1 ? 's' : ''}` })
+    if (ctx.idRejects > 0) c.push({ tone: 'bad', label: `${ctx.idRejects} ID reject${ctx.idRejects > 1 ? 's' : ''}` })
+    if (ctx.streak > 0) c.push({ tone: 'good', label: `${ctx.streak}d streak` })
+  }
+
+  if (ctx.monthAchievement > 0) c.push({ tone: achTone(ctx.monthAchievement), label: `mo ${Math.round(ctx.monthAchievement)}%` })
+
+  const highlights = ctx.mine.filter((i) => i.polarity === 'recognition').length
+  if (highlights > 0) c.push({ tone: 'good', label: `${highlights} highlight${highlights > 1 ? 's' : ''}` })
+  return c
+}
 
 interface TargetSummary {
   target_visits: number
@@ -249,6 +307,35 @@ export default function AgentDashboard() {
     }
   }, [data])
 
+  // Reuse the exact query keys MyIssues/UnmanagedIssues populate (same queryFn
+  // shape) so the pulse strip shares their cache and costs zero extra fetches.
+  // Unmanaged only fetched for org leaders (the only ones with that section).
+  const { data: mineData } = useQuery({
+    queryKey: ['issues-mine'],
+    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
+  })
+  const { data: unmanagedData } = useQuery({
+    queryKey: ['gm-unmanaged'],
+    queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[] }),
+    enabled: isManagerPlus(authUser?.role),
+  })
+
+  const homePulse = useMemo(() => buildHomePulse({
+    agent: isAgentRole,
+    leader: isLeader(authUser?.role),
+    orgLeader: isManagerPlus(authUser?.role),
+    mine: mineData?.issues ?? [],
+    unmanaged: unmanagedData?.issues ?? [],
+    todayIndiv: dataProps?.today_individual_visits ?? 0,
+    dailyIndivTarget: targets?.dailyIndivTarget ?? 0,
+    monthAchievement: perfSummary?.overall_achievement ?? 0,
+    streak: perfSummary?.streak ?? 0,
+    teamAchievement: perfSummary?.team_performance?.achievement ?? null,
+    reshoots: rejectedPhotoCount,
+    idRejects: rejectedGoldrushCount,
+    uploadFails: uploadFailuresCount,
+  }), [isAgentRole, authUser?.role, mineData, unmanagedData, dataProps, targets, perfSummary, rejectedPhotoCount, rejectedGoldrushCount, uploadFailuresCount])
+
   // Memoize recent visits with thumbnail support
   const recentVisitsWithPhotos = useMemo(() => {
     if (!dataProps?.recent_visits) return []
@@ -438,6 +525,14 @@ export default function AgentDashboard() {
         </p>
       </div>
 
+      {/* At-a-glance good/bad summary (built off already-loaded state) before the
+          exceptions detail below — same exceptions-first read as the GM Overview. */}
+      {homePulse.length > 0 && (
+        <div className="px-5">
+          <PulseBar chips={homePulse} />
+        </div>
+      )}
+
       {/* Issues the cron routed to this person. Leads and managers own them; agents own none,
           so /issues/mine comes back empty and the section hides itself. empty:hidden keeps the
           wrapper from leaving a gap behind. */}
@@ -448,6 +543,13 @@ export default function AgentDashboard() {
       <div className="px-5 mb-3 empty:hidden">
         <MyIssues surface="pwa" />
       </div>
+
+      {/* Org issues not yet owned — managers/GM/admin triage these from Home. */}
+      {isManagerPlus(authUser?.role) && (
+        <div className="px-5 mb-3 empty:hidden">
+          <UnmanagedIssues surface="pwa" />
+        </div>
+      )}
 
       {noTargets && (
         <div className="mx-5 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
