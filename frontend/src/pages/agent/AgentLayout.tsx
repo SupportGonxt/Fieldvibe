@@ -7,6 +7,8 @@ import OfflineIndicator from '../../components/OfflineIndicator'
 import { apiClient } from '../../services/api.service'
 import { ensurePushSubscription } from '../../services/push'
 import FirstLoginTour from './FirstLoginTour'
+import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat'
+import PresenceConsentNotice from '../../components/PresenceConsentNotice'
 
 // Poll for a ringing call aimed at this user. Call screens render outside this
 // layout, so AgentLayout unmounts during a call and polling pauses on its own.
@@ -144,10 +146,12 @@ export default function AgentLayout() {
   const tabs = getTabsForRole(user?.role)
   const onSubPage = isSubPage(location.pathname)
   useIncomingCallPoll()
+  usePresenceHeartbeat(user?.role)
 
   return (
     <div className="min-h-screen bg-[#06090F] flex flex-col">
       <FirstLoginTour />
+      <PresenceConsentNotice role={user?.role} />
 
       {/* Sub-page header with back button */}
       {onSubPage && (

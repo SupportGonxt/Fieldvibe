@@ -1435,6 +1435,14 @@ class FieldOperationsService extends ApiService {
     const response = await this.get(`/field-ops/leaderboard?${params.toString()}`)
     return response.data || response
   }
+
+  // ==================== FIELD OPS: PRESENCE ANOMALIES ====================
+  // GPS attendance-fraud insight for overseers. Viewer-gated on the backend;
+  // callers should swallow errors/403 and render nothing. date defaults to today (SAST).
+  async getPresenceAnomalies(date?: string) {
+    const response = await this.get(`/field-ops/presence/anomalies${date ? `?date=${date}` : ''}`)
+    return response.data || response
+  }
 }
 
 export const fieldOperationsService = new FieldOperationsService()

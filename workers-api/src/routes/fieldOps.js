@@ -7,6 +7,7 @@ import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithA
 import { validate } from '../validate.js';
 import { defaultDashboardConfig, ensurePortalTables } from '../services/portal.js';
 import { agentCount } from '../services/incentiveService.js';
+import { scoreAgentDay } from '../services/presenceScore.js';
 
 const app = new Hono();
 
@@ -2037,6 +2038,67 @@ app.post('/gps-location/log', authMiddleware, async (c) => {
   const id = crypto.randomUUID();
   await db.prepare('INSERT INTO agent_locations (id, tenant_id, agent_id, latitude, longitude, accuracy, recorded_at) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))').bind(id, tenantId, userId, body.latitude || 0, body.longitude || 0, body.accuracy || 0).run();
   return c.json({ success: true, data: { id } });
+});
+
+// GPS presence-anomaly scoring for a SAST calendar day. See presenceScore.js +
+// docs/superpowers/specs/2026-07-12-presence-validation-design.md
+const PRESENCE_VIEWER_ROLES = ['manager', 'general_manager', 'backoffice_admin', 'admin', 'super_admin'];
+const STATUS_ORDER = { off_zone: 0, no_show: 1, low_coverage: 2, ok: 3 };
+app.get('/field-ops/presence/anomalies', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const role = c.get('role');
+  if (!PRESENCE_VIEWER_ROLES.includes(role)) return c.json({ success: false, error: 'Forbidden' }, 403);
+
+  // Default to today in SAST (UTC+2).
+  const sastNow = new Date(Date.now() + 2 * 3600000);
+  const date = c.req.query('date') || sastNow.toISOString().slice(0, 10);
+
+  // SAST calendar day [date 00:00, date 24:00) == UTC [date-1 22:00, date 22:00).
+  const dayMs = Date.parse(date + 'T00:00:00Z');
+  if (Number.isNaN(dayMs)) return c.json({ success: false, error: 'Invalid date' }, 400);
+  const toUtcStr = (ms) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+  const startUtc = toUtcStr(dayMs - 2 * 3600000); // date-1 22:00 UTC
+  const endUtc = toUtcStr(dayMs + 22 * 3600000);  // date   22:00 UTC
+  const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(dayMs).getUTCDay()];
+
+  const [agentsRes, custRes, wdRes] = await Promise.all([
+    db.prepare("SELECT id, first_name, last_name, role FROM users WHERE tenant_id = ? AND role IN ('field_agent','sales_rep','agent','team_lead')").bind(tenantId).all(),
+    db.prepare('SELECT latitude, longitude FROM customers WHERE tenant_id = ? AND latitude IS NOT NULL AND longitude IS NOT NULL').bind(tenantId).all(),
+    db.prepare('SELECT agent_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, effective_from, effective_to FROM working_days_config WHERE tenant_id = ?').bind(tenantId).all(),
+  ]);
+  const customers = custRes.results || [];
+  const wdRows = wdRes.results || [];
+
+  // Is `date` inside a config row's effective window? Null bounds = open-ended.
+  const covers = (r) => (!r.effective_from || r.effective_from <= date) && (!r.effective_to || r.effective_to >= date);
+  // Most-specific applicable row: agent override first, else tenant default (agent_id NULL).
+  const isOff = (agentId) => {
+    const applicable = wdRows.filter(covers);
+    const row = applicable.find((r) => r.agent_id === agentId) || applicable.find((r) => !r.agent_id);
+    if (!row) return false; // no config -> default to expected (do not skip)
+    return row[weekday] === 0;
+  };
+
+  const agents = [];
+  for (const a of (agentsRes.results || [])) {
+    if (isOff(a.id)) continue; // not expected to work this day
+    const ptsRes = await db.prepare('SELECT latitude, longitude, recorded_at FROM agent_locations WHERE tenant_id = ? AND agent_id = ? AND recorded_at >= ? AND recorded_at < ?').bind(tenantId, a.id, startUtc, endUtc).all();
+    const score = scoreAgentDay(ptsRes.results || [], customers, {});
+    agents.push({
+      agent_id: a.id,
+      agent_name: `${a.first_name} ${a.last_name}`,
+      role: a.role,
+      status: score.status,
+      offZonePct: score.offZonePct,
+      sampleCount: score.sampleCount,
+      dominantCluster: score.dominantCluster,
+      lastSeenAt: score.lastSeenAt,
+    });
+  }
+  agents.sort((x, y) => (STATUS_ORDER[x.status] ?? 9) - (STATUS_ORDER[y.status] ?? 9));
+  const flaggedCount = agents.filter((a) => a.status !== 'ok').length;
+  return c.json({ success: true, date, flaggedCount, agents });
 });
 app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
   try {
