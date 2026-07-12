@@ -6,6 +6,14 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { /* non-JSON push */ }
 
+  // Flag the home-screen icon while backgrounded. Use the exact count if the sender
+  // supplied one, else a dot (setAppBadge() no-arg). The open PWA's NotificationCenter
+  // reconciles the precise number on next foreground poll.
+  if (self.navigator && self.navigator.setAppBadge) {
+    const n = Number(data.badgeCount);
+    self.navigator.setAppBadge(Number.isFinite(n) && n > 0 ? n : undefined).catch(() => {});
+  }
+
   if (data.type === 'incoming_call' && data.callId) {
     const title = data.callerName || 'Back office';
     event.waitUntil(

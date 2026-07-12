@@ -4,6 +4,94 @@
 
 function safeDiv(n, d) { return d > 0 ? n / d : 0; }
 
+// local minutes-of-day -> "HH:MM", for late_start display only.
+function minToClock(min) {
+  const h = Math.floor(min / 60) % 24, m = Math.round(min % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Single source of truth for signal display text + severity + polarity, replacing
+// three independent frontend hand-rolled switches (IssueQueue.tsx, GmStats.tsx,
+// GmOverviewPage.tsx) that all lacked a below_gate case. severityWeight values match
+// the old issueEngine.js KIND_WEIGHT exactly (below_gate=4 is load-bearing — see
+// issueEngine.js demo()). Actions are dispatched generically by resolveAction, not
+// listed per-signal here.
+// frontend/src/lib/signalRegistry.ts mirrors the labels/text of this registry — keep in sync.
+export const SIGNAL_REGISTRY = {
+  gone_quiet: {
+    polarity: 'deficit', severityWeight: 5,
+    buildText: (d) => `Gone quiet — ${d.daysSinceLastVisit} day${d.daysSinceLastVisit === 1 ? '' : 's'} since last visit`,
+  },
+  below_gate: {
+    polarity: 'deficit', severityWeight: 4,
+    buildText: (d) => `Trailing incentive gate on ${d.metric} — short ${d.shortfall} of target ${d.target}`,
+  },
+  below_target: {
+    polarity: 'deficit', severityWeight: 4,
+    buildText: (d) => `Below target on ${(d.metrics || []).join(', ')}`,
+  },
+  dropped_vs_baseline: {
+    polarity: 'deficit', severityWeight: 3,
+    buildText: (d) => `Signups dropped below baseline (floor ${(d.floor || 0).toFixed(1)}/day)`,
+  },
+  low_conversion: {
+    polarity: 'deficit', severityWeight: 2,
+    buildText: (d) => `Conversion rate low (${((d.conversion_pct || 0) * 100).toFixed(1)}%)`,
+  },
+  late_start: {
+    polarity: 'deficit', severityWeight: 1,
+    buildText: (d) => `Late field start (avg ${minToClock(d.avg_start_min)})`,
+  },
+  short_field_day: {
+    polarity: 'deficit', severityWeight: 1,
+    buildText: (d) => `Short field day (avg ${(d.avg_span_min / 60).toFixed(1)}h active)`,
+  },
+  idle_gaps: {
+    polarity: 'deficit', severityWeight: 1,
+    buildText: (d) => `Idle gaps between stops (avg ${d.avg_idle_min}min/day)`,
+  },
+  excess_travel: {
+    polarity: 'deficit', severityWeight: 1,
+    buildText: (d) => `Excess travel between stops (avg ${d.avg_km_per_hop}km/hop)`,
+  },
+  declining_trend: {
+    polarity: 'deficit', severityWeight: 2,
+    buildText: (d) => `${d.metric} declining (${d.pct}% vs prior period)`,
+  },
+  improving_trend: {
+    polarity: 'recognition', severityWeight: 2,
+    buildText: (d) => `${d.metric} improving (${d.pct > 0 ? '+' : ''}${d.pct}% vs prior period)`,
+  },
+  team_bottom: {
+    polarity: 'deficit', severityWeight: 2,
+    buildText: (d) => `Bottom of roster (${d.rank} of ${d.of})`,
+  },
+  team_top: {
+    polarity: 'recognition', severityWeight: 2,
+    buildText: (d) => `Top of roster (${d.rank} of ${d.of})`,
+  },
+  at_risk_gate: {
+    polarity: 'deficit', severityWeight: 3,
+    buildText: (d) => `Sliding off pace for ${d.metric} gate (${d.pct}% vs baseline, still clearing today)`,
+  },
+  hit_gate_early: {
+    polarity: 'recognition', severityWeight: 3,
+    buildText: () => 'Comfortably clearing every gate metric ahead of schedule',
+  },
+  slow_response: {
+    polarity: 'deficit', severityWeight: 2,
+    buildText: (d) => `Slow response time (avg ${d.avg_response_mins}min)`,
+  },
+  stale_queue: {
+    polarity: 'deficit', severityWeight: 3,
+    buildText: (d) => `Stale open queue (oldest ${d.oldest_open_hours}h)`,
+  },
+  recon_backlog: {
+    polarity: 'deficit', severityWeight: 3,
+    buildText: (d) => `Reconciliation backlog (oldest ${d.oldest_recon_hours}h unverified)`,
+  },
+};
+
 export function aggregateKpis(rows) {
   const days = rows.length || 0;
   const totV = rows.reduce((a, r) => a + (r.visits || 0), 0);
@@ -73,5 +161,78 @@ export function evaluateSignals({ actual, baseline, daysSinceLastVisit, threshol
     const lc = signalLowConversion(actual, thresholds);
     if (lc.triggered) out.push({ type: 'low_conversion', detail: lc });
   }
+  return out;
+}
+
+// One comparator, two polarities off a single percent delta between a recent and
+// prior value for the same metric. priorVal<=0 is undefined territory (division by
+// zero, or a brand-new agent with no prior period) — no signal, not a false trigger.
+export function signalTrend(recentVal, priorVal, metric, th) {
+  if (!(priorVal > 0)) return null;
+  const pct = Math.round(((recentVal - priorVal) / priorVal) * 100);
+  const improve = th?.improve_pct ?? 20;
+  if (pct <= -improve) return { type: 'declining_trend', detail: { metric, pct } };
+  if (pct >= improve) return { type: 'improving_trend', detail: { metric, pct } };
+  return null;
+}
+
+// Bottom quartile of a worst-first ranked roster (by signal count, see kpi.js
+// rankRoster) gets flagged; top quartile recognized. Below minRosterSize a quartile
+// is 0-1 people — noise, not signal — so skip entirely.
+export function peerSignals(rankedIds, minRosterSize = 4) {
+  const n = rankedIds.length;
+  if (n < minRosterSize) return [];
+  const q = Math.max(1, Math.floor(n / 4));
+  const out = [];
+  rankedIds.forEach((id, i) => {
+    if (i < q) out.push({ id, type: 'team_bottom', detail: { rank: i + 1, of: n } });
+    else if (i >= n - q) out.push({ id, type: 'team_top', detail: { rank: i + 1, of: n } });
+  });
+  return out;
+}
+
+// Predictive gate-pace signal. Reuses two computeIncentive snapshots the caller already
+// has (today's metricByKey, and one from baseline_window_days ago) rather than adding
+// new pace machinery to incentiveService.js. Fires when a metric still clears its gate
+// today but has fallen >=10% since the baseline snapshot — sliding, not yet short.
+// Metrics already short belong to below_gate, not here.
+export function signalAtRiskGate(metricByKeyNow, metricByKeyBaseline, targets, th) {
+  const declineFloor = (th?.at_risk_decline_pct ?? 10) / 100;
+  const out = [];
+  for (const [metric, target] of Object.entries(targets || {})) {
+    if (!(target > 0)) continue;
+    const now = metricByKeyNow?.[metric] ?? 0;
+    if (now < target) continue; // already short = below_gate's job
+    const before = metricByKeyBaseline?.[metric] ?? 0;
+    if (!(before > 0)) continue; // no baseline to compare against
+    const pct = (now - before) / before;
+    if (pct <= -declineFloor) out.push({ type: 'at_risk_gate', detail: { metric, pct: Math.round(pct * 100) } });
+  }
+  return out;
+}
+
+// Comfortably (>=110% by default) ahead of every gate metric — a recognition signal.
+// Silent if any metric is short (below_gate) or merely on-pace (not the same as "early").
+export function signalHitGateEarly(metricByKey, targets, th) {
+  const entries = Object.entries(targets || {});
+  if (!entries.length) return [];
+  const margin = (th?.gate_margin_pct ?? 110) / 100;
+  const allAhead = entries.every(([metric, target]) => (metricByKey?.[metric] ?? 0) >= target * margin);
+  if (!allAhead) return [];
+  return [{ type: 'hit_gate_early', detail: { margin_pct: th?.gate_margin_pct ?? 110 } }];
+}
+
+// backoffice_admin queue-health signals. No DB: caller supplies avgResponseMins/
+// oldestOpenHours (from the existing issues.stats aggregate, BO admin as owner) and
+// oldestReconHours (sourced from the same tables deposits.js already reads — issues
+// carries no reconciliation-aging data).
+export function evaluateBoSignals({ avgResponseMins, oldestOpenHours, oldestReconHours } = {}, th = {}) {
+  const out = [];
+  if (avgResponseMins != null && avgResponseMins > (th.response_mins ?? 30))
+    out.push({ type: 'slow_response', detail: { avg_response_mins: Math.round(avgResponseMins) } });
+  if (oldestOpenHours != null && oldestOpenHours > (th.stale_queue_hours ?? 48))
+    out.push({ type: 'stale_queue', detail: { oldest_open_hours: Math.round(oldestOpenHours) } });
+  if (oldestReconHours != null && oldestReconHours > (th.recon_hours ?? 24))
+    out.push({ type: 'recon_backlog', detail: { oldest_recon_hours: Math.round(oldestReconHours) } });
   return out;
 }

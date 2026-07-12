@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateKpis, evaluateSignals, signalBelowGate } from './kpiSignals.js';
+import {
+  aggregateKpis, evaluateSignals, signalBelowGate, SIGNAL_REGISTRY,
+  signalTrend, peerSignals, signalAtRiskGate, signalHitGateEarly, evaluateBoSignals,
+} from './kpiSignals.js';
 
 // Pins the invariants reactToIssues' resolve-gate relies on: a dark or thin window
 // yields no rate/volume signals (too little to judge, so the cron holds the issue),
@@ -45,5 +48,77 @@ describe('signalBelowGate', () => {
     expect(signalBelowGate({ avgByMetric: { signups: 99 }, nextGate: null })).toEqual([]);
     const met = { amount: 2500, targets: { signups: 10 }, shortfall: { signups: 0 } };
     expect(signalBelowGate({ avgByMetric: { signups: 10 }, nextGate: met })).toEqual([]);
+  });
+});
+
+describe('SIGNAL_REGISTRY', () => {
+  it('below_gate weight matches issueEngine severityOf(["below_gate"]) === 5', () => {
+    expect(SIGNAL_REGISTRY.below_gate.severityWeight).toBe(4);
+  });
+  it('every entry has polarity, severityWeight, buildText', () => {
+    for (const [type, e] of Object.entries(SIGNAL_REGISTRY)) {
+      expect(['deficit', 'recognition']).toContain(e.polarity);
+      expect(typeof e.severityWeight).toBe('number');
+      expect(typeof e.buildText(e.detail || {})).toBe('string');
+      void type;
+    }
+  });
+});
+
+describe('signalTrend', () => {
+  const th = { improve_pct: 20 };
+  it('declining beyond threshold', () => {
+    expect(signalTrend(8, 10, 'visits_per_day', th)).toEqual({ type: 'declining_trend', detail: { metric: 'visits_per_day', pct: -20 } });
+  });
+  it('improving beyond threshold', () => {
+    expect(signalTrend(12, 10, 'visits_per_day', th)).toEqual({ type: 'improving_trend', detail: { metric: 'visits_per_day', pct: 20 } });
+  });
+  it('flat (within threshold) is silent', () => {
+    expect(signalTrend(10.5, 10, 'visits_per_day', th)).toBeNull();
+  });
+  it('priorVal<=0 guard (no prior period, no false trigger)', () => {
+    expect(signalTrend(10, 0, 'visits_per_day', th)).toBeNull();
+    expect(signalTrend(10, -5, 'visits_per_day', th)).toBeNull();
+  });
+});
+
+describe('peerSignals', () => {
+  it('below minRosterSize skips entirely', () => {
+    expect(peerSignals(['a', 'b', 'c'], 4)).toEqual([]);
+  });
+  it('flags bottom and top quartile of a worst-first ranked roster', () => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const out = peerSignals(ids, 4);
+    expect(out.find((s) => s.id === 'a')).toEqual({ id: 'a', type: 'team_bottom', detail: { rank: 1, of: 8 } });
+    expect(out.find((s) => s.id === 'h')).toEqual({ id: 'h', type: 'team_top', detail: { rank: 8, of: 8 } });
+    expect(out.find((s) => s.id === 'd')).toBeUndefined();
+  });
+});
+
+describe('signalAtRiskGate / signalHitGateEarly', () => {
+  const targets = { signups: 10 };
+  it('at_risk_gate fires when still clearing gate but sliding vs baseline', () => {
+    const out = signalAtRiskGate({ signups: 10 }, { signups: 12 }, targets);
+    expect(out).toEqual([{ type: 'at_risk_gate', detail: { metric: 'signups', pct: -17 } }]);
+  });
+  it('already short defers to below_gate (silent here)', () => {
+    expect(signalAtRiskGate({ signups: 9 }, { signups: 12 }, targets)).toEqual([]);
+  });
+  it('hit_gate_early fires when comfortably ahead on every gate metric', () => {
+    expect(signalHitGateEarly({ signups: 11 }, targets)).toEqual([{ type: 'hit_gate_early', detail: { margin_pct: 110 } }]);
+  });
+  it('hit_gate_early silent when merely on-pace, not early', () => {
+    expect(signalHitGateEarly({ signups: 10 }, targets)).toEqual([]);
+  });
+});
+
+describe('evaluateBoSignals', () => {
+  it('fires each threshold independently', () => {
+    expect(evaluateBoSignals({ avgResponseMins: 45 })).toEqual([{ type: 'slow_response', detail: { avg_response_mins: 45 } }]);
+    expect(evaluateBoSignals({ oldestOpenHours: 60 })).toEqual([{ type: 'stale_queue', detail: { oldest_open_hours: 60 } }]);
+    expect(evaluateBoSignals({ oldestReconHours: 30 })).toEqual([{ type: 'recon_backlog', detail: { oldest_recon_hours: 30 } }]);
+  });
+  it('clean case (all within threshold) flags nothing', () => {
+    expect(evaluateBoSignals({ avgResponseMins: 10, oldestOpenHours: 5, oldestReconHours: 2 })).toEqual([]);
   });
 });

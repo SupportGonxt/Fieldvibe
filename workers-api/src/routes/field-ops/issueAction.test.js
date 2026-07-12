@@ -1,0 +1,65 @@
+import { describe, it, expect } from 'vitest';
+import { resolveAction, ensureIssues } from './issues.js';
+
+// resolveAction(type, callerRole, callerId, issue) -> { allowed, reason?, handler? }
+const deficit = { polarity: 'deficit', owner_id: 'owner1', subject_id: 'subj1' };
+const recognition = { polarity: 'recognition', owner_id: 'owner1', subject_id: 'subj1' };
+
+describe('resolveAction', () => {
+  const denied = [
+    // unknown action type
+    { name: 'unknown type rejected', args: ['bogus', 'admin', 'x', deficit], reason: 'Unknown action type: bogus' },
+    // polarityOnly mismatch both directions
+    { name: 'recognition action on a deficit issue rejected', args: ['recognition', 'manager', 'x', deficit], reason: 'only applies to recognition' },
+    { name: 'deficit-only action on a recognition issue rejected', args: ['acknowledge', 'team_lead', 'owner1', recognition], reason: 'only applies to deficit' },
+    // ownOnly: non-subject caller
+    { name: 'commit by a non-subject caller rejected', args: ['commit', 'agent', 'someone_else', deficit], reason: "issue's subject" },
+    // roles === 'owner': non-owner caller
+    { name: 'acknowledge by a non-owner rejected', args: ['acknowledge', 'team_lead', 'someone_else', deficit], reason: "issue's current owner" },
+    // plain role membership denied
+    { name: 'note by a role not in the list rejected', args: ['note', 'agent', 'x', deficit], reason: 'not permitted for role agent' },
+  ];
+
+  const allowed = [
+    // ownOnly: subject === caller
+    { name: 'commit by the issue subject allowed', args: ['commit', 'agent', 'subj1', deficit] },
+    // roles === 'owner': owner_id === caller
+    { name: 'acknowledge by the owner allowed', args: ['acknowledge', 'team_lead', 'owner1', deficit] },
+    { name: 'resolve by the owner allowed', args: ['resolve', 'manager', 'owner1', deficit] },
+    // plain role membership allowed
+    { name: 'note by a listed role allowed', args: ['note', 'manager', 'x', deficit] },
+    // admin => general_manager expansion (mirror of requireRole): note lists 'admin', not 'general_manager'
+    { name: 'admin-listed action allows general_manager via expansion', args: ['note', 'general_manager', 'x', deficit] },
+  ];
+
+  denied.forEach(({ name, args, reason }) => {
+    it(`denies: ${name}`, () => {
+      const r = resolveAction(...args);
+      expect(r.allowed).toBe(false);
+      expect(r.reason).toContain(reason);
+      expect(r.handler).toBeUndefined();
+    });
+  });
+
+  allowed.forEach(({ name, args }) => {
+    it(`allows: ${name}`, () => {
+      const r = resolveAction(...args);
+      expect(r.allowed).toBe(true);
+      expect(typeof r.handler).toBe('function');
+    });
+  });
+});
+
+// Schema-sync guard: ensureIssues' CREATE TABLE must carry the polarity column (migration 0020)
+// and the 3-column live-uniqueness index. Capture the SQL passed to db.prepare via a stub.
+describe('ensureIssues schema', () => {
+  it('creates the issues table with polarity and the 3-column live unique index', async () => {
+    const sqls = [];
+    const db = { prepare: (sql) => { sqls.push(sql); return { run: async () => {} }; } };
+    await ensureIssues(db);
+    const all = sqls.join('\n');
+    expect(all).toContain('polarity');
+    expect(all).toContain('idx_issues_live');
+    expect(all).toContain('issues(tenant_id, subject_id, polarity)');
+  });
+});

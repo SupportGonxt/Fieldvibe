@@ -1,18 +1,26 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, MapPin, ShoppingCart, Users, MoreHorizontal, Package, DollarSign, Megaphone } from 'lucide-react'
 import { gmAllModulesEnabled } from '../../utils/gmModules'
+import { useAuthStore } from '../../store/auth.store'
 
 type TabDef = { path: string; icon: React.ComponentType<any>; label: string; roles?: string[] }
 
-// MOB-02: Role-aware bottom tabs
+// Management roles that see every business module. The dedicated field roles
+// (field_agent/sales_rep/team_lead/agent) live in the /agent PWA, but are listed
+// on the tabs relevant to them for the rare time they land in the office shell.
+const MGMT = ['admin', 'super_admin', 'manager', 'general_manager']
+
+// MOB-02: Role-aware bottom tabs. roles use the real auth union
+// (src/types/auth.types.ts) — the old vocab (team_leader/sales/warehouse/
+// finance/marketing) never matched it, so gating was dead.
 const allTabs: TabDef[] = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { path: '/field-operations', icon: MapPin, label: 'Field', roles: ['admin', 'super_admin', 'manager', 'field_agent', 'team_leader'] },
-  { path: '/sales', icon: ShoppingCart, label: 'Sales', roles: ['admin', 'super_admin', 'manager', 'sales'] },
+  { path: '/field-operations', icon: MapPin, label: 'Field', roles: [...MGMT, 'field_agent', 'team_lead', 'agent'] },
+  { path: '/sales', icon: ShoppingCart, label: 'Sales', roles: [...MGMT, 'sales_rep', 'agent'] },
   { path: '/customers', icon: Users, label: 'Customers' },
-  { path: '/inventory', icon: Package, label: 'Stock', roles: ['admin', 'super_admin', 'manager', 'warehouse'] },
-  { path: '/finance', icon: DollarSign, label: 'Finance', roles: ['admin', 'super_admin', 'manager', 'finance'] },
-  { path: '/marketing', icon: Megaphone, label: 'Marketing', roles: ['admin', 'super_admin', 'manager', 'marketing'] },
+  { path: '/inventory', icon: Package, label: 'Stock', roles: [...MGMT] },
+  { path: '/finance', icon: DollarSign, label: 'Finance', roles: [...MGMT, 'backoffice_admin'] },
+  { path: '/marketing', icon: Megaphone, label: 'Marketing', roles: ['admin', 'super_admin', 'manager'] },
   { path: '/more', icon: MoreHorizontal, label: 'More' },
 ]
 
@@ -20,11 +28,10 @@ export default function MobileBottomTabs() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  let userRole = 'admin'
-  try {
-    const userStr = localStorage.getItem('fieldvibe_user')
-    if (userStr) userRole = JSON.parse(userStr).role || 'admin'
-  } catch { /* malformed localStorage - default to admin */ }
+  // Read the real role from the auth store — the old code read a non-existent
+  // localStorage key ('fieldvibe_user'), so role never resolved and every user
+  // silently defaulted to admin and saw all tabs.
+  const userRole = useAuthStore((s) => s.user)?.role || 'admin'
 
   // GM sees the field-operations module only, unless they unlock all modules
   const gmPaths = ['/dashboard', '/field-operations', '/more']

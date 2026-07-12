@@ -1,6 +1,7 @@
 // Pure issue logic for the accountability spine. No DB, no I/O — all persistence
 // and org lookups live in the reactToIssues cron (index.js). Kept pure so the SLA
 // ladder and severity ranking are unit-checkable (see demo() below).
+import { SIGNAL_REGISTRY } from './kpiSignals.js';
 
 // Hours an owner may sit on an unacted issue before it re-owns one level up.
 // Defaults from the PWA blueprint: lead inaction 48h, manager unactioned 72h, BO backlog 72h.
@@ -19,25 +20,17 @@ export const ESCALATE_TO = {
   backoffice_admin: 'general_manager',
 };
 
-// Worst-first weight per signal kind. Higher = more urgent. gone_quiet (agent dark)
-// tops it; root-cause texture signals sit at the floor.
-const KIND_WEIGHT = {
-  gone_quiet: 5,
-  below_gate: 4,
-  below_target: 4,
-  dropped_vs_baseline: 3,
-  low_conversion: 2,
-  late_start: 1,
-  short_field_day: 1,
-  idle_gaps: 1,
-  excess_travel: 1,
-};
-
 export function severityOf(signalTypes) {
   // sum of weights + count so an agent tripping many signals outranks one tripping a single heavy one
   const types = [...new Set(signalTypes || [])];
-  const w = types.reduce((a, t) => a + (KIND_WEIGHT[t] || 1), 0);
+  const w = types.reduce((a, t) => a + (SIGNAL_REGISTRY[t]?.severityWeight || 1), 0);
   return w + types.length;
+}
+
+// Recognition issues are highlights, not accountability items — they never breach an SLA
+// or escalate. Called by the cron before isBreached/nextOwnerRole.
+export function slaAppliesTo(issue) {
+  return issue.polarity !== 'recognition';
 }
 
 // True once an owner has held an unacted issue past their SLA. GM (null SLA) never breaches.
@@ -76,6 +69,8 @@ function demo() {
   assert(slaClockOf({ status: 'open', owner_since: 'A', acted_at: 'B' }) === 'A', 'open runs from owner_since');
   assert(slaClockOf({ status: 'acted', owner_since: 'A', acted_at: 'B' }) === 'B', 'acted buys a fresh period');
   assert(slaClockOf({ status: 'acted', owner_since: 'A' }) === null, 'no acted_at = no clock, never escalate blind');
+  assert(slaAppliesTo({ polarity: 'deficit' }) === true, 'deficit issues carry SLA');
+  assert(slaAppliesTo({ polarity: 'recognition' }) === false, 'recognition issues never breach');
   console.log('issueEngine ok');
 }
 // The Workers runtime has no `process`, and this line runs at import — guard before touching it.

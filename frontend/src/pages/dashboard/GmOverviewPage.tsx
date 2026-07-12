@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
+import { SIGNAL_REGISTRY } from '../../lib/signalRegistry'
 import { formatCurrency, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
@@ -44,10 +45,7 @@ interface Overview {
 }
 
 interface TenantSignals {
-  counts: {
-    below_target: number; dropped_vs_baseline: number; gone_quiet: number; low_conversion: number
-    late_start: number; short_field_day: number; idle_gaps: number; excess_travel: number
-  }
+  counts: Record<string, number>
   flaggedAgents: number
   totalAgents: number
 }
@@ -99,17 +97,6 @@ function Delta({ now, prev, suffix }: { now: number; prev: number; suffix: strin
     </span>
   )
 }
-
-const SIGNAL_LABELS: { key: keyof TenantSignals['counts']; label: string }[] = [
-  { key: 'below_target', label: 'Below target' },
-  { key: 'dropped_vs_baseline', label: 'Signups dropped' },
-  { key: 'gone_quiet', label: 'Gone quiet' },
-  { key: 'low_conversion', label: 'Low conversion' },
-  { key: 'late_start', label: 'Late starts' },
-  { key: 'short_field_day', label: 'Short field days' },
-  { key: 'idle_gaps', label: 'Idle gaps' },
-  { key: 'excess_travel', label: 'Excess travel' },
-]
 
 function agoLabel(iso: string | null): { text: string; stale: boolean } {
   if (!iso) return { text: 'never seen', stale: true }
@@ -310,15 +297,12 @@ export default function GmOverviewPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {SIGNAL_LABELS.map(({ key, label }) => {
-              const n = signals.counts[key]
-              return (
-                <div key={key} className="p-3 rounded-xl bg-surface-secondary">
-                  <p className={`text-2xl font-semibold ${n > 0 ? 'text-amber-600' : ''}`}>{n}</p>
-                  <p className="text-xs text-content-secondary mt-1">{label}</p>
-                </div>
-              )
-            })}
+            {Object.entries(signals.counts).map(([key, n]) => (
+              <div key={key} className="p-3 rounded-xl bg-surface-secondary">
+                <p className={`text-2xl font-semibold ${n > 0 ? 'text-amber-600' : ''}`}>{n}</p>
+                <p className="text-xs text-content-secondary mt-1">{SIGNAL_REGISTRY[key]?.label ?? key.replace(/_/g, ' ')}</p>
+              </div>
+            ))}
           </div>
         </Link>
       )}

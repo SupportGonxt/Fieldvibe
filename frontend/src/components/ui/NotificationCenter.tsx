@@ -39,6 +39,21 @@ export const NotificationCenter: React.FC = () => {
     return () => clearInterval(interval)
   }, [fetchNotifications])
 
+  // Mirror unread count onto the installed-PWA home-screen icon (Badging API).
+  // This is the foreground authority — the poll above reconciles the exact number,
+  // while the service worker only flags a dot on a background push. Unsupported
+  // (iOS Safari, Firefox) → no-op. ponytail: badge is unread notifications only;
+  // issue-actions already emit a notification, so they're counted here too.
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (n?: number) => Promise<void>
+      clearAppBadge?: () => Promise<void>
+    }
+    if (!nav.setAppBadge) return
+    if (unreadCount > 0) nav.setAppBadge(unreadCount).catch(() => {})
+    else nav.clearAppBadge?.().catch(() => {})
+  }, [unreadCount])
+
   const markAsRead = async (id: string) => {
     try {
       await apiClient.put(`/notifications/${id}/read`)

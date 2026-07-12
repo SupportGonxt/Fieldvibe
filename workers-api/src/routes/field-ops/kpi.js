@@ -4,18 +4,34 @@
 // individually (no `auth` object, no companyId in token); companyId comes from ?company_id=.
 import { Hono } from 'hono';
 import { getConfig } from './config.js';
-import { aggregateKpis, evaluateSignals, signalBelowGate } from '../../services/kpiSignals.js';
+import { aggregateKpis, evaluateSignals, signalBelowGate, evaluateBoSignals, SIGNAL_REGISTRY } from '../../services/kpiSignals.js';
 import { rootCauseSignals } from '../../services/rootCauseSignals.js';
-import { sendPush } from '../../lib/web-push.js';
 import { requireRole } from '../../middleware/auth.js';
 import { AGENT_ROLES, computeIncentive } from '../../services/incentiveService.js';
 import { severityOf } from '../../services/issueEngine.js';
+import { coachingNoteRow, doNote, doNudge } from './issues.js';
 
 export function resolveRoleKpiKey(role) {
   if (role === 'team_lead') return 'kpi.team_lead';
   if (role === 'manager') return 'kpi.manager';
   if (role === 'general_manager') return 'kpi.general_manager';
+  if (role === 'backoffice_admin') return 'kpi.backoffice_admin';
   return 'kpi.agent'; // agent, field_agent, sales_rep, and unknown
+}
+
+// backoffice_admin queue-health signals, sourced from their own issues.stats aggregate
+// (response/open aging) — reconciliation aging is a separate deposits-table concern the
+// caller (reactToIssues cron) supplies via oldestReconHours; this helper only shapes the query.
+export async function boAdminSignals(db, tenantId, boAdminId, thresholds) {
+  const row = await db.prepare(
+    `SELECT AVG((julianday(COALESCE(acted_at, datetime('now'))) - julianday(opened_at)) * 1440) avg_response_mins,
+            MAX((julianday('now') - julianday(opened_at)) * 24) oldest_open_hours
+     FROM issues WHERE tenant_id = ? AND owner_id = ? AND status != 'resolved'`
+  ).bind(tenantId, boAdminId).first();
+  return evaluateBoSignals({
+    avgResponseMins: row?.avg_response_mins ?? null,
+    oldestOpenHours: row?.oldest_open_hours ?? null,
+  }, thresholds);
 }
 
 // Per-day rows for one or more agents over a window (summed per date).
@@ -181,7 +197,10 @@ app.get('/kpi/roster', async (c) => {
     const scope = role === 'manager' ? await kpiScopeIds(db, tenantId, id, 'team_lead') : id;
     const { actual, signals } = await agentSignals(db, tenantId, scope, thresholds, since);
     const u = await db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first();
-    agents.push({ agentId: id, name: u?.name || id, actual, signals });
+    const liveIssue = await db.prepare(
+      `SELECT id FROM issues WHERE tenant_id=? AND subject_id=? AND status != 'resolved' ORDER BY severity DESC LIMIT 1`
+    ).bind(tenantId, id).first();
+    agents.push({ agentId: id, name: u?.name || id, actual, signals, issueId: liveIssue?.id ?? null });
   }
   return c.json({ roster: rankRoster(agents) });
 });
@@ -202,10 +221,7 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
        AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))`
   ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
 
-  const counts = {
-    below_target: 0, dropped_vs_baseline: 0, gone_quiet: 0, low_conversion: 0,
-    late_start: 0, short_field_day: 0, idle_gaps: 0, excess_travel: 0,
-  };
+  const counts = Object.fromEntries(Object.keys(SIGNAL_REGISTRY).map((k) => [k, 0]));
   const flagged = [];
   for (const { id, name } of agents) {
     const { signals } = await agentSignals(db, tenantId, id, thresholds, since);
@@ -218,102 +234,39 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
 });
 
 // --- Remediation (Task 2.5) ---
-// Auth: individual c.get()s (no `auth` object). Live symbols verified against
-// web-push.js (sendPush(env, sub, payload) → {ok,status}) and push_subscriptions
-// (flat endpoint/p256dh/auth cols) — the plan's sendWebPush/subscription-JSON is stale.
-
-// Pure: shapes a coaching_notes row. Unit-tested.
-export function coachingNoteRow({ id, tenantId, companyId, managerId, agentId, signalType, action, note }) {
-  return {
-    id, tenant_id: tenantId, company_id: companyId ?? null,
-    manager_id: managerId, agent_id: agentId,
-    signal_type: signalType ?? null, action, note: note ?? null,
-  };
-}
-
-// coaching_notes DDL lives in schema.sql (applied via db:migrate). Guard the write
-// path so a not-yet-migrated D1 never 500s — mirrors Task 1.7's ensureCaptureFailures.
-async function ensureCoachingNotes(db) {
-  await db.prepare(
-    `CREATE TABLE IF NOT EXISTS coaching_notes (
-       id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, company_id TEXT,
-       manager_id TEXT NOT NULL, agent_id TEXT NOT NULL, signal_type TEXT,
-       action TEXT NOT NULL, note TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
-  ).run();
-}
+// Thin wrappers over issues.js's action handlers/coachingNoteRow — kept at their original
+// URL/body shape (agentId in body, no issue) so existing callers (TeamCockpit.tsx,
+// useRemediate.ts) need zero changes. coachingNoteRow re-exported here for kpiRoster.test.js.
+export { coachingNoteRow };
 
 app.post(
   '/kpi/remediate/note',
   requireRole('admin', 'super_admin', 'manager', 'team_lead', 'backoffice_admin'),
   async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
-  const companyId = c.req.query('company_id') || null;
-  const b = await c.req.json();
-  // Target must be a real user in the caller's tenant, else this writes a note against an arbitrary id.
-  const target = b.agentId && await db.prepare(
-    'SELECT id FROM users WHERE id = ? AND tenant_id = ?'
-  ).bind(b.agentId, tenantId).first();
-  if (!target) return c.json({ ok: false, message: 'Unknown agent' }, 400);
-  const row = coachingNoteRow({
-    id: `cn-${userId}-${b.agentId}-${b.created_suffix || ''}`,
-    tenantId, companyId, managerId: userId, agentId: b.agentId,
-    signalType: b.signalType, action: b.action || 'note', note: b.note,
-  });
-  await ensureCoachingNotes(db);
-  await db.prepare(
-    `INSERT INTO coaching_notes (id, tenant_id, company_id, manager_id, agent_id, signal_type, action, note)
-     VALUES (?,?,?,?,?,?,?,?)`
-  ).bind(row.id, row.tenant_id, row.company_id, row.manager_id, row.agent_id, row.signal_type, row.action, row.note).run();
-  return c.json({ ok: true, id: row.id });
-});
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const companyId = c.req.query('company_id') || null;
+    const body = await c.req.json();
+    const result = await doNote({ db, tenantId, companyId, userId, body, issue: null });
+    const { httpStatus = 200, ...rest } = result;
+    return c.json(rest, httpStatus);
+  }
+);
 
 // Nudging writes a notification addressed to someone else, so it is a supervisor-only action.
 app.post(
   '/kpi/remediate/nudge',
   requireRole('admin', 'super_admin', 'manager', 'team_lead', 'backoffice_admin'),
   async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
-  const b = await c.req.json();
-  const title = 'Performance nudge';
-  const message = b.message || 'Check in with your manager.';
-
-  // Target must be a real user in the caller's tenant, else this is an arbitrary-notification write.
-  const target = b.agentId && await db.prepare(
-    'SELECT id FROM users WHERE id = ? AND tenant_id = ?'
-  ).bind(b.agentId, tenantId).first();
-  if (!target) return c.json({ ok: false, message: 'Unknown agent' }, 400);
-
-  await db.prepare(
-    `INSERT INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id)
-     VALUES (?,?,?,?,?,?,?,?)`
-  ).bind(`nudge-${crypto.randomUUID()}`, tenantId, b.agentId, 'nudge', title, message, 'coaching', userId).run();
-
-  // Push is opportunistic on top of the in-app row, which is the real deliverable — a push
-  // transport failure must never fail the nudge. Logged so delivery stays observable.
-  let delivered = 0;
-  try {
-    const subs = (await db.prepare(
-      `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id=? AND user_id=?`
-    ).bind(tenantId, b.agentId).all()).results ?? [];
-    for (const sub of subs) {
-      const { ok, status } = await sendPush(c.env, sub, { title, body: message, url: '/agent' });
-      if (ok) delivered++;
-      else {
-        console.error(`push fail nudge user=${b.agentId} status=${status}`);
-        if (status === 404 || status === 410) {
-          await db.prepare(`DELETE FROM push_subscriptions WHERE tenant_id=? AND user_id=? AND endpoint=?`)
-            .bind(tenantId, b.agentId, sub.endpoint).run();
-        }
-      }
-    }
-  } catch (e) {
-    console.error(`push error nudge user=${b.agentId}:`, e);
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    const result = await doNudge({ db, env: c.env, tenantId, userId, body, issue: null });
+    const { httpStatus = 200, ...rest } = result;
+    return c.json(rest, httpStatus);
   }
-  return c.json({ ok: true, delivered });
-});
+);
 
 export default app;

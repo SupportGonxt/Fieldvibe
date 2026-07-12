@@ -5,7 +5,7 @@ import {
   Users, Phone, UserX, ShieldAlert, CheckCircle2,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
-import { signalText, type Signal } from '../../components/field-ops/IssueQueue'
+import { SIGNAL_REGISTRY, signalText, type Signal } from '../../lib/signalRegistry'
 import { rand, PERIODS, shiftAnchor, windowLabel, type Overview, type Period } from './GmOverview'
 
 // GM stats. /agent/overview answers *who* (teams, managers, individuals).
@@ -24,22 +24,6 @@ type TenantSignals = {
   totalAgents: number
   flagged: Flagged[]
 }
-
-// Group headings. signalText() (IssueQueue) writes the per-agent detail line.
-const SIGNAL_LABEL: Record<string, string> = {
-  gone_quiet: 'Gone quiet',
-  below_target: 'Below target',
-  dropped_vs_baseline: 'Dropped vs baseline',
-  low_conversion: 'Low conversion',
-  late_start: 'Late starts',
-  short_field_day: 'Short field days',
-  idle_gaps: 'Idle gaps',
-  excess_travel: 'Excess travel',
-}
-
-// The four heavy signals mean the agent is not producing. The rest are root-cause
-// texture — they explain a bad number, they aren't one.
-const HEAVY = new Set(['gone_quiet', 'below_target', 'dropped_vs_baseline', 'low_conversion'])
 
 const pctDelta = (now: number, prev: number): number | null =>
   prev > 0 ? ((now - prev) / prev) * 100 : null
@@ -194,7 +178,9 @@ export default function GmStats() {
           ) : (
             <div className="space-y-2">
               {groups.map(([type, count]) => {
-                const heavy = HEAVY.has(type)
+                // severityWeight mirrors the old issueEngine.js KIND_WEIGHT — 2+ is a hard
+                // outcome metric, 1 is root-cause texture that merely explains one.
+                const heavy = (SIGNAL_REGISTRY[type]?.severityWeight ?? 0) >= 2
                 const agents = (sig?.flagged || []).filter((a) => a.signals.some((s) => s.type === type))
                 const isOpen = open === type
                 return (
@@ -205,7 +191,7 @@ export default function GmStats() {
                     >
                       <span className={`w-1.5 h-8 rounded-full flex-shrink-0 ${heavy ? 'bg-red-500' : 'bg-amber-500'}`} />
                       <span className="flex-1">
-                        <span className="block text-sm font-semibold text-white">{SIGNAL_LABEL[type] || type.replace(/_/g, ' ')}</span>
+                        <span className="block text-sm font-semibold text-white">{SIGNAL_REGISTRY[type]?.label ?? type.replace(/_/g, ' ')}</span>
                         <span className="block text-xs text-gray-500">
                           {count} agent{count === 1 ? '' : 's'}{heavy ? '' : ' · root cause'}
                         </span>
