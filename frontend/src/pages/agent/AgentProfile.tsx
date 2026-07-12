@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
+import { APP_VERSION, checkForUpdate } from '../../lib/appUpdate'
 
 export default function AgentProfile() {
   const navigate = useNavigate()
@@ -136,6 +138,14 @@ export default function AgentProfile() {
         >
           <LogOut className="w-5 h-5 text-red-400" />
           <span className="text-sm text-red-400 font-medium">Sign Out</span>
+        </button>
+
+        {/* Release version — tap to pull the latest build (SW reloads if one exists) */}
+        <button
+          onClick={() => { checkForUpdate(); toast('Checking for updates…') }}
+          className="w-full text-center py-2 text-[11px] text-gray-600 active:text-gray-400 transition-colors"
+        >
+          FieldVibe v{APP_VERSION} · tap to check for updates
         </button>
       </div>
     </div>

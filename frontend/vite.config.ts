@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { readFileSync } from 'fs'
+
+const pkgVersion = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version
 
 // Forces sw.js bytes to differ on EVERY build. Without this, a frontend-only
 // deploy (new hashed app chunks, no precached static asset changed) makes
@@ -16,6 +19,11 @@ const BUILD_ID = Date.now().toString(36)
 export default defineConfig({
   // Note: Vite automatically loads .env.production during production builds
   // Do NOT override VITE_* env vars in the define block - let Vite handle them
+  define: {
+    // Running build id surfaced to the app (release visibility + post-update
+    // toast). Same BUILD_ID that busts the SW so it moves in lockstep with a deploy.
+    __APP_VERSION__: JSON.stringify(`${pkgVersion}.${BUILD_ID}`),
+  },
   plugins: [
     react(),
     // Full PWA. The previous attempt (earlier today) had three failure modes
