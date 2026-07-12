@@ -165,9 +165,9 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
      LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = u.tenant_id ${CO_V}
      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND ${NOT_REJECTED}
      WHERE u.tenant_id = ? AND u.is_active = 1 AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
-       AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')) ${NOT_TEST_U('u')}
+       AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')) ${NOT_TEST_U('u')} ${CO_ACL('u')}
      GROUP BY u.id ORDER BY today ASC, last_activity ASC`
-  ).bind(today, companyId, companyId, tenantId, ...AGENT_ROLES).all().catch(() => ({ results: [] }));
+  ).bind(today, companyId, companyId, tenantId, ...AGENT_ROLES, companyId, companyId).all().catch(() => ({ results: [] }));
   const totalAgents = (roster || []).length;
   const activeAgents = (roster || []).filter((r) => (r.today || 0) > 0).length;
   const leastActive = (roster || []).slice(0, 5);

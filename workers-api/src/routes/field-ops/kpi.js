@@ -229,10 +229,16 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
   const since = new Date(Date.now() - windowDays * 86400000).toISOString().slice(0, 10);
   const agents = (await db.prepare(
     // NULL || x is NULL in SQLite — COALESCE both halves or a missing surname erases the whole name.
+    // Company scope via agent_company_links (mirrors gm.js CO_ACL): without it totalAgents/
+    // flaggedAgents/counts sum every field agent across all companies in the tenant (the "67" leak).
+    // companyId NULL = all companies; still drops link-less test/orphan users, matching gm.js.
     `SELECT id, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) name
-       FROM users WHERE tenant_id=? AND is_active=1 AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
-       AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))`
-  ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
+       FROM users u WHERE tenant_id=? AND is_active=1 AND role IN (${AGENT_ROLES.map(() => '?').join(',')})
+       AND (agent_type IS NULL OR agent_type IN ('field_ops','both'))
+       AND EXISTS (SELECT 1 FROM agent_company_links acl
+         WHERE acl.agent_id = u.id AND acl.tenant_id = u.tenant_id AND acl.is_active = 1
+           AND (? IS NULL OR acl.company_id = ?))`
+  ).bind(tenantId, ...AGENT_ROLES, companyId, companyId).all()).results ?? [];
 
   const counts = Object.fromEntries(Object.keys(SIGNAL_REGISTRY).map((k) => [k, 0]));
   const flagged = [];

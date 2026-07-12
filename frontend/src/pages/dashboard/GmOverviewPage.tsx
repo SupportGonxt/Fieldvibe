@@ -155,10 +155,14 @@ export default function GmOverviewPage() {
     staleTime: 1000 * 60 * 2,
   })
 
-  // Tenant-wide performance signals — independent of the period toggle (fixed baseline window).
+  // Performance signals — independent of the period toggle (fixed baseline window), but
+  // company-scoped: pass company_id so the "flagged agents" card matches the selected company
+  // (else it counts every agent across all companies in the tenant).
   const { data: signals } = useQuery({
-    queryKey: ['gm-tenant-signals'],
-    queryFn: async () => (await apiClient.get<TenantSignals>('/field-ops/kpi/tenant-signals')).data,
+    queryKey: ['gm-tenant-signals', company],
+    queryFn: async () => (await apiClient.get<TenantSignals>(
+      `/field-ops/kpi/tenant-signals${company ? `?company_id=${company}` : ''}`
+    )).data,
     staleTime: 1000 * 60 * 2,
   })
 
