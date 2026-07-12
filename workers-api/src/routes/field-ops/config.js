@@ -188,6 +188,7 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
     'kpi.team_lead':      { visits_per_day: 18, signups_per_day: 9,  conversion_floor_pct: 25, qualified_floor_pct: 50, drop_pct: 40, quiet_days: 2, baseline_window_days: 14 },
     'kpi.manager':        { visits_per_day: 16, signups_per_day: 8,  conversion_floor_pct: 22, qualified_floor_pct: 48, drop_pct: 40, quiet_days: 3, baseline_window_days: 21 },
     'kpi.general_manager':{ visits_per_day: 15, signups_per_day: 7,  conversion_floor_pct: 20, qualified_floor_pct: 45, drop_pct: 40, quiet_days: 3, baseline_window_days: 30 },
+    'kpi.backoffice_admin': { response_mins: 30, recon_hours: 24, stale_queue_hours: 48, improve_pct: 20 },
   };
   for (const [key, val] of Object.entries(KPI_DEFAULTS)) {
     await db.prepare(

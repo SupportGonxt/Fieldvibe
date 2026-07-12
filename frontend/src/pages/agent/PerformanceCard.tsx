@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Activity, AlertTriangle } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { signalText, type Signal } from '../../lib/signalRegistry'
 
 // Agent self-performance cockpit tile. Self-fetching (/field-ops/kpi/self),
 // renders nothing until data arrives so it never flashes empty. Mirrors
@@ -18,38 +19,8 @@ type Thresholds = {
   signups_per_day?: number
   conversion_floor_pct?: number // percent, e.g. 20
 }
-type Signal = { type: string; detail: any }
 type RegistryMetric = { key: string; label: string; value: number; target: number | null; shortfall: number }
 type SelfKpi = { actual: Actual; thresholds: Thresholds; signals: Signal[]; metrics?: RegistryMetric[] }
-
-function signalText(s: Signal): string {
-  switch (s.type) {
-    case 'gone_quiet':
-      return `You've gone quiet — ${s.detail?.daysSinceLastVisit ?? '?'} days since your last visit`
-    case 'below_target': {
-      const m = (s.detail?.metrics || []).map((x: string) => x.replace('_per_day', '/day').replace('_', ' '))
-      return `Below target on ${m.join(' & ') || 'your KPIs'}`
-    }
-    case 'dropped_vs_baseline':
-      return 'Your signups have dropped below your recent average'
-    case 'low_conversion':
-      return `Low conversion rate — ${Math.round((s.detail?.conversion_pct || 0) * 100)}%`
-    case 'late_start': {
-      const m = s.detail?.avg_start_min ?? 0
-      return `Late starts — first check-in averages ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-    }
-    case 'short_field_day':
-      return `Short field days — ${(Math.round((s.detail?.avg_span_min || 0) / 6) / 10)}h between first and last check-in`
-    case 'idle_gaps':
-      return `Idle gaps — ${Math.round((s.detail?.avg_idle_min || 0) / 60 * 10) / 10}h/day parked with little movement`
-    case 'excess_travel':
-      return `Excess travel — averaging ${s.detail?.avg_km_per_hop ?? '?'}km between stops`
-    case 'below_gate':
-      return `Behind pace on ${String(s.detail?.metric || 'a target').replace('_', ' ')} — ${s.detail?.shortfall ?? '?'}/day short of the next tier`
-    default:
-      return 'Underperformance signal triggered'
-  }
-}
 
 function Metric({ label, value, target, suffix = '' }: { label: string; value: number; target?: number; suffix?: string }) {
   const below = target != null && value < target

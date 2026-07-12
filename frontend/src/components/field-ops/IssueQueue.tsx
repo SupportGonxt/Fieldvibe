@@ -8,35 +8,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShieldAlert, Check } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { apiClient } from '../../services/api.service'
+import { signalText, type Polarity, type Signal } from '../../lib/signalRegistry'
 
-export type Signal = { type: string; detail: any }
-
-export function signalText(s: Signal): string {
-  switch (s.type) {
-    case 'gone_quiet':
-      return `Gone quiet — ${s.detail?.daysSinceLastVisit ?? '?'} days since last visit`
-    case 'below_target': {
-      const m = (s.detail?.metrics || []).map((x: string) => x.replace('_per_day', '/day').replace('_', ' '))
-      return `Below target on ${m.join(' & ') || 'KPIs'}`
-    }
-    case 'dropped_vs_baseline':
-      return 'Signups dropped below recent average'
-    case 'low_conversion':
-      return `Low conversion — ${Math.round((s.detail?.conversion_pct || 0) * 100)}%`
-    case 'late_start': {
-      const m = s.detail?.avg_start_min ?? 0
-      return `Late starts — first check-in ~${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-    }
-    case 'short_field_day':
-      return `Short field days — ${(Math.round((s.detail?.avg_span_min || 0) / 6) / 10)}h on-site span`
-    case 'idle_gaps':
-      return `Idle gaps — ${Math.round((s.detail?.avg_idle_min || 0) / 60 * 10) / 10}h/day parked`
-    case 'excess_travel':
-      return `Excess travel — ~${s.detail?.avg_km_per_hop ?? '?'}km between stops`
-    default:
-      return 'Underperformance signal'
-  }
-}
+// Re-exported for existing callers (TeamCockpit.tsx) that import Signal/signalText from here.
+export { signalText, type Signal }
 
 export type Issue = {
   id: string
@@ -50,6 +25,22 @@ export type Issue = {
   owner_name?: string
   company_name?: string | null
   breached?: boolean
+  polarity?: Polarity
+  detail?: string | null
+}
+
+// issues.detail is a JSON string column in D1 — parse it before handing it to signalText.
+function parseDetail(raw: string | null | undefined): any {
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+}
+
+function issueText(i: Issue): string {
+  return signalText({ type: i.kind, detail: parseDetail(i.detail) })
 }
 
 // D1 hands back `YYYY-MM-DD HH:MM:SS` in UTC with no zone marker; Date.parse would read it as local.
@@ -125,6 +116,36 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
     }
   }
 
+  const renderIssue = (i: Issue) => (
+    <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+      <div className="flex-1 min-w-[12rem]">
+        <div className="flex items-center gap-2">
+          <span className={s.name}>{i.subject_name}</span>
+          <EscalatedTag n={i.escalations} />
+          {i.status === 'acted' && (
+            <span className={`text-[10px] font-semibold uppercase tracking-wide ${s.sub}`}>Actioned</span>
+          )}
+        </div>
+        <p className={s.body}>
+          {issueText(i)} · held {hoursHeld(i.owner_since)}h
+        </p>
+      </div>
+      {i.polarity !== 'recognition' && (
+        <div className="flex gap-2">
+          <button onClick={() => act(i.id, 'acknowledged')} className={s.ghost}>
+            <Check className="w-4 h-4" /> I actioned this
+          </button>
+          <button onClick={() => act(i.id, 'resolve')} className={DANGER}>
+            Resolve
+          </button>
+        </div>
+      )}
+    </li>
+  )
+
+  const deficit = issues.filter((i) => i.polarity !== 'recognition')
+  const highlights = issues.filter((i) => i.polarity === 'recognition')
+
   return (
     <section className={s.section}>
       <header className="flex items-center gap-2 px-4 pt-4 pb-2">
@@ -132,32 +153,18 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
         <h2 className={s.title}>Assigned to you</h2>
         <span className={s.sub}>{issues.length} open · escalates to your manager if untouched</span>
       </header>
-      <ul className={s.divide}>
-        {issues.map((i) => (
-          <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-            <div className="flex-1 min-w-[12rem]">
-              <div className="flex items-center gap-2">
-                <span className={s.name}>{i.subject_name}</span>
-                <EscalatedTag n={i.escalations} />
-                {i.status === 'acted' && (
-                  <span className={`text-[10px] font-semibold uppercase tracking-wide ${s.sub}`}>Actioned</span>
-                )}
-              </div>
-              <p className={s.body}>
-                {signalText({ type: i.kind, detail: {} })} · held {hoursHeld(i.owner_since)}h
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => act(i.id, 'acknowledged')} className={s.ghost}>
-                <Check className="w-4 h-4" /> I actioned this
-              </button>
-              <button onClick={() => act(i.id, 'resolve')} className={DANGER}>
-                Resolve
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {deficit.length > 0 && (
+        <>
+          {highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
+          <ul className={s.divide}>{deficit.map(renderIssue)}</ul>
+        </>
+      )}
+      {highlights.length > 0 && (
+        <>
+          <p className={`${s.sub} px-4 pt-1`}>Highlights</p>
+          <ul className={s.divide}>{highlights.map(renderIssue)}</ul>
+        </>
+      )}
     </section>
   )
 }
@@ -177,6 +184,23 @@ export function UnmanagedIssues({ surface = 'web' }: { surface?: Surface }) {
   if (!issues.length) return null
   const breached = issues.filter((i) => i.breached).length
 
+  const renderIssue = (i: Issue) => (
+    <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+      <span className={`w-1.5 h-6 rounded-full ${i.breached ? 'bg-red-600' : 'bg-amber-500'}`} />
+      <span className={`${s.name} flex-1 min-w-[10rem]`}>{i.owner_name || 'Unassigned'}</span>
+      <span className={`${s.muted} flex-1 min-w-[12rem]`}>
+        has not actioned {i.subject_name} · {issueText(i)}
+        {i.company_name && ` · ${i.company_name}`}
+      </span>
+      <EscalatedTag n={i.escalations} />
+      <span className={`${s.muted} tabular-nums`}>{hoursHeld(i.owner_since)}h</span>
+    </li>
+  )
+
+  const capped = issues.slice(0, 8)
+  const deficit = capped.filter((i) => i.polarity !== 'recognition')
+  const highlights = capped.filter((i) => i.polarity === 'recognition')
+
   return (
     <section className={s.section}>
       <header className="flex items-center gap-2 px-4 pt-4 pb-2">
@@ -186,20 +210,18 @@ export function UnmanagedIssues({ surface = 'web' }: { surface?: Surface }) {
           {breached} past SLA of {issues.length} open
         </span>
       </header>
-      <ul className={s.divide}>
-        {issues.slice(0, 8).map((i) => (
-          <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
-            <span className={`w-1.5 h-6 rounded-full ${i.breached ? 'bg-red-600' : 'bg-amber-500'}`} />
-            <span className={`${s.name} flex-1 min-w-[10rem]`}>{i.owner_name || 'Unassigned'}</span>
-            <span className={`${s.muted} flex-1 min-w-[12rem]`}>
-              has not actioned {i.subject_name} · {i.kind.replace(/_/g, ' ')}
-              {i.company_name && ` · ${i.company_name}`}
-            </span>
-            <EscalatedTag n={i.escalations} />
-            <span className={`${s.muted} tabular-nums`}>{hoursHeld(i.owner_since)}h</span>
-          </li>
-        ))}
-      </ul>
+      {deficit.length > 0 && (
+        <>
+          {highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
+          <ul className={s.divide}>{deficit.map(renderIssue)}</ul>
+        </>
+      )}
+      {highlights.length > 0 && (
+        <>
+          <p className={`${s.sub} px-4 pt-1`}>Highlights</p>
+          <ul className={s.divide}>{highlights.map(renderIssue)}</ul>
+        </>
+      )}
     </section>
   )
 }
