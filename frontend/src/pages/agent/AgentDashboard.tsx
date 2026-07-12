@@ -14,6 +14,7 @@ import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
 import { MyIssues } from '../../components/field-ops/IssueQueue'
+import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 
 // Lazy load non-critical sections (code splitting)
 const PerformanceSection = lazy(() => import('./PerformanceSection'))
@@ -440,6 +441,10 @@ export default function AgentDashboard() {
       {/* Issues the cron routed to this person. Leads and managers own them; agents own none,
           so /issues/mine comes back empty and the section hides itself. empty:hidden keeps the
           wrapper from leaving a gap behind. */}
+      <div className="px-5 mb-3 empty:hidden">
+        <PresenceAlerts />
+      </div>
+
       <div className="px-5 mb-3 empty:hidden">
         <MyIssues surface="pwa" />
       </div>

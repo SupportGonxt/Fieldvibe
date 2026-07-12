@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
+import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 
 // GM mobile cockpit. Same payload as the web /dashboard/gm page.
 // Journey: pick company/period -> pulse (revenue, funnel) -> risks ->
@@ -183,6 +184,7 @@ export default function GmOverview() {
 
         {/* Accountability, above the rest of the read-only reporting: what the GM must action
             themselves, then who below them is sitting on their queue. Both hide when empty. */}
+        <div className="mb-4 empty:hidden"><PresenceAlerts /></div>
         <div className="mb-4 empty:hidden"><MyIssues surface="pwa" /></div>
         <div className="mb-4 empty:hidden"><UnmanagedIssues surface="pwa" /></div>
 

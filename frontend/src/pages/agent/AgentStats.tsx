@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { toast } from 'react-hot-toast'
+import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 
 interface VisitBreakdownItem {
   company_id: string
@@ -994,6 +995,10 @@ export default function AgentStats() {
             <ChevronRight className="w-5 h-5 text-gray-400" />
           </button>
         </div>
+      </div>
+
+      <div className="px-5 pt-4 empty:hidden">
+        <PresenceAlerts />
       </div>
 
       <div className="px-5 pt-3">
