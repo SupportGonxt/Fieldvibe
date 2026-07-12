@@ -7,7 +7,7 @@ import { getConfig } from '../routes/field-ops/config.js';
 import { severityOf, isBreached, nextOwnerRole, slaClockOf, slaAppliesTo } from '../services/issueEngine.js';
 import { sendPush } from '../lib/web-push.js';
 import { dueEscalation, computeIncentive } from '../services/incentiveService.js';
-import { signalBelowGate, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
+import { signalBelowGate, signalLabel, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 
 // ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
@@ -300,14 +300,14 @@ async function notify(db, env, tenantId, userId, type, title, message, relId, re
 // ticks): the owner is told to coach, and the agent is nudged directly. The system acts on its
 // own rather than waiting for a human to open a dashboard.
 async function reactToIssue(db, env, tenantId, issue, name, types, today) {
-  const reasons = types.map((t) => t.replace(/_/g, ' ')).join(', ');
+  const reasons = types.map(signalLabel).join(', ');
   await notify(db, env, tenantId, issue.owner_id, 'issue_open',
-    `${name} needs coaching`,
-    `Signals: ${reasons}. Open their card and act — this escalates if left untouched.`,
+    `${name} could use a hand`,
+    `What we're seeing: ${reasons}. Open their card and act — it escalates if left untouched.`,
     `issue_${issue.id}_owner_${today}`);
   await notify(db, env, tenantId, issue.subject_id, 'nudge',
-    'You are off target',
-    `We're seeing: ${reasons}. Get to your next signup — your lead has been alerted.`,
+    'Let\'s get back on track',
+    `What we're seeing: ${reasons}. Head to your next sign-up — your lead's been looped in to help.`,
     `issue_${issue.id}_agent_${today}`);
 }
 
@@ -565,7 +565,7 @@ async function reactToIssues(db, env) {
                     const prev = `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() || 'the previous owner';
                     await notify(db, env, tenantId, nextId, 'issue_escalated',
                       `Escalated: ${name}`,
-                      `${prev} did not action ${name}'s ${worst.replace(/_/g, ' ')} within SLA. It is yours now.`,
+                      `${prev} didn't get to ${name}'s ${signalLabel(worst)} in time. It's yours now.`,
                       `issue_${live.id}_esc_${escalations}`);
                   }
                 }
@@ -595,7 +595,7 @@ async function reactToIssues(db, env) {
                   ).bind(rId, tenantId, agent.company_id || null, rWorst, agent.id, agent.role, ownerId, ownerRole, rSeverity, rDetail).run();
                   await notify(db, env, tenantId, agent.id, 'recognition',
                     `${name} earned a highlight`,
-                    `Signals: ${rTypes.map((t) => t.replace(/_/g, ' ')).join(', ')}. Nice work.`,
+                    `What stood out: ${rTypes.map(signalLabel).join(', ')}. Nice work!`,
                     `issue_${rId}_recognition_${today}`);
                 }
               } else {

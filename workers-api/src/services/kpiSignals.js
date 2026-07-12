@@ -10,6 +10,34 @@ function minToClock(min) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+// DB metric keys -> plain English, so signal text reads "daily visits" not "visits_per_day".
+// Fallback de-slugs anything unmapped (strips _per_day / _pct, underscores to spaces).
+// ponytail: keep in sync with the same map in frontend/src/lib/signalRegistry.ts.
+const METRIC_LABELS = {
+  visits_per_day: 'daily visits', signups_per_day: 'daily sign-ups',
+  conversion_pct: 'conversion rate', qualified_pct: 'qualified rate',
+  visits: 'visits', signups: 'sign-ups', deposits: 'deposits', qualified: 'qualified leads',
+};
+export function metricLabel(key) {
+  if (!key) return 'target';
+  return METRIC_LABELS[key] ||
+    String(key).replace(/_per_day$/, '').replace(/_pct$/, ' rate').replace(/_/g, ' ');
+}
+
+// Friendly lowercase phrase per signal type, for notification copy that reads mid-sentence
+// ("Signals: gone quiet, behind on incentive pace"). Falls back to the de-slugged type.
+const SIGNAL_LABELS = {
+  gone_quiet: 'gone quiet', below_gate: 'behind on incentive pace', below_target: 'below target',
+  dropped_vs_baseline: 'sign-ups dropped', low_conversion: 'low conversion', late_start: 'late starts',
+  short_field_day: 'short field days', idle_gaps: 'idle gaps between stops', excess_travel: 'excess travel',
+  declining_trend: 'trending down', improving_trend: 'trending up', team_bottom: 'bottom of the roster',
+  team_top: 'top of the roster', at_risk_gate: 'slipping off incentive pace', hit_gate_early: 'cleared the gate early',
+  slow_response: 'slow response time', stale_queue: 'stale open queue', recon_backlog: 'reconciliation backlog',
+};
+export function signalLabel(type) {
+  return SIGNAL_LABELS[type] || String(type || '').replace(/_/g, ' ');
+}
+
 // Single source of truth for signal display text + severity + polarity, replacing
 // three independent frontend hand-rolled switches (IssueQueue.tsx, GmStats.tsx,
 // GmOverviewPage.tsx) that all lacked a below_gate case. severityWeight values match
@@ -24,11 +52,11 @@ export const SIGNAL_REGISTRY = {
   },
   below_gate: {
     polarity: 'deficit', severityWeight: 4,
-    buildText: (d) => `Trailing incentive gate on ${d.metric} — short ${d.shortfall} of target ${d.target}`,
+    buildText: (d) => `Behind on incentive pace for ${metricLabel(d.metric)} — short ${d.shortfall} of ${d.target}`,
   },
   below_target: {
     polarity: 'deficit', severityWeight: 4,
-    buildText: (d) => `Below target on ${(d.metrics || []).join(', ')}`,
+    buildText: (d) => `Below target on ${(d.metrics || []).map(metricLabel).join(', ')}`,
   },
   dropped_vs_baseline: {
     polarity: 'deficit', severityWeight: 3,
@@ -56,11 +84,11 @@ export const SIGNAL_REGISTRY = {
   },
   declining_trend: {
     polarity: 'deficit', severityWeight: 2,
-    buildText: (d) => `${d.metric} declining (${d.pct}% vs prior period)`,
+    buildText: (d) => `${metricLabel(d.metric)} trending down (${d.pct}% vs prior period)`,
   },
   improving_trend: {
     polarity: 'recognition', severityWeight: 2,
-    buildText: (d) => `${d.metric} improving (${d.pct > 0 ? '+' : ''}${d.pct}% vs prior period)`,
+    buildText: (d) => `${metricLabel(d.metric)} trending up (${d.pct > 0 ? '+' : ''}${d.pct}% vs prior period)`,
   },
   team_bottom: {
     polarity: 'deficit', severityWeight: 2,
@@ -72,7 +100,7 @@ export const SIGNAL_REGISTRY = {
   },
   at_risk_gate: {
     polarity: 'deficit', severityWeight: 3,
-    buildText: (d) => `Sliding off pace for ${d.metric} gate (${d.pct}% vs baseline, still clearing today)`,
+    buildText: (d) => `Slipping off incentive pace for ${metricLabel(d.metric)} (${d.pct}% vs baseline, still clearing today)`,
   },
   hit_gate_early: {
     polarity: 'recognition', severityWeight: 3,
