@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard, Banknote } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
+import OfflineIndicator from '../../components/OfflineIndicator'
 import { apiClient } from '../../services/api.service'
 import { ensurePushSubscription } from '../../services/push'
 import FirstLoginTour from './FirstLoginTour'
@@ -164,9 +165,10 @@ export default function AgentLayout() {
         </div>
       )}
 
-      {/* Notification bell — main pages only (sub-pages have their own header) */}
+      {/* Notification bell + offline pill — main pages only (sub-pages have their own header) */}
       {!onSubPage && (
-        <div className="fixed top-3 right-3 z-40">
+        <div className="fixed top-3 right-3 z-40 flex items-center gap-2">
+          <OfflineIndicator />
           <NotificationCenter />
         </div>
       )}

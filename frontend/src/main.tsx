@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@ta
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster, toast } from 'react-hot-toast'
 import App from './App'
+import { startOfflineSync } from './services/offline-sync'
 import './index.css'
 
 // Changes the entry chunk hash so devices with a poisoned immutable
@@ -67,6 +68,9 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Durable offline: persist reads to IndexedDB and replay queued writes on reconnect.
+startOfflineSync(queryClient)
 
 // Register the service worker after first paint. injectRegister:false in
 // vite.config.ts means VitePWA does not auto-inject; we control timing here.

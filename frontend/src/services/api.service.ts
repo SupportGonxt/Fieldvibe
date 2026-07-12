@@ -3,6 +3,7 @@ import { getAuthToken } from '../store/auth.store'
 import { tenantService } from './tenant.service'
 import { API_CONFIG } from '../config/api.config'
 import { shouldRetry, getRetryDelay } from '../utils/api-retry'
+import { cacheReadThrough, serveOfflineRead, queueOfflineWrite, isWriteMethod } from './offline-sync'
 
 // API Configuration
 const API_BASE_URL = API_CONFIG.BASE_URL
@@ -129,6 +130,8 @@ apiClient.get = function cachedGet(url: string, config?: AxiosRequestConfig) {
 // Response interceptor for error handling with retry logic
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Write successful GETs through to IndexedDB so they're readable offline later.
+    cacheReadThrough(response)
     return response
   },
   async (error: AxiosError) => {
@@ -196,8 +199,20 @@ apiClient.interceptors.response.use(
       return apiClient(originalRequest)
     }
 
-    // Handle network errors
+    // Handle network errors — offline fallback before giving up.
     if (!error.response) {
+      // A write we can't send now: queue it for replay on reconnect, resolve optimistically.
+      if (isWriteMethod(originalRequest?.method)) {
+        try {
+          return await queueOfflineWrite(originalRequest)
+        } catch {
+          /* queue unavailable — fall through to the error below */
+        }
+      } else {
+        // A read: serve the last cached payload if we have one.
+        const cached = await serveOfflineRead(originalRequest)
+        if (cached) return cached
+      }
       console.error('Network Error: Unable to reach the server')
       return Promise.reject({
         message: 'Network error: Unable to connect to the server. Please check your internet connection.',
