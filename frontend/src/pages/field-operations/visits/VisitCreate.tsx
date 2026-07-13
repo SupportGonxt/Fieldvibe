@@ -1116,6 +1116,10 @@ export default function VisitCreate() {
       case 'questionnaire': {
         for (const q of customQuestions) {
           if (q.is_required && !customQuestionValues[q.question_key]) return false
+          if (q.question_key.toLowerCase().includes('goldrush_id')) {
+            const gv = customQuestionValues[q.question_key] || ''
+            if (gv && gv.length !== GOLDRUSH_ID_LENGTH) return false
+          }
         }
         return true
       }
@@ -2049,11 +2053,13 @@ export default function VisitCreate() {
                         maxLength: isGoldrushId ? GOLDRUSH_ID_LENGTH : (q.max_length || undefined),
                         ...(isGoldrushId ? { inputMode: 'numeric' as const, pattern: '[0-9]*' } : {})
                       }}
+                      // Goldrush ID is capture-only: filled from the system photo (OCR), never typed.
+                      InputProps={isGoldrushId ? { readOnly: true } : undefined}
                       helperText={
                         showValidation && !!q.is_required && !val ? 'This field is required'
                         : goldrushDuplicate ? 'This Goldrush ID has already been used'
                         : goldrushLenError ? `Goldrush ID must be exactly ${GOLDRUSH_ID_LENGTH} digits`
-                        : isGoldrushId ? `Exactly ${GOLDRUSH_ID_LENGTH} digits, must be unique`
+                        : isGoldrushId ? `Captured from the Goldrush photo — exactly ${GOLDRUSH_ID_LENGTH} digits`
                         : lenHelper
                       }
                       error={lenError || goldrushLenError || goldrushDuplicate || (showValidation && !!q.is_required && !val)}
@@ -2339,6 +2345,7 @@ export default function VisitCreate() {
               const isMultiSelect = qType === 'checkbox'
               const isRequired = !!q.is_required
               const hasValue = !!customQuestionValues[qKey]
+              const isGoldrushId = qKey.toLowerCase().includes('goldrush_id')
               const selectedOptions = (customQuestionValues[qKey] || '').split(',').map(s => s.trim()).filter(Boolean)
               return (
                 <Box key={qKey} sx={{ mb: 3 }}>
@@ -2401,10 +2408,14 @@ export default function VisitCreate() {
                     </FormControl>
                   ) : (
                     <TextField fullWidth multiline={qType === 'textarea'} rows={qType === 'textarea' ? 3 : 1}
-                      type={qType === 'number' ? 'number' : qType === 'email' ? 'email' : qType === 'phone' ? 'tel' : 'text'}
-                      value={customQuestionValues[qKey] || ''} onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: e.target.value }))}
-                      placeholder="Enter your answer" error={showValidation && isRequired && !hasValue}
-                      inputProps={q.min_length || q.max_length ? { minLength: q.min_length, maxLength: q.max_length } : undefined}
+                      type={isGoldrushId ? 'text' : qType === 'number' ? 'number' : qType === 'email' ? 'email' : qType === 'phone' ? 'tel' : 'text'}
+                      value={customQuestionValues[qKey] || ''} onChange={(e) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: isGoldrushId ? e.target.value.replace(/[^0-9]/g, '') : e.target.value }))}
+                      placeholder={isGoldrushId ? 'Captured from the Goldrush photo' : 'Enter your answer'}
+                      error={(showValidation && isRequired && !hasValue) || (isGoldrushId && !!customQuestionValues[qKey] && customQuestionValues[qKey].length !== GOLDRUSH_ID_LENGTH)}
+                      helperText={isGoldrushId ? `Captured from the Goldrush photo — exactly ${GOLDRUSH_ID_LENGTH} digits` : undefined}
+                      // Goldrush ID is capture-only: filled from the system photo (OCR), never typed.
+                      InputProps={isGoldrushId ? { readOnly: true } : undefined}
+                      inputProps={isGoldrushId ? { inputMode: 'numeric' as const, maxLength: GOLDRUSH_ID_LENGTH } : (q.min_length || q.max_length ? { minLength: q.min_length, maxLength: q.max_length } : undefined)}
                     />
                   )}
                 </Box>

@@ -2142,7 +2142,11 @@ Output JSON only.`;
       const jsonEnd = clean.lastIndexOf('}');
       if (jsonStart !== -1 && jsonEnd !== -1) {
         const parsed = JSON.parse(clean.slice(jsonStart, jsonEnd + 1));
-        extractedId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : null;
+        // Goldrush player IDs are exactly 9 digits. Reject any other length so an OCR
+        // misread (e.g. a 10-digit run) can't autofill and slip a bad-length ID into
+        // capture — the camera is the only capture path, so this is the length gate.
+        const rawId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : '';
+        extractedId = rawId.length === 9 ? rawId : null;
         confidence = parsed.confidence || 'low';
         extractedBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : null;
       }
