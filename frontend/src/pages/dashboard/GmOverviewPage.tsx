@@ -242,7 +242,7 @@ export default function GmOverviewPage() {
       {/* Money */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={DollarSign} tone="green" label="Revenue" value={formatCurrency(money.revenue)}
-          sub={`${formatNumber(funnel.converted)} deposits × ${formatCurrency(funnel.commissionPerDeposit)}`}
+          sub={`${formatNumber(funnel.qualified)} deposits × ${formatCurrency(funnel.commissionPerDeposit)}`}
           delta={<Delta now={money.revenue} prev={money.prevRevenue} suffix={PREV_LABEL[period]} />} />
         {money.costsAvailable ? (
           <>
