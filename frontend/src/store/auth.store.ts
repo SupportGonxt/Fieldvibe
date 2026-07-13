@@ -216,10 +216,12 @@ export const getCurrentUser = () => {
 
 export const hasRole = (role: string) => {
   const user = getCurrentUser()
-  return user?.role === role || user?.role === 'super_admin' || (user?.role === 'admin' && role !== 'super_admin')
+  // backoffice_admin is admin-equivalent in the office console (mirrors backend requireRole)
+  const adminLike = user?.role === 'admin' || user?.role === 'backoffice_admin'
+  return user?.role === role || user?.role === 'super_admin' || (adminLike && role !== 'super_admin')
 }
 
 export const hasPermission = (permission: string) => {
   const user = getCurrentUser()
-  return user?.permissions?.includes(permission) || user?.role === 'admin' || user?.role === 'super_admin'
+  return user?.permissions?.includes(permission) || user?.role === 'admin' || user?.role === 'backoffice_admin' || user?.role === 'super_admin'
 }
