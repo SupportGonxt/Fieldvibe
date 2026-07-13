@@ -4,7 +4,6 @@ import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-rea
 import { useAuthStore, hasPermission, hasRole } from '../../store/auth.store'
 import { navigation, navigationBySection } from '../../config/navigation'
 import type { NavigationItem, NavigationChild } from '../../config/navigation'
-import { gmAllModulesEnabled } from '../../utils/gmModules'
 
 interface SidebarProps {
   onNavigate?: () => void
@@ -43,10 +42,8 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   const isNavItemVisible = (item: NavigationItem) => {
-    // GM sees the field-operations module only, unless they unlock all modules
-    if (user?.role === 'general_manager' && !gmAllModulesEnabled() && item.href !== '/field-operations') return false
-    // hasRole encodes the admin-equivalence (backoffice_admin⇒admin, super_admin⇒all)
-    // used everywhere else; an exact-match check here hid admin modules from backoffice_admin.
+    // hasRole encodes admin-equivalence (backoffice_admin & general_manager ⇒ admin,
+    // super_admin ⇒ all). GM/BO admin get full office-console module access this way.
     if (item.requiresRole && !hasRole(item.requiresRole)) return false
     // If item has a permission requirement, check it
     if (item.permission && !hasPermission(item.permission)) return false

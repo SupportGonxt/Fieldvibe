@@ -216,12 +216,14 @@ export const getCurrentUser = () => {
 
 export const hasRole = (role: string) => {
   const user = getCurrentUser()
-  // backoffice_admin is admin-equivalent in the office console (mirrors backend requireRole)
-  const adminLike = user?.role === 'admin' || user?.role === 'backoffice_admin'
+  // backoffice_admin AND general_manager are admin-equivalent in the office console
+  // (mirrors backend requireRole, which auto-adds both wherever 'admin' is listed).
+  // super_admin-only modules stay reserved.
+  const adminLike = user?.role === 'admin' || user?.role === 'backoffice_admin' || user?.role === 'general_manager'
   return user?.role === role || user?.role === 'super_admin' || (adminLike && role !== 'super_admin')
 }
 
 export const hasPermission = (permission: string) => {
   const user = getCurrentUser()
-  return user?.permissions?.includes(permission) || user?.role === 'admin' || user?.role === 'backoffice_admin' || user?.role === 'super_admin'
+  return user?.permissions?.includes(permission) || user?.role === 'admin' || user?.role === 'backoffice_admin' || user?.role === 'general_manager' || user?.role === 'super_admin'
 }
