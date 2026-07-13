@@ -94,6 +94,15 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
         // Only reload on a genuine update (post-deploy), not on first install.
         if (!hadControllerOnLoad) return
         if (refreshing) return
+        // Loop guard: `refreshing` only lives for one page load, so if the SW keeps
+        // taking control (e.g. two builds served alternately by the edge after a
+        // deploy), reloading on every controllerchange bricks the app into a
+        // permanent full-screen reload flash. Cap auto-reload at once per tab
+        // session — the user still picks up the new build once; a thrashing SW is
+        // then ignored instead of looping. sessionStorage clears on tab close, so
+        // the next real deploy reloads again after they reopen.
+        if (sessionStorage.getItem('fv-sw-reloaded')) return
+        try { sessionStorage.setItem('fv-sw-reloaded', '1') } catch { /* private mode — best effort */ }
         refreshing = true
         window.location.reload()
       })
