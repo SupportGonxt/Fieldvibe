@@ -11,6 +11,12 @@ import { scoreAgentDay } from '../services/presenceScore.js';
 
 const app = new Hono();
 
+// admin-equivalent roles (mirrors middleware requireRole): general_manager and
+// backoffice_admin inherit every admin-gated route. Inline photo-review guards
+// below hardcoded only admin/manager/super_admin, 403'ing GM/BO admin — which
+// the global 403 handler bounced to /auth/login and on to the /choose screen.
+const isAdminLike = (role) => role === 'admin' || role === 'super_admin' || role === 'general_manager' || role === 'backoffice_admin';
+
 app.get('/areas', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -1395,7 +1401,7 @@ app.get('/visit-photos/admin-review', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
+    if (!isAdminLike(role) && role !== 'manager') {
       return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     }
     const { agent_id, store_name, review_status, page = '1', limit = '50' } = c.req.query();
@@ -1536,7 +1542,7 @@ app.post('/visit-photos/:id/reject', authMiddleware, async (c) => {
     const tenantId = c.get('tenantId');
     const userId = c.get('userId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
+    if (!isAdminLike(role) && role !== 'manager') {
       return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     }
     let { id } = c.req.param();
@@ -1561,7 +1567,7 @@ app.post('/visit-photos/:id/approve', authMiddleware, async (c) => {
     const tenantId = c.get('tenantId');
     const userId = c.get('userId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') {
+    if (!isAdminLike(role) && role !== 'manager') {
       return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     }
     let { id } = c.req.param();
@@ -1663,7 +1669,7 @@ app.post('/visit-photos/add-review-columns', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'super_admin') return c.json({ success: false, message: 'Admin access required' }, 403);
+    if (!isAdminLike(role)) return c.json({ success: false, message: 'Admin access required' }, 403);
     const results = [];
     for (const col of [
       "ALTER TABLE visit_photos ADD COLUMN review_status TEXT DEFAULT 'pending'",
@@ -1683,7 +1689,7 @@ app.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    if (!isAdminLike(role) && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     const bucket = c.env.UPLOADS;
     if (!bucket) return c.json({ success: false, message: 'R2 bucket not configured' }, 500);
 
@@ -1800,7 +1806,7 @@ app.post('/visit-photos/fix-urls', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    if (!isAdminLike(role) && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
     const reqUrl = c.req.url;
     // Fix visit_photos.r2_url entries with old format
     const badPhotos = await db.prepare("SELECT id, r2_url, r2_key FROM visit_photos WHERE tenant_id = ? AND r2_url LIKE '%fieldvibe-uploads%r2.dev%' LIMIT 200").bind(tenantId).all();
@@ -1855,7 +1861,7 @@ app.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
     const role = c.get('role');
-    if (role !== 'admin' && role !== 'manager' && role !== 'super_admin') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
+    if (!isAdminLike(role) && role !== 'manager') return c.json({ success: false, message: 'Admin or manager access required' }, 403);
 
     const { limit: batchLimit, photo_type: filterPhotoType, visit_id: filterVisitId } = c.req.query();
     const maxBatch = Math.min(parseInt(batchLimit) || 20, 50); // Max 50 per batch to avoid Worker timeout
