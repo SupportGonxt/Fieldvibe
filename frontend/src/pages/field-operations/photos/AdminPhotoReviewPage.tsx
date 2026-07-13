@@ -27,6 +27,7 @@ interface PhotoItem {
   store_name: string | null
   individual_name: string | null
   individual_surname: string | null
+  goldrush_id: string | null
 }
 
 interface AgentOption {
@@ -324,6 +325,10 @@ export default function AdminPhotoReviewPage() {
                 <div>
                   <span className="text-gray-500 dark:text-gray-400">Review Status:</span>
                   <div className="mt-0.5">{getStatusBadge(selectedPhoto.review_status)}</div>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Goldrush ID:</span>
+                  <p className="font-medium text-gray-900 dark:text-white font-mono">{selectedPhoto.goldrush_id || '—'}</p>
                 </div>
               </div>
               {/* AI Analysis */}

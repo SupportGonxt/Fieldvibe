@@ -1521,6 +1521,29 @@ app.get('/visit-photos/admin-review', authMiddleware, async (c) => {
     const total = allPhotos.length;
     const paginated = allPhotos.slice(offset, offset + limitNum);
 
+    // Attach goldrush_id per photo. Lives in visit_individuals.custom_field_values
+    // (dynamic custom-field key), so no fixed JSON_EXTRACT path works — pull the raw
+    // JSON and extract JS-side. Look up only the paginated visit_ids (≤ limit rows),
+    // not a JOIN on the full set — a JOIN fans out multi-individual visits into
+    // duplicate photo rows. ponytail: first non-empty id per visit; a multi-individual
+    // store visit shows one — fine for a review label, revisit if per-individual needed.
+    const visitIds = [...new Set(paginated.map(p => p.visit_id).filter(Boolean))];
+    const goldrushByVisit = {};
+    if (visitIds.length) {
+      const placeholders = visitIds.map(() => '?').join(',');
+      const giRows = await db.prepare(
+        `SELECT visit_id, custom_field_values FROM visit_individuals WHERE tenant_id = ? AND visit_id IN (${placeholders})`
+      ).bind(tenantId, ...visitIds).all();
+      for (const row of (giRows.results || [])) {
+        if (goldrushByVisit[row.visit_id]) continue;
+        let parsed = {};
+        try { parsed = JSON.parse(row.custom_field_values || '{}'); } catch { parsed = {}; }
+        const gid = extractGoldrushId(parsed);
+        if (gid) goldrushByVisit[row.visit_id] = gid;
+      }
+    }
+    for (const p of paginated) { p.goldrush_id = goldrushByVisit[p.visit_id] || null; }
+
     // Agents dropdown: union of agents from both sources
     const agentMap = new Map();
     for (const p of allPhotos) {
