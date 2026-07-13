@@ -112,16 +112,20 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}`
   ).bind(tenantId, start, end, companyId, companyId).first().catch(() => null);
   const signups = agg?.signups || 0, converted = agg?.converted || 0, qualified = agg?.qualified || 0;
-  const revenue = converted * rate;
+  // Revenue follows VERIFIED deposits, not the agent's optimistic `consumer_converted` mark.
+  // A deposit only counts once the BO admin uploads its goldrush_id and reconcile matches it
+  // onto a signup (verification_status='qualified'). `converted` != deposited — keep it distinct.
+  const revenue = qualified * rate;
 
   // Same aggregate over the equivalent previous window — powers "vs previous" deltas.
   const prevAgg = await db.prepare(
     `SELECT COUNT(*) signups,
-       SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
+       SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted,
+       SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status')='qualified' THEN 1 ELSE 0 END) qualified
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}`
   ).bind(tenantId, prevStart, prevEnd, companyId, companyId).first().catch(() => null);
-  const prevSignups = prevAgg?.signups || 0, prevConverted = prevAgg?.converted || 0;
+  const prevSignups = prevAgg?.signups || 0, prevConverted = prevAgg?.converted || 0, prevQualified = prevAgg?.qualified || 0;
 
   // Costs are only coherent monthly (tiered per-agent avg + fixed salaries). Skip for day/week.
   let money = { revenue, incentiveCost: null, salaryCost: null, net: null, costsAvailable: false };
@@ -389,7 +393,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     companyId: companyId || null,
     companies: companies || [],
     window: { start, end, prevStart, prevEnd, today, isCurrent: end > today },
-    money: { ...money, prevRevenue: round1(prevConverted * rate) },
+    money: { ...money, prevRevenue: round1(prevQualified * rate) },
     funnel: {
       signups, converted, qualified, commissionPerDeposit: rate,
       conversionRate: signups ? round1((converted / signups) * 100) : 0,
