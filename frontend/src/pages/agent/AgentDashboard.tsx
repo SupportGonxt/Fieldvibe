@@ -8,7 +8,7 @@ import {
   DollarSign, Flame, BarChart3, Ban, AlertTriangle, Zap
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
-import BOTargetCard from './BOTargetCard'
+import BOActionQueue from './BOActionQueue'
 import PerformanceCard from './PerformanceCard'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
@@ -558,10 +558,11 @@ export default function AgentDashboard() {
         </div>
       )}
 
-      {/* BO Home: agents-contacted target card (backoffice only) */}
+      {/* BO Home: action-oriented work queue (backoffice only) — unmatched deposits
+          + unactioned notifications, tap-through to the screen that clears each. */}
       {authUser?.role === 'backoffice_admin' && (
         <div className="px-5">
-          <BOTargetCard />
+          <BOActionQueue />
         </div>
       )}
 
