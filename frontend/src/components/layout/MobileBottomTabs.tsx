@@ -1,6 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, MapPin, ShoppingCart, Users, MoreHorizontal, Package, DollarSign, Megaphone } from 'lucide-react'
-import { gmAllModulesEnabled } from '../../utils/gmModules'
 import { useAuthStore } from '../../store/auth.store'
 
 type TabDef = { path: string; icon: React.ComponentType<any>; label: string; roles?: string[] }
@@ -33,15 +32,12 @@ export default function MobileBottomTabs() {
   // silently defaulted to admin and saw all tabs.
   const userRole = useAuthStore((s) => s.user)?.role || 'admin'
 
-  // GM sees the field-operations module only, unless they unlock all modules
-  const gmPaths = ['/dashboard', '/field-operations', '/more']
-  const gmUnlocked = userRole === 'general_manager' && gmAllModulesEnabled()
-
-  // Filter tabs by role - show max 5 tabs on mobile
-  const visibleTabs = (userRole === 'general_manager' && !gmUnlocked
-    ? allTabs.filter(tab => gmPaths.includes(tab.path))
-    : allTabs.filter(tab => gmUnlocked || !tab.roles || tab.roles.includes(userRole))
-  ).slice(0, 5)
+  // Filter tabs by role - show max 5 tabs on mobile. GM is admin-equivalent
+  // (in MGMT), so it falls through to normal filtering and sees every module,
+  // matching the desktop console (#253).
+  const visibleTabs = allTabs
+    .filter(tab => !tab.roles || tab.roles.includes(userRole))
+    .slice(0, 5)
 
   // Always ensure More tab is included
   const moreDef = allTabs.find(t => t.path === '/more')!
