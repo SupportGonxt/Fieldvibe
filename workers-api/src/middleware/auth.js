@@ -48,8 +48,8 @@ export function authMiddleware(c, next) {
 export function requireRole(...roles) {
   return async (c, next) => {
     const userRole = c.get('role');
-    // general_manager inherits every admin-gated route
-    const allowed = roles.includes('admin') ? [...roles, 'general_manager'] : roles;
+    // general_manager + backoffice_admin inherit every admin-gated route
+    const allowed = roles.includes('admin') ? [...roles, 'general_manager', 'backoffice_admin'] : roles;
 
     if (!allowed.includes(userRole)) {
       return c.json({ 
