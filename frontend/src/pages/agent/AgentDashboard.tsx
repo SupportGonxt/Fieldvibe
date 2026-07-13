@@ -533,6 +533,25 @@ export default function AgentDashboard() {
         </div>
       )}
 
+      {/* KPIs sit directly under the pulse, ABOVE the detailed issue lists — with many
+          open issues the lists get long and would otherwise bury the KPI card off-screen.
+          Exceptions-first is preserved: the PulseBar already flags them at the top. */}
+      {authUser?.role === 'backoffice_admin' && (
+        <div className="px-5">
+          <BOActionQueue />
+        </div>
+      )}
+      {isAgentRole && (
+        <div className="px-5">
+          <PerformanceCard />
+        </div>
+      )}
+      {(authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+        <div className="px-5">
+          <PerformanceCard title="Team performance" />
+        </div>
+      )}
+
       {/* Issues the cron routed to this person. Leads and managers own them; agents own none,
           so /issues/mine comes back empty and the section hides itself. empty:hidden keeps the
           wrapper from leaving a gap behind. */}
@@ -555,27 +574,6 @@ export default function AgentDashboard() {
         <div className="mx-5 mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <p className="text-sm font-medium text-amber-300">No targets assigned</p>
           <p className="text-xs text-amber-200/70 mt-0.5">Contact your manager to be assigned to a company.</p>
-        </div>
-      )}
-
-      {/* BO Home: action-oriented work queue (backoffice only) — unmatched deposits
-          + unactioned notifications, tap-through to the screen that clears each. */}
-      {authUser?.role === 'backoffice_admin' && (
-        <div className="px-5">
-          <BOActionQueue />
-        </div>
-      )}
-
-      {/* Cockpit: signup/conversion KPIs + underperformance signals. Agent sees own;
-          TL/manager see their team aggregate (kpi/self scopes by role server-side). */}
-      {isAgentRole && (
-        <div className="px-5">
-          <PerformanceCard />
-        </div>
-      )}
-      {(authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
-        <div className="px-5">
-          <PerformanceCard title="Team performance" />
         </div>
       )}
 
