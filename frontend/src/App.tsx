@@ -459,6 +459,15 @@ function StatsForRole() {
   return role === 'general_manager' ? <GmStats /> : <AgentStats />
 }
 
+// GM's home dashboard is the tenant-wide Business overview, not the generic
+// ops DashboardPage. The Dashboard nav item points at /dashboard for everyone,
+// so branch here rather than adding a GM-only nav entry (which admin-equivalent
+// hasRole would also expose, pointing them at a GM-gated route).
+function DashboardForRole() {
+  const role = useAuthStore((s) => s.user?.role)
+  return role === 'general_manager' ? <GmOverviewPage /> : <DashboardPage />
+}
+
 function PageLoader({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={
@@ -536,7 +545,7 @@ function App() {
             </ProtectedRoute>
           }>
             {/* Dashboard Routes */}
-            <Route path="dashboard" element={<PageLoader><DashboardPage /></PageLoader>} />
+            <Route path="dashboard" element={<PageLoader><DashboardForRole /></PageLoader>} />
             <Route path="dashboard/gm" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GmOverviewPage /></PageLoader></ProtectedRoute>} />
             <Route path="analytics" element={<PageLoader><AnalyticsPage /></PageLoader>} />
             
