@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ChevronDown, Search } from 'lucide-react'
-import { useAuthStore, hasPermission } from '../../store/auth.store'
+import { useAuthStore, hasPermission, hasRole } from '../../store/auth.store'
 import { navigation, navigationByCategory } from '../../config/navigation'
 import type { NavigationItem } from '../../config/navigation'
 import { gmAllModulesEnabled } from '../../utils/gmModules'
@@ -16,7 +16,9 @@ export default function MegaMenu() {
   const isNavItemVisible = (item: NavigationItem) => {
     // GM sees the field-operations module only, unless they unlock all modules
     if (user?.role === 'general_manager' && !gmAllModulesEnabled() && item.href !== '/field-operations') return false
-    if (item.requiresRole && user?.role !== item.requiresRole && user?.role !== 'super_admin') {
+    // hasRole encodes the admin-equivalence (backoffice_admin⇒admin, super_admin⇒all)
+    // used everywhere else; an exact-match check here hid admin modules from backoffice_admin.
+    if (item.requiresRole && !hasRole(item.requiresRole)) {
       return false
     }
     if (!item.permission) return true

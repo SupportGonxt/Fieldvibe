@@ -413,8 +413,17 @@ app.get('/gm/overview', requireRole('admin', 'general_manager'), async (c) => {
   const period = c.req.query('period') || 'day';
   const anchor = c.req.query('anchor') || null;
   const companyId = c.req.query('company_id') || null;
-  const overview = await buildGmOverview(c.env.DB, tenantId, companyId, period, anchor);
-  return c.json({ success: true, ...overview });
+  try {
+    const overview = await buildGmOverview(c.env.DB, tenantId, companyId, period, anchor);
+    return c.json({ success: true, ...overview });
+  } catch (error) {
+    // buildGmOverview runs many sequential D1 queries; a single one throwing (e.g. a
+    // large-tenant window hitting a query error) surfaced as an opaque 500 with no log,
+    // reading as a random "Could not load" on the Business Overview page. Log the real
+    // cause so wrangler tail names the failing query; the client already retries this 500.
+    console.error(`Error building GM overview tenant=${tenantId} period=${period} company=${companyId}:`, error);
+    return c.json({ success: false, error: 'Could not build the GM overview' }, 500);
+  }
 });
 
 export default app;
