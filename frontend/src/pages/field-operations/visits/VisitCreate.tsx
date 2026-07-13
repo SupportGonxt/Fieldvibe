@@ -1034,7 +1034,9 @@ export default function VisitCreate() {
         if (visitTargetType === 'survey') return true
         if (visitTargetType === 'individual') {
           if (!individualFirstName || !individualLastName) return false
-          if (!individualIdNumber && !individualPhone) return false
+          // Goldrush individuals must have an ID/passport; a phone alone is not enough.
+          const goldrushInd = isGoldrushCompany(companies.find(c => c.id === selectedCompany))
+          if (goldrushInd ? !individualIdNumber : (!individualIdNumber && !individualPhone)) return false
           if (idError(individualIdType, individualIdNumber)) return false
           if (duplicateCheck?.has_duplicates) return false
           for (const field of customFields) {
@@ -1530,10 +1532,13 @@ export default function VisitCreate() {
                 {(() => {
                   const idErr = idError(individualIdType, individualIdNumber)
                   const isSaId = individualIdType === 'sa_id'
+                  // Goldrush individuals: ID/passport is mandatory (phone is not a substitute).
+                  const goldrushInd = isGoldrushCompany(companies.find(c => c.id === selectedCompany))
+                  const idRequired = goldrushInd || !individualPhone
                   return (
                     <TextField
                       fullWidth
-                      label={`${isSaId ? 'SA ID Number' : 'Passport No.'} ${!individualPhone ? '*' : ''}`}
+                      label={`${isSaId ? 'SA ID Number' : 'Passport No.'} ${idRequired ? '*' : ''}`}
                       value={individualIdNumber}
                       onChange={(e) => {
                         const v = isSaId ? e.target.value.replace(/\D/g, '') : e.target.value.toUpperCase()
@@ -1544,28 +1549,35 @@ export default function VisitCreate() {
                       placeholder={isSaId ? '8001015009087' : 'e.g. A12345678'}
                       helperText={
                         idErr ? idErr
-                        : (showValidation && !individualIdNumber && !individualPhone ? 'ID number or phone is required'
+                        : (showValidation && !individualIdNumber && idRequired ? (goldrushInd ? 'ID or passport is required' : 'ID number or phone is required')
                         : 'Must be unique - cannot be duplicated')
                       }
-                      error={!!idErr || (showValidation && !individualIdNumber && !individualPhone) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
+                      error={!!idErr || (showValidation && !individualIdNumber && idRequired) || duplicateCheck?.duplicates?.some(d => d.field === 'id_number') || false}
                     />
                   )
                 })()}
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label={`Phone Number ${!individualIdNumber ? '*' : ''}`}
-                  value={individualPhone}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9+]/g, '')
-                    setIndividualPhone(val)
-                    setDuplicateCheck(null)
-                  }}
-                  helperText={individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone) ? 'Enter valid SA number: +27XXXXXXXXX or 0XXXXXXXXX' : (showValidation && !individualPhone && !individualIdNumber ? 'ID number or phone is required' : 'Must be unique - cannot be duplicated')}
-                  error={(showValidation && !individualPhone && !individualIdNumber) || (!!individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone)) || duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
-                  placeholder="+27XXXXXXXXX or 0XXXXXXXXX"
-                />
+                {(() => {
+                  // Goldrush individuals require ID/passport, so phone is never the fallback → never required.
+                  const goldrushInd = isGoldrushCompany(companies.find(c => c.id === selectedCompany))
+                  const phoneRequired = !goldrushInd && !individualIdNumber
+                  return (
+                    <TextField
+                      fullWidth
+                      label={`Phone Number ${phoneRequired ? '*' : ''}`}
+                      value={individualPhone}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9+]/g, '')
+                        setIndividualPhone(val)
+                        setDuplicateCheck(null)
+                      }}
+                      helperText={individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone) ? 'Enter valid SA number: +27XXXXXXXXX or 0XXXXXXXXX' : (showValidation && !individualPhone && phoneRequired ? 'ID number or phone is required' : 'Must be unique - cannot be duplicated')}
+                      error={(showValidation && !individualPhone && phoneRequired) || (!!individualPhone && !/^(\+27|0)[0-9]{9}$/.test(individualPhone)) || duplicateCheck?.duplicates?.some(d => d.field === 'phone') || false}
+                      placeholder="+27XXXXXXXXX or 0XXXXXXXXX"
+                    />
+                  )
+                })()}
               </Grid>
               <Grid item xs={12}>
                 <TextField
