@@ -1015,6 +1015,19 @@ In `frontend/src/pages/mobile/MoreMenuPage.tsx`:
 - Lines 71, 72, 74, 75, 76 (`/settings/profile`, `/settings/notifications`, `/admin/security`, `/admin/api-keys`, `/settings/appearance`): DELETE these items — no such routes exist in App.tsx and no page components exist for them.
 - Line 77: `/help` → DELETE (no route).
 
+- [ ] **Step 5b: Gate desktop money routes for field roles (audit-driven addition)**
+
+A live-caller audit found that the desktop Finance/Commissions/Insights screens sit behind a `<ProtectedRoute>` with **no `requiredRole`** (`App.tsx:542-546`), and `DashboardLayout.tsx:57` only redirects the literal `'agent'` role — so `team_lead`/`field_agent`/`sales_rep` can browse to money screens today. Tasks 5-6 gate the backend endpoints to admin/manager; without this step those roles would see 403 error states instead of being routed away.
+
+In `frontend/src/App.tsx`, add `requiredRole="manager"` to the route wrappers for:
+- the Finance route group (routes rendering `FinanceDashboard`, invoice pages, payment pages, cash-reconciliation pages, commission-payouts — the block around `App.tsx:822-1059`)
+- the `commissions` and `commissions/reports` routes (`App.tsx:844,853` — `CommissionDashboardPage`, `CommissionReportsPage`)
+- the `insights/commissions` route (`App.tsx:990` — `CommissionInsights`)
+
+Use whatever per-route gating shape `ProtectedRoute` already supports (`requiredRole` prop exists — confirm its semantics call `hasRole`, which after Step 4 delegates to `roleAllows`, so `manager`, admin-equivalents, and `super_admin` pass; `agent`/`field_agent`/`sales_rep`/`team_lead` are redirected). Do NOT touch `DashboardLayout.tsx:57` — team_lead legitimately uses desktop TeamCockpit. Do NOT gate `field-operations/team-cockpit`.
+
+Also in `frontend/src/config/navigation.ts`: the Finance section header (`navigation.ts:245-263`) lacks `requiresRole` while Admin/Super Admin sections have it (`navigation.ts:270,298`) — add the same `requiresRole` shape with `'manager'` so the nav entry hides for field roles.
+
 - [ ] **Step 6: Run tests + typecheck**
 
 Run: `cd frontend && npx vitest run src/lib/capabilities.test.ts && npx tsc --noEmit`
@@ -1023,8 +1036,8 @@ Expected: PASS / no errors
 - [ ] **Step 7: Commit**
 
 ```bash
-git add frontend/src/lib/capabilities.ts frontend/src/lib/capabilities.test.ts frontend/src/store/auth.store.ts frontend/src/pages/mobile/MoreMenuPage.tsx frontend/src/components/mobile/MobileBottomTabs.tsx
-git commit -m "feat(frontend): capabilities mirror as hasRole SSOT, fix dead More-menu links and BO-admin tab gating"
+git add frontend/src/lib/capabilities.ts frontend/src/lib/capabilities.test.ts frontend/src/store/auth.store.ts frontend/src/pages/mobile/MoreMenuPage.tsx frontend/src/components/mobile/MobileBottomTabs.tsx frontend/src/App.tsx frontend/src/config/navigation.ts
+git commit -m "feat(frontend): capabilities mirror as hasRole SSOT, gate desktop money routes, fix dead links and BO-admin tabs"
 ```
 
 ---
