@@ -2,6 +2,17 @@ import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../lib/authUtils.js';
 import { CONVERTED_SQL } from '../services/funnelService.js';
+import { rateLimiter } from '../lib/middleware.js';
+import { AuditLogService } from '../services/auditLogService.js';
+
+// ponytail: AuditLogService has no exported singleton anywhere in the codebase
+// (grepped — zero other callers), so it's instantiated once per isolate here
+// rather than per-request, to avoid stacking a fresh setInterval per export call.
+let auditServiceInstance = null;
+const getAuditService = (db) => {
+  if (!auditServiceInstance) auditServiceInstance = new AuditLogService(db);
+  return auditServiceInstance;
+};
 
 const app = new Hono();
 
@@ -42,6 +53,12 @@ const companyAuthMiddleware = async (c, next) => {
     // Company tokens have companyId in payload
     if (!payload.companyId) {
       return c.json({ success: false, message: 'Not a company token' }, 403);
+    }
+    const live = await c.env.DB.prepare(
+      'SELECT is_active FROM company_logins WHERE id = ?'
+    ).bind(payload.userId).first();
+    if (!live || !live.is_active) {
+      return c.json({ success: false, message: 'Access revoked' }, 401);
     }
     c.set('userId', payload.userId);
     c.set('tenantId', payload.tenantId);
@@ -274,6 +291,20 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
       rows = (result.results || []).map(r => [r.visit_date, r.agent_name || '', r.status || '', r.check_in_time || '', r.check_out_time || '', (r.notes || '').replace(/,/g, ';')]);
     }
     const csvLines = [headers.join(','), ...rows.map(r => r.map(v => String(v).includes(',') ? `"${v}"` : v).join(','))];
+    const auditService = getAuditService(db);
+    await auditService.log({
+      tenantId,
+      userId: c.get('userId'),
+      action: 'portal_export',
+      resource: 'company_portal_csv',
+      resourceId: companyId,
+      metadata: { type: type || 'visits', start: startD, end: endD, rows: rows.length },
+      ipAddress: c.req.header('CF-Connecting-IP') || '',
+      status: 'SUCCESS'
+    });
+    // ponytail: flush immediately rather than trust the 5s periodic timer —
+    // a Worker isolate can be torn down right after the response is sent.
+    await auditService.flushBuffer();
     return new Response(csvLines.join('\n'), {
       headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${type || 'visits'}_export_${startD}_to_${endD}.csv"` }
     });
@@ -283,7 +314,7 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
 });
 
 // ==================== FIELD OPERATIONS: COMPANY AUTH (PUBLIC - no authMiddleware) ====================
-app.post('/api/field-ops/company-auth/login', async (c) => {
+app.post('/api/field-ops/company-auth/login', rateLimiter(5, 60000), async (c) => {
   const db = c.env.DB;
   const { email, password } = await c.req.json();
   if (!email || !password) return c.json({ success: false, message: 'Email and password required' }, 400);
