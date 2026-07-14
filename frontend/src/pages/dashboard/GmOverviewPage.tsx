@@ -12,6 +12,7 @@ import { SIGNAL_REGISTRY } from '../../lib/signalRegistry'
 import { formatCurrency, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
+import RevenueSparkline, { type TrendPoint } from '../../components/field-ops/RevenueSparkline'
 
 type Period = 'day' | 'week' | 'month'
 
@@ -42,6 +43,7 @@ interface Overview {
   teams: Team[]
   management: { managers: Manager[]; boAdmins: BoAdmin[] }
   risks: Risk[]
+  trend?: TrendPoint[]
 }
 
 interface TenantSignals {
@@ -111,8 +113,8 @@ function fmtDuration(s: number): string {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
 }
 
-function Kpi({ icon: Icon, label, value, sub, delta, tone = 'blue' }: {
-  icon: any; label: string; value: string; sub?: string; delta?: ReactNode; tone?: 'blue' | 'green' | 'amber' | 'red'
+function Kpi({ icon: Icon, label, value, sub, delta, footer, tone = 'blue' }: {
+  icon: any; label: string; value: string; sub?: string; delta?: ReactNode; footer?: ReactNode; tone?: 'blue' | 'green' | 'amber' | 'red'
 }) {
   const tones: Record<string, string> = {
     blue: 'text-blue-600 bg-blue-50', green: 'text-emerald-600 bg-emerald-50',
@@ -120,11 +122,12 @@ function Kpi({ icon: Icon, label, value, sub, delta, tone = 'blue' }: {
   }
   return (
     <div className="card flex items-start justify-between">
-      <div>
+      <div className="min-w-0 flex-1">
         <p className="text-sm text-content-secondary">{label}</p>
         <p className="text-2xl font-semibold mt-1">{value}</p>
         {sub && <p className="text-xs text-content-secondary mt-1">{sub}</p>}
         {delta && <div className="mt-1">{delta}</div>}
+        {footer && <div className="mt-2">{footer}</div>}
       </div>
       <div className={`p-2.5 rounded-xl ${tones[tone]}`}><Icon className="w-5 h-5" /></div>
     </div>
@@ -244,7 +247,13 @@ export default function GmOverviewPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={DollarSign} tone="green" label="Revenue" value={formatCurrency(money.revenue)}
           sub={`${formatNumber(funnel.qualified)} deposits × ${formatCurrency(funnel.commissionPerDeposit)}`}
-          delta={<Delta now={money.revenue} prev={money.prevRevenue} suffix={PREV_LABEL[period]} />} />
+          delta={<Delta now={money.revenue} prev={money.prevRevenue} suffix={PREV_LABEL[period]} />}
+          footer={(data.trend?.length ?? 0) > 0 ? (
+            <div>
+              <RevenueSparkline trend={data.trend!} className="text-emerald-500" />
+              <p className="text-[10px] text-content-secondary mt-0.5">Daily revenue · last 14 days</p>
+            </div>
+          ) : undefined} />
         {money.costsAvailable ? (
           <>
             <Kpi icon={TrendingUp} tone="amber" label="Incentive cost" value={formatCurrency(money.incentiveCost || 0)} />

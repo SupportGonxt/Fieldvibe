@@ -127,6 +127,28 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   ).bind(tenantId, prevStart, prevEnd, companyId, companyId).first().catch(() => null);
   const prevSignups = prevAgg?.signups || 0, prevConverted = prevAgg?.converted || 0, prevQualified = prevAgg?.qualified || 0;
 
+  // 14-day daily revenue trend, ending on the window's last displayed day (today for a
+  // current window, the anchored day otherwise). Same table/filters as the agg query above;
+  // deposits = verified-qualified signups per day, revenue = deposits × rate.
+  let trend = [];
+  try {
+    const trendEnd = minDate(today, addDays(end, -1));
+    const trendStart = addDays(trendEnd, -13);
+    const { results: trendRows } = await db.prepare(
+      `SELECT date(vi.created_at) d,
+         SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status')='qualified' THEN 1 ELSE 0 END) deposits
+       FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+       WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}
+       GROUP BY d`
+    ).bind(tenantId, trendStart, addDay(trendEnd), companyId, companyId).all();
+    const byDate = new Map((trendRows || []).map((r) => [r.d, r.deposits || 0]));
+    for (let i = 0; i < 14; i++) {
+      const date = addDays(trendStart, i);
+      const deposits = byDate.get(date) || 0;
+      trend.push({ date, deposits, revenue: round1(deposits * rate) });
+    }
+  } catch { trend = []; }
+
   // Costs are only coherent monthly (tiered per-agent avg + fixed salaries). Skip for day/week.
   let money = { revenue, incentiveCost: null, salaryCost: null, net: null, costsAvailable: false };
   if (mode === 'month') {
@@ -395,6 +417,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     companies: companies || [],
     window: { start, end, prevStart, prevEnd, today, isCurrent: end > today },
     money: { ...money, prevRevenue: round1(prevQualified * rate) },
+    trend,
     funnel: {
       signups, converted, qualified, commissionPerDeposit: rate,
       conversionRate: signups ? round1((converted / signups) * 100) : 0,
