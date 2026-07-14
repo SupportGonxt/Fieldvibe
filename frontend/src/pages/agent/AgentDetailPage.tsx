@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Store, User, Users, Target, Calendar, ChevronRight, MessageSquare, Link2 } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Store, User, Users, Target, Calendar, ChevronRight, MessageSquare, Link2, Plus } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
+import { roleAllows } from '../../lib/capabilities'
+import { useToast } from '../../components/ui/Toast'
 
 interface AgentInfo {
   id: string
@@ -93,6 +95,37 @@ export default function AgentDetailPage() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [notes, setNotes] = useState<CoachingNote[]>([])
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
+  const [showNoteForm, setShowNoteForm] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  // Mirrors the backend gate on POST /field-ops/kpi/remediate/note (requireRole via roleAllows):
+  // manager/team_lead explicit, admin-equivalents and super_admin pass inside roleAllows.
+  const canWriteNote = roleAllows(user?.role, ['manager', 'team_lead'])
+
+  const refetchNotes = async () => {
+    try {
+      const res = await apiClient.get(`/field-ops/issues/coaching-notes?agentId=${agentId}`)
+      if (Array.isArray(res.data?.notes)) setNotes(res.data.notes)
+    } catch { /* keep stale list */ }
+  }
+
+  const saveNote = async () => {
+    const note = noteText.trim()
+    if (!note || savingNote) return
+    setSavingNote(true)
+    try {
+      await apiClient.post('/field-ops/kpi/remediate/note', { agentId, note })
+      setNoteText('')
+      setShowNoteForm(false)
+      toast.success('Note added')
+      await refetchNotes()
+    } catch {
+      toast.error('Could not add note')
+    } finally {
+      setSavingNote(false)
+    }
+  }
   const filterParam = searchParams.get('filter')
   const visibleVisits = useMemo(() => {
     if (filterParam === 'rejected_photos') return visits.filter(v => (v.rejected_photo_count || 0) > 0)
@@ -240,12 +273,46 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        {/* Coaching log — read surface for the 1:1 notes written via issue actions */}
-        {notes.length > 0 && (
+        {/* Coaching log — 1:1 notes; supervisors can also add one directly from here */}
+        {(notes.length > 0 || canWriteNote) && (
           <div className="mb-4">
-            <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" /> Coaching Log ({notes.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5" /> Coaching Log ({notes.length})
+              </h3>
+              {canWriteNote && !showNoteForm && (
+                <button onClick={() => setShowNoteForm(true)} className="min-h-[44px] px-2 text-xs font-medium text-primary flex items-center gap-1">
+                  <Plus className="w-3.5 h-3.5" /> Add note
+                </button>
+              )}
+            </div>
+            {canWriteNote && showNoteForm && (
+              <div className="bg-white/5 border border-token rounded-xl p-3 mb-2">
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  placeholder={`Coaching note for ${agent.first_name}...`}
+                  className="w-full bg-transparent text-sm text-token placeholder:text-token-faint border border-token rounded-lg p-2 resize-none focus:outline-none focus:border-primary"
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                  <button
+                    onClick={() => { setShowNoteForm(false); setNoteText('') }}
+                    className="min-h-[44px] px-3 text-xs font-medium text-token-muted"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveNote}
+                    disabled={!noteText.trim() || savingNote}
+                    className="min-h-[44px] px-4 text-xs font-semibold rounded-lg bg-primary text-white disabled:opacity-50"
+                  >
+                    {savingNote ? 'Saving...' : 'Save note'}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               {notes.map((n) => (
                 <div key={n.id} className="bg-white/5 border border-token rounded-xl p-3">
