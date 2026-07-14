@@ -247,7 +247,7 @@ export const navigation: NavigationItem[] = [
     href: '/finance',
     icon: DollarSign,
     permission: null,
-    requiresRole: 'manager',
+    requiresRole: 'admin',
     section: 'Platform',
     category: 'Finance',
     children: [

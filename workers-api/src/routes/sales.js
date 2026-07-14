@@ -74,7 +74,7 @@ app.get('/commission-earnings/summary', async (c) => {
   return c.json({ success: true, data: { byStatus: byStatus.results || [], bySource: bySource.results || [], byEarner: byEarner.results || [] } });
 });
 
-app.put('/commission-earnings/:id/approve', requireRole('admin', 'manager'), async (c) => {
+app.put('/commission-earnings/:id/approve', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -83,7 +83,7 @@ app.put('/commission-earnings/:id/approve', requireRole('admin', 'manager'), asy
   return c.json({ success: true, message: 'Commission approved' });
 });
 
-app.put('/commission-earnings/:id/reject', requireRole('admin', 'manager'), async (c) => {
+app.put('/commission-earnings/:id/reject', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -139,7 +139,7 @@ app.post('/commission-earnings/:id/dispute', authMiddleware, async (c) => {
 
 // Manager-initiated reversal of an approved or paid earning. Creates a sibling row with negative amount
 // linked via reversal_of so the audit trail is complete.
-app.post('/commission-earnings/:id/reverse', requireRole('admin', 'manager'), async (c) => {
+app.post('/commission-earnings/:id/reverse', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -179,7 +179,7 @@ app.post('/commission-earnings/:id/reverse', requireRole('admin', 'manager'), as
   return c.json({ success: true, data: { reversal_id: reversalId, original_status: row.status, new_status: 'reversed' } });
 });
 
-app.post('/commission-earnings/bulk-approve', requireRole('admin', 'manager'), async (c) => {
+app.post('/commission-earnings/bulk-approve', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -1109,7 +1109,7 @@ app.put('/credit-notes/:id/void', requireRole('admin'), async (c) => {
 
 
 
-app.put('/commission-earnings/bulk-approve', requireRole('admin', 'manager'), async (c) => {
+app.put('/commission-earnings/bulk-approve', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
