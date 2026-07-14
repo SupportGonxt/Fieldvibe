@@ -3,15 +3,23 @@
 import { v4 as uuidv4 } from 'uuid';
 import { clampSharePct } from '../services/goldrushVision.js';
 
+// Match old format: https://fieldvibe-uploads.{tenantId}.r2.dev/{key}
+const LEGACY_R2_URL_RE = /^https?:\/\/fieldvibe-uploads\.[^/]+\.r2\.dev\/(.+)$/;
+
 // Rewrite old bad R2 URLs (fieldvibe-uploads.*.r2.dev) to API proxy URLs
 function rewriteR2Url(url, reqUrl) {
   if (!url || typeof url !== 'string') return url;
-  // Match old format: https://fieldvibe-uploads.{tenantId}.r2.dev/{key}
-  const match = url.match(/^https?:\/\/fieldvibe-uploads\.[^/]+\.r2\.dev\/(.+)$/);
+  const match = url.match(LEGACY_R2_URL_RE);
   if (match) {
     try { return new URL('/api/uploads/' + match[1], reqUrl).href; } catch { return '/api/uploads/' + match[1]; }
   }
   return url;
+}
+
+// SSRF guard: true only for the legacy R2 host we wrote ourselves — the sole
+// absolute-URL form the company-portal photo proxy is allowed to fetch().
+function isLegacyR2PhotoUrl(url) {
+  return typeof url === 'string' && LEGACY_R2_URL_RE.test(url);
 }
 
 // Compute SHA-256 hash of photo bytes for deduplication
@@ -324,4 +332,4 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
   return newId;
 }
 
-export { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
+export { rewriteR2Url, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };

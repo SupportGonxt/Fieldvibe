@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../lib/authUtils.js';
 import { CONVERTED_SQL } from '../services/funnelService.js';
 import { rateLimiter } from '../lib/middleware.js';
+import { isLegacyR2PhotoUrl } from '../lib/photoAi.js';
 import { AuditLogService } from '../services/auditLogService.js';
 
 // ponytail: AuditLogService has no exported singleton anywhere in the codebase
@@ -31,6 +32,13 @@ async function signPhotoUrl(visitId, jwtSecret, nowMs = Date.now()) {
   const exp = Math.floor((nowMs + PHOTO_TTL_MS) / 1000);
   const sig = await hmacHex(jwtSecret, `photo|${visitId}|${exp}`);
   return `/api/field-ops/company-portal/photo/${visitId}?exp=${exp}&sig=${sig}`;
+}
+
+function timingSafeEqualStr(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 async function signPhotoRows(rows, jwtSecret) {
@@ -369,7 +377,7 @@ app.get('/api/field-ops/company-portal/photo/:visitId', async (c) => {
     return c.json({ success: false, message: 'Link expired' }, 410);
   }
   const expected = await hmacHex(c.env.JWT_SECRET, `photo|${visitId}|${exp}`);
-  if (sig !== expected) return c.json({ success: false, message: 'Invalid signature' }, 403);
+  if (!timingSafeEqualStr(sig, expected)) return c.json({ success: false, message: 'Invalid signature' }, 403);
   const row = await c.env.DB.prepare('SELECT photo_url FROM visits WHERE id = ?').bind(visitId).first();
   if (!row || !row.photo_url) return c.json({ success: false, message: 'Not found' }, 404);
   // photo_url is either an internal /api/uploads/<key> path (R2-backed) or a
@@ -388,6 +396,9 @@ app.get('/api/field-ops/company-portal/photo/:visitId', async (c) => {
     headers.set('Cache-Control', 'private, max-age=300');
     return new Response(object.body, { headers });
   }
+  // SSRF guard: photo_url is client-writable (POST /visits stores body.photo_url
+  // unvalidated) — only fetch the legacy R2 host we wrote ourselves.
+  if (!isLegacyR2PhotoUrl(row.photo_url)) return c.json({ success: false, message: 'Not found' }, 404);
   const upstream = await fetch(row.photo_url);
   if (!upstream.ok) return c.json({ success: false, message: 'Photo unavailable' }, 502);
   return new Response(upstream.body, {
