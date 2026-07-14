@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Users, MapPin, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, AlertCircle, Shield, Bell, Phone, Loader2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useRemediate } from '../../hooks/useRemediate'
+import { NudgeSheet } from '../../components/agent/NudgeSheet'
 
 interface TeamStat {
   team_lead_id: string
@@ -116,6 +117,7 @@ type PeriodKey = typeof PERIODS[number]['key']
 export default function ManagerTeamsTab() {
   const navigate = useNavigate()
   const { busy, nudge, call } = useRemediate()
+  const [nudgeTarget, setNudgeTarget] = useState<{ id: string; name: string } | null>(null)
   const [data, setData] = useState<ManagerData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -451,7 +453,7 @@ export default function ManagerTeamsTab() {
                       {/* A manager's accountable person is the team lead, so act on them here. */}
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => nudge(team.team_lead_id, team.team_lead_name)}
+                          onClick={() => setNudgeTarget({ id: team.team_lead_id, name: team.team_lead_name })}
                           disabled={busy === team.team_lead_id}
                           className="min-h-[44px] py-2 bg-amber-400/10 border border-amber-400/25 rounded-lg text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5 disabled:opacity-50"
                         >
@@ -504,6 +506,12 @@ export default function ManagerTeamsTab() {
           </div>
         </div>
       </div>
+
+      <NudgeSheet
+        target={nudgeTarget}
+        onSend={(msg) => { if (nudgeTarget) nudge(nudgeTarget.id, nudgeTarget.name, msg); setNudgeTarget(null) }}
+        onClose={() => setNudgeTarget(null)}
+      />
     </div>
   )
 }

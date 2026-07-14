@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, ChevronDown, ChevronUp, ChevronRight, MapPin, AlertCircle, Bell, Phone, Loader2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useRemediate } from '../../hooks/useRemediate'
+import { NudgeSheet } from '../../components/agent/NudgeSheet'
 
 interface AgentStat {
   id: string
@@ -37,6 +38,7 @@ export default function ManagerTeamDetailPage() {
   const { teamLeadId } = useParams<{ teamLeadId: string }>()
   const navigate = useNavigate()
   const { busy, nudge, call } = useRemediate()
+  const [nudgeTarget, setNudgeTarget] = useState<{ id: string; name: string } | null>(null)
   const [teamLead, setTeamLead] = useState<{ id: string; first_name: string; last_name: string } | null>(null)
   const [agents, setAgents] = useState<AgentStat[]>([])
   const [loading, setLoading] = useState(true)
@@ -218,7 +220,7 @@ export default function ManagerTeamDetailPage() {
                       {/* Act on the agent from the row itself — same pattern as TeamTab/ManagerTeamsTab. */}
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => nudge(agent.id, agent.first_name)}
+                          onClick={() => setNudgeTarget({ id: agent.id, name: agent.first_name })}
                           disabled={busy === agent.id}
                           className="min-h-[44px] py-2 bg-amber-400/10 border border-amber-400/25 rounded-lg text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5 disabled:opacity-50"
                         >
@@ -250,6 +252,12 @@ export default function ManagerTeamDetailPage() {
           </div>
         )}
       </div>
+
+      <NudgeSheet
+        target={nudgeTarget}
+        onSend={(msg) => { if (nudgeTarget) nudge(nudgeTarget.id, nudgeTarget.name, msg); setNudgeTarget(null) }}
+        onClose={() => setNudgeTarget(null)}
+      />
     </div>
   )
 }
