@@ -174,7 +174,8 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   ).bind(today, companyId, companyId, tenantId, ...AGENT_ROLES, companyId, companyId).all().catch(() => ({ results: [] }));
   const totalAgents = (roster || []).length;
   const activeAgents = (roster || []).filter((r) => (r.today || 0) > 0).length;
-  const leastActive = (roster || []).slice(0, 5);
+  // "Needs attention" = agents with zero activity today, not a bottom-5 ranking.
+  const leastActive = (roster || []).filter((r) => (r.today || 0) === 0).slice(0, 5);
 
   // BO calls: agents contacted today vs summed daily targets (default 20 per BO admin).
   const contactedRow = await db.prepare(

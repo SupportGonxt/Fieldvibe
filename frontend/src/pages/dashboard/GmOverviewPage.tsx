@@ -457,7 +457,9 @@ export default function GmOverviewPage() {
         </div>
         <div className="card">
           <h2 className="font-semibold mb-3 flex items-center gap-2"><UserX className="w-4 h-4 text-amber-600" /> Needs attention</h2>
-          {field.leastActive.length === 0 ? <p className="text-sm text-content-secondary">No agents on roster.</p> : (
+          {field.leastActive.length === 0 ? (
+            <p className="text-sm text-content-secondary">{field.totalAgents === 0 ? 'No agents on roster.' : 'Everyone has activity today.'}</p>
+          ) : (
             <ul className="space-y-2">
               {field.leastActive.map((a) => (
                 <li key={a.id} className="flex items-center justify-between p-2.5 bg-surface-secondary rounded-lg">
