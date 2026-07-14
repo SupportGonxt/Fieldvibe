@@ -90,6 +90,7 @@ export default function GmOverview() {
   const [company, setCompany] = useState<string | null>(null)
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [expandedManager, setExpandedManager] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -306,20 +307,46 @@ export default function GmOverview() {
           )}
         </div>
 
-        {/* Managers — static rows; ponytail: no manager-detail page exists yet, add nav when one does */}
+        {/* Managers — tap to expand into that manager's teams (payload already carries
+            teams[].managerId), each team navigates to the existing team-detail page. */}
         <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3"><Briefcase className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-token">Managers</h2></div>
           {management.managers.length === 0 ? <p className="text-xs text-token-faint">No managers on roster.</p> : (
             <div className="space-y-2.5">
               {management.managers.map((m) => {
                 const seen = agoLabel(m.lastSeen)
+                const isOpen = expandedManager === m.id
+                const mTeams = teams.filter((t) => t.managerId === m.id)
                 return (
-                  <div key={m.id} className="flex items-center justify-between">
-                    <div className="min-w-0 mr-2">
-                      <div className="text-sm text-token truncate">{m.name}</div>
-                      <div className="text-xs text-token-faint tabular-nums">{m.teamLeads} team leads · {m.agents} agents · {m.signups} sign-ups</div>
+                  <div key={m.id}>
+                    <div
+                      onClick={() => setExpandedManager(isOpen ? null : m.id)}
+                      className="flex items-center justify-between cursor-pointer active:opacity-70"
+                    >
+                      <div className="min-w-0 mr-2">
+                        <div className="text-sm text-token truncate">{m.name}</div>
+                        <div className="text-xs text-token-faint tabular-nums">{m.teamLeads} team leads · {m.agents} agents · {m.signups} sign-ups</div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-xs ${seen.stale ? 'text-amber-400' : 'text-token-faint'}`}>{seen.text}</span>
+                        <ChevronRight className={`w-3.5 h-3.5 text-token-faint transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                      </div>
                     </div>
-                    <span className={`text-xs flex-shrink-0 ${seen.stale ? 'text-amber-400' : 'text-token-faint'}`}>{seen.text}</span>
+                    {isOpen && (
+                      <div className="mt-2 ml-3 pl-3 border-l border-token space-y-2">
+                        {mTeams.length === 0 ? (
+                          <p className="text-xs text-token-faint">No team leads linked in this period.</p>
+                        ) : mTeams.map((t) => (
+                          <div key={t.id} onClick={() => navigate(`/agent/team-detail/${t.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
+                            <div className="min-w-0 mr-2">
+                              <div className="text-sm text-token truncate">{t.name}</div>
+                              <div className="text-xs text-token-faint tabular-nums">{t.activeAgents}/{t.agents} active · {t.converted} converted ({t.conversionRate}%)</div>
+                            </div>
+                            <span className="text-sm font-semibold text-token tabular-nums flex-shrink-0">{t.signups}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}
