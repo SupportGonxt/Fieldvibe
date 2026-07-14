@@ -7,7 +7,7 @@ type TabDef = { path: string; icon: React.ComponentType<any>; label: string; rol
 // Management roles that see every business module. The dedicated field roles
 // (field_agent/sales_rep/team_lead/agent) live in the /agent PWA, but are listed
 // on the tabs relevant to them for the rare time they land in the office shell.
-const MGMT = ['admin', 'super_admin', 'manager', 'general_manager']
+const MGMT = ['admin', 'super_admin', 'manager', 'general_manager', 'backoffice_admin']
 
 // MOB-02: Role-aware bottom tabs. roles use the real auth union
 // (src/types/auth.types.ts) — the old vocab (team_leader/sales/warehouse/

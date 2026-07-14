@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authService } from '../services/auth.service'
 import type { User, LoginCredentials, AuthTokens } from '../types/auth.types'
+import { roleAllows } from '../lib/capabilities'
 
 interface AuthState {
   user: User | null
@@ -216,11 +217,9 @@ export const getCurrentUser = () => {
 
 export const hasRole = (role: string) => {
   const user = getCurrentUser()
-  // backoffice_admin AND general_manager are admin-equivalent in the office console
-  // (mirrors backend requireRole, which auto-adds both wherever 'admin' is listed).
-  // super_admin-only modules stay reserved.
-  const adminLike = user?.role === 'admin' || user?.role === 'backoffice_admin' || user?.role === 'general_manager'
-  return user?.role === role || user?.role === 'super_admin' || (adminLike && role !== 'super_admin')
+  // Single source of truth: capabilities mirror (backend lib/capabilities.js).
+  if (role === 'super_admin') return user?.role === 'super_admin'
+  return roleAllows(user?.role, [role])
 }
 
 export const hasPermission = (permission: string) => {
