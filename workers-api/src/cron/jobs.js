@@ -423,8 +423,9 @@ async function reactToIssues(db, env) {
         // salary per agent (~8 D1 queries each); at 64 agents that alone blew Workers'
         // 1000-subrequest invocation budget — every later D1 call threw, all swallowed by the
         // catch layers below, and this job went silent while earlier jobs in the tick kept working.
-        // ponytail: if the budget is breached again, move reactToIssues onto its own cron trigger
-        // ("30 6-15 * * *" + event.cron routing in index.js) for a fresh per-invocation budget.
+        // ponytail: budget was breached again (push delivery added to the earlier jobs in the
+        // tick, 7e3300d) — reactToIssues now runs on its own cron trigger ("30 6-15 * * *",
+        // routed in index.js's scheduled handler via event.cron) for a fresh per-invocation budget.
         const paceCache = new Map();
         const paceFor = async (companyId, role) => {
           const key = `${companyId || ''}|${role}`;

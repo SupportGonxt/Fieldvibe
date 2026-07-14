@@ -271,6 +271,13 @@ app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 export default {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
+    // reactToIssues runs on its own triggers for a fresh 1000-subrequest budget
+    // (the hourly tick's earlier jobs drain the shared budget; see cron/jobs.js).
+    const REACT_TO_ISSUES_CRONS = new Set(['30 6-15 * * *', '45 15 * * *']);
+    if (REACT_TO_ISSUES_CRONS.has(event.cron)) {
+      await reactToIssues(env.DB, env);
+      return;
+    }
     const now = new Date();
     const hour = now.getUTCHours();
     const day = now.getUTCDay();
@@ -290,8 +297,6 @@ export default {
     if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
     if (sastHour >= 8 && sastHour <= 17) await checkInactiveAgents(env.DB, env);
-    // Hourly: open/act/escalate/resolve performance issues (self-gates on SAST inside).
-    if (sastHour >= 8 && sastHour < 18) await reactToIssues(env.DB, env);
     // Reap stuck rows first so they re-enter the drain queue this tick.
     await reapStuckAiProcessing(env.DB);
     // Drain pending AI analysis on every tick. Bounded by AI_DRAIN_BATCH_SIZE; the existing
