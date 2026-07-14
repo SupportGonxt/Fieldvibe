@@ -226,7 +226,7 @@ export default function AgentOnboarding() {
         {/* Icon */}
         <div className="flex justify-center mb-6">
           <div className={`w-20 h-20 bg-gradient-to-br ${step.color} rounded-3xl flex items-center justify-center shadow-lg`}>
-            <Icon className="w-10 h-10 text-token" />
+            <Icon className="w-10 h-10 text-white" />
           </div>
         </div>
 
@@ -275,7 +275,7 @@ export default function AgentOnboarding() {
           )}
           <button
             onClick={goNext}
-            className={`flex-1 py-3.5 bg-gradient-to-r ${step.color} text-token font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform`}
+            className={`flex-1 py-3.5 bg-gradient-to-r ${step.color} text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform`}
           >
             {isLast ? (
               <>

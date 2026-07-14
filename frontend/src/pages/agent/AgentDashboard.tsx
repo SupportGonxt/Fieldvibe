@@ -746,7 +746,7 @@ export default function AgentDashboard() {
                   navigate('/agent/visits?filter=rejected_photos')
                 }
               }}
-              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-token font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={rejectedPhotoLoading || rejectedPhotoCount === 0}
               style={{ opacity: rejectedPhotoCount === 0 ? 0.5 : 1 }}
             >
@@ -769,7 +769,7 @@ export default function AgentDashboard() {
             />
             <button
               onClick={() => navigate('/agent/visits?filter=rejected_goldrush')}
-              className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-token font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={rejectedGoldrushLoading || rejectedGoldrushCount === 0}
               style={{ opacity: rejectedGoldrushCount === 0 ? 0.5 : 1 }}
             >
@@ -792,7 +792,7 @@ export default function AgentDashboard() {
             />
             <button
               onClick={() => navigate('/agent/upload-failures')}
-              className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-token font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={uploadFailuresLoading}
               style={{ opacity: uploadFailuresCount === 0 ? 0.5 : 1 }}
             >
@@ -1119,7 +1119,7 @@ const StatCard = memo(({ icon, label, value, target, color }: { icon: React.Reac
   return (
     <div className="bg-white/5 border border-token rounded-xl p-3.5">
       <div className="flex items-center justify-between mb-2">
-        <div className={`p-2 rounded-lg ${color} text-token`}>{icon}</div>
+        <div className={`p-2 rounded-lg ${color} text-white`}>{icon}</div>
         {showTarget && (
           <span className={`text-[9px] font-semibold ${value >= target ? 'text-primary' : 'text-amber-400'}`}>
             {value}/{target}

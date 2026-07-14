@@ -208,7 +208,7 @@ const MobileLoginPage: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative z-10">
           <div className="mb-6 text-center">
             <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/20">
-              <ShieldCheck className="w-8 h-8 text-token" />
+              <ShieldCheck className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-token tracking-tight">Set Your PIN</h1>
             <p className="text-sm text-token-muted mt-2 max-w-xs mx-auto">

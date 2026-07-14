@@ -172,7 +172,7 @@ export default function LandingPage() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 bg-gradient-to-br from-primary to-[#00C968] rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
-                <Zap className="w-5 h-5 text-token" />
+                <Zap className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-token tracking-tight">FieldVibe</span>
             </div>
@@ -394,7 +394,7 @@ export default function LandingPage() {
               <Reveal key={index} delay={index}>
                 <div className="group p-5 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-token hover:border-primary/30 hover:bg-white/[0.04] transition-all duration-300">
                   <div className={`inline-flex p-2.5 bg-gradient-to-br ${feature.gradient} rounded-xl mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                    <feature.icon className="h-5 w-5 text-token" />
+                    <feature.icon className="h-5 w-5 text-white" />
                   </div>
                   <h3 className="text-base font-bold text-token mb-1.5">{feature.title}</h3>
                   <p className="text-sm text-token-muted leading-relaxed">{feature.desc}</p>
@@ -443,7 +443,7 @@ export default function LandingPage() {
 
             <div className="bg-white/[0.02] border border-token rounded-2xl p-8">
               <div className={`inline-flex p-3 bg-gradient-to-br ${platformModules[activeModule].gradient} rounded-xl mb-5 shadow-lg`}>
-                {(() => { const Icon = platformModules[activeModule].icon; return <Icon className="h-6 w-6 text-token" /> })()}
+                {(() => { const Icon = platformModules[activeModule].icon; return <Icon className="h-6 w-6 text-white" /> })()}
               </div>
               <h3 className="text-2xl font-bold text-token mb-3">{platformModules[activeModule].title}</h3>
               <p className="text-token-muted leading-relaxed mb-6">{platformModules[activeModule].description}</p>
@@ -523,12 +523,12 @@ export default function LandingPage() {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div className="bg-gradient-to-r from-primary to-[#00C968] rounded-xl py-2.5 text-center">
-                          <Building2 className="w-4 h-4 text-token mx-auto mb-0.5" />
-                          <p className="text-[9px] font-semibold text-token">Store Visit</p>
+                          <Building2 className="w-4 h-4 text-white mx-auto mb-0.5" />
+                          <p className="text-[9px] font-semibold text-white">Store Visit</p>
                         </div>
                         <div className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl py-2.5 text-center">
-                          <Users className="w-4 h-4 text-token mx-auto mb-0.5" />
-                          <p className="text-[9px] font-semibold text-token">Individual</p>
+                          <Users className="w-4 h-4 text-white mx-auto mb-0.5" />
+                          <p className="text-[9px] font-semibold text-white">Individual</p>
                         </div>
                       </div>
 
@@ -789,7 +789,7 @@ export default function LandingPage() {
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center space-x-2.5 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-br from-primary to-[#00C968] rounded-lg flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-token" />
+                  <Zap className="w-4 h-4 text-white" />
                 </div>
                 <span className="text-lg font-bold text-token">FieldVibe</span>
               </div>
