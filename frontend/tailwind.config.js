@@ -8,9 +8,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Outfit', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
-        ui: ['Instrument Sans', 'Inter', 'system-ui', 'sans-serif'],
+        ui: ['Instrument Sans', 'system-ui', 'sans-serif'],
         data: ['DM Mono', 'JetBrains Mono', 'monospace'],
       },
       colors: {

@@ -175,7 +175,9 @@ export default function MegaMenu() {
                         {item.children && item.children.length > 0 && (
                           <div className="ml-11 space-y-1">
                             {item.children
-                              .filter(child => !child.permission || hasPermission(child.permission))
+                              .filter(child =>
+                                (!child.requiresRole || hasRole(child.requiresRole)) &&
+                                (!child.permission || hasPermission(child.permission)))
                               .map((child) => (
                                 <NavLink
                                   key={child.name}

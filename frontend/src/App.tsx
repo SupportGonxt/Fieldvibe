@@ -793,15 +793,15 @@ function App() {
             <Route path="sales/orders/create" element={<PageLoader><SalesOrderCreate /></PageLoader>} />
             <Route path="sales/orders/:id" element={<PageLoader><SalesOrderDetail /></PageLoader>} />
             <Route path="sales/orders/:id/edit" element={<PageLoader><SalesOrderEdit /></PageLoader>} />
-            <Route path="sales/invoices" element={<PageLoader><InvoicesList /></PageLoader>} />
-            <Route path="sales/invoices/create" element={<PageLoader><InvoiceCreate /></PageLoader>} />
-            <Route path="sales/invoices/:id" element={<PageLoader><InvoiceDetail /></PageLoader>} />
-            <Route path="sales/payments" element={<PageLoader><PaymentsList /></PageLoader>} />
-            <Route path="sales/payments/create" element={<PageLoader><PaymentCreate /></PageLoader>} />
-            <Route path="sales/payments/:id" element={<PageLoader><PaymentDetail /></PageLoader>} />
-            <Route path="sales/credit-notes" element={<PageLoader><CreditNotesList /></PageLoader>} />
-            <Route path="sales/credit-notes/create" element={<PageLoader><CreditNoteCreate /></PageLoader>} />
-            <Route path="sales/credit-notes/:id" element={<PageLoader><CreditNoteDetail /></PageLoader>} />
+            <Route path="sales/invoices" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoicesList /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/invoices/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/invoices/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/payments" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentsList /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/payments/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/payments/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/credit-notes" element={<ProtectedRoute requiredRole="admin"><PageLoader><CreditNotesList /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/credit-notes/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><CreditNoteCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="sales/credit-notes/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><CreditNoteDetail /></PageLoader></ProtectedRoute>} />
             <Route path="sales/returns" element={<PageLoader><SalesReturnsList /></PageLoader>} />
             <Route path="sales/returns/create" element={<PageLoader><SalesReturnCreate /></PageLoader>} />
             <Route path="sales/returns/:id" element={<PageLoader><SalesReturnDetail /></PageLoader>} />
