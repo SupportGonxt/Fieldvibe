@@ -21,7 +21,7 @@ app.get('/commissions', authMiddleware, async (c) => {
   return c.json({ data: commissions.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 
-app.get('/commissions/stats', authMiddleware, requireRole('admin', 'manager'), async (c) => {
+app.get('/commissions/stats', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start, end } = c.req.query();
@@ -145,7 +145,7 @@ app.post('/commissions/calculate', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Commission calculated', total: totalCommission });
 });
 
-app.post('/commissions/pay', authMiddleware, requireRole('admin', 'manager'), async (c) => {
+app.post('/commissions/pay', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { commission_ids } = await c.req.json();

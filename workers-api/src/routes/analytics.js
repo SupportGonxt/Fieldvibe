@@ -100,7 +100,7 @@ app.get('/dashboard', async (c) => {
 });
 
 // ==================== REPORTS ====================
-app.get('/reports/sales', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/sales', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start_date, end_date, group_by = 'day' } = c.req.query();
@@ -117,7 +117,7 @@ app.get('/reports/sales', requireRole('admin', 'manager'), async (c) => {
   return c.json({ success: true, data: data.results || [] });
 });
 
-app.get('/reports/visits', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/visits', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start_date, end_date } = c.req.query();
@@ -133,7 +133,7 @@ app.get('/reports/visits', requireRole('admin', 'manager'), async (c) => {
   return c.json({ success: true, data: { byAgent: byAgent.results || [], byType: byType.results || [], byDay: byDay.results || [] } });
 });
 
-app.get('/reports/commissions', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/commissions', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { period_start, period_end } = c.req.query();
@@ -146,7 +146,7 @@ app.get('/reports/commissions', requireRole('admin', 'manager'), async (c) => {
   return c.json({ success: true, data: { byEarner: byEarner.results || [] } });
 });
 
-app.get('/reports/stock', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/stock', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const lowStock = await db.prepare('SELECT sl.*, p.name as product_name, p.code as product_code, w.name as warehouse_name FROM stock_levels sl LEFT JOIN products p ON sl.product_id = p.id LEFT JOIN warehouses w ON sl.warehouse_id = w.id WHERE sl.tenant_id = ? AND sl.quantity <= sl.reorder_level ORDER BY sl.quantity ASC LIMIT 500').bind(tenantId).all();
@@ -381,7 +381,7 @@ app.get('/analytics/campaigns', authMiddleware, async (c) => {
 });
 
 // /analytics/revenue - revenue analytics
-app.get('/analytics/revenue', requireRole('admin', 'manager'), async (c) => {
+app.get('/analytics/revenue', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start_date, end_date } = c.req.query();
@@ -494,7 +494,7 @@ app.get('/individual-visits-report', authMiddleware, async (c) => {
     return c.json({ data });
   } catch (err) { return c.json({ error: 'Failed to get individual visits report: ' + (err.message || err) }, 500); }
 });
-app.get('/reports/sales-dashboard', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/sales-dashboard', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const today = new Date().toISOString().split('T')[0];
@@ -517,7 +517,7 @@ app.get('/reports/sales-dashboard', requireRole('admin', 'manager'), async (c) =
 });
 
 // Agent Performance Report
-app.get('/reports/agent-performance', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/agent-performance', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { period = '30' } = c.req.query();
@@ -530,7 +530,7 @@ app.get('/reports/agent-performance', requireRole('admin', 'manager'), async (c)
 });
 
 // Stock Valuation Report
-app.get('/reports/stock-valuation', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/stock-valuation', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const items = await db.prepare("SELECT p.name, p.sku, w.name as warehouse, sl.quantity, p.cost_price, (sl.quantity * COALESCE(p.cost_price, 0)) as value, (SELECT MAX(created_at) FROM stock_movements WHERE product_id = p.id AND movement_type = 'SALE_OUT') as last_sold FROM stock_levels sl JOIN products p ON sl.product_id = p.id JOIN warehouses w ON sl.warehouse_id = w.id WHERE sl.tenant_id = ? ORDER BY value DESC").bind(tenantId).all();
@@ -539,7 +539,7 @@ app.get('/reports/stock-valuation', requireRole('admin', 'manager'), async (c) =
 
 
 // Van Sales Report
-app.get('/reports/van-sales', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/van-sales', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const report = await db.prepare("SELECT vsl.id, vsl.vehicle_reg, u.first_name || ' ' || u.last_name as agent_name, vsl.status, vsl.load_date, vsl.return_time, (SELECT COUNT(*) FROM sales_orders WHERE van_stock_load_id = vsl.id) as orders, (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders WHERE van_stock_load_id = vsl.id) as revenue, vr.cash_expected, vr.cash_actual, vr.variance, vr.status as recon_status FROM van_stock_loads vsl LEFT JOIN users u ON vsl.agent_id = u.id LEFT JOIN van_reconciliations vr ON vr.van_stock_load_id = vsl.id WHERE vsl.tenant_id = ? ORDER BY vsl.load_date DESC").bind(tenantId).all();
@@ -561,7 +561,7 @@ app.get('/reports/van-sales', requireRole('admin', 'manager'), async (c) => {
 // ==================== M. ANOMALY DETECTION ====================
 
 // M.1 Anomaly Flags
-app.get('/anomaly-flags', requireRole('admin', 'manager'), async (c) => {
+app.get('/anomaly-flags', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { status, type, severity } = c.req.query();
@@ -575,7 +575,7 @@ app.get('/anomaly-flags', requireRole('admin', 'manager'), async (c) => {
   return c.json({ success: true, data: flags.results || [] });
 });
 
-app.put('/anomaly-flags/:id/acknowledge', requireRole('admin', 'manager'), async (c) => {
+app.put('/anomaly-flags/:id/acknowledge', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -585,7 +585,7 @@ app.put('/anomaly-flags/:id/acknowledge', requireRole('admin', 'manager'), async
   return c.json({ success: true, message: 'Anomaly acknowledged' });
 });
 
-app.put('/anomaly-flags/:id/dismiss', requireRole('admin', 'manager'), async (c) => {
+app.put('/anomaly-flags/:id/dismiss', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -596,7 +596,7 @@ app.put('/anomaly-flags/:id/dismiss', requireRole('admin', 'manager'), async (c)
 });
 
 // M.2 Run Anomaly Detection (on-demand)
-app.post('/anomaly-detection/run', requireRole('admin', 'manager'), async (c) => {
+app.post('/anomaly-detection/run', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const detected = [];
@@ -804,7 +804,7 @@ app.get('/insights/stock', async (c) => {
 });
 
 // O.7 Commission Dashboard
-app.get('/insights/commissions', requireRole('admin', 'manager'), async (c) => {
+app.get('/insights/commissions', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const role = c.get('role');
@@ -862,7 +862,7 @@ app.get('/insights/goals', async (c) => {
 });
 
 // O.9 Anomaly Dashboard
-app.get('/insights/anomalies', requireRole('admin', 'manager'), async (c) => {
+app.get('/insights/anomalies', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
 
@@ -935,7 +935,7 @@ app.get('/report-history', async (c) => {
 });
 
 // S.3 Generate Report On-Demand
-app.post('/reports/generate', requireRole('admin', 'manager'), async (c) => {
+app.post('/reports/generate', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -980,7 +980,7 @@ app.post('/reports/generate', requireRole('admin', 'manager'), async (c) => {
 
   return c.json({ success: true, data: { id: reportId, ...reportData } });
 });
-app.post('/export', requireRole('admin', 'manager'), async (c) => {
+app.post('/export', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -1130,7 +1130,7 @@ app.get('/dashboard/kpis', authMiddleware, async (c) => {
 // KYC dashboard & stats
 
 // Reports - executive, field-ops, inventory, trade-promotions, compliance, anomalies
-app.get('/reports/executive', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/executive', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [revenue, orders, customers, agents] = await Promise.all([
@@ -1142,35 +1142,35 @@ app.get('/reports/executive', requireRole('admin', 'manager'), async (c) => {
   return c.json({ success: true, data: { total_revenue: revenue?.total || 0, total_orders: orders?.count || 0, total_customers: customers?.count || 0, total_agents: agents?.count || 0 } });
 });
 
-app.get('/reports/field-ops', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/field-ops', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent, COUNT(DISTINCT v.id) as visits, COUNT(CASE WHEN v.status = 'completed' THEN 1 END) as completed, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = ? LEFT JOIN sales_orders so ON so.agent_id = u.id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role = 'agent' GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
   return c.json({ success: true, data: data.results || [] });
 });
 
-app.get('/reports/inventory', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/inventory', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare('SELECT p.name, p.sku, w.name as warehouse, sl.quantity, p.cost_price, (sl.quantity * COALESCE(p.cost_price, 0)) as value FROM stock_levels sl JOIN products p ON sl.product_id = p.id JOIN warehouses w ON sl.warehouse_id = w.id WHERE sl.tenant_id = ? ORDER BY value DESC').bind(tenantId).all();
   return c.json({ success: true, data: data.results || [] });
 });
 
-app.get('/reports/trade-promotions', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/trade-promotions', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare('SELECT tp.name, tp.promotion_type, tp.status, tp.budget, tp.actual_spend, (SELECT COUNT(*) FROM trade_promotion_enrollments WHERE promotion_id = tp.id) as enrollments FROM trade_promotions tp WHERE tp.tenant_id = ? ORDER BY tp.created_at DESC').bind(tenantId).all();
   return c.json({ success: true, data: data.results || [] });
 });
 
-app.get('/reports/compliance', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/compliance', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare('SELECT pa.*, c.name as customer_name FROM posm_audits pa LEFT JOIN posm_installations pi2 ON pa.installation_id = pi2.id LEFT JOIN customers c ON pi2.customer_id = c.id WHERE pa.tenant_id = ? ORDER BY pa.created_at DESC LIMIT 100').bind(tenantId).all();
   return c.json({ success: true, data: data.results || [] });
 });
 
-app.get('/reports/anomalies', requireRole('admin', 'manager'), async (c) => {
+app.get('/reports/anomalies', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const data = await db.prepare("SELECT af.*, u.first_name || ' ' || u.last_name as agent_name FROM anomaly_flags af LEFT JOIN users u ON af.agent_id = u.id WHERE af.tenant_id = ? ORDER BY af.created_at DESC LIMIT 100").bind(tenantId).all();

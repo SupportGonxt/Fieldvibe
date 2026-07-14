@@ -820,28 +820,28 @@ function App() {
             <Route path="crm/*" element={<Navigate to="/customers" replace />} />
 
             {/* Finance Routes — money screens, manager+ only (Stage 0b Step 5b) */}
-            <Route path="finance" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinanceDashboard /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/dashboard" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinanceDashboard /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceManagementPage /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinanceInvoiceCreate /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinanceInvoiceDetail /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:id/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinanceInvoiceEdit /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:id/payments" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoicePayments /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:id/items" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceItems /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments" element={<ProtectedRoute requiredRole="manager"><PageLoader><PaymentCollectionPage /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinancePaymentCreate /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinancePaymentDetail /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/:id/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><FinancePaymentEdit /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/cash-reconciliation" element={<ProtectedRoute requiredRole="manager"><PageLoader><CashReconciliationList /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/cash-reconciliation/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><CashReconciliationCreate /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/cash-reconciliation/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><CashReconciliationDetail /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/commission-payouts" element={<ProtectedRoute requiredRole="manager"><PageLoader><CommissionPayoutsList /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/commission-payouts/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><CommissionPayoutDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="finance" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinanceDashboard /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/dashboard" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinanceDashboard /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceManagementPage /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinanceInvoiceCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinanceInvoiceDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:id/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinanceInvoiceEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:id/payments" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoicePayments /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:id/items" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItems /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentCollectionPage /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinancePaymentCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinancePaymentDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:id/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><FinancePaymentEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/cash-reconciliation" element={<ProtectedRoute requiredRole="admin"><PageLoader><CashReconciliationList /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/cash-reconciliation/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><CashReconciliationCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/cash-reconciliation/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><CashReconciliationDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/commission-payouts" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionPayoutsList /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/commission-payouts/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionPayoutDetail /></PageLoader></ProtectedRoute>} />
             
             <Route path="cash-reconciliation/*" element={<Navigate to="/finance/cash-reconciliation" replace />} />
             
             {/* Commission Routes */}
-            <Route path="commissions" element={<ProtectedRoute requiredRole="manager"><PageLoader><CommissionDashboardPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDashboardPage /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/my" element={<PageLoader><MyCommissionEarningsPage /></PageLoader>} />
             <Route path="commissions/disputes" element={<PageLoader><CommissionDisputesPage /></PageLoader>} />
             <Route path="commissions/create" element={<PageLoader><CommissionCreate /></PageLoader>} />
@@ -850,7 +850,7 @@ function App() {
             <Route path="commissions/calculation" element={<PageLoader><CommissionCalculationPage /></PageLoader>} />
             <Route path="commissions/approval" element={<PageLoader><CommissionApprovalPage /></PageLoader>} />
             <Route path="commissions/payment" element={<PageLoader><CommissionPaymentPage /></PageLoader>} />
-            <Route path="commissions/reports" element={<ProtectedRoute requiredRole="manager"><PageLoader><CommissionReportsPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/reports" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionReportsPage /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/settings" element={<PageLoader><CommissionSettingsPage /></PageLoader>} />
             <Route path="commissions/rules/create" element={<PageLoader><RuleCreate /></PageLoader>} />
             <Route path="commissions/rules/:id" element={<PageLoader><RuleDetail /></PageLoader>} />
@@ -987,7 +987,7 @@ function App() {
             <Route path="insights/trade-promotions" element={<PageLoader><TradePromoInsights /></PageLoader>} />
             <Route path="insights/trade-promos" element={<Navigate to="/insights/trade-promotions" replace />} />
             <Route path="insights/stock" element={<PageLoader><StockInsights /></PageLoader>} />
-            <Route path="insights/commissions" element={<ProtectedRoute requiredRole="manager"><PageLoader><CommissionInsights /></PageLoader></ProtectedRoute>} />
+            <Route path="insights/commissions" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionInsights /></PageLoader></ProtectedRoute>} />
             <Route path="insights/goals" element={<PageLoader><GoalsInsights /></PageLoader>} />
             <Route path="insights/anomalies" element={<PageLoader><AnomalyInsights /></PageLoader>} />
             <Route path="insights/share-of-voice" element={<PageLoader><ShareOfVoiceInsights /></PageLoader>} />
@@ -1037,11 +1037,11 @@ function App() {
             <Route path="field-operations/visits/:id/tasks/:taskId/edit" element={<PageLoader><FOVisitTaskEdit /></PageLoader>} />
             <Route path="field-operations/visits/:id/tasks" element={<PageLoader><FOVisitTaskList /></PageLoader>} />
             <Route path="field-marketing/agent" element={<PageLoader><FieldMarketingAgentPage /></PageLoader>} />
-            <Route path="finance/invoices/:invoiceId/items/:itemId" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceItemDetail /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:invoiceId/items/:itemId/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceItemEdit /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:invoiceId/items/:itemId/history" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceItemHistory /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:invoiceId/items-list" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceItemList /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/invoices/:invoiceId/status-history" element={<ProtectedRoute requiredRole="manager"><PageLoader><InvoiceStatusHistory /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:invoiceId/items/:itemId" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItemDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:invoiceId/items/:itemId/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItemEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:invoiceId/items/:itemId/history" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItemHistory /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:invoiceId/items-list" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItemList /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/invoices/:invoiceId/status-history" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceStatusHistory /></PageLoader></ProtectedRoute>} />
             <Route path="inventory/lots/:id" element={<PageLoader><LotDetail /></PageLoader>} />
             <Route path="inventory/lots" element={<PageLoader><LotTracking /></PageLoader>} />
             <Route path="inventory/stock-ledger/movements/:id" element={<PageLoader><MovementDetail /></PageLoader>} />
@@ -1052,11 +1052,11 @@ function App() {
             <Route path="orders/:id/status-history" element={<PageLoader><OrderStatusHistory /></PageLoader>} />
             <Route path="orders/kanban" element={<PageLoader><OrdersKanban /></PageLoader>} />
             <Route path="field-operations/pos-tracker" element={<PageLoader><POSMaterialTrackerPage /></PageLoader>} />
-            <Route path="finance/payments/:paymentId/allocations/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><PaymentAllocationCreate /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/:paymentId/allocations/:allocId" element={<ProtectedRoute requiredRole="manager"><PageLoader><PaymentAllocationDetail /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/:paymentId/allocations/:allocId/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><PaymentAllocationEdit /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/:paymentId/allocations" element={<ProtectedRoute requiredRole="manager"><PageLoader><PaymentAllocationList /></PageLoader></ProtectedRoute>} />
-            <Route path="finance/payments/:paymentId/status-history" element={<ProtectedRoute requiredRole="manager"><PageLoader><PaymentStatusHistory /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:paymentId/allocations/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentAllocationCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:paymentId/allocations/:allocId" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentAllocationDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:paymentId/allocations/:allocId/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentAllocationEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:paymentId/allocations" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentAllocationList /></PageLoader></ProtectedRoute>} />
+            <Route path="finance/payments/:paymentId/status-history" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentStatusHistory /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/payouts/:payoutId/audit" element={<PageLoader><PayoutAuditTrail /></PageLoader>} />
             <Route path="commissions/payouts/:payoutId/lines/:lineId" element={<PageLoader><PayoutLineDetail /></PageLoader>} />
             <Route path="commissions/payouts/:payoutId/lines/:lineId/edit" element={<PageLoader><PayoutLineEdit /></PageLoader>} />

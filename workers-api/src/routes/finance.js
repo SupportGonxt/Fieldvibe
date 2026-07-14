@@ -4,7 +4,7 @@ import { authMiddleware, requireRole } from '../lib/middleware.js';
 const app = new Hono();
 // Finance is office-console only: admin-equivalents + manager. Field roles
 // (agents/team leads) must never read tenant-wide monetary data.
-app.use('*', authMiddleware, requireRole('admin', 'manager'));
+app.use('*', authMiddleware, requireRole('admin'));
 
 app.get('/payment-ledger', async (c) => {
   const db = c.env.DB;
