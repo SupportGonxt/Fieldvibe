@@ -8,11 +8,11 @@ import { requireRole } from '../../middleware/auth.js';
 import { computeIncentive, AGENT_ROLES } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
 import { ensureIssues } from './issues.js';
+import { CONVERTED_SQL, NOT_REJECTED_SQL } from '../../services/funnelService.js';
 
 const app = new Hono();
 
-const NOT_REJECTED =
-  `COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`;
+const NOT_REJECTED = NOT_REJECTED_SQL('vi');
 
 // Test agents (seeded demo data) pollute every KPI — same convention as portal.
 const NOT_TEST_V = `AND v.agent_id NOT LIKE 'agent-test-%'`;
@@ -106,7 +106,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   const rate = (await getConfig(db, tenantId, companyId, 'commission_per_deposit').catch(() => 0)) || 0;
   const agg = await db.prepare(
     `SELECT COUNT(*) signups,
-       SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted,
+       SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted,
        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status')='qualified' THEN 1 ELSE 0 END) qualified
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}`
@@ -120,7 +120,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   // Same aggregate over the equivalent previous window — powers "vs previous" deltas.
   const prevAgg = await db.prepare(
     `SELECT COUNT(*) signups,
-       SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted,
+       SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted,
        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status')='qualified' THEN 1 ELSE 0 END) qualified
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}`
@@ -154,7 +154,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   // Leaders (period-scoped signup leaderboard, top 5).
   const { results: leaders } = await db.prepare(
     `SELECT v.agent_id id, u.first_name||' '||u.last_name name, COUNT(*) signups,
-       SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
+       SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id JOIN users u ON u.id = v.agent_id
      WHERE v.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}
@@ -205,7 +205,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
          COUNT(DISTINCT a.id) agents,
          COUNT(DISTINCT CASE WHEN vi.id IS NOT NULL THEN a.id END) active_agents,
          COUNT(vi.id) signups,
-         SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
+         SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted
        FROM users tl
        LEFT JOIN users a ON a.team_lead_id = tl.id AND a.is_active = 1
          AND a.role IN (${agentRolePh})
@@ -219,7 +219,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     ).bind(...AGENT_ROLES, companyId, companyId, companyId, companyId, start, end, tenantId, companyId, companyId).all();
     const { results: prevTeamRows } = await db.prepare(
       `SELECT a.team_lead_id tid, COUNT(vi.id) signups,
-         SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted')='Yes' THEN 1 ELSE 0 END) converted
+         SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted
        FROM users a
        JOIN visits v ON v.agent_id = a.id AND v.tenant_id = a.tenant_id ${CO_V}
        JOIN visit_individuals vi ON vi.visit_id = v.id

@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
 import { computeIncentive, AGENT_ROLES, writePayable, extractGoldrushIds, readTargets } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
+import { CONVERTED_SQL, VERIFIED_SQL, NOT_REJECTED_SQL } from '../../services/funnelService.js';
 
 const app = new Hono();
 
@@ -55,7 +56,7 @@ app.get('/incentives/hero', async (c) => {
   const todayRow = await db.prepare(
     `SELECT COUNT(*) c FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND v.agent_id = ? AND date(vi.created_at) = ?
-       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`
+       AND ${NOT_REJECTED_SQL('vi')}`
   ).bind(tenantId, userId, today).first();
 
   // week count: since Monday of this week (UTC)
@@ -67,7 +68,7 @@ app.get('/incentives/hero', async (c) => {
   const weekRow = await db.prepare(
     `SELECT COUNT(*) c FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND v.agent_id = ? AND date(vi.created_at) >= ?
-       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`
+       AND ${NOT_REJECTED_SQL('vi')}`
   ).bind(tenantId, userId, monday).first();
 
   // rank among peer agents for this period (only meaningful for agent roles)
@@ -79,7 +80,7 @@ app.get('/incentives/hero', async (c) => {
        JOIN users u ON u.id = v.agent_id
        WHERE v.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
          AND vi.created_at >= ? AND vi.created_at < ?
-         AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'
+         AND ${NOT_REJECTED_SQL('vi')}
        GROUP BY v.agent_id ORDER BY c DESC`
     ).bind(tenantId, ...AGENT_ROLES, start, end).all();
     totalPeers = (results || []).length;
@@ -132,12 +133,12 @@ app.get('/leaderboard', async (c) => {
   const end = nextMonthStart(period);
   const { results } = await db.prepare(
     `SELECT v.agent_id AS id, u.first_name || ' ' || u.last_name AS name, COUNT(*) AS signups,
-            SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) AS converted
+            SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) AS converted
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      JOIN users u ON u.id = v.agent_id
      WHERE v.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND vi.created_at >= ? AND vi.created_at < ?
-       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'
+       AND ${NOT_REJECTED_SQL('vi')}
      GROUP BY v.agent_id ORDER BY signups DESC LIMIT ?`
   ).bind(tenantId, ...AGENT_ROLES, start, end, limit).all();
 
@@ -247,14 +248,14 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
   const agg = await db.prepare(
     `SELECT
         COUNT(*) signups,
-        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) converted,
-        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status') = 'qualified' THEN 1 ELSE 0 END) qualified_signups,
-        SUM(CASE WHEN json_extract(vi.custom_field_values,'$.verification_status') = 'qualified'
-                  AND json_extract(vi.custom_field_values,'$.consumer_converted') = 'Yes' THEN 1 ELSE 0 END) qualified_converted
+        SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted,
+        SUM(CASE WHEN ${VERIFIED_SQL('vi')} THEN 1 ELSE 0 END) qualified_signups,
+        SUM(CASE WHEN ${VERIFIED_SQL('vi')}
+                  AND ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) qualified_converted
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?
        AND (? IS NULL OR v.company_id = ?) AND v.agent_id NOT LIKE 'agent-test-%'
-       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`
+       AND ${NOT_REJECTED_SQL('vi')}`
   ).bind(tenantId, start, end, companyId, companyId).first();
 
   // Tiered incentive cost: per-agent, avg-based — must run each agent through the engine.
@@ -380,7 +381,7 @@ app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffic
      FROM users u
      LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = u.tenant_id
      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
-       AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'
+       AND ${NOT_REJECTED_SQL('vi')}
      WHERE u.tenant_id = ? AND u.is_active = 1
        AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both'))
