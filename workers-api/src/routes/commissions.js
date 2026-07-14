@@ -21,7 +21,7 @@ app.get('/commissions', authMiddleware, async (c) => {
   return c.json({ data: commissions.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 
-app.get('/commissions/stats', authMiddleware, async (c) => {
+app.get('/commissions/stats', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start, end } = c.req.query();
@@ -80,9 +80,15 @@ app.delete('/commissions/rules/:id', requireRole('admin'), async (c) => {
 });
 
 app.get('/commissions/user/:userId', authMiddleware, async (c) => {
+  const requesterId = c.get('userId');
+  const role = c.get('role');
+  const targetUserId = c.req.param('userId');
+  const managerial = ['admin', 'super_admin', 'backoffice_admin', 'general_manager', 'manager'].includes(role);
+  if (targetUserId !== requesterId && !managerial) {
+    return c.json({ success: false, message: 'Insufficient permissions' }, 403);
+  }
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const targetUserId = c.req.param('userId');
   const commissions = await db.prepare("SELECT ce.*, cr.name as rule_name FROM commission_earnings ce LEFT JOIN commission_rules cr ON ce.rule_id = cr.id WHERE ce.tenant_id = ? AND ce.earner_id = ? ORDER BY ce.created_at DESC").bind(tenantId, targetUserId).all();
   return c.json(commissions.results || []);
 });
