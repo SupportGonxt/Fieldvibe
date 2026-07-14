@@ -232,6 +232,25 @@ app.post('/visits', async (c) => {
   return c.json({ success: true, data: { id, anomalies: anomalies.length > 0 ? anomalies : undefined }, message: 'Visit created' }, 201);
 });
 
+// Field allowlist for PUT /visits/:id custom_field_values merges. The blob also
+// carries verification keys (converted, consumer_converted) that drive conversion
+// counts and commissions — clients must never set those post-capture. Only the
+// Goldrush backfill/review keys the frontend actually sends are editable.
+export const CUSTOM_FIELD_UPDATE_KEYS = ['goldrush_id', 'goldrush_id_rejected', 'goldrush_id_rejection_reason'];
+
+export function pickCustomFieldUpdates(values) {
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return {};
+  const out = {};
+  for (const key of CUSTOM_FIELD_UPDATE_KEYS) {
+    if (!(key in values)) continue;
+    const v = values[key];
+    if (key === 'goldrush_id_rejected') { out[key] = !!v; continue; }
+    // ponytail: strings only; caps are sanity bounds (goldrush_id must be 9 digits, checked below)
+    out[key] = String(v ?? '').trim().slice(0, key === 'goldrush_id' ? 20 : 500);
+  }
+  return out;
+}
+
 app.put('/visits/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -248,9 +267,10 @@ app.put('/visits/:id', async (c) => {
     }
   }
   // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
-  if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+  const customFieldUpdates = pickCustomFieldUpdates(body.custom_field_values);
+  if (Object.keys(customFieldUpdates).length > 0) {
     // Goldrush uniqueness + length on edit/resubmit (exclude this visit's own rows).
-    const incomingGoldrush = extractGoldrushId(body.custom_field_values);
+    const incomingGoldrush = extractGoldrushId(customFieldUpdates);
     if (incomingGoldrush) {
       if (incomingGoldrush.length !== 9) {
         return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
@@ -263,7 +283,7 @@ app.put('/visits/:id', async (c) => {
     if (vi) {
       let existing = {};
       try { existing = JSON.parse(vi.custom_field_values || '{}'); } catch(e) {}
-      const merged = { ...existing, ...body.custom_field_values };
+      const merged = { ...existing, ...customFieldUpdates };
       await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ? AND tenant_id = ?').bind(JSON.stringify(merged), vi.id, tenantId).run();
     }
     // Also update store_custom_questions in visit_responses for store visits (e.g. Goldrush ID on store visits)
@@ -271,7 +291,7 @@ app.put('/visits/:id', async (c) => {
     if (storeResp) {
       let existingStore = {};
       try { existingStore = JSON.parse(storeResp.responses || '{}'); } catch(e) {}
-      const mergedStore = { ...existingStore, ...body.custom_field_values };
+      const mergedStore = { ...existingStore, ...customFieldUpdates };
       await db.prepare("UPDATE visit_responses SET responses = ? WHERE id = ? AND tenant_id = ?").bind(JSON.stringify(mergedStore), storeResp.id, tenantId).run();
     }
   }
