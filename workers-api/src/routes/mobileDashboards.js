@@ -1413,6 +1413,26 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
       orgPaid = mgrOwnComm?.paid || 0;
     }
 
+    // Per-agent period counts for the manager Stats tab — straight out of
+    // bulkPeriodCounts (already computed above), zero extra queries.
+    // Counts only, never money: field managers see per-day counts, not rand.
+    const agentBreakdown = (allAgents.results || []).map((a) => {
+      const p = bulkPeriodCounts.get(a.id);
+      return {
+        id: a.id,
+        name: `${a.first_name} ${a.last_name}`,
+        team_lead_id: a.team_lead_id,
+        today_individual: p?.today_individual || 0,
+        today_store: p?.today_store || 0,
+        week_individual: p?.week_individual || 0,
+        week_store: p?.week_store || 0,
+        month_individual: p?.month_individual || 0,
+        month_store: p?.month_store || 0,
+        prior_month_individual: p?.prior_month_individual || 0,
+        prior_month_store: p?.prior_month_store || 0,
+      };
+    });
+
     return c.json({
       success: true,
       data: {
@@ -1420,6 +1440,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         total_agents: allAgentIds.length,
         unassigned_agents: unassignedIds.length,
         teams: teamsData,
+        agents: agentBreakdown,
         org_totals: {
           today_visits: orgTodayVisits,
           month_visits: orgMonthVisits,

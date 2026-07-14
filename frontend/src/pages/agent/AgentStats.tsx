@@ -7,6 +7,8 @@ import {
 import { apiClient } from '../../services/api.service'
 import { toast } from 'react-hot-toast'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
+import { useAuthStore } from '../../store/auth.store'
+import ManagerStats from './ManagerStats'
 
 interface VisitBreakdownItem {
   company_id: string
@@ -751,7 +753,15 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
   )
 }
 
+// App.tsx routes every non-GM role here. Managers have no personal
+// targets/earnings, so they get the team-scoped counts view instead.
+// (App.tsx is owned by another PR — the role branch lives here.)
 export default function AgentStats() {
+  const role = useAuthStore((s) => s.user?.role)
+  return role === 'manager' ? <ManagerStats /> : <AgentPersonalStats />
+}
+
+function AgentPersonalStats() {
   const [dashData, setDashData] = useState<DashboardData | null>(null)
   const [perfData, setPerfData] = useState<PerformanceData | null>(null)
   const [loading, setLoading] = useState(true)
