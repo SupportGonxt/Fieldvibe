@@ -4,6 +4,7 @@ import { cachedD1Query } from '../lib/cache.js';
 import { DEFAULT_WD_CONFIG, resolveWorkingDaysConfigBatch, countWorkingDaysInMonth, buildFallbackMonthlyTargets, getUserMonthlyTargetFromRules, generateTargetsFromRules, computeTargetTotalsFromRules } from '../lib/calendar.js';
 import { getCommissionTotals, getBulkAgentVisitCounts } from '../lib/aggregates.js';
 import { authMiddleware, requireSuperAdmin } from '../lib/middleware.js';
+import { getScale } from './field-ops/config.js';
 
 const app = new Hono();
 
@@ -1161,11 +1162,18 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     // GM sits above managers so sees the whole org, same scope as admin.
     const isAdmin = ['admin', 'super_admin', 'general_manager'].includes(caller.role);
 
-    // Get manager's company IDs — scope visit counts to their company only (skip for admins)
-    let mgrCompanyIds = [];
-    if (!isAdmin) {
-      const mgrCompaniesRes = await db.prepare("SELECT fc.id FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all().catch(() => ({ results: [] }));
-      mgrCompanyIds = (mgrCompaniesRes.results || []).map(c => c.id);
+    // Companies visible to the caller (admins/GM: all active; managers: linked only) — powers the company selector chips
+    const companiesRes = await (isAdmin
+      ? db.prepare("SELECT id, name FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId)
+      : db.prepare("SELECT fc.id, fc.name FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId)
+    ).all().catch(() => ({ results: [] }));
+    const companies = companiesRes.results || [];
+
+    // Scope visit counts: managers default to their linked companies; ?company_id narrows to one (must be visible to caller)
+    const requestedCompanyId = c.req.query('company_id') || null;
+    let mgrCompanyIds = isAdmin ? [] : companies.map(co => co.id);
+    if (requestedCompanyId && companies.some(co => co.id === requestedCompanyId)) {
+      mgrCompanyIds = [requestedCompanyId];
     }
     const mgrCFilter = mgrCompanyIds.length > 0 ? ` AND company_id IN (${mgrCompanyIds.map(() => '?').join(',')})` : '';
     const teamLeadsQuery = isAdmin
@@ -1302,11 +1310,14 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     let unassignedTeam = null;
     if (unassignedIds.length > 0) {
       const uaPh = unassignedIds.map(() => '?').join(',');
+      // Unassigned agents span companies; only narrow when an explicit company is selected
+      const uaCFilter = requestedCompanyId ? mgrCFilter : '';
+      const uaCIds = requestedCompanyId ? mgrCompanyIds : [];
       const [uaVRes, uaRRes, uaTRes, uaIRes] = await Promise.all([
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${uaPh}) AND visit_date >= ?`).bind(tenantId, ...unassignedIds, currentMonth + '-01').first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (${uaPh}) AND visit_date >= ?`).bind(tenantId, ...unassignedIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id IN (${uaPh})${uaCFilter} AND visit_date >= ?`).bind(tenantId, ...unassignedIds, ...uaCIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND agent_id IN (${uaPh})${uaCFilter} AND visit_date >= ?`).bind(tenantId, ...unassignedIds, ...uaCIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COALESCE(SUM(target_visits),0) as tv, COALESCE(SUM(target_registrations),0) as tr FROM monthly_targets WHERE tenant_id = ? AND agent_id IN (${uaPh}) AND target_month = ?`).bind(tenantId, ...unassignedIds, currentMonth).first(),
-        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) != 'store' AND agent_id IN (${uaPh}) AND visit_date >= ?`).bind(tenantId, ...unassignedIds, currentMonth + '-01').first(),
+        db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) != 'store' AND agent_id IN (${uaPh})${uaCFilter} AND visit_date >= ?`).bind(tenantId, ...unassignedIds, ...uaCIds, currentMonth + '-01').first(),
       ]);
       let uaTargetVisits = uaTRes?.tv || 0;
       let uaTargetRegs = uaTRes?.tr || 0;
@@ -1321,7 +1332,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
         uaTargetVisits = ruleTotals.totalTargetVisits;
         uaActualVisits = ruleTotals.totalActualVisits;
       }
-      const uaBulk = mgrCompanyIds.length > 0
+      const uaBulk = (mgrCompanyIds.length > 0 && !requestedCompanyId)
         ? await getBulkAgentVisitCounts(db, tenantId, unassignedIds, today, currentMonth + '-01', nextMonth, weekStart, priorMonth + '-01', [])
         : bulkPeriodCounts;
       const up = sumBulk(unassignedIds, uaBulk);
@@ -1401,21 +1412,16 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
       orgPaid += (tlPaidC?.total || 0);
     }
 
-    // Fetch commission rules and tiers
-    const [mgrCommRules, mgrCommTiers] = await Promise.all([
-      cachedD1Query(`comm-rules:${tenantId}`, 300, () => db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all()),
-      cachedD1Query(`comm-tiers:${tenantId}`, 300, () => db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all()),
+    // Real incentive tiers (incentive_scales via getScale) — same source as hero/incentive screens,
+    // replacing the old commission_rules/target_commission_tiers demo tables that never held field-ops data
+    const scaleCompanyId = requestedCompanyId || (mgrCompanyIds.length === 1 ? mgrCompanyIds[0] : null);
+    const [agentScale, tlScale, mgrScale] = await Promise.all([
+      cachedD1Query(`inc-scale:${tenantId}:${scaleCompanyId}:agent`, 300, () => getScale(db, tenantId, scaleCompanyId, 'agent')),
+      cachedD1Query(`inc-scale:${tenantId}:${scaleCompanyId}:team_lead`, 300, () => getScale(db, tenantId, scaleCompanyId, 'team_lead')),
+      cachedD1Query(`inc-scale:${tenantId}:${scaleCompanyId}:manager`, 300, () => getScale(db, tenantId, scaleCompanyId, 'manager')),
     ]);
 
-    const mgrTiers = mgrCommTiers.results || [];
     const op = sumBulk(allAgentIds, bulkPeriodCounts);
-    const orgAch = orgTargetVisits > 0 ? Math.round((orgActualVisits / orgTargetVisits) * 100) : 0;
-    let currentOrgTier = null;
-    for (const tier of mgrTiers) {
-      if (orgAch >= tier.min_achievement_pct && (tier.max_achievement_pct === null || orgAch <= tier.max_achievement_pct)) {
-        currentOrgTier = tier;
-      }
-    }
 
     return c.json({
       success: true,
@@ -1454,14 +1460,18 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
           approved: orgApproved,
           paid: orgPaid,
         },
-        commission_rules: mgrCommRules.results || [],
-        commission_tiers: mgrTiers,
-        current_org_tier: currentOrgTier,
+        companies,
+        selected_company_id: requestedCompanyId,
+        incentive_scales: {
+          agent: agentScale?.tiers || [],
+          team_lead: tlScale?.tiers || [],
+          manager: mgrScale?.tiers || [],
+        },
       }
     });
   } catch (error) {
     console.error('Manager dashboard error:', error);
-    return c.json({ success: true, data: { total_team_leads: 0, total_agents: 0, unassigned_agents: 0, teams: [], org_totals: { today_visits: 0, month_visits: 0, today_stores: 0, month_stores: 0 }, org_targets: { target_visits: 0, actual_visits: 0, target_stores: 0, actual_stores: 0, achievement: 0 }, org_commission: { pending: 0, approved: 0, paid: 0 }, commission_rules: [], commission_tiers: [], current_org_tier: null } });
+    return c.json({ success: true, data: { total_team_leads: 0, total_agents: 0, unassigned_agents: 0, teams: [], org_totals: { today_visits: 0, month_visits: 0, today_stores: 0, month_stores: 0 }, org_targets: { target_visits: 0, actual_visits: 0, target_stores: 0, actual_stores: 0, achievement: 0 }, org_commission: { pending: 0, approved: 0, paid: 0 }, companies: [], selected_company_id: null, incentive_scales: { agent: [], team_lead: [], manager: [] } } });
   }
 });
 
