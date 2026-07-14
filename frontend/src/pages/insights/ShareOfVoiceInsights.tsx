@@ -5,10 +5,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { tradeMarketingService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import SearchableSelect from '../../components/ui/SearchableSelect'
-
-const COLORS = ['#00E87B', '#36A2EB', '#FFCE56', '#FF6384', '#9966FF', '#FF9F40', '#4BC0C0']
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function ShareOfVoiceInsights() {
+  const chart = getChartColors()
+  const COLORS = [chart.primary, '#36A2EB', '#FFCE56', '#FF6384', '#9966FF', '#FF9F40', '#4BC0C0']
   const [period, setPeriod] = useState('month')
   const { data, isLoading, isError } = useQuery({
     queryKey: ['sov-insights', period],
@@ -73,7 +74,7 @@ export default function ShareOfVoiceInsights() {
                 <XAxis dataKey="date" />
                 <YAxis domain={[0, 100]} />
                 <Tooltip />
-                <Line type="monotone" dataKey="sov" stroke="#00E87B" strokeWidth={2} name="SOV %" />
+                <Line type="monotone" dataKey="sov" stroke={chart.primary} strokeWidth={2} name="SOV %" />
               </LineChart>
             </ResponsiveContainer>
           </div>

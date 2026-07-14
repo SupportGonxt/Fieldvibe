@@ -3,8 +3,10 @@ import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { tradeMarketingService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function BrandOwnerReports() {
+  const chart = getChartColors()
   const [brandId] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('brand_id') || ''
@@ -46,7 +48,7 @@ export default function BrandOwnerReports() {
               <XAxis dataKey="week" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="avg_sov" fill="#00E87B" radius={[4, 4, 0, 0]} name="Avg SOV %" />
+              <Bar dataKey="avg_sov" fill={chart.primary} radius={[4, 4, 0, 0]} name="Avg SOV %" />
               <Bar dataKey="stores_visited" fill="#36A2EB" radius={[4, 4, 0, 0]} name="Stores Visited" />
             </BarChart>
           </ResponsiveContainer>

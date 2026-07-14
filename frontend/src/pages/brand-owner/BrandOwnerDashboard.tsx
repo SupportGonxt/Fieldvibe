@@ -4,8 +4,10 @@ import { Store, Eye, CheckCircle, Camera } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { tradeMarketingService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function BrandOwnerDashboard() {
+  const chart = getChartColors()
   const [brandId] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('brand_id') || ''
@@ -64,7 +66,7 @@ export default function BrandOwnerDashboard() {
               <XAxis dataKey="date" />
               <YAxis domain={[0, 100]} />
               <Tooltip />
-              <Line type="monotone" dataKey="sov" stroke="#00E87B" strokeWidth={2} name="SOV %" />
+              <Line type="monotone" dataKey="sov" stroke={chart.primary} strokeWidth={2} name="SOV %" />
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -5,7 +5,7 @@ import { signalText, type Signal } from '../../lib/signalRegistry'
 
 // Agent self-performance cockpit tile. Self-fetching (/field-ops/kpi/self),
 // renders nothing until data arrives so it never flashes empty. Uses the
-// shared mobile-dark styling (bg-white/[0.03], accent #00E87B).
+// shared mobile-dark styling (bg-white/[0.03], accent color from --color-primary token).
 
 type Actual = {
   visits_per_day: number

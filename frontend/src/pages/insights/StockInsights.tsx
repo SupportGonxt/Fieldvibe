@@ -3,8 +3,10 @@ import { Package, AlertTriangle, DollarSign, ArrowUpDown } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function StockInsights() {
+  const chart = getChartColors()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['insights-stock'],
     queryFn: insightsService.getStockDashboard,
@@ -50,7 +52,7 @@ export default function StockInsights() {
               <XAxis dataKey="warehouse" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="quantity" fill="#00E87B" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="quantity" fill={chart.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

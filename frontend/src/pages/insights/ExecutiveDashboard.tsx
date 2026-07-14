@@ -5,10 +5,11 @@ import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
-
-const COLORS = ['#00E87B', '#36A2EB', '#9B59B6', '#F39C12', '#E91E63', '#00BCD4']
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function ExecutiveDashboard() {
+  const chart = getChartColors()
+  const COLORS = [chart.primary, '#36A2EB', '#9B59B6', '#F39C12', '#E91E63', '#00BCD4']
   const { data, isLoading, error } = useQuery({
     queryKey: ['insights-executive'],
     queryFn: insightsService.getExecutiveDashboard,
@@ -61,7 +62,7 @@ export default function ExecutiveDashboard() {
                 <XAxis dataKey="date" stroke="#9CA3AF" />
                 <YAxis stroke="#9CA3AF" />
                 <Tooltip />
-                <Area type="monotone" dataKey="revenue" stroke="#00E87B" fill="#00E87B" fillOpacity={0.1} />
+                <Area type="monotone" dataKey="revenue" stroke={chart.primary} fill={chart.primary} fillOpacity={0.1} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
