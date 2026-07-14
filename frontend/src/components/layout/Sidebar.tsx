@@ -51,6 +51,9 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   const isChildVisible = (child: NavigationChild) => {
+    // requiresRole on money-surface children (invoices, payments, commissions):
+    // field roles are counts-only; hasRole('admin') covers admin-equivalents.
+    if (child.requiresRole && !hasRole(child.requiresRole)) return false
     if (child.permission && !hasPermission(child.permission)) return false
     return true
   }

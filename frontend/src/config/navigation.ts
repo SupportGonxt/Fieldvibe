@@ -29,6 +29,7 @@ export interface NavigationChild {
   name: string
   href: string
   permission: string | null
+  requiresRole?: string
   description?: string
   group?: string
 }
@@ -63,7 +64,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Field Ops', href: '/insights/field-ops', permission: null, description: 'Field operations analytics', group: 'Department Analytics' },
       { name: 'Stock', href: '/insights/stock', permission: null, description: 'Inventory insights', group: 'Department Analytics' },
       { name: 'Trade Promos', href: '/insights/trade-promos', permission: null, description: 'Trade promotion ROI', group: 'Department Analytics' },
-      { name: 'Commissions', href: '/insights/commissions', permission: null, description: 'Commission analytics', group: 'Department Analytics' },
+      { name: 'Commissions', href: '/insights/commissions', permission: null, requiresRole: 'admin', description: 'Commission analytics', group: 'Department Analytics' },
     ],
   },
 
@@ -170,12 +171,12 @@ export const navigation: NavigationItem[] = [
 
       // ── Transactions ──
       { name: 'Orders', href: '/sales/orders', permission: null, description: 'Manage orders', group: 'Transactions' },
-      { name: 'Invoices', href: '/sales/invoices', permission: null, description: 'Invoice management', group: 'Transactions' },
-      { name: 'Payments', href: '/sales/payments', permission: null, description: 'Payment tracking', group: 'Transactions' },
+      { name: 'Invoices', href: '/sales/invoices', permission: null, requiresRole: 'admin', description: 'Invoice management', group: 'Transactions' },
+      { name: 'Payments', href: '/sales/payments', permission: null, requiresRole: 'admin', description: 'Payment tracking', group: 'Transactions' },
 
       // ── Returns & Credits ──
       { name: 'Returns', href: '/sales/returns', permission: null, description: 'Handle returns', group: 'Returns & Credits' },
-      { name: 'Credit Notes', href: '/sales/credit-notes', permission: null, description: 'Manage credit notes', group: 'Returns & Credits' },
+      { name: 'Credit Notes', href: '/sales/credit-notes', permission: null, requiresRole: 'admin', description: 'Manage credit notes', group: 'Returns & Credits' },
     ],
   },
   {
