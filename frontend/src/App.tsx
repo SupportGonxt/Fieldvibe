@@ -470,7 +470,9 @@ const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operatio
 // ponytail: managers still land on AgentStats — unverified whether they carry personal targets.
 function StatsForRole() {
   const role = useAuthStore((s) => s.user?.role)
-  return role === 'general_manager' ? <GmStats /> : <AgentStats />
+  // backoffice_admin is admin-equivalent with no personal targets — same empty
+  // AgentStats problem as GM, same fix. Backend gm endpoints already admit it.
+  return role === 'general_manager' || role === 'backoffice_admin' ? <GmStats /> : <AgentStats />
 }
 
 // GM's home dashboard is the tenant-wide Business overview, not the generic
@@ -479,7 +481,7 @@ function StatsForRole() {
 // hasRole would also expose, pointing them at a GM-gated route).
 function DashboardForRole() {
   const role = useAuthStore((s) => s.user?.role)
-  return role === 'general_manager' ? <GmOverviewPage /> : <DashboardPage />
+  return role === 'general_manager' || role === 'backoffice_admin' ? <GmOverviewPage /> : <DashboardPage />
 }
 
 function PageLoader({ children }: { children: React.ReactNode }) {
