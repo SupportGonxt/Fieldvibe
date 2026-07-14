@@ -7,6 +7,7 @@ import {
   Globe, Database, CreditCard, Tag
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { roleAllows, canSeeMoney } from '../../lib/capabilities'
 
 interface MenuItem {
   label: string
@@ -14,7 +15,10 @@ interface MenuItem {
   href: string
   description?: string
   badge?: string
-  roles?: string[]
+  // Capability predicate (capabilities.ts) — never hand-rolled role lists,
+  // which drop admin-equivalents like backoffice_admin and drift from the
+  // route gates in App.tsx.
+  can?: (role: string) => boolean
 }
 
 interface MenuSection {
@@ -37,18 +41,21 @@ const menuSections: MenuSection[] = [
     title: 'Sales & Finance',
     items: [
       { label: 'Sales Orders', icon: <FileText className="w-5 h-5" />, href: '/sales/orders', description: 'Manage sales orders' },
-      { label: 'Invoices', icon: <CreditCard className="w-5 h-5" />, href: '/finance/invoices', description: 'Invoice management' },
-      { label: 'Payments', icon: <Wallet className="w-5 h-5" />, href: '/finance/payments', description: 'Payment tracking' },
+      // Rand data behind requiredRole="admin" routes — field roles (incl.
+      // manager) see counts only; their own pay lives on separate /agent routes.
+      { label: 'Invoices', icon: <CreditCard className="w-5 h-5" />, href: '/finance/invoices', description: 'Invoice management', can: canSeeMoney },
+      { label: 'Payments', icon: <Wallet className="w-5 h-5" />, href: '/finance/payments', description: 'Payment tracking', can: canSeeMoney },
       { label: 'Van Sales', icon: <Truck className="w-5 h-5" />, href: '/van-sales/van-loads', description: 'Van stock and sales' },
-      { label: 'Commissions', icon: <Tag className="w-5 h-5" />, href: '/commissions', description: 'Commission earnings' },
+      { label: 'Commissions', icon: <Tag className="w-5 h-5" />, href: '/commissions', description: 'Commission earnings', can: canSeeMoney },
     ],
   },
   {
     title: 'Inventory',
     items: [
       { label: 'Products', icon: <Package className="w-5 h-5" />, href: '/products', description: 'Product catalog' },
-      { label: 'Stock Levels', icon: <Database className="w-5 h-5" />, href: '/inventory/stock-levels', description: 'Current stock' },
-      { label: 'Warehouses', icon: <Building2 className="w-5 h-5" />, href: '/inventory/warehouses', description: 'Warehouse management' },
+      // /inventory/* routes are requiredRole="manager" — mirror that gate here.
+      { label: 'Stock Levels', icon: <Database className="w-5 h-5" />, href: '/inventory/stock-levels', description: 'Current stock', can: (r) => roleAllows(r, ['manager']) },
+      { label: 'Warehouses', icon: <Building2 className="w-5 h-5" />, href: '/inventory/warehouses', description: 'Warehouse management', can: (r) => roleAllows(r, ['manager']) },
     ],
   },
   {
@@ -68,7 +75,10 @@ const menuSections: MenuSection[] = [
   {
     title: 'Settings',
     items: [
-      { label: 'System Settings', icon: <Settings className="w-5 h-5" />, href: '/admin/settings', description: 'System configuration', roles: ['admin', 'super_admin'] },
+      // roleAllows, not ['admin','super_admin'] — exact-role lists hid this
+      // from admin-equivalents (backoffice_admin, general_manager) while the
+      // /admin/settings route let them in.
+      { label: 'System Settings', icon: <Settings className="w-5 h-5" />, href: '/admin/settings', description: 'System configuration', can: (r) => roleAllows(r, ['admin']) },
     ],
   },
 ]
@@ -104,7 +114,7 @@ export default function MoreMenuPage() {
       <div className="px-4 py-4 space-y-6">
         {menuSections.map(section => {
           const visibleItems = section.items.filter(
-            item => !item.roles || item.roles.includes(userRole)
+            item => !item.can || item.can(userRole)
           )
           if (visibleItems.length === 0) return null
 

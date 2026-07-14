@@ -251,7 +251,6 @@ const LotDetail = lazyWithRetry(() => import('./pages/inventory/batch-tracking/L
 const LotTracking = lazyWithRetry(() => import('./pages/inventory/batch-tracking/LotTracking'))
 const MerchandisingCompliancePage = lazyWithRetry(() => import('./pages/trade-marketing/MerchandisingCompliancePage'))
 const MobileLoginPage = lazyWithRetry(() => import('./pages/auth/MobileLoginPage'))
-const MobileDashboard = lazyWithRetry(() => import('./pages/mobile/MobileDashboard'))
 const MoreMenuPage = lazyWithRetry(() => import('./pages/mobile/MoreMenuPage'))
 const MovementDetail = lazyWithRetry(() => import('./pages/inventory/stock-ledger/MovementDetail'))
 const OrderCreatePage = lazyWithRetry(() => import('./pages/orders/OrderCreatePage'))
@@ -672,30 +671,30 @@ function App() {
             <Route path="surveys/:id/analytics" element={<PageLoader><SurveyAnalytics /></PageLoader>} />
 
             {/* Inventory Routes */}
-            <Route path="inventory" element={<PageLoader><InventoryDashboard /></PageLoader>} />
-            <Route path="inventory/dashboard" element={<PageLoader><InventoryDashboard /></PageLoader>} />
-            <Route path="inventory/stock-count" element={<PageLoader><StockCountWorkflowPage /></PageLoader>} />
-            <Route path="inventory/stock-count/:id" element={<PageLoader><StockCountDetail /></PageLoader>} />
-            <Route path="inventory/management" element={<PageLoader><InventoryManagement /></PageLoader>} />
-            <Route path="inventory/reports" element={<PageLoader><InventoryReports /></PageLoader>} />
-            <Route path="inventory/stock-levels" element={<PageLoader><InventoryManagement /></PageLoader>} />
-            <Route path="inventory/movements" element={<PageLoader><InventoryReports /></PageLoader>} />
-            <Route path="inventory/warehouses" element={<PageLoader><InventoryManagement /></PageLoader>} />
-            <Route path="inventory/adjustments" element={<PageLoader><AdjustmentsList /></PageLoader>} />
-            <Route path="inventory/adjustments/create" element={<PageLoader><AdjustmentCreate /></PageLoader>} />
-            <Route path="inventory/adjustments/:id" element={<PageLoader><AdjustmentDetail /></PageLoader>} />
-            <Route path="inventory/issues" element={<PageLoader><IssuesList /></PageLoader>} />
-            <Route path="inventory/issues/create" element={<PageLoader><IssueCreate /></PageLoader>} />
-            <Route path="inventory/issues/:id" element={<PageLoader><IssueDetail /></PageLoader>} />
-            <Route path="inventory/receipts" element={<PageLoader><ReceiptsList /></PageLoader>} />
-            <Route path="inventory/receipts/create" element={<PageLoader><ReceiptCreate /></PageLoader>} />
-            <Route path="inventory/receipts/:id" element={<PageLoader><ReceiptDetail /></PageLoader>} />
-            <Route path="inventory/stock-counts" element={<PageLoader><StockCountsList /></PageLoader>} />
-            <Route path="inventory/stock-counts/create" element={<PageLoader><StockCountCreate /></PageLoader>} />
-            <Route path="inventory/stock-counts/:id" element={<PageLoader><StockCountDetail /></PageLoader>} />
-            <Route path="inventory/transfers" element={<PageLoader><TransfersList /></PageLoader>} />
-            <Route path="inventory/transfers/create" element={<PageLoader><TransferCreate /></PageLoader>} />
-            <Route path="inventory/transfers/:id" element={<PageLoader><TransferDetail /></PageLoader>} />
+            <Route path="inventory" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryDashboard /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/dashboard" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryDashboard /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-count" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockCountWorkflowPage /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-count/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockCountDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/management" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryManagement /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/reports" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryReports /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-levels" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryManagement /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/movements" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryReports /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/warehouses" element={<ProtectedRoute requiredRole="manager"><PageLoader><InventoryManagement /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/adjustments" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentsList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/adjustments/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/adjustments/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/issues" element={<ProtectedRoute requiredRole="manager"><PageLoader><IssuesList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/issues/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><IssueCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/issues/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><IssueDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/receipts" element={<ProtectedRoute requiredRole="manager"><PageLoader><ReceiptsList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/receipts/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><ReceiptCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/receipts/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><ReceiptDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-counts" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockCountsList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-counts/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockCountCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-counts/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockCountDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/transfers" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransfersList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/transfers/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransferCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/transfers/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransferDetail /></PageLoader></ProtectedRoute>} />
             
             <Route path="inventory-management/*" element={<Navigate to="/inventory" replace />} />
 
@@ -808,21 +807,21 @@ function App() {
             <Route path="sales/returns/:id" element={<PageLoader><SalesReturnDetail /></PageLoader>} />
 
             {/* Marketing Routes */}
-            <Route path="marketing/campaigns" element={<PageLoader><CampaignsList /></PageLoader>} />
-            <Route path="marketing/campaigns/create" element={<PageLoader><CampaignCreate /></PageLoader>} />
-            <Route path="marketing/campaigns/:id" element={<PageLoader><CampaignDetail /></PageLoader>} />
-            <Route path="marketing/campaigns/:id/edit" element={<PageLoader><CampaignEdit /></PageLoader>} />
-            <Route path="marketing/events" element={<PageLoader><EventsList /></PageLoader>} />
-            <Route path="marketing/events/create" element={<PageLoader><EventCreate /></PageLoader>} />
-            <Route path="marketing/events/:id" element={<PageLoader><EventDetail /></PageLoader>} />
-            <Route path="marketing/events/:id/edit" element={<PageLoader><EventEdit /></PageLoader>} />
-            <Route path="marketing/hierarchy" element={<PageLoader><MarketingHierarchyPage /></PageLoader>} />
-            <Route path="marketing/activations" element={<PageLoader><ActivationsList /></PageLoader>} />
-            <Route path="marketing/activations/create" element={<PageLoader><ActivationCreate /></PageLoader>} />
-            <Route path="marketing/activations/:id" element={<PageLoader><ActivationDetail /></PageLoader>} />
-            <Route path="marketing/promotions" element={<PageLoader><PromotionsList /></PageLoader>} />
-            <Route path="marketing/promotions/create" element={<PageLoader><PromotionCreate /></PageLoader>} />
-            <Route path="marketing/promotions/:id" element={<PageLoader><PromotionDetail /></PageLoader>} />
+            <Route path="marketing/campaigns" element={<ProtectedRoute requiredRole="manager"><PageLoader><CampaignsList /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/campaigns/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><CampaignCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/campaigns/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><CampaignDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/campaigns/:id/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><CampaignEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/events" element={<ProtectedRoute requiredRole="manager"><PageLoader><EventsList /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/events/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><EventCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/events/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><EventDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/events/:id/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><EventEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/hierarchy" element={<ProtectedRoute requiredRole="manager"><PageLoader><MarketingHierarchyPage /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/activations" element={<ProtectedRoute requiredRole="manager"><PageLoader><ActivationsList /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/activations/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><ActivationCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/activations/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><ActivationDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/promotions" element={<ProtectedRoute requiredRole="manager"><PageLoader><PromotionsList /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/promotions/create" element={<ProtectedRoute requiredRole="manager"><PageLoader><PromotionCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="marketing/promotions/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><PromotionDetail /></PageLoader></ProtectedRoute>} />
 
             <Route path="crm/*" element={<Navigate to="/customers" replace />} />
 
@@ -849,19 +848,19 @@ function App() {
             
             {/* Commission Routes */}
             <Route path="commissions" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDashboardPage /></PageLoader></ProtectedRoute>} />
-            <Route path="commissions/my" element={<PageLoader><MyCommissionEarningsPage /></PageLoader>} />
-            <Route path="commissions/disputes" element={<PageLoader><CommissionDisputesPage /></PageLoader>} />
-            <Route path="commissions/create" element={<PageLoader><CommissionCreate /></PageLoader>} />
-            <Route path="commissions/:id" element={<PageLoader><CommissionDetail /></PageLoader>} />
-            <Route path="commissions/:id/edit" element={<PageLoader><CommissionEdit /></PageLoader>} />
-            <Route path="commissions/calculation" element={<PageLoader><CommissionCalculationPage /></PageLoader>} />
-            <Route path="commissions/approval" element={<PageLoader><CommissionApprovalPage /></PageLoader>} />
-            <Route path="commissions/payment" element={<PageLoader><CommissionPaymentPage /></PageLoader>} />
+            <Route path="commissions/my" element={<ProtectedRoute requiredRole="admin"><PageLoader><MyCommissionEarningsPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/disputes" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDisputesPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/:id/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/calculation" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionCalculationPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/approval" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionApprovalPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/payment" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionPaymentPage /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/reports" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionReportsPage /></PageLoader></ProtectedRoute>} />
-            <Route path="commissions/settings" element={<PageLoader><CommissionSettingsPage /></PageLoader>} />
-            <Route path="commissions/rules/create" element={<PageLoader><RuleCreate /></PageLoader>} />
-            <Route path="commissions/rules/:id" element={<PageLoader><RuleDetail /></PageLoader>} />
-            <Route path="commissions/rules/:id/edit" element={<PageLoader><RuleEdit /></PageLoader>} />
+            <Route path="commissions/settings" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionSettingsPage /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/rules/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><RuleCreate /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/rules/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><RuleDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/rules/:id/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><RuleEdit /></PageLoader></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="admin" element={
@@ -1004,29 +1003,29 @@ function App() {
 
 
             {/* BUG-007: Previously unrouted drill-down pages */}
-            <Route path="inventory/adjustments/:id/items/:itemId" element={<PageLoader><AdjustmentItemDetail /></PageLoader>} />
-            <Route path="inventory/adjustments/:id/items/:itemId/edit" element={<PageLoader><AdjustmentItemEdit /></PageLoader>} />
-            <Route path="inventory/adjustments/:id/items" element={<PageLoader><AdjustmentItemList /></PageLoader>} />
-            <Route path="inventory/adjustments/:id/justification" element={<PageLoader><AdjustmentJustification /></PageLoader>} />
-            <Route path="commissions/approvals/:id" element={<PageLoader><ApprovalDetail /></PageLoader>} />
-            <Route path="inventory/batches/:id/allocation" element={<PageLoader><BatchAllocation /></PageLoader>} />
-            <Route path="inventory/batches/:id" element={<PageLoader><BatchDetail /></PageLoader>} />
-            <Route path="inventory/batches/expiry" element={<PageLoader><BatchExpiry /></PageLoader>} />
-            <Route path="inventory/batches/:id/movements" element={<PageLoader><BatchMovementHistory /></PageLoader>} />
+            <Route path="inventory/adjustments/:id/items/:itemId" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentItemDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/adjustments/:id/items/:itemId/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentItemEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/adjustments/:id/items" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentItemList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/adjustments/:id/justification" element={<ProtectedRoute requiredRole="manager"><PageLoader><AdjustmentJustification /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/approvals/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><ApprovalDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/batches/:id/allocation" element={<ProtectedRoute requiredRole="manager"><PageLoader><BatchAllocation /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/batches/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><BatchDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/batches/expiry" element={<ProtectedRoute requiredRole="manager"><PageLoader><BatchExpiry /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/batches/:id/movements" element={<ProtectedRoute requiredRole="manager"><PageLoader><BatchMovementHistory /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/boards/:id/compliance" element={<PageLoader><BoardComplianceChecks /></PageLoader>} />
             <Route path="field-operations/boards/:id/location-changes" element={<PageLoader><BoardLocationChanges /></PageLoader>} />
             <Route path="field-operations/boards/:id/maintenance" element={<PageLoader><BoardMaintenanceLog /></PageLoader>} />
             <Route path="field-operations/boards/:id/photos" element={<PageLoader><BoardPhotoHistory /></PageLoader>} />
             <Route path="field-operations/boards/:id/history" element={<PageLoader><BoardPlacementHistory /></PageLoader>} />
             <Route path="field-operations/brand-activation" element={<PageLoader><BrandActivationFormPage /></PageLoader>} />
-            <Route path="commissions/calculations/:id" element={<PageLoader><CalculationDetail /></PageLoader>} />
-            <Route path="commissions/calculations/:id/log" element={<PageLoader><CalculationLog /></PageLoader>} />
+            <Route path="commissions/calculations/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><CalculationDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/calculations/:id/log" element={<ProtectedRoute requiredRole="admin"><PageLoader><CalculationLog /></PageLoader></ProtectedRoute>} />
             <Route path="van-sales/cash-reconciliation/:sessionId/variance" element={<PageLoader><CashVariance /></PageLoader>} />
             <Route path="van-sales/cash-reconciliation/:sessionId/collections/:collectionId" element={<PageLoader><CollectionDetail /></PageLoader>} />
-            <Route path="inventory/stock-counts/:countId/lines/:lineId/approval" element={<PageLoader><CountLineApproval /></PageLoader>} />
-            <Route path="inventory/stock-counts/:countId/lines/:lineId" element={<PageLoader><CountLineDetail /></PageLoader>} />
-            <Route path="inventory/stock-counts/:countId/lines/:lineId/edit" element={<PageLoader><CountLineEdit /></PageLoader>} />
-            <Route path="inventory/stock-counts/:countId/lines" element={<PageLoader><CountLineList /></PageLoader>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/approval" element={<ProtectedRoute requiredRole="manager"><PageLoader><CountLineApproval /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId" element={<ProtectedRoute requiredRole="manager"><PageLoader><CountLineDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-counts/:countId/lines/:lineId/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><CountLineEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-counts/:countId/lines" element={<ProtectedRoute requiredRole="manager"><PageLoader><CountLineList /></PageLoader></ProtectedRoute>} />
             <Route path="customer-selection" element={<PageLoader><CustomerSelectionPage /></PageLoader>} />
             <Route path="customers/advanced" element={<PageLoader><CustomersAdvanced /></PageLoader>} />
             <Route path="orders/:id/deliveries/:deliveryId" element={<PageLoader><DeliveryDetail /></PageLoader>} />
@@ -1036,7 +1035,7 @@ function App() {
             <Route path="orders/:id/deliveries/:deliveryId/stops/:stopId" element={<PageLoader><DeliveryStopDetail /></PageLoader>} />
             <Route path="orders/:id/deliveries/:deliveryId/stops" element={<PageLoader><DeliveryStops /></PageLoader>} />
             <Route path="van-sales/cash-reconciliation/:sessionId/deposits/:depositId" element={<PageLoader><DepositDetail /></PageLoader>} />
-            <Route path="commissions/exceptions/:id" element={<PageLoader><ExceptionDetail /></PageLoader>} />
+            <Route path="commissions/exceptions/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><ExceptionDetail /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/visits/:id/board-placement" element={<PageLoader><FOBoardPlacementDetail /></PageLoader>} />
             <Route path="field-operations/visits/:id/product-distribution" element={<PageLoader><FOProductDistributionDetail /></PageLoader>} />
             <Route path="field-operations/visits/:id/survey" element={<PageLoader><FOSurveyDetail /></PageLoader>} />
@@ -1049,9 +1048,9 @@ function App() {
             <Route path="finance/invoices/:invoiceId/items/:itemId/history" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItemHistory /></PageLoader></ProtectedRoute>} />
             <Route path="finance/invoices/:invoiceId/items-list" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceItemList /></PageLoader></ProtectedRoute>} />
             <Route path="finance/invoices/:invoiceId/status-history" element={<ProtectedRoute requiredRole="admin"><PageLoader><InvoiceStatusHistory /></PageLoader></ProtectedRoute>} />
-            <Route path="inventory/lots/:id" element={<PageLoader><LotDetail /></PageLoader>} />
-            <Route path="inventory/lots" element={<PageLoader><LotTracking /></PageLoader>} />
-            <Route path="inventory/stock-ledger/movements/:id" element={<PageLoader><MovementDetail /></PageLoader>} />
+            <Route path="inventory/lots/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><LotDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/lots" element={<ProtectedRoute requiredRole="manager"><PageLoader><LotTracking /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-ledger/movements/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><MovementDetail /></PageLoader></ProtectedRoute>} />
             <Route path="orders/:id/items/:itemId" element={<PageLoader><OrderItemDetail /></PageLoader>} />
             <Route path="orders/:id/items/:itemId/edit" element={<PageLoader><OrderItemEdit /></PageLoader>} />
             <Route path="orders/:id/items/:itemId/history" element={<PageLoader><OrderItemHistory /></PageLoader>} />
@@ -1064,10 +1063,10 @@ function App() {
             <Route path="finance/payments/:paymentId/allocations/:allocId/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentAllocationEdit /></PageLoader></ProtectedRoute>} />
             <Route path="finance/payments/:paymentId/allocations" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentAllocationList /></PageLoader></ProtectedRoute>} />
             <Route path="finance/payments/:paymentId/status-history" element={<ProtectedRoute requiredRole="admin"><PageLoader><PaymentStatusHistory /></PageLoader></ProtectedRoute>} />
-            <Route path="commissions/payouts/:payoutId/audit" element={<PageLoader><PayoutAuditTrail /></PageLoader>} />
-            <Route path="commissions/payouts/:payoutId/lines/:lineId" element={<PageLoader><PayoutLineDetail /></PageLoader>} />
-            <Route path="commissions/payouts/:payoutId/lines/:lineId/edit" element={<PageLoader><PayoutLineEdit /></PageLoader>} />
-            <Route path="commissions/payouts/:payoutId/lines" element={<PageLoader><PayoutLineList /></PageLoader>} />
+            <Route path="commissions/payouts/:payoutId/audit" element={<ProtectedRoute requiredRole="admin"><PageLoader><PayoutAuditTrail /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/payouts/:payoutId/lines/:lineId" element={<ProtectedRoute requiredRole="admin"><PageLoader><PayoutLineDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/payouts/:payoutId/lines/:lineId/edit" element={<ProtectedRoute requiredRole="admin"><PageLoader><PayoutLineEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="commissions/payouts/:payoutId/lines" element={<ProtectedRoute requiredRole="admin"><PageLoader><PayoutLineList /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/photo-review" element={<PageLoader><AdminPhotoReviewPage /></PageLoader>} />
             <Route path="field-operations/photos/:id" element={<PageLoader><PhotoDetail /></PageLoader>} />
             <Route path="field-operations/photos/:id/evidence" element={<PageLoader><PhotoEvidence /></PageLoader>} />
@@ -1082,32 +1081,32 @@ function App() {
             <Route path="van-sales/routes/:routeId/stops/exceptions" element={<PageLoader><RouteStopExceptions /></PageLoader>} />
             <Route path="van-sales/routes/:routeId/stops" element={<PageLoader><RouteStopList /></PageLoader>} />
             <Route path="van-sales/routes/:routeId/stops/performance" element={<PageLoader><RouteStopPerformance /></PageLoader>} />
-            <Route path="commissions/rules/:id/conditions" element={<PageLoader><RuleConditionDetail /></PageLoader>} />
+            <Route path="commissions/rules/:id/conditions" element={<ProtectedRoute requiredRole="admin"><PageLoader><RuleConditionDetail /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/sku-checker" element={<PageLoader><SKUAvailabilityCheckerPage /></PageLoader>} />
-            <Route path="inventory/serials/:id" element={<PageLoader><SerialDetail /></PageLoader>} />
-            <Route path="inventory/serials" element={<PageLoader><SerialTracking /></PageLoader>} />
+            <Route path="inventory/serials/:id" element={<ProtectedRoute requiredRole="manager"><PageLoader><SerialDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/serials" element={<ProtectedRoute requiredRole="manager"><PageLoader><SerialTracking /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/shelf-analytics" element={<PageLoader><ShelfAnalyticsFormPage /></PageLoader>} />
-            <Route path="commissions/payouts/:payoutId/transactions" element={<PageLoader><SourceTransactions /></PageLoader>} />
+            <Route path="commissions/payouts/:payoutId/transactions" element={<ProtectedRoute requiredRole="admin"><PageLoader><SourceTransactions /></PageLoader></ProtectedRoute>} />
             <Route path="orders/:id/status-history/:transitionId" element={<PageLoader><StatusTransitionDetail /></PageLoader>} />
-            <Route path="inventory/stock-ledger/by-product" element={<PageLoader><StockLedgerByProduct /></PageLoader>} />
-            <Route path="inventory/stock-ledger/by-warehouse" element={<PageLoader><StockLedgerByWarehouse /></PageLoader>} />
-            <Route path="inventory/stock-ledger" element={<PageLoader><StockLedgerDetail /></PageLoader>} />
+            <Route path="inventory/stock-ledger/by-product" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockLedgerByProduct /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-ledger/by-warehouse" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockLedgerByWarehouse /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/stock-ledger" element={<ProtectedRoute requiredRole="manager"><PageLoader><StockLedgerDetail /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/surveys/:id/analysis" element={<PageLoader><SurveyAnalysis /></PageLoader>} />
             <Route path="field-operations/surveys/:id/answers/:answerId" element={<PageLoader><SurveyAnswerDetail /></PageLoader>} />
             <Route path="field-operations/surveys/comparison" element={<PageLoader><SurveyComparison /></PageLoader>} />
             <Route path="field-operations/surveys/:id/responses/:responseId" element={<PageLoader><SurveyResponseDetail /></PageLoader>} />
             <Route path="field-operations/surveys/:id/responses/:responseId/edit" element={<PageLoader><SurveyResponseEdit /></PageLoader>} />
             <Route path="trade-marketing/agent" element={<PageLoader><TradeMarketingAgentPage /></PageLoader>} />
-            <Route path="inventory/transfers/:id/items/:itemId" element={<PageLoader><TransferItemDetail /></PageLoader>} />
-            <Route path="inventory/transfers/:id/items/:itemId/edit" element={<PageLoader><TransferItemEdit /></PageLoader>} />
-            <Route path="inventory/transfers/:id/items" element={<PageLoader><TransferItemList /></PageLoader>} />
-            <Route path="inventory/transfers/:id/tracking" element={<PageLoader><TransferItemTracking /></PageLoader>} />
+            <Route path="inventory/transfers/:id/items/:itemId" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransferItemDetail /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/transfers/:id/items/:itemId/edit" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransferItemEdit /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/transfers/:id/items" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransferItemList /></PageLoader></ProtectedRoute>} />
+            <Route path="inventory/transfers/:id/tracking" element={<ProtectedRoute requiredRole="manager"><PageLoader><TransferItemTracking /></PageLoader></ProtectedRoute>} />
             <Route path="van-sales/van-loads/:loadId/items/:itemId" element={<PageLoader><VanLoadItemDetail /></PageLoader>} />
             <Route path="van-sales/van-loads/:loadId/items/:itemId/edit" element={<PageLoader><VanLoadItemEdit /></PageLoader>} />
             <Route path="van-sales/van-loads/:loadId/items" element={<PageLoader><VanLoadItemList /></PageLoader>} />
             <Route path="van-sales/van-loads/:loadId/reconciliation" element={<PageLoader><VanLoadReconciliation /></PageLoader>} />
             <Route path="van-sales/van-loads/:loadId/variance" element={<PageLoader><VanLoadVariance /></PageLoader>} />
-            <Route path="inventory/stock-counts/:countId/variance" element={<PageLoader><VarianceResolution /></PageLoader>} />
+            <Route path="inventory/stock-counts/:countId/variance" element={<ProtectedRoute requiredRole="manager"><PageLoader><VarianceResolution /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/visit-workflow" element={<PageLoader><VisitWorkflowPage /></PageLoader>} />
             <Route path="field-operations/board-placements" element={<PageLoader><BoardPlacementsList /></PageLoader>} />
             <Route path="field-operations/board-placements/create" element={<PageLoader><BoardPlacementCreate /></PageLoader>} />
@@ -1117,7 +1116,6 @@ function App() {
             <Route path="field-operations/product-distributions/:id" element={<PageLoader><ProductDistributionDetail /></PageLoader>} />
             <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
             <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
-            <Route path="agent/pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="analytics-dashboard/*" element={<PageLoader><AnalyticsDashboardPage /></PageLoader>} />
             <Route path="van-sales/route-management" element={<PageLoader><RouteManagementPage /></PageLoader>} />
             <Route path="van-sales/orders-list" element={<PageLoader><VanOrdersListPage /></PageLoader>} />
@@ -1149,7 +1147,6 @@ function App() {
             <Route path="field-operations/reports/stellr" element={<Navigate to="/field-operations/reports/goldrush-stores" replace />} />
 
             {/* Mobile More Menu */}
-            <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
             <Route path="more" element={<PageLoader><MoreMenuPage /></PageLoader>} />
 
             {/* ponytail: no index route — pathless-parent index outranks the explicit path="/" route
@@ -1169,6 +1166,7 @@ function App() {
             <Route path="reconcile" element={<PageLoader><BackOfficeReconcile /></PageLoader>} />
             <Route path="deposits" element={<PageLoader><BackOfficeDeposits /></PageLoader>} />
             <Route path="call-list" element={<PageLoader><BackOfficeCallList /></PageLoader>} />
+            <Route path="pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="photo-review" element={<PageLoader><BOPhotoReview /></PageLoader>} />
             <Route path="upload-failures" element={<PageLoader><BOUploadFailures /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />

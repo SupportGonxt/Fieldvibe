@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed } from 'lucide-react'
+import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed, KeyRound } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { useToast } from '../../components/ui/Toast'
@@ -151,6 +151,13 @@ export default function BackOfficeCallList() {
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold text-white">Agents</h1>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/agent/pin-management')}
+              className="p-3 rounded-xl bg-white/[0.04] border border-white/10 text-gray-400 active:scale-95 transition-transform"
+              aria-label="Agent PINs"
+            >
+              <KeyRound className="w-5 h-5" />
+            </button>
             <button
               onClick={toggleHistory}
               className={`p-3 rounded-xl border active:scale-95 transition-transform ${showHistory ? 'bg-[#00E87B]/15 border-[#00E87B]/40 text-[#00E87B]' : 'bg-white/[0.04] border-white/10 text-gray-400'}`}
