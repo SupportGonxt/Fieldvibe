@@ -1,325 +1,127 @@
+// Guards transactionService's real contract: URLs built from the config
+// baseUrl, filters passed through as axios params, `data.data`-or-`data`
+// unwrapping, and the error policy — reads degrade (null / [] / zeroed
+// summary) while writes rethrow so callers can surface the failure.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { transactionService } from '../../services/transaction.service'
-import { createMockTransaction, mockApiResponse, mockApiError } from '../utils/test-utils'
 
-// Mock the API service
 vi.mock('../../services/api.service', () => ({
-  apiService: {
+  apiClient: {
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
-  }
+  },
 }))
 
-describe('TransactionService', () => {
-  const mockTransaction = createMockTransaction()
-  const mockTransactions = [
-    createMockTransaction({ id: 'TXN-001', amount: 1500 }),
-    createMockTransaction({ id: 'TXN-002', amount: 2500 }),
-    createMockTransaction({ id: 'TXN-003', amount: 750 }),
-  ]
+import { apiClient } from '../../services/api.service'
+import { transactionService } from '../../services/transaction.service'
 
+const getMock = apiClient.get as ReturnType<typeof vi.fn>
+const postMock = apiClient.post as ReturnType<typeof vi.fn>
+const putMock = apiClient.put as ReturnType<typeof vi.fn>
+
+const wrapped = (data: any) => ({ data: { data } })
+
+describe('transactionService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('createTransaction', () => {
-    it('creates a new transaction successfully', async () => {
-      const { apiService } = await import('../../services/api.service')
-      apiService.post.mockResolvedValue(mockApiResponse(mockTransaction))
-
-      const transactionData = {
-        type: 'sale',
-        amount: 1500,
-        customerId: 'CUST-001',
-        agentId: 'AGT-001',
-        products: [
-          {
-            id: 'PROD-001',
-            name: 'Wireless Headphones',
-            quantity: 2,
-            unitPrice: 750,
-            totalPrice: 1500
-          }
-        ]
-      }
-
-      const result = await transactionService.createTransaction(transactionData)
-
-      expect(apiService.post).toHaveBeenCalledWith('/transactions', transactionData)
-      expect(result).toEqual(mockTransaction)
-    })
-
-    it('handles transaction creation errors', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.post.mockRejectedValue(new Error('Failed to create transaction'))
-
-      const transactionData = {
-        type: 'sale',
-        amount: 1500,
-        customerId: 'CUST-001',
-        agentId: 'AGT-001',
-        products: []
-      }
-
-      await expect(transactionService.createTransaction(transactionData))
-        .rejects.toThrow('Failed to create transaction')
-    })
-
-    it('validates required transaction fields', async () => {
-      const { apiService } = require('../../services/api.service')
-      
-      const invalidTransactionData = {
-        type: 'sale',
-        // Missing required fields
-      }
-
-      await expect(transactionService.createTransaction(invalidTransactionData as any))
-        .rejects.toThrow()
-    })
-  })
-
   describe('getTransactions', () => {
-    it('fetches transactions with default parameters', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.get.mockResolvedValue(mockApiResponse({ 
-        transactions: mockTransactions,
-        total: mockTransactions.length,
-        page: 1,
-        limit: 10
-      }))
+    it('passes the filter through as params and unwraps data.data', async () => {
+      const rows = [{ id: 'TXN-001' }, { id: 'TXN-002' }]
+      getMock.mockResolvedValue(wrapped(rows))
 
-      const result = await transactionService.getTransactions()
+      const filter = { status: 'completed', agent_id: 'AGT-001' } as any
+      const result = await transactionService.getTransactions(filter)
 
-      expect(apiService.get).toHaveBeenCalledWith('/transactions', {
-        params: {
-          page: 1,
-          limit: 10,
-          sortBy: 'timestamp',
-          sortOrder: 'desc'
-        }
-      })
-      expect(result.transactions).toEqual(mockTransactions)
-      expect(result.total).toBe(mockTransactions.length)
+      expect(getMock).toHaveBeenCalledWith('/transactions', { params: filter })
+      expect(result).toEqual(rows)
     })
 
-    it('fetches transactions with custom filters', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.get.mockResolvedValue(mockApiResponse({ 
-        transactions: mockTransactions,
-        total: mockTransactions.length
-      }))
+    it('falls back to a plain data payload when there is no data.data envelope', async () => {
+      const rows = [{ id: 'TXN-001' }]
+      getMock.mockResolvedValue({ data: rows })
 
-      const filters = {
-        page: 2,
-        limit: 20,
-        status: 'completed',
-        agentId: 'AGT-001',
-        customerId: 'CUST-001',
-        startDate: '2024-01-01',
-        endDate: '2024-12-31'
-      }
-
-      await transactionService.getTransactions(filters)
-
-      expect(apiService.get).toHaveBeenCalledWith('/transactions', {
-        params: {
-          ...filters,
-          sortBy: 'timestamp',
-          sortOrder: 'desc'
-        }
-      })
+      expect(await transactionService.getTransactions()).toEqual(rows)
     })
 
-    it('handles API errors when fetching transactions', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.get.mockRejectedValue(new Error('API Error'))
-
-      await expect(transactionService.getTransactions())
-        .rejects.toThrow('API Error')
+    it('rethrows fetch errors', async () => {
+      getMock.mockRejectedValue(new Error('API Error'))
+      await expect(transactionService.getTransactions()).rejects.toThrow('API Error')
     })
   })
 
-  describe('getTransactionById', () => {
-    it('fetches a specific transaction by ID', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.get.mockResolvedValue(mockApiResponse(mockTransaction))
+  describe('getTransaction', () => {
+    it('fetches by id', async () => {
+      const row = { id: 'TXN-001' }
+      getMock.mockResolvedValue(wrapped(row))
 
-      const result = await transactionService.getTransactionById('TXN-001')
-
-      expect(apiService.get).toHaveBeenCalledWith('/transactions/TXN-001')
-      expect(result).toEqual(mockTransaction)
+      expect(await transactionService.getTransaction('TXN-001')).toEqual(row)
+      expect(getMock).toHaveBeenCalledWith('/transactions/TXN-001')
     })
 
-    it('handles not found errors', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.get.mockRejectedValue(new Error('Transaction not found'))
+    it('returns null instead of throwing when the fetch fails', async () => {
+      getMock.mockRejectedValue(new Error('not found'))
+      expect(await transactionService.getTransaction('NOPE')).toBeNull()
+    })
+  })
 
-      await expect(transactionService.getTransactionById('INVALID-ID'))
-        .rejects.toThrow('Transaction not found')
+  describe('createTransaction', () => {
+    it('posts to the base url and unwraps the created row', async () => {
+      const created = { id: 'TXN-100', amount: 1500 }
+      postMock.mockResolvedValue(wrapped(created))
+
+      const body = { amount: 1500, type: 'forward' } as any
+      expect(await transactionService.createTransaction(body)).toEqual(created)
+      expect(postMock).toHaveBeenCalledWith('/transactions', body)
+    })
+
+    it('rethrows create errors', async () => {
+      postMock.mockRejectedValue(new Error('Failed to create transaction'))
+      await expect(transactionService.createTransaction({} as any))
+        .rejects.toThrow('Failed to create transaction')
     })
   })
 
   describe('updateTransaction', () => {
-    it('updates a transaction successfully', async () => {
-      const { apiService } = require('../../services/api.service')
-      const updatedTransaction = { ...mockTransaction, amount: 2000 }
-      apiService.put.mockResolvedValue(mockApiResponse(updatedTransaction))
+    it('puts partial updates to the id url', async () => {
+      const updated = { id: 'TXN-001', amount: 2000 }
+      putMock.mockResolvedValue(wrapped(updated))
 
-      const updateData = { amount: 2000 }
-      const result = await transactionService.updateTransaction('TXN-001', updateData)
-
-      expect(apiService.put).toHaveBeenCalledWith('/transactions/TXN-001', updateData)
-      expect(result).toEqual(updatedTransaction)
-    })
-
-    it('handles update errors', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.put.mockRejectedValue(new Error('Update failed'))
-
-      await expect(transactionService.updateTransaction('TXN-001', { amount: 2000 }))
-        .rejects.toThrow('Update failed')
+      expect(await transactionService.updateTransaction('TXN-001', { amount: 2000 } as any))
+        .toEqual(updated)
+      expect(putMock).toHaveBeenCalledWith('/transactions/TXN-001', { amount: 2000 })
     })
   })
 
-  describe('reverseTransaction', () => {
-    it('reverses a transaction successfully', async () => {
-      const { apiService } = require('../../services/api.service')
-      const reversedTransaction = { ...mockTransaction, status: 'reversed' }
-      apiService.post.mockResolvedValue(mockApiResponse(reversedTransaction))
+  describe('createReverseTransaction', () => {
+    it('posts the reversal to /:id/reverse using the request transaction_id', async () => {
+      const reversed = { id: 'TXN-001', status: 'reversed' }
+      postMock.mockResolvedValue(wrapped(reversed))
 
-      const reverseData = { reason: 'Customer request' }
-      const result = await transactionService.reverseTransaction('TXN-001', reverseData)
-
-      expect(apiService.post).toHaveBeenCalledWith('/transactions/TXN-001/reverse', reverseData)
-      expect(result).toEqual(reversedTransaction)
-    })
-
-    it('handles reverse errors', async () => {
-      const { apiService } = require('../../services/api.service')
-      apiService.post.mockRejectedValue(new Error('Cannot reverse completed transaction'))
-
-      await expect(transactionService.reverseTransaction('TXN-001', { reason: 'Test' }))
-        .rejects.toThrow('Cannot reverse completed transaction')
+      const request = { transaction_id: 'TXN-001', reason: 'Customer request' } as any
+      expect(await transactionService.createReverseTransaction(request)).toEqual(reversed)
+      expect(postMock).toHaveBeenCalledWith('/transactions/TXN-001/reverse', request)
     })
   })
 
-  describe('getTransactionAnalytics', () => {
-    it('fetches transaction analytics', async () => {
-      const { apiService } = require('../../services/api.service')
-      const mockAnalytics = {
-        totalTransactions: 150,
-        totalAmount: 125000,
-        averageAmount: 833.33,
-        transactionsByStatus: {
-          completed: 140,
-          pending: 8,
-          failed: 2
-        },
-        transactionsByType: {
-          sale: 120,
-          refund: 20,
-          exchange: 10
-        },
-        dailyTrends: [
-          { date: '2024-01-01', count: 15, amount: 12500 },
-          { date: '2024-01-02', count: 18, amount: 15000 }
-        ]
-      }
+  describe('getTransactionSummary', () => {
+    it('unwraps the summary payload', async () => {
+      const summary = { total_transactions: 5, total_amount: 7500 }
+      getMock.mockResolvedValue(wrapped(summary))
 
-      apiService.get.mockResolvedValue(mockApiResponse(mockAnalytics))
-
-      const result = await transactionService.getTransactionAnalytics({
-        startDate: '2024-01-01',
-        endDate: '2024-01-31'
-      })
-
-      expect(apiService.get).toHaveBeenCalledWith('/transactions/analytics', {
-        params: {
-          startDate: '2024-01-01',
-          endDate: '2024-01-31'
-        }
-      })
-      expect(result).toEqual(mockAnalytics)
-    })
-  })
-
-  describe('Transaction Creation with Deep Validation', () => {
-    it('creates a complex transaction with multiple products', async () => {
-      const { apiService } = require('../../services/api.service')
-      
-      const complexTransaction = createMockTransaction({
-        products: [
-          {
-            id: 'PROD-001',
-            name: 'Wireless Headphones',
-            quantity: 2,
-            unitPrice: 750,
-            totalPrice: 1500
-          },
-          {
-            id: 'PROD-002',
-            name: 'Bluetooth Speaker',
-            quantity: 1,
-            unitPrice: 200,
-            totalPrice: 200
-          }
-        ],
-        amount: 1700,
-        tax: 170,
-        discount: 50,
-        finalAmount: 1820
-      })
-
-      apiService.post.mockResolvedValue(mockApiResponse(complexTransaction))
-
-      const result = await transactionService.createTransaction(complexTransaction)
-
-      expect(result.products).toHaveLength(2)
-      expect(result.amount).toBe(1700)
-      expect(result.finalAmount).toBe(1820)
+      expect(await transactionService.getTransactionSummary()).toEqual(summary)
+      expect(getMock).toHaveBeenCalledWith('/transactions/summary', { params: undefined })
     })
 
-    it('validates product quantities and prices', async () => {
-      const invalidTransaction = {
-        type: 'sale',
-        amount: 1500,
-        customerId: 'CUST-001',
-        agentId: 'AGT-001',
-        products: [
-          {
-            id: 'PROD-001',
-            name: 'Wireless Headphones',
-            quantity: -1, // Invalid quantity
-            unitPrice: 750,
-            totalPrice: 1500
-          }
-        ]
-      }
+    it('degrades to a zeroed summary when the fetch fails', async () => {
+      getMock.mockRejectedValue(new Error('boom'))
 
-      await expect(transactionService.createTransaction(invalidTransaction))
-        .rejects.toThrow()
-    })
-
-    it('calculates transaction totals correctly', async () => {
-      const { apiService } = require('../../services/api.service')
-      
-      const transactionWithCalculations = createMockTransaction({
-        subtotal: 1500,
-        tax: 150,
-        discount: 100,
-        finalAmount: 1550
-      })
-
-      apiService.post.mockResolvedValue(mockApiResponse(transactionWithCalculations))
-
-      const result = await transactionService.createTransaction(transactionWithCalculations)
-
-      expect(result.subtotal).toBe(1500)
-      expect(result.tax).toBe(150)
-      expect(result.discount).toBe(100)
-      expect(result.finalAmount).toBe(1550)
+      const summary = await transactionService.getTransactionSummary()
+      expect(summary.total_transactions).toBe(0)
+      expect(summary.total_amount).toBe(0)
+      expect(summary.forward_transactions).toEqual({ count: 0, amount: 0 })
     })
   })
 })
