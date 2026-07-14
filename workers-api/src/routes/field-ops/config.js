@@ -189,22 +189,35 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
     ).bind(crypto.randomUUID(), tenantId, companyId, key, JSON.stringify(value)).run();
   }
 
-  // Cockpit: per-role KPI threshold defaults (tenant-level; company overrides via PUT /config).
-  // Deterministic id + INSERT OR IGNORE = idempotent, no exists-check.
-  const KPI_DEFAULTS = {
-    'kpi.agent':          { visits_per_day: 20, signups_per_day: 10, conversion_floor_pct: 25, qualified_floor_pct: 50, drop_pct: 40, quiet_days: 2, baseline_window_days: 14 },
-    'kpi.team_lead':      { visits_per_day: 18, signups_per_day: 9,  conversion_floor_pct: 25, qualified_floor_pct: 50, drop_pct: 40, quiet_days: 2, baseline_window_days: 14 },
-    'kpi.manager':        { visits_per_day: 16, signups_per_day: 8,  conversion_floor_pct: 22, qualified_floor_pct: 48, drop_pct: 40, quiet_days: 3, baseline_window_days: 21 },
-    'kpi.general_manager':{ visits_per_day: 15, signups_per_day: 7,  conversion_floor_pct: 20, qualified_floor_pct: 45, drop_pct: 40, quiet_days: 3, baseline_window_days: 30 },
-    'kpi.backoffice_admin': { response_mins: 30, recon_hours: 24, stale_queue_hours: 48, improve_pct: 20 },
-  };
+  await seedKpiDefaults(db, tenantId);
+  return c.json({ success: true, seeded: true });
+});
+
+// Cockpit: per-role KPI threshold defaults (tenant-level; company overrides via PUT /config).
+const KPI_DEFAULTS = {
+  'kpi.agent':          { visits_per_day: 20, signups_per_day: 10, conversion_floor_pct: 25, qualified_floor_pct: 50, drop_pct: 40, quiet_days: 2, baseline_window_days: 14 },
+  'kpi.team_lead':      { visits_per_day: 18, signups_per_day: 9,  conversion_floor_pct: 25, qualified_floor_pct: 50, drop_pct: 40, quiet_days: 2, baseline_window_days: 14 },
+  'kpi.manager':        { visits_per_day: 16, signups_per_day: 8,  conversion_floor_pct: 22, qualified_floor_pct: 48, drop_pct: 40, quiet_days: 3, baseline_window_days: 21 },
+  'kpi.general_manager':{ visits_per_day: 15, signups_per_day: 7,  conversion_floor_pct: 20, qualified_floor_pct: 45, drop_pct: 40, quiet_days: 3, baseline_window_days: 30 },
+  'kpi.backoffice_admin': { response_mins: 30, recon_hours: 24, stale_queue_hours: 48, improve_pct: 20 },
+};
+
+// Exported for tests. Ids used to be `pc-default-${key}` (not tenant-scoped): the second tenant
+// to seed hit the id PRIMARY KEY and INSERT OR IGNORE silently skipped its rows. Ids are now
+// tenant-scoped, and the exists-check runs on the business key (tenant_id, company_id NULL, key)
+// because the unique index can't dedupe tenant-level rows (NULLs are distinct in SQLite) and
+// tenants seeded pre-fix still hold legacy-id rows that must not be duplicated on re-run.
+export async function seedKpiDefaults(db, tenantId) {
   for (const [key, val] of Object.entries(KPI_DEFAULTS)) {
+    const exists = await db.prepare(
+      `SELECT id FROM program_config WHERE tenant_id = ? AND company_id IS NULL AND key = ?`
+    ).bind(tenantId, key).first();
+    if (exists) continue;
     await db.prepare(
       `INSERT OR IGNORE INTO program_config (id, tenant_id, company_id, key, value_json)
        VALUES (?, ?, NULL, ?, ?)`
-    ).bind(`pc-default-${key}`, tenantId, key, JSON.stringify(val)).run();
+    ).bind(`pc-default-${tenantId}-${key}`, tenantId, key, JSON.stringify(val)).run();
   }
-  return c.json({ success: true, seeded: true });
-});
+}
 
 export default app;
