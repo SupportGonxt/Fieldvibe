@@ -398,7 +398,9 @@ export default function GmOverview() {
         {/* Needs attention */}
         <div className="bg-white/[0.03] border border-token rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3"><UserX className="w-4 h-4 text-amber-400" /><h2 className="text-sm font-semibold text-token">Needs attention</h2></div>
-          {field.leastActive.length === 0 ? <p className="text-xs text-token-faint">No agents on roster.</p> : (
+          {field.leastActive.length === 0 ? (
+            <p className="text-xs text-token-faint">{field.totalAgents === 0 ? 'No agents on roster.' : 'Everyone has activity today.'}</p>
+          ) : (
             <div className="space-y-2">
               {field.leastActive.map((a) => (
                 <div key={a.id} onClick={() => navigate(`/agent/agent-detail/${a.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
