@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
+import { roleAllows } from '../../lib/capabilities'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { toast } from 'react-hot-toast'
@@ -25,7 +26,7 @@ type Actual = {
 }
 type RosterAgent = { agentId: string; name: string; actual: Actual; signals: Signal[] }
 
-const LEADER_ROLES = ['team_lead', 'manager', 'general_manager', 'admin', 'super_admin']
+const LEADER_ROLES = ['team_lead', 'manager']
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -168,7 +169,9 @@ function AgentRow({ a }: { a: RosterAgent }) {
 
 export default function TeamCockpit() {
   const role = useAuthStore((s) => s.user?.role)
-  const allowed = role ? LEADER_ROLES.includes(role) : false
+  // roleAllows admits admin-equivalents (admin/backoffice_admin/general_manager)
+  // + super_admin automatically — matches the backend /kpi/roster gate.
+  const allowed = roleAllows(role, LEADER_ROLES)
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['kpi-roster'],
