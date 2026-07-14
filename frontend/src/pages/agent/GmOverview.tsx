@@ -10,6 +10,7 @@ import { apiClient } from '../../services/api.service'
 import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 import { PulseBar, type Chip } from '../../components/field-ops/PulseBar'
+import RevenueSparkline, { type TrendPoint } from '../../components/field-ops/RevenueSparkline'
 
 // GM mobile cockpit. Same payload as the web /dashboard/gm page.
 // Journey: pick company/period -> pulse (revenue, funnel) -> risks ->
@@ -48,6 +49,7 @@ export type Overview = {
   teams: Team[]
   management: { managers: Manager[]; boAdmins: BoAdmin[] }
   risks: Risk[]
+  trend?: TrendPoint[]
 }
 
 export const rand = (n: number) => 'R' + Math.round(n).toLocaleString('en-ZA')
@@ -238,6 +240,12 @@ export default function GmOverview() {
           </div>
           <div className="text-4xl font-bold tabular-nums text-primary mt-1">{rand(money.revenue)}</div>
           <p className="text-xs text-token-faint mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
+          {(data.trend?.length ?? 0) > 0 && (
+            <div className="mt-3">
+              <RevenueSparkline trend={data.trend!} className="text-primary" />
+              <p className="text-[10px] text-token-faint mt-1">Daily revenue · last 14 days</p>
+            </div>
+          )}
         </div>
 
         {/* Net / costs — monthly only */}
