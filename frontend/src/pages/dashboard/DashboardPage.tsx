@@ -32,13 +32,39 @@ import {
 import { useAuthStore } from '../../store/auth.store'
 import { analyticsService } from '../../services/analytics.service'
 import { formatCurrency, formatNumber, formatDate } from '../../utils/format'
+import { canSeeMoney } from '../../lib/capabilities'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 import ExportMenu from '../../components/export/ExportMenu'
 
+// Field roles (agent/field_agent/sales_rep/team_lead/manager) see counts only, never rand/revenue —
+// pure so it's unit-testable without rendering the whole page.
+export function primaryStatCard(
+  role: string | undefined,
+  stats: { total_revenue?: number; total_orders?: number; total_visits?: number; revenue_growth?: number }
+) {
+  if (canSeeMoney(role)) {
+    return {
+      title: 'Total Revenue',
+      value: formatCurrency(stats.total_revenue || 0),
+      icon: DollarSign,
+      change: stats.revenue_growth,
+      subtitle: `${formatNumber(stats.total_orders || 0)} orders`,
+    }
+  }
+  return {
+    title: 'Total Orders',
+    value: formatNumber(stats.total_orders || 0),
+    icon: ShoppingCart,
+    change: undefined as number | undefined,
+    subtitle: `${formatNumber(stats.total_visits || 0)} visits`,
+  }
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const canSeeRevenue = canSeeMoney(user?.role)
   const [dateRange, setDateRange] = useState({
     start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0]
@@ -182,7 +208,7 @@ export default function DashboardPage() {
           </button>
           <ExportMenu
             data={[
-              { metric: 'Total Revenue', value: stats.total_revenue || 0, change: stats.revenue_growth },
+              ...(canSeeRevenue ? [{ metric: 'Total Revenue', value: stats.total_revenue || 0, change: stats.revenue_growth }] : []),
               { metric: 'Active Customers', value: stats.active_customers || 0, change: stats.customer_growth },
               { metric: 'Field Agents', value: stats.total_agents || 0, change: stats.agent_growth },
               { metric: 'Products Sold', value: stats.products_sold || 0, change: stats.products_growth },
@@ -203,12 +229,8 @@ export default function DashboardPage() {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Revenue"
-          value={formatCurrency(stats.total_revenue || 0)}
-          icon={DollarSign}
-          change={stats.revenue_growth}
+          {...primaryStatCard(user?.role, stats)}
           color="green"
-          subtitle={`${formatNumber(stats.total_orders || 0)} orders`}
         />
         <StatCard
           title="Active Customers"
@@ -238,36 +260,38 @@ export default function DashboardPage() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Trends */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Revenue Trends</h3>
-            <BarChart3 className="w-5 h-5 text-gray-400" />
+        {/* Revenue Trends — money view only, field roles never see rand amounts */}
+        {canSeeRevenue && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Revenue Trends</h3>
+              <BarChart3 className="w-5 h-5 text-gray-400" />
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trends.daily_revenue || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => formatDate(value, { format: 'short' })}
+                  />
+                  <YAxis width={80} tickFormatter={(value) => formatCurrency(value, { compact: true })} />
+                  <Tooltip
+                    labelFormatter={(value) => formatDate(value)}
+                    formatter={(value: any) => [formatCurrency(value), 'Revenue']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#10B981"
+                    fill="#10B981"
+                    fillOpacity={0.1}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends.daily_revenue || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
-                  tickFormatter={(value) => formatDate(value, { format: 'short' })}
-                />
-                <YAxis width={80} tickFormatter={(value) => formatCurrency(value, { compact: true })} />
-                <Tooltip 
-                  labelFormatter={(value) => formatDate(value)}
-                  formatter={(value: any) => [formatCurrency(value), 'Revenue']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#10B981" 
-                  fill="#10B981" 
-                  fillOpacity={0.1}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        )}
 
         {/* Sales Performance */}
         <div className="card">
@@ -320,7 +344,7 @@ export default function DashboardPage() {
                     {activity.agent_name} • {formatDate(activity.created_at)}
                   </p>
                 </div>
-                {activity.value && (
+                {activity.value && canSeeRevenue && (
                   <div className="text-sm font-medium text-gray-900">
                     {formatCurrency(activity.value)}
                   </div>
@@ -354,7 +378,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-gray-900">{formatCurrency(performer.total_revenue)}</p>
+                  {canSeeRevenue && (
+                    <p className="font-medium text-gray-900">{formatCurrency(performer.total_revenue)}</p>
+                  )}
                   <p className="text-sm text-gray-500">{performer.success_rate}% success rate</p>
                 </div>
               </div>
