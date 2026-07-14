@@ -112,7 +112,7 @@ app.get('/api/field-ops/company-portal/dashboard', companyAuthMiddleware, async 
       db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND ${CONVERTED_SQL('vi')} AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)`).bind(companyId, tenantId).first(),
       db.prepare("SELECT v.*, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 10").bind(companyId, tenantId).all()
     ]);
-    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: recentRegs.results || [] });
+    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: await signPhotoRows(recentRegs.results || [], c.env.JWT_SECRET) });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -157,7 +157,7 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
       agent_performance: agentPerf.results || [],
       conversions_by_day: convByDay.results || [],
       target_vs_actual: targetVsActual.results || [],
-      recent_individuals: recentRegs.results || [],
+      recent_individuals: await signPhotoRows(recentRegs.results || [], c.env.JWT_SECRET),
       period: { start: startD, end: endD }
     });
   } catch (e) {
