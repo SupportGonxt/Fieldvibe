@@ -14,7 +14,7 @@ import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
 import { useQuery } from '@tanstack/react-query'
-import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-ops/IssueQueue'
+import { MyIssues, UnmanagedIssues, canSeeUnmanaged, type Issue } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 import { PulseBar, type Chip, type Tone } from '../../components/field-ops/PulseBar'
 
@@ -317,7 +317,9 @@ export default function AgentDashboard() {
   const { data: unmanagedData } = useQuery({
     queryKey: ['gm-unmanaged'],
     queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[] }),
-    enabled: isManagerPlus(authUser?.role),
+    // Backend gates /issues/unmanaged to admin-equivalents + GM — manager
+    // (field sales manager) 403s, which used to trigger a login-redirect loop.
+    enabled: canSeeUnmanaged(authUser?.role),
   })
 
   const homePulse = useMemo(() => buildHomePulse({

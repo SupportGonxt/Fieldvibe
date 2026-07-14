@@ -9,6 +9,13 @@ import { ShieldAlert, Check } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { apiClient } from '../../services/api.service'
 import { signalText, type Polarity, type Signal } from '../../lib/signalRegistry'
+import { roleAllows } from '../../lib/capabilities'
+import { useAuthStore } from '../../store/auth.store'
+
+// Mirrors backend requireRole('admin', 'general_manager') on /issues/unmanaged
+// (workers-api/src/routes/field-ops/issues.js) — fetching as any other role
+// (e.g. manager) is a guaranteed 403, so gate the fetch, not just the render.
+export const canSeeUnmanaged = (role?: string) => roleAllows(role, ['admin', 'general_manager'])
 
 // Re-exported for existing callers (TeamCockpit.tsx) that import Signal/signalText from here.
 export { signalText, type Signal }
@@ -199,9 +206,11 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
  */
 export function UnmanagedIssues({ surface = 'web' }: { surface?: Surface }) {
   const s = SKIN[surface]
+  const role = useAuthStore((st) => st.user?.role)
   const { data } = useQuery({
     queryKey: ['gm-unmanaged'],
     queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[] }),
+    enabled: canSeeUnmanaged(role),
   })
   const issues = data?.issues || []
   if (!issues.length) return null

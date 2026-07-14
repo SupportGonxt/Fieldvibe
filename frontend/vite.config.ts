@@ -60,17 +60,17 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 1024 * 1024,
         runtimeCaching: [
           {
-            // Navigations: serve the last cached index.html INSTANTLY, then
-            // revalidate from network in the background. On slow SA mobile the
-            // old NetworkFirst taxed every app-open up to 3s before painting;
-            // SWR paints immediately. Freshness is preserved out-of-band: a new
-            // deploy ships a new sw.js -> controllerchange -> reload (main.tsx),
-            // and the PR#213 stale-shell watchdog is the backstop. Hashed assets
-            // are immutable so the instant paint never mixes old/new chunks.
+            // Navigations: NetworkFirst with a short timeout. StaleWhileRevalidate
+            // caused post-deploy reload loops: CF Pages purges old hashed chunks,
+            // so a stale cached index.html references 404ing chunks and every
+            // reload re-serves the same stale shell. NetworkFirst gets a fresh
+            // shell whenever online; the 3s timeout caps the slow-mobile paint
+            // tax and falls back to the cached shell on timeout/offline.
             urlPattern: ({ request, sameOrigin }) => sameOrigin && request.mode === 'navigate',
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'navigation-cache',
+              networkTimeoutSeconds: 3,
               expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
             },
