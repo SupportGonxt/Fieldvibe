@@ -135,6 +135,7 @@ export default function GmOverviewPage() {
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState<string | null>(null) // null = current period
   const [company, setCompany] = useState<string | null>(null) // null = all companies
+  const [expandedManager, setExpandedManager] = useState<string | null>(null)
 
   const today = new Date().toISOString().slice(0, 10)
   const atCurrent = !anchor || anchor >= today
@@ -371,15 +372,41 @@ export default function GmOverviewPage() {
               <ul className="space-y-2">
                 {management.managers.map((m) => {
                   const seen = agoLabel(m.lastSeen)
+                  const isOpen = expandedManager === m.id
+                  const mTeams = (teams || []).filter((t) => t.managerId === m.id)
                   return (
                     <li key={m.id} className="p-2.5 bg-surface-secondary rounded-lg">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-sm truncate">{m.name}</span>
-                        <span className={`text-xs shrink-0 ${seen.stale ? 'text-amber-600 font-medium' : 'text-content-secondary'}`}>{seen.text}</span>
-                      </div>
-                      <p className="text-xs text-content-secondary mt-1">
-                        {m.teamLeads} team lead{m.teamLeads === 1 ? '' : 's'} · {m.agents} agents · {formatNumber(m.signups)} sign-ups · {formatNumber(m.converted)} converted
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedManager(isOpen ? null : m.id)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-sm truncate">{m.name}</span>
+                          <span className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-xs ${seen.stale ? 'text-amber-600 font-medium' : 'text-content-secondary'}`}>{seen.text}</span>
+                            <ChevronRight className={`w-3.5 h-3.5 text-content-secondary transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                          </span>
+                        </div>
+                        <p className="text-xs text-content-secondary mt-1">
+                          {m.teamLeads} team lead{m.teamLeads === 1 ? '' : 's'} · {m.agents} agents · {formatNumber(m.signups)} sign-ups · {formatNumber(m.converted)} converted
+                        </p>
+                      </button>
+                      {isOpen && (
+                        <div className="mt-2 ml-2 pl-3 border-l border-token space-y-1.5">
+                          {mTeams.length === 0 ? (
+                            <p className="text-xs text-content-secondary">No team leads linked in this period.</p>
+                          ) : mTeams.map((t) => (
+                            <div key={t.id} className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <span className="text-sm truncate block">{t.name}</span>
+                                <span className="text-xs text-content-secondary">{t.activeAgents}/{t.agents} active · {formatNumber(t.converted)} converted ({t.conversionRate}%)</span>
+                              </div>
+                              <span className="text-sm font-semibold tabular-nums shrink-0">{formatNumber(t.signups)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </li>
                   )
                 })}
