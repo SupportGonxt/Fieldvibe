@@ -16,6 +16,30 @@ const getAuditService = (db) => {
 
 const app = new Hono();
 
+const PHOTO_TTL_MS = 15 * 60 * 1000;
+
+async function hmacHex(secret, msg) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msg));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function signPhotoUrl(visitId, jwtSecret, nowMs = Date.now()) {
+  const exp = Math.floor((nowMs + PHOTO_TTL_MS) / 1000);
+  const sig = await hmacHex(jwtSecret, `photo|${visitId}|${exp}`);
+  return `/api/field-ops/company-portal/photo/${visitId}?exp=${exp}&sig=${sig}`;
+}
+
+async function signPhotoRows(rows, jwtSecret) {
+  return Promise.all(rows.map(async (r) => ({
+    ...r,
+    photo_url: r.photo_url ? await signPhotoUrl(r.id, jwtSecret) : null,
+  })));
+}
+
 const companyAuthMiddleware = async (c, next) => {
   try {
     const authHeader = c.req.header('Authorization');
@@ -193,7 +217,7 @@ app.get('/api/field-ops/company-portal/store-analytics/:shopId', companyAuthMidd
     if (!companyLink) return c.json({ error: 'Shop not found' }, 404);
     const visits = await db.prepare("SELECT v.id, v.visit_date, v.status, v.check_in_time, v.check_out_time, v.visit_type, v.notes, v.photo_url, u.first_name || ' ' || u.last_name as agent_name FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50").bind(shopId, companyId, tenantId).all();
     const stats = await db.prepare("SELECT COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ?").bind(shopId, companyId, tenantId).first();
-    return c.json({ shop, visits: visits.results || [], stats: { total_visits: stats?.total_visits || 0, completed: stats?.completed || 0 } });
+    return c.json({ shop, visits: await signPhotoRows(visits.results || [], c.env.JWT_SECRET), stats: { total_visits: stats?.total_visits || 0, completed: stats?.completed || 0 } });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -228,7 +252,7 @@ app.get('/api/field-ops/company-portal/visit-records', companyAuthMiddleware, as
     // Type breakdown must exclude visit_type filter so all types are always visible
     const typeBreakdown = await db.prepare(`SELECT v.visit_type, COUNT(*) as count ${baseFromNoType} GROUP BY v.visit_type`).bind(...paramsNoType).all();
     return c.json({
-      visits: visits.results || [],
+      visits: await signPhotoRows(visits.results || [], c.env.JWT_SECRET),
       total: countResult?.total || 0,
       page: pageNum,
       limit: pageSize,
@@ -333,5 +357,42 @@ app.post('/api/field-ops/company-auth/login', rateLimiter(5, 60000), async (c) =
   }
 });
 
+// Company Portal: signed photo proxy — public, the signature IS the auth
+app.get('/api/field-ops/company-portal/photo/:visitId', async (c) => {
+  const { visitId } = c.req.param();
+  const exp = parseInt(c.req.query('exp') || '0', 10);
+  const sig = c.req.query('sig') || '';
+  if (!exp || exp < Math.floor(Date.now() / 1000)) {
+    return c.json({ success: false, message: 'Link expired' }, 410);
+  }
+  const expected = await hmacHex(c.env.JWT_SECRET, `photo|${visitId}|${exp}`);
+  if (sig !== expected) return c.json({ success: false, message: 'Invalid signature' }, 403);
+  const row = await c.env.DB.prepare('SELECT photo_url FROM visits WHERE id = ?').bind(visitId).first();
+  if (!row || !row.photo_url) return c.json({ success: false, message: 'Not found' }, 404);
+  // photo_url is either an internal /api/uploads/<key> path (R2-backed) or a
+  // legacy absolute URL (old r2.dev links pre-dating rewriteR2Url) — see
+  // src/lib/photoAi.js. Read the R2 object directly for the former, same as
+  // the existing /api/uploads/:key handler in index.js; fetch() only works
+  // for the latter since Workers fetch() can't resolve relative paths.
+  const uploadsKey = row.photo_url.match(/^\/api\/uploads\/(.+)$/);
+  if (uploadsKey) {
+    const bucket = c.env.UPLOADS;
+    if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
+    const object = await bucket.get(uploadsKey[1]);
+    if (!object) return c.json({ success: false, message: 'Photo unavailable' }, 502);
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set('Cache-Control', 'private, max-age=300');
+    return new Response(object.body, { headers });
+  }
+  const upstream = await fetch(row.photo_url);
+  if (!upstream.ok) return c.json({ success: false, message: 'Photo unavailable' }, 502);
+  return new Response(upstream.body, {
+    headers: {
+      'Content-Type': upstream.headers.get('Content-Type') || 'image/jpeg',
+      'Cache-Control': 'private, max-age=300',
+    },
+  });
+});
 
 export default app;
