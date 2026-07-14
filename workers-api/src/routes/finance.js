@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../lib/middleware.js';
+import { authMiddleware, requireRole } from '../lib/middleware.js';
 
 const app = new Hono();
+// Finance is office-console only: admin-equivalents + manager. Field roles
+// (agents/team leads) must never read tenant-wide monetary data.
+app.use('*', authMiddleware, requireRole('admin', 'manager'));
 
 app.get('/payment-ledger', async (c) => {
   const db = c.env.DB;
@@ -18,7 +21,7 @@ app.get('/payment-ledger', async (c) => {
   return c.json({ success: true, data: rows.results || [] });
 });
 // ==================== INVOICES & FINANCE ROUTES ====================
-app.get('/finance/dashboard', authMiddleware, async (c) => {
+app.get('/finance/dashboard', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [totalRevenue, totalPaid, totalPending, totalOverdue, recentPayments] = await Promise.all([
@@ -31,7 +34,7 @@ app.get('/finance/dashboard', authMiddleware, async (c) => {
   return c.json({ success: true, data: { total_revenue: totalRevenue?.total || 0, total_paid: totalPaid?.total || 0, total_pending: totalPending?.total || 0, total_overdue: totalOverdue?.total || 0, recent_payments: recentPayments.results || [] } });
 });
 
-app.get('/finance/invoices', authMiddleware, async (c) => {
+app.get('/finance/invoices', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { page = '1', limit = '20', status } = c.req.query();
@@ -43,14 +46,14 @@ app.get('/finance/invoices', authMiddleware, async (c) => {
   return c.json({ data: orders.results || [] });
 });
 
-app.get('/finance/payments', authMiddleware, async (c) => {
+app.get('/finance/payments', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const payments = await db.prepare("SELECT p.*, c.name as customer_name FROM payments p LEFT JOIN sales_orders so ON p.sales_order_id = so.id LEFT JOIN customers c ON so.customer_id = c.id WHERE p.tenant_id = ? ORDER BY p.created_at DESC LIMIT 50").bind(tenantId).all();
   return c.json({ data: payments.results || [] });
 });
 
-app.get('/finance/stats', authMiddleware, async (c) => {
+app.get('/finance/stats', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [totalRevenue, totalPaid, totalPending, totalOverdue] = await Promise.all([
@@ -67,7 +70,7 @@ app.get('/finance/stats', authMiddleware, async (c) => {
 
 
 
-app.get('/finance/invoices/:id', authMiddleware, async (c) => {
+app.get('/finance/invoices/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -78,7 +81,7 @@ app.get('/finance/invoices/:id', authMiddleware, async (c) => {
   return c.json({ success: true, data: { ...invoice, items: items.results || [], payments: payments.results || [] } });
 });
 // ==================== FINANCE ADDITIONAL ROUTES ====================
-app.get('/finance', authMiddleware, async (c) => {
+app.get('/finance', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { page = '1', limit = '20', status, search } = c.req.query();
@@ -92,7 +95,7 @@ app.get('/finance', authMiddleware, async (c) => {
   return c.json({ data: invoices.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 
-app.get('/finance/invoices/:invoiceId/status-history', authMiddleware, async (c) => {
+app.get('/finance/invoices/:invoiceId/status-history', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const invoiceId = c.req.param('invoiceId');
@@ -100,14 +103,14 @@ app.get('/finance/invoices/:invoiceId/status-history', authMiddleware, async (c)
   return c.json({ data: history.results || [] });
 });
 
-app.get('/finance/cash-reconciliation', authMiddleware, async (c) => {
+app.get('/finance/cash-reconciliation', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const recons = await db.prepare("SELECT * FROM van_reconciliations WHERE tenant_id = ? ORDER BY created_at DESC").bind(tenantId).all();
   return c.json({ data: recons.results || [] });
 });
 
-app.get('/finance/cash-reconciliation/:id', authMiddleware, async (c) => {
+app.get('/finance/cash-reconciliation/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -115,7 +118,7 @@ app.get('/finance/cash-reconciliation/:id', authMiddleware, async (c) => {
   return recon ? c.json(recon) : c.json({ message: 'Not found' }, 404);
 });
 
-app.get('/finance/:id', authMiddleware, async (c) => {
+app.get('/finance/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -123,19 +126,19 @@ app.get('/finance/:id', authMiddleware, async (c) => {
   return invoice ? c.json(invoice) : c.json({ message: 'Not found' }, 404);
 });
 
-app.post('/finance', authMiddleware, async (c) => {
+app.post('/finance', async (c) => {
   return c.json({ success: false, message: 'Invoice created' }, 201);
 });
 
-app.put('/finance/:id', authMiddleware, async (c) => {
+app.put('/finance/:id', async (c) => {
   return c.json({ success: true, message: 'Invoice updated' });
 });
 
-app.delete('/finance/:id', authMiddleware, async (c) => {
+app.delete('/finance/:id', async (c) => {
   return c.json({ success: true, message: 'Invoice deleted' });
 });
 
-app.get('/finance/invoices/:invoiceId/items', authMiddleware, async (c) => {
+app.get('/finance/invoices/:invoiceId/items', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const invoiceId = c.req.param('invoiceId');
@@ -143,7 +146,7 @@ app.get('/finance/invoices/:invoiceId/items', authMiddleware, async (c) => {
   return c.json({ data: items.results || [] });
 });
 
-app.get('/finance/invoices/:invoiceId/items/:itemId', authMiddleware, async (c) => {
+app.get('/finance/invoices/:invoiceId/items/:itemId', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const itemId = c.req.param('itemId');
@@ -151,34 +154,34 @@ app.get('/finance/invoices/:invoiceId/items/:itemId', authMiddleware, async (c) 
   return item ? c.json(item) : c.json({ message: 'Not found' }, 404);
 });
 
-app.put('/finance/invoices/:invoiceId/items/:itemId', authMiddleware, async (c) => {
+app.put('/finance/invoices/:invoiceId/items/:itemId', async (c) => {
   return c.json({ success: true, message: 'Item updated' });
 });
-app.post('/currency-system/convert', authMiddleware, async (c) => {
+app.post('/currency-system/convert', async (c) => {
   try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-app.get('/currency-system/currencies', authMiddleware, async (c) => {
+app.get('/currency-system/currencies', async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-app.get('/currency-system/currencies/:currencyId/exchange-rate', authMiddleware, async (c) => {
+app.get('/currency-system/currencies/:currencyId/exchange-rate', async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-app.get('/currency-system/dashboard', authMiddleware, async (c) => {
+app.get('/currency-system/dashboard', async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-app.get('/currency-system/detect-currency', authMiddleware, async (c) => {
+app.get('/currency-system/detect-currency', async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-app.get('/currency-system/location-currencies', authMiddleware, async (c) => {
+app.get('/currency-system/location-currencies', async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
-app.get('/finance/invoices/:id/items/:itemId/history', authMiddleware, async (c) => {
+app.get('/finance/invoices/:id/items/:itemId/history', async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });

@@ -49,10 +49,13 @@ app.get('/commission-earnings', async (c) => {
   const pageNum = parseInt(page) || 1;
   const limitNum = parseInt(limit) || 50;
   const offset = (pageNum - 1) * limitNum;
-  const countR = await db.prepare('SELECT COUNT(*) as total FROM commission_earnings ce ' + where).bind(...params).first();
-  const earnings = await db.prepare("SELECT ce.*, u.first_name || ' ' || u.last_name as earner_name, cr.name as rule_name FROM commission_earnings ce LEFT JOIN users u ON ce.earner_id = u.id LEFT JOIN commission_rules cr ON ce.rule_id = cr.id " + where + ' ORDER BY ce.created_at DESC LIMIT ? OFFSET ?').bind(...params, limitNum, offset).all();
-  const totalAmount = await db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM commission_earnings ce ' + where).bind(...params).first();
-  return c.json({ success: true, data: { earnings: earnings.results || [], totalAmount: totalAmount ? totalAmount.total : 0, pagination: { total: countR ? countR.total : 0, page: pageNum, limit: limitNum, totalPages: Math.ceil((countR ? countR.total : 0) / limitNum) } } });
+  const totals = await db.prepare(
+    'SELECT COUNT(*) as total, COALESCE(SUM(amount), 0) as total_amount FROM commission_earnings ce ' + where
+  ).bind(...params).first();
+  const earnings = await db.prepare(
+    "SELECT ce.*, u.first_name || ' ' || u.last_name as earner_name, cr.name as rule_name FROM commission_earnings ce LEFT JOIN users u ON ce.earner_id = u.id LEFT JOIN commission_rules cr ON ce.rule_id = cr.id " + where + ' ORDER BY ce.created_at DESC LIMIT ? OFFSET ?'
+  ).bind(...params, limitNum, offset).all();
+  return c.json({ success: true, data: { earnings: earnings.results || [], totalAmount: totals ? totals.total_amount : 0, pagination: { total: totals ? totals.total : 0, page: pageNum, limit: limitNum, totalPages: Math.ceil((totals ? totals.total : 0) / limitNum) } } });
 });
 
 app.get('/commission-earnings/summary', async (c) => {

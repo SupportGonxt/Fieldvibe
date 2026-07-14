@@ -1,8 +1,55 @@
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../lib/authUtils.js';
+import { CONVERTED_SQL } from '../services/funnelService.js';
+import { rateLimiter } from '../lib/middleware.js';
+import { isLegacyR2PhotoUrl } from '../lib/photoAi.js';
+import { AuditLogService } from '../services/auditLogService.js';
+
+// ponytail: AuditLogService has no exported singleton anywhere in the codebase
+// (grepped — zero other callers), so it's instantiated once per isolate here
+// rather than per-request, to avoid stacking a fresh setInterval per export call.
+let auditServiceInstance = null;
+const getAuditService = (db) => {
+  if (!auditServiceInstance) auditServiceInstance = new AuditLogService(db);
+  return auditServiceInstance;
+};
 
 const app = new Hono();
+
+const PHOTO_TTL_MS = 15 * 60 * 1000;
+
+async function hmacHex(secret, msg) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msg));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function signPhotoUrl(visitId, jwtSecret, nowMs = Date.now()) {
+  const exp = Math.floor((nowMs + PHOTO_TTL_MS) / 1000);
+  const sig = await hmacHex(jwtSecret, `photo|${visitId}|${exp}`);
+  return `/api/field-ops/company-portal/photo/${visitId}?exp=${exp}&sig=${sig}`;
+}
+
+function timingSafeEqualStr(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function signPhotoRows(rows, jwtSecret) {
+  // ponytail: photo_base64/additional_photos stripped, not signed — portal
+  // frontend (CompanyDashboardPage) only renders photo_url; sign per-entry if
+  // the portal ever starts rendering additional_photos.
+  return Promise.all(rows.map(async ({ photo_base64, additional_photos, ...r }) => ({
+    ...r,
+    photo_url: r.photo_url ? await signPhotoUrl(r.id, jwtSecret) : null,
+  })));
+}
 
 const companyAuthMiddleware = async (c, next) => {
   try {
@@ -42,6 +89,12 @@ const companyAuthMiddleware = async (c, next) => {
     if (!payload.companyId) {
       return c.json({ success: false, message: 'Not a company token' }, 403);
     }
+    const live = await c.env.DB.prepare(
+      'SELECT is_active FROM company_logins WHERE id = ?'
+    ).bind(payload.userId).first();
+    if (!live || !live.is_active) {
+      return c.json({ success: false, message: 'Access revoked' }, 401);
+    }
     c.set('userId', payload.userId);
     c.set('tenantId', payload.tenantId);
     c.set('companyId', payload.companyId);
@@ -67,10 +120,10 @@ app.get('/api/field-ops/company-portal/dashboard', companyAuthMiddleware, async 
       db.prepare("SELECT COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.visit_date = ? AND v.tenant_id = ?").bind(companyId, today, tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE acl.company_id = ? AND v.visit_date >= ? AND v.tenant_id = ?").bind(companyId, monthStart, tenantId).first(),
       db.prepare("SELECT COUNT(*) as count FROM visits WHERE company_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store'").bind(companyId, tenantId).first(),
-      db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(companyId, tenantId).first(),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.company_id = ? AND v.tenant_id = ? AND ${CONVERTED_SQL('vi')} AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)`).bind(companyId, tenantId).first(),
       db.prepare("SELECT v.*, u.first_name || ' ' || u.last_name as agent_name FROM visits v LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 10").bind(companyId, tenantId).all()
     ]);
-    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: recentRegs.results || [] });
+    return c.json({ company, agents: agentCount?.count || 0, today_visits: todayVisits?.count || 0, month_visits: monthVisits?.count || 0, total_individuals: totalRegs?.count || 0, total_conversions: totalConvs?.count || 0, conversion_rate: (totalRegs?.count || 0) > 0 ? Math.round(((totalConvs?.count || 0) / (totalRegs?.count || 1)) * 100) : 0, recent_individuals: await signPhotoRows(recentRegs.results || [], c.env.JWT_SECRET) });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -95,9 +148,9 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
     const agentPerf = await db.prepare("SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(*) as visit_count, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN users u ON v.agent_id = u.id JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY v.agent_id ORDER BY visit_count DESC LIMIT 20").bind(...baseParams).all();
     // Registration stats
     const regParams = [tenantId, startD, endD, companyId];
-    const regStats = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)").bind(...regParams).first();
+    const regStats = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) as converted FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)`).bind(...regParams).first();
     // Conversions by day
-    const convByDay = await db.prepare("SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY day ORDER BY day").bind(...regParams).all();
+    const convByDay = await db.prepare(`SELECT v.visit_date as day, COUNT(*) as individuals, SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) as conversions FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND v.company_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY day ORDER BY day`).bind(...regParams).all();
     // Visits by day of week
     const visitsByDayOfWeek = await db.prepare("SELECT CASE CAST(strftime('%w', v.visit_date) AS INTEGER) WHEN 0 THEN 'Sun' WHEN 1 THEN 'Mon' WHEN 2 THEN 'Tue' WHEN 3 THEN 'Wed' WHEN 4 THEN 'Thu' WHEN 5 THEN 'Fri' WHEN 6 THEN 'Sat' END as day_name, CAST(strftime('%w', v.visit_date) AS INTEGER) as day_num, COUNT(*) as count FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND acl.company_id = ? GROUP BY day_num ORDER BY day_num").bind(...baseParams).all();
     // Daily targets vs actuals
@@ -115,7 +168,7 @@ app.get('/api/field-ops/company-portal/brand-insights', companyAuthMiddleware, a
       agent_performance: agentPerf.results || [],
       conversions_by_day: convByDay.results || [],
       target_vs_actual: targetVsActual.results || [],
-      recent_individuals: recentRegs.results || [],
+      recent_individuals: await signPhotoRows(recentRegs.results || [], c.env.JWT_SECRET),
       period: { start: startD, end: endD }
     });
   } catch (e) {
@@ -175,7 +228,7 @@ app.get('/api/field-ops/company-portal/store-analytics/:shopId', companyAuthMidd
     if (!companyLink) return c.json({ error: 'Shop not found' }, 404);
     const visits = await db.prepare("SELECT v.id, v.visit_date, v.status, v.check_in_time, v.check_out_time, v.visit_type, v.notes, v.photo_url, u.first_name || ' ' || u.last_name as agent_name FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id LEFT JOIN users u ON v.agent_id = u.id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ? ORDER BY v.visit_date DESC, v.check_in_time DESC LIMIT 50").bind(shopId, companyId, tenantId).all();
     const stats = await db.prepare("SELECT COUNT(*) as total_visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed FROM visits v JOIN agent_company_links acl ON v.agent_id = acl.agent_id WHERE v.customer_id = ? AND acl.company_id = ? AND v.tenant_id = ?").bind(shopId, companyId, tenantId).first();
-    return c.json({ shop, visits: visits.results || [], stats: { total_visits: stats?.total_visits || 0, completed: stats?.completed || 0 } });
+    return c.json({ shop, visits: await signPhotoRows(visits.results || [], c.env.JWT_SECRET), stats: { total_visits: stats?.total_visits || 0, completed: stats?.completed || 0 } });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -210,7 +263,7 @@ app.get('/api/field-ops/company-portal/visit-records', companyAuthMiddleware, as
     // Type breakdown must exclude visit_type filter so all types are always visible
     const typeBreakdown = await db.prepare(`SELECT v.visit_type, COUNT(*) as count ${baseFromNoType} GROUP BY v.visit_type`).bind(...paramsNoType).all();
     return c.json({
-      visits: visits.results || [],
+      visits: await signPhotoRows(visits.results || [], c.env.JWT_SECRET),
       total: countResult?.total || 0,
       page: pageNum,
       limit: pageSize,
@@ -265,7 +318,7 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
     let headers = [];
     if (type === 'registrations') {
       headers = ['Name', 'ID Number', 'Phone', 'Agent', 'Status', 'Date'];
-      const result = await db.prepare("SELECT i.first_name, i.last_name, i.id_number, i.phone, u.first_name || ' ' || u.last_name as agent_name, CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 'Converted' ELSE 'Pending' END as status, v.created_at FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC").bind(companyId, tenantId, startD, endD).all();
+      const result = await db.prepare(`SELECT i.first_name, i.last_name, i.id_number, i.phone, u.first_name || ' ' || u.last_name as agent_name, CASE WHEN ${CONVERTED_SQL('vi')} THEN 'Converted' ELSE 'Pending' END as status, v.created_at FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id WHERE v.company_id = ? AND v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC`).bind(companyId, tenantId, startD, endD).all();
       rows = (result.results || []).map(r => [r.first_name + ' ' + r.last_name, r.id_number || '', r.phone || '', r.agent_name || '', r.status, r.created_at]);
     } else {
       headers = ['Date', 'Agent', 'Status', 'Check In', 'Check Out', 'Notes'];
@@ -273,6 +326,20 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
       rows = (result.results || []).map(r => [r.visit_date, r.agent_name || '', r.status || '', r.check_in_time || '', r.check_out_time || '', (r.notes || '').replace(/,/g, ';')]);
     }
     const csvLines = [headers.join(','), ...rows.map(r => r.map(v => String(v).includes(',') ? `"${v}"` : v).join(','))];
+    const auditService = getAuditService(db);
+    await auditService.log({
+      tenantId,
+      userId: c.get('userId'),
+      action: 'portal_export',
+      resource: 'company_portal_csv',
+      resourceId: companyId,
+      metadata: { type: type || 'visits', start: startD, end: endD, rows: rows.length },
+      ipAddress: c.req.header('CF-Connecting-IP') || '',
+      status: 'SUCCESS'
+    });
+    // ponytail: flush immediately rather than trust the 5s periodic timer —
+    // a Worker isolate can be torn down right after the response is sent.
+    await auditService.flushBuffer();
     return new Response(csvLines.join('\n'), {
       headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${type || 'visits'}_export_${startD}_to_${endD}.csv"` }
     });
@@ -282,7 +349,7 @@ app.get('/api/field-ops/company-portal/export', companyAuthMiddleware, async (c)
 });
 
 // ==================== FIELD OPERATIONS: COMPANY AUTH (PUBLIC - no authMiddleware) ====================
-app.post('/api/field-ops/company-auth/login', async (c) => {
+app.post('/api/field-ops/company-auth/login', rateLimiter(5, 60000), async (c) => {
   const db = c.env.DB;
   const { email, password } = await c.req.json();
   if (!email || !password) return c.json({ success: false, message: 'Email and password required' }, 400);
@@ -301,5 +368,45 @@ app.post('/api/field-ops/company-auth/login', async (c) => {
   }
 });
 
+// Company Portal: signed photo proxy — public, the signature IS the auth
+app.get('/api/field-ops/company-portal/photo/:visitId', async (c) => {
+  const { visitId } = c.req.param();
+  const exp = parseInt(c.req.query('exp') || '0', 10);
+  const sig = c.req.query('sig') || '';
+  if (!exp || exp < Math.floor(Date.now() / 1000)) {
+    return c.json({ success: false, message: 'Link expired' }, 410);
+  }
+  const expected = await hmacHex(c.env.JWT_SECRET, `photo|${visitId}|${exp}`);
+  if (!timingSafeEqualStr(sig, expected)) return c.json({ success: false, message: 'Invalid signature' }, 403);
+  const row = await c.env.DB.prepare('SELECT photo_url FROM visits WHERE id = ?').bind(visitId).first();
+  if (!row || !row.photo_url) return c.json({ success: false, message: 'Not found' }, 404);
+  // photo_url is either an internal /api/uploads/<key> path (R2-backed) or a
+  // legacy absolute URL (old r2.dev links pre-dating rewriteR2Url) — see
+  // src/lib/photoAi.js. Read the R2 object directly for the former, same as
+  // the existing /api/uploads/:key handler in index.js; fetch() only works
+  // for the latter since Workers fetch() can't resolve relative paths.
+  const uploadsKey = row.photo_url.match(/^\/api\/uploads\/(.+)$/);
+  if (uploadsKey) {
+    const bucket = c.env.UPLOADS;
+    if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
+    const object = await bucket.get(uploadsKey[1]);
+    if (!object) return c.json({ success: false, message: 'Photo unavailable' }, 502);
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set('Cache-Control', 'private, max-age=300');
+    return new Response(object.body, { headers });
+  }
+  // SSRF guard: photo_url is client-writable (POST /visits stores body.photo_url
+  // unvalidated) — only fetch the legacy R2 host we wrote ourselves.
+  if (!isLegacyR2PhotoUrl(row.photo_url)) return c.json({ success: false, message: 'Not found' }, 404);
+  const upstream = await fetch(row.photo_url);
+  if (!upstream.ok) return c.json({ success: false, message: 'Photo unavailable' }, 502);
+  return new Response(upstream.body, {
+    headers: {
+      'Content-Type': upstream.headers.get('Content-Type') || 'image/jpeg',
+      'Cache-Control': 'private, max-age=300',
+    },
+  });
+});
 
 export default app;

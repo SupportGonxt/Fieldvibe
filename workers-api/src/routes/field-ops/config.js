@@ -18,6 +18,10 @@ export async function getConfig(db, tenantId, companyId, key) {
   return row ? JSON.parse(row.value_json) : null;
 }
 
+// Wire shape for a tier is flat {amount, signups, deposits, …}; rows seeded with the
+// newer {amount, targets:{…}} shape are flattened here so every consumer reads one shape.
+export const flatTier = (t) => (t && t.targets ? { amount: t.amount, ...t.targets } : t);
+
 export async function getScale(db, tenantId, companyId, role) {
   const row = await db.prepare(
     `SELECT tiers_json, metric, basis, period FROM incentive_scales
@@ -25,7 +29,7 @@ export async function getScale(db, tenantId, companyId, role) {
      ORDER BY company_id IS NULL ASC LIMIT 1`
   ).bind(tenantId, role, companyId ?? null).first();
   return row
-    ? { tiers: JSON.parse(row.tiers_json), metric: row.metric, basis: row.basis, period: row.period }
+    ? { tiers: (JSON.parse(row.tiers_json) || []).map(flatTier), metric: row.metric, basis: row.basis, period: row.period }
     : null;
 }
 

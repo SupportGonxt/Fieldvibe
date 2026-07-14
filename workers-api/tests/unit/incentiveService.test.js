@@ -112,3 +112,16 @@ describe('dueEscalation', () => {
     expect(dueEscalation(undefined, 100)).toBeNull();
   });
 });
+
+import { flatTier } from '../../src/routes/field-ops/config.js';
+
+describe('flatTier', () => {
+  it('flattens {amount, targets:{…}} rows to wire shape', () => {
+    expect(flatTier({ amount: 1500, targets: { signups: 8, deposits: 5 } }))
+      .toEqual({ amount: 1500, signups: 8, deposits: 5 });
+  });
+  it('passes legacy flat rows through unchanged', () => {
+    const t = { amount: 2500, signups: 10, deposits: 8 };
+    expect(flatTier(t)).toBe(t);
+  });
+});

@@ -1,10 +1,10 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Settings, Users, Package, BarChart3, FileText, Shield, Bell,
-  HelpCircle, LogOut, ChevronRight, UserCircle, Building2,
+  Settings, Users, Package, BarChart3, FileText,
+  LogOut, ChevronRight, UserCircle, Building2,
   MapPin, Target, Wallet, Truck, ClipboardList, Camera,
-  Globe, Database, Key, Palette, CreditCard, Tag
+  Globe, Database, CreditCard, Tag
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 
@@ -27,10 +27,10 @@ const menuSections: MenuSection[] = [
     title: 'Field Operations',
     items: [
       { label: 'Daily Targets', icon: <Target className="w-5 h-5" />, href: '/field-operations/daily-targets', description: 'View and manage daily goals' },
-      { label: 'Visit Workflow', icon: <ClipboardList className="w-5 h-5" />, href: '/visit-workflow', description: 'Start and manage field visits' },
+      { label: 'Visit Workflow', icon: <ClipboardList className="w-5 h-5" />, href: '/field-operations/visit-workflow', description: 'Start and manage field visits' },
       { label: 'Photo Evidence', icon: <Camera className="w-5 h-5" />, href: '/field-operations/photos', description: 'Capture and review photos' },
       { label: 'GPS Tracking', icon: <MapPin className="w-5 h-5" />, href: '/field-operations/gps-tracking', description: 'Live location tracking' },
-      { label: 'Routes', icon: <Globe className="w-5 h-5" />, href: '/routes', description: 'Beat routes and planning' },
+      { label: 'Routes', icon: <Globe className="w-5 h-5" />, href: '/van-sales/routes', description: 'Beat routes and planning' },
     ],
   },
   {
@@ -39,7 +39,7 @@ const menuSections: MenuSection[] = [
       { label: 'Sales Orders', icon: <FileText className="w-5 h-5" />, href: '/sales/orders', description: 'Manage sales orders' },
       { label: 'Invoices', icon: <CreditCard className="w-5 h-5" />, href: '/finance/invoices', description: 'Invoice management' },
       { label: 'Payments', icon: <Wallet className="w-5 h-5" />, href: '/finance/payments', description: 'Payment tracking' },
-      { label: 'Van Sales', icon: <Truck className="w-5 h-5" />, href: '/van-sales/loads', description: 'Van stock and sales' },
+      { label: 'Van Sales', icon: <Truck className="w-5 h-5" />, href: '/van-sales/van-loads', description: 'Van stock and sales' },
       { label: 'Commissions', icon: <Tag className="w-5 h-5" />, href: '/commissions', description: 'Commission earnings' },
     ],
   },
@@ -68,13 +68,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'Settings',
     items: [
-      { label: 'Profile', icon: <UserCircle className="w-5 h-5" />, href: '/settings/profile', description: 'Your profile' },
-      { label: 'Notifications', icon: <Bell className="w-5 h-5" />, href: '/settings/notifications', description: 'Notification preferences' },
       { label: 'System Settings', icon: <Settings className="w-5 h-5" />, href: '/admin/settings', description: 'System configuration', roles: ['admin', 'super_admin'] },
-      { label: 'Security', icon: <Shield className="w-5 h-5" />, href: '/admin/security', description: 'Security settings', roles: ['admin', 'super_admin'] },
-      { label: 'API Keys', icon: <Key className="w-5 h-5" />, href: '/admin/api-keys', description: 'API key management', roles: ['admin', 'super_admin'] },
-      { label: 'Appearance', icon: <Palette className="w-5 h-5" />, href: '/settings/appearance', description: 'Theme and display' },
-      { label: 'Help & Support', icon: <HelpCircle className="w-5 h-5" />, href: '/help', description: 'Get help' },
     ],
   },
 ]

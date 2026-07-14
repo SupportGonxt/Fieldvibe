@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
-import { authMiddleware } from '../lib/middleware.js';
+import { authMiddleware, requireRole } from '../lib/middleware.js';
 
 const app = new Hono();
 
@@ -46,7 +46,7 @@ app.post('/cash-reconciliation/sessions/:sessionId/close', authMiddleware, async
   return c.json({ success: true, message: 'Session closed' });
 });
 
-app.post('/cash-reconciliation/sessions/:sessionId/approve-variance', authMiddleware, async (c) => {
+app.post('/cash-reconciliation/sessions/:sessionId/approve-variance', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const sessionId = c.req.param('sessionId');
@@ -118,7 +118,7 @@ app.post('/cash-reconciliations/:id/submit', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Submitted' });
 });
 
-app.post('/cash-reconciliations/:id/approve', authMiddleware, async (c) => {
+app.post('/cash-reconciliations/:id/approve', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -126,7 +126,7 @@ app.post('/cash-reconciliations/:id/approve', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Approved' });
 });
 
-app.post('/cash-reconciliations/:id/reject', authMiddleware, async (c) => {
+app.post('/cash-reconciliations/:id/reject', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -134,7 +134,7 @@ app.post('/cash-reconciliations/:id/reject', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Rejected' });
 });
 
-app.post('/cash-reconciliations/:id/close', authMiddleware, async (c) => {
+app.post('/cash-reconciliations/:id/close', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');

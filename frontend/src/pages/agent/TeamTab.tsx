@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Star, Shield, Store, AlertCircle, Bell, Phone, Loader2 } from 'lucide-react'
+import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Shield, Store, AlertCircle, Bell, Phone, Loader2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useRemediate } from '../../hooks/useRemediate'
 
@@ -33,25 +33,10 @@ interface AgentStat {
   rejected_photos?: number
 }
 
-interface CommissionRule {
-  id: string
-  name: string
-  source_type: string
-  rate: number
-  min_threshold: number
-  max_cap: number | null
-  effective_from: string | null
-  effective_to: string | null
-}
-
-interface CommissionTier {
-  id: string
-  tier_name: string
-  min_achievement_pct: number
-  max_achievement_pct: number | null
-  commission_rate: number
-  bonus_amount: number
-  metric_type: string
+interface IncentiveTier {
+  signups: number
+  deposits: number
+  amount: number
 }
 
 interface TeamData {
@@ -85,9 +70,10 @@ interface TeamData {
     approved: number
     paid: number
   }
-  commission_rules: CommissionRule[]
-  commission_tiers: CommissionTier[]
-  current_team_tier: CommissionTier | null
+  incentive_scales: {
+    agent: IncentiveTier[]
+    team_lead: IncentiveTier[]
+  }
   team_lead_own: {
     target_visits: number
     actual_visits: number
@@ -101,21 +87,7 @@ interface TeamData {
   } | null
 }
 
-function tierColor(name: string): string {
-  const n = name.toLowerCase()
-  if (n.includes('platinum') || n.includes('diamond')) return 'text-cyan-300'
-  if (n.includes('gold')) return 'text-yellow-400'
-  if (n.includes('silver')) return 'text-gray-300'
-  return 'text-amber-600'
-}
-
-function tierBg(name: string): string {
-  const n = name.toLowerCase()
-  if (n.includes('platinum') || n.includes('diamond')) return 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/20'
-  if (n.includes('gold')) return 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/20'
-  if (n.includes('silver')) return 'from-gray-400/20 to-gray-500/10 border-gray-400/20'
-  return 'from-amber-700/20 to-amber-800/10 border-amber-700/20'
-}
+const rand = (n: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n || 0)
 
 function pctClass(pct: number): string {
   if (pct >= 100) return 'text-[#00E87B]'
@@ -172,9 +144,8 @@ export default function TeamTab() {
   const totalEarnings = (data?.team_commission?.pending || 0) + (data?.team_commission?.approved || 0) + (data?.team_commission?.paid || 0)
   const vPct = (data?.team_targets?.target_visits || 0) > 0 ? Math.min(100, Math.round(((data?.team_targets?.actual_visits || 0) / (data?.team_targets?.target_visits || 1)) * 100)) : 0
   const rPct = (data?.team_targets?.target_stores || 0) > 0 ? Math.min(100, Math.round(((data?.team_targets?.actual_stores || 0) / (data?.team_targets?.target_stores || 1)) * 100)) : 0
-  const rules = data?.commission_rules || []
-  const tiers = data?.commission_tiers || []
-  const currentTier = data?.current_team_tier
+  const agentTiers = data?.incentive_scales?.agent || []
+  const tlTiers = data?.incentive_scales?.team_lead || []
 
   // Period-based team totals helper
   const getTeamTotals = (p: Period) => {
@@ -325,85 +296,46 @@ export default function TeamTab() {
         </div>
       </div>
 
-      {/* Current Tier Badge */}
-      {currentTier && (
-        <div className="px-5 py-2">
-          <div className={'bg-gradient-to-br border rounded-2xl p-3 flex items-center gap-3 ' + tierBg(currentTier.tier_name)}>
-            <Star className={'w-5 h-5 ' + tierColor(currentTier.tier_name)} />
-            <div className="flex-1">
-              <p className={'text-sm font-bold ' + tierColor(currentTier.tier_name)}>{currentTier.tier_name} Tier</p>
-              <p className="text-[10px] text-gray-400">
-                {currentTier.commission_rate}% rate{currentTier.bonus_amount > 0 ? ` + R${currentTier.bonus_amount.toLocaleString()} bonus` : ''}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-400">Team</p>
-              <p className={'text-sm font-bold ' + pctClass(achievement)}>{achievement}%</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Commission Rules & Tiers (expandable) */}
-      {(rules.length > 0 || tiers.length > 0) && (
+      {/* Incentive Tiers (expandable) */}
+      {(agentTiers.length > 0 || tlTiers.length > 0) && (
         <div className="px-5 py-2">
           <button
             onClick={() => setShowRules(!showRules)}
             className="w-full bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3"
           >
             <Shield className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex-1 text-left">Commission Rules & Tiers</span>
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex-1 text-left">Incentive Tiers</span>
             {showRules ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
           </button>
           {showRules && (
             <div className="mt-2 space-y-2">
-              {tiers.length > 0 && (
+              {tlTiers.length > 0 && (
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                  <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Earning Tiers</h3>
+                  <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Team Leads (team avg/day)</h3>
                   <div className="space-y-1.5">
-                    {tiers.map((tier) => {
-                      const isCurrent = currentTier?.id === tier.id
-                      return (
-                        <div key={tier.id} className={'flex items-center justify-between p-2 rounded-lg ' + (isCurrent ? 'bg-white/10 border border-white/20' : 'bg-white/[0.02]')}>
-                          <div className="flex items-center gap-2">
-                            <Star className={'w-3.5 h-3.5 ' + tierColor(tier.tier_name)} />
-                            <div>
-                              <p className={'text-xs font-medium ' + (isCurrent ? 'text-white' : 'text-gray-400')}>{tier.tier_name}</p>
-                              <p className="text-[9px] text-gray-600">{tier.min_achievement_pct}%{tier.max_achievement_pct ? ` - ${tier.max_achievement_pct}%` : '+'}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className={'text-xs font-semibold ' + (isCurrent ? 'text-[#00E87B]' : 'text-gray-400')}>{tier.commission_rate}%</p>
-                            {tier.bonus_amount > 0 && <p className="text-[9px] text-amber-400">+R{tier.bonus_amount.toLocaleString()}</p>}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className="text-[9px] text-gray-600 mt-2">Tiers apply to both agent and team-level earnings</p>
-                </div>
-              )}
-              {rules.length > 0 && (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                  <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Rules</h3>
-                  <div className="space-y-1.5">
-                    {rules.map((rule) => (
-                      <div key={rule.id} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
-                        <div>
-                          <p className="text-xs text-white">{rule.name}</p>
-                          <p className="text-[9px] text-gray-500">
-                            {rule.source_type.replace(/_/g, ' ')}
-                            {rule.min_threshold > 0 && ` | Min: R${rule.min_threshold.toLocaleString()}`}
-                            {rule.max_cap && ` | Cap: R${rule.max_cap.toLocaleString()}`}
-                          </p>
-                        </div>
-                        <span className="text-xs font-semibold text-[#00E87B]">{rule.rate}%</span>
+                    {tlTiers.map((tier) => (
+                      <div key={tier.amount} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
+                        <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
+                        <span className="text-xs font-semibold text-[#00E87B]">{rand(tier.amount)}</span>
                       </div>
                     ))}
                   </div>
-                  <p className="text-[9px] text-gray-600 mt-2">Rules apply to both individual agents and team earnings</p>
                 </div>
               )}
+              {agentTiers.length > 0 && (
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Agents</h3>
+                  <div className="space-y-1.5">
+                    {agentTiers.map((tier) => (
+                      <div key={tier.amount} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
+                        <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
+                        <span className="text-xs font-semibold text-[#00E87B]">{rand(tier.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-[9px] text-gray-600">Both gates must be met on daily average for the month</p>
             </div>
           )}
         </div>

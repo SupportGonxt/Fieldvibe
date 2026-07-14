@@ -52,8 +52,14 @@ app.get('/deposits', boRoles, async (c) => {
         AND (? IS NULL OR mf.source_batch = ?)
       ORDER BY mf.created_at DESC LIMIT ?`
   ).bind(tenantId, companyId, companyId, batch, batch, limit).all();
+  const totalRow = await db.prepare(
+    `SELECT COUNT(*) as total FROM metric_facts mf
+      WHERE mf.tenant_id = ? AND mf.metric_key = 'deposits'
+        AND (? IS NULL OR mf.company_id = ?)
+        AND (? IS NULL OR mf.source_batch = ?)`
+  ).bind(tenantId, companyId, companyId, batch, batch).first();
   // Deposits are count-only by contract for every backoffice role; deposit RAND revenue is GM/admin-only (see gm.js).
-  return c.json({ success: true, deposits: (results || []).map((r) => ({ ...r, amount: null, deposit_date: null, matched: !!r.matched })) });
+  return c.json({ success: true, deposits: (results || []).map((r) => ({ ...r, amount: null, deposit_date: null, matched: !!r.matched })), total_count: totalRow ? totalRow.total : (results || []).length });
 });
 
 // POST /field-ops/deposits/reconcile — promote provisional signups that now have a deposit fact.

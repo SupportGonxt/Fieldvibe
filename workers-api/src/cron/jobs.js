@@ -9,6 +9,7 @@ import { sendPush } from '../lib/web-push.js';
 import { dueEscalation, computeIncentive } from '../services/incentiveService.js';
 import { signalBelowGate, signalLabel, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
+import { isConverted } from '../services/funnelService.js';
 
 // ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
 // GM daily digest — emails every general_manager the day's overview + an in-app notification.
@@ -714,13 +715,13 @@ async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDat
     let f = {};
     try { if (r.custom_field_values) Object.assign(f, typeof r.custom_field_values === 'string' ? JSON.parse(r.custom_field_values) : r.custom_field_values); } catch {}
     try { if (r.questionnaire_responses) Object.assign(f, typeof r.questionnaire_responses === 'string' ? JSON.parse(r.questionnaire_responses) : r.questionnaire_responses); } catch {}
-    if (Number(f.converted) === 1 || String(f.consumer_converted).toLowerCase() === 'yes') totals.converted += 1;
+    if (isConverted(f)) totals.converted += 1;
     if (f.goldrush_id && String(f.goldrush_id).trim()) totals.with_id += 1;
     if (f.platform_suggestions && String(f.platform_suggestions).trim()) totals.with_suggestion += 1;
     if (r.agent_name) {
       const a = byAgent.get(r.agent_name) || { agent: r.agent_name, visits: 0, conversions: 0 };
       a.visits += 1;
-      if (Number(f.converted) === 1 || String(f.consumer_converted).toLowerCase() === 'yes') a.conversions += 1;
+      if (isConverted(f)) a.conversions += 1;
       byAgent.set(r.agent_name, a);
     }
     const comp = f.competitor_company || f.who_is_competitor;

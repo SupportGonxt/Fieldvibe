@@ -10,6 +10,7 @@ import { requireRole } from '../../middleware/auth.js';
 import { AGENT_ROLES, computeIncentive } from '../../services/incentiveService.js';
 import { severityOf } from '../../services/issueEngine.js';
 import { coachingNoteRow, doNote, doNudge } from './issues.js';
+import { CONVERTED_SQL } from '../../services/funnelService.js';
 
 export function resolveRoleKpiKey(role) {
   if (role === 'team_lead') return 'kpi.team_lead';
@@ -55,9 +56,7 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
      LEFT JOIN (
        SELECT visit_id,
               SUM(CASE WHEN survey_completed = 1 THEN 1 ELSE 0 END) surveys,
-              MAX(CASE WHEN (JSON_EXTRACT(custom_field_values,'$.converted')=1
-                          OR JSON_EXTRACT(custom_field_values,'$.consumer_converted')='Yes')
-                       THEN 1 ELSE 0 END) qualified_flag
+              MAX(CASE WHEN ${CONVERTED_SQL('visit_individuals')} THEN 1 ELSE 0 END) qualified_flag
        FROM visit_individuals GROUP BY visit_id
      ) vi ON vi.visit_id = v.id
      WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
@@ -193,7 +192,7 @@ async function teamMemberIds(db, tenantId, me, role) {
   ).bind(tenantId, me).all()).results.map(r => r.id);
 }
 
-app.get('/kpi/roster', async (c) => {
+app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');

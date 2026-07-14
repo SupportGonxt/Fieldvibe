@@ -381,7 +381,7 @@ app.get('/analytics/campaigns', authMiddleware, async (c) => {
 });
 
 // /analytics/revenue - revenue analytics
-app.get('/analytics/revenue', authMiddleware, async (c) => {
+app.get('/analytics/revenue', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start_date, end_date } = c.req.query();
@@ -494,7 +494,7 @@ app.get('/individual-visits-report', authMiddleware, async (c) => {
     return c.json({ data });
   } catch (err) { return c.json({ error: 'Failed to get individual visits report: ' + (err.message || err) }, 500); }
 });
-app.get('/reports/sales-dashboard', async (c) => {
+app.get('/reports/sales-dashboard', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const today = new Date().toISOString().split('T')[0];
@@ -517,7 +517,7 @@ app.get('/reports/sales-dashboard', async (c) => {
 });
 
 // Agent Performance Report
-app.get('/reports/agent-performance', async (c) => {
+app.get('/reports/agent-performance', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { period = '30' } = c.req.query();
@@ -530,7 +530,7 @@ app.get('/reports/agent-performance', async (c) => {
 });
 
 // Stock Valuation Report
-app.get('/reports/stock-valuation', async (c) => {
+app.get('/reports/stock-valuation', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const items = await db.prepare("SELECT p.name, p.sku, w.name as warehouse, sl.quantity, p.cost_price, (sl.quantity * COALESCE(p.cost_price, 0)) as value, (SELECT MAX(created_at) FROM stock_movements WHERE product_id = p.id AND movement_type = 'SALE_OUT') as last_sold FROM stock_levels sl JOIN products p ON sl.product_id = p.id JOIN warehouses w ON sl.warehouse_id = w.id WHERE sl.tenant_id = ? ORDER BY value DESC").bind(tenantId).all();
@@ -539,7 +539,7 @@ app.get('/reports/stock-valuation', async (c) => {
 
 
 // Van Sales Report
-app.get('/reports/van-sales', async (c) => {
+app.get('/reports/van-sales', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const report = await db.prepare("SELECT vsl.id, vsl.vehicle_reg, u.first_name || ' ' || u.last_name as agent_name, vsl.status, vsl.load_date, vsl.return_time, (SELECT COUNT(*) FROM sales_orders WHERE van_stock_load_id = vsl.id) as orders, (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders WHERE van_stock_load_id = vsl.id) as revenue, vr.cash_expected, vr.cash_actual, vr.variance, vr.status as recon_status FROM van_stock_loads vsl LEFT JOIN users u ON vsl.agent_id = u.id LEFT JOIN van_reconciliations vr ON vr.van_stock_load_id = vsl.id WHERE vsl.tenant_id = ? ORDER BY vsl.load_date DESC").bind(tenantId).all();
@@ -561,7 +561,7 @@ app.get('/reports/van-sales', async (c) => {
 // ==================== M. ANOMALY DETECTION ====================
 
 // M.1 Anomaly Flags
-app.get('/anomaly-flags', async (c) => {
+app.get('/anomaly-flags', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { status, type, severity } = c.req.query();
@@ -804,7 +804,7 @@ app.get('/insights/stock', async (c) => {
 });
 
 // O.7 Commission Dashboard
-app.get('/insights/commissions', async (c) => {
+app.get('/insights/commissions', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const role = c.get('role');
