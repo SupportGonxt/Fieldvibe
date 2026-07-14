@@ -73,3 +73,34 @@ describe('role lists', () => {
     expect(ADMIN_EQUIVALENT.filter((r) => FIELD_ROLES.includes(r))).toEqual([]);
   });
 });
+
+// append to workers-api/tests/unit/capabilities.test.js
+import { requireRole } from '../../src/lib/middleware.js';
+
+describe('requireRole middleware (consolidated)', () => {
+  const run = async (role, ...roles) => {
+    let nexted = false;
+    let jsonArgs = null;
+    const c = {
+      get: (k) => (k === 'role' ? role : undefined),
+      json: (...a) => { jsonArgs = a; return 'json-response'; },
+    };
+    await requireRole(...roles)(c, async () => { nexted = true; });
+    return { nexted, jsonArgs };
+  };
+
+  it('backoffice_admin passes an admin gate (equivalence)', async () => {
+    expect((await run('backoffice_admin', 'admin')).nexted).toBe(true);
+  });
+  it('general_manager passes a manager gate', async () => {
+    expect((await run('general_manager', 'manager')).nexted).toBe(true);
+  });
+  it('agent blocked from admin gate with 403', async () => {
+    const { nexted, jsonArgs } = await run('agent', 'admin');
+    expect(nexted).toBe(false);
+    expect(jsonArgs[1]).toBe(403);
+  });
+  it('listed role passes', async () => {
+    expect((await run('team_lead', 'team_lead')).nexted).toBe(true);
+  });
+});

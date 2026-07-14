@@ -1,4 +1,5 @@
 // Shared route middleware. Moved verbatim from index.js.
+import { roleAllows } from './capabilities.js';
 // ==================== SECTION 3: RATE LIMITING (T-18: D1-backed for Cloudflare Workers) ====================
 export const rateLimiter = (limit, windowMs) => async (c, next) => {
   const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
@@ -91,7 +92,7 @@ export const authMiddleware = async (c, next) => {
 export const requireRole = (...roles) => {
   return async (c, next) => {
     const role = c.get('role');
-    if (role === 'super_admin' || role === 'admin' || roles.includes(role)) {
+    if (roleAllows(role, roles)) {
       await next();
     } else {
       return c.json({ success: false, message: 'Insufficient permissions' }, 403);
