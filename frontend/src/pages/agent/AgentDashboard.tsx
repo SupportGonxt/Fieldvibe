@@ -369,9 +369,12 @@ export default function AgentDashboard() {
     }
 
     try {
-      // Load dashboard first (critical data)
+      // Dashboard is the critical data; performance is independent, so start
+      // both requests now instead of serializing them (one round-trip saved).
       const dashTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Dashboard timeout')), 15000))
       const dashPromise = apiClient.get('/agent/dashboard')
+      const perfPromise = apiClient.get('/agent/performance')
+      perfPromise.catch(() => { /* handled below; avoid unhandled rejection */ })
       const dashRes = await Promise.race([dashPromise, dashTimeout])
       const json = (dashRes as any).data
       if (json.success && json.data) {
@@ -384,9 +387,8 @@ export default function AgentDashboard() {
           (!json.data.company_target_rules?.length && !json.data.monthly_targets?.target_visits)
         )
       }
-      // Load performance data separately (non-critical, can be lazy-loaded)
+      // Performance data is non-critical — consume it without blocking render.
       const perfTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Performance timeout')), 15000))
-      const perfPromise = apiClient.get('/agent/performance')
       Promise.race([perfPromise, perfTimeout]).then((perfRes: any) => {
         if (perfRes?.data?.success && perfRes?.data?.data) {
           setPerfSummary((perfRes as any).data.data)
