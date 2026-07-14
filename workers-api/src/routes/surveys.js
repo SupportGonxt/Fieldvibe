@@ -570,32 +570,26 @@ app.get('/kyc/stats', authMiddleware, async (c) => {
   return c.json({ success: true, data: byType.results || [] });
 });
 app.post('/kyc/:id/approve', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  return c.json({ success: false, message: 'KYC processing is not implemented' }, 501);
 });
 app.post('/kyc/:id/credit-check', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  return c.json({ success: false, message: 'KYC processing is not implemented' }, 501);
 });
 app.get('/kyc/:id/documents/:documentId', authMiddleware, async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }
   catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 app.post('/kyc/:id/documents/:documentId/verify', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  return c.json({ success: false, message: 'KYC processing is not implemented' }, 501);
 });
 app.post('/kyc/:id/reject', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  return c.json({ success: false, message: 'KYC processing is not implemented' }, 501);
 });
 app.post('/kyc/:id/request-update', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  return c.json({ success: false, message: 'KYC processing is not implemented' }, 501);
 });
 app.post('/kyc/:id/verify-references', authMiddleware, async (c) => {
-  try { const body = await c.req.json().catch(() => ({})); return c.json({ success: true, data: { id: crypto.randomUUID(), ...body, status: 'completed', updated_at: new Date().toISOString() } }); }
-  catch (e) { return c.json({ success: false, message: e.message }, 500); }
+  return c.json({ success: false, message: 'KYC processing is not implemented' }, 501);
 });
 app.get('/kyc/agent/:id', authMiddleware, async (c) => {
   try { const tenantId = c.get('tenantId'); return c.json({ success: true, data: [], total: 0 }); }

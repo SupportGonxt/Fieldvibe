@@ -79,7 +79,7 @@ export default function SalesOrderCreate() {
           const resolved = priceMap[prod.id]
           return resolved ? { ...prod, price: resolved.price, selling_price: resolved.price } : prod
         }))
-      }).catch(() => { setCustomerPrices({}) })
+      }).catch((e) => { console.error('customer prices fetch failed', e); setCustomerPrices({}) })
     } else {
       setCustomerPrices({})
       // Restore original base prices
