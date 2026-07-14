@@ -169,18 +169,13 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Handle 403 Forbidden - user doesn't have permission
+    // 403 Forbidden — the user IS authenticated, they just lack permission for
+    // this one endpoint. Do NOT redirect to login: the login page bounces
+    // authenticated users straight back, so any role-gated background query
+    // (e.g. manager hitting /issues/unmanaged) turned into an app-wide
+    // redirect/flash loop. Let the caller handle the rejection.
     if (error.response?.status === 403) {
       console.error('Access Forbidden: Insufficient permissions')
-      
-      // Optionally show a toast/notification here
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
-        // Store the attempted URL for potential redirect after re-login
-        sessionStorage.setItem('redirectAfterLogin', window.location.pathname)
-        
-        // Redirect to login with error message
-        window.location.href = '/auth/login?error=forbidden'
-      }
     }
 
     const method = originalRequest?.method?.toUpperCase()

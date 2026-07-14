@@ -20,11 +20,21 @@ import NotFoundPage from './pages/NotFoundPage'
 // This wrapper retries the import and forces a page reload if chunks are stale.
 function lazyWithRetry<T extends ComponentType<any>>(importFn: () => Promise<{ default: T }>) {
   return lazy<T>(() =>
-    importFn().catch((error: Error) => {
+    importFn().then((mod) => {
+      // Chunk loaded — re-arm the one-shot reload for the next stale deploy.
+      // Clearing here (not on App mount) is load-bearing: an App-mount clear
+      // runs before the failing route chunk resolves, defeating the guard and
+      // turning one stale shell into an infinite reload loop.
+      sessionStorage.removeItem('chunk_reload');
+      return mod;
+    }).catch(async (error: Error) => {
       // Only auto-reload once to avoid infinite loops
       const hasReloaded = sessionStorage.getItem('chunk_reload');
       if (!hasReloaded) {
         sessionStorage.setItem('chunk_reload', '1');
+        // The 404ing chunk hash came from a stale SW-cached shell — bust it so
+        // the reload fetches fresh HTML instead of the same broken one.
+        try { await caches.delete('navigation-cache'); } catch { /* no-op */ }
         window.location.reload();
         // Return a never-resolving promise to keep Suspense spinner visible until reload completes
         return new Promise(() => {});
@@ -487,11 +497,6 @@ const isStandalonePwa = () =>
 
 function App() {
   const { isAuthenticated, isLoading, initialize, hydrated, user } = useAuthStore()
-
-  useEffect(() => {
-    // Clear chunk reload flag on successful app load
-    sessionStorage.removeItem('chunk_reload');
-  }, [])
 
   useEffect(() => {
     if (hydrated) {
