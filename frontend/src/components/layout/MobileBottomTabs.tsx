@@ -1,27 +1,36 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, MapPin, ShoppingCart, Users, MoreHorizontal, Package, DollarSign, Megaphone } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
+import { roleAllows, canSeeMoney } from '../../lib/capabilities'
 
-type TabDef = { path: string; icon: React.ComponentType<any>; label: string; roles?: string[] }
+type TabDef = { path: string; icon: React.ComponentType<any>; label: string; can?: (role: string) => boolean }
 
-// Management roles that see every business module. The dedicated field roles
-// (field_agent/sales_rep/team_lead/agent) live in the /agent PWA, but are listed
-// on the tabs relevant to them for the rare time they land in the office shell.
-const MGMT = ['admin', 'super_admin', 'manager', 'general_manager', 'backoffice_admin']
-
-// MOB-02: Role-aware bottom tabs. roles use the real auth union
-// (src/types/auth.types.ts) — the old vocab (team_leader/sales/warehouse/
-// finance/marketing) never matched it, so gating was dead.
+// Tab visibility derives from capabilities.ts so a tab only shows when the route
+// behind it lets the role in: /finance/* is requiredRole="admin" (canSeeMoney),
+// /inventory + /marketing are requiredRole="manager" (roleAllows). The old
+// hand-rolled MGMT array disagreed with the route gates and gave `manager` —
+// a FIELD role, counts-only, never rand — a dead-end Finance tab.
 const allTabs: TabDef[] = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { path: '/field-operations', icon: MapPin, label: 'Field', roles: [...MGMT, 'field_agent', 'team_lead', 'agent'] },
-  { path: '/sales', icon: ShoppingCart, label: 'Sales', roles: [...MGMT, 'sales_rep', 'agent'] },
+  { path: '/field-operations', icon: MapPin, label: 'Field', can: (r) => roleAllows(r, ['manager', 'field_agent', 'team_lead', 'agent']) },
+  { path: '/sales', icon: ShoppingCart, label: 'Sales', can: (r) => roleAllows(r, ['manager', 'sales_rep', 'agent']) },
   { path: '/customers', icon: Users, label: 'Customers' },
-  { path: '/inventory', icon: Package, label: 'Stock', roles: [...MGMT] },
-  { path: '/finance', icon: DollarSign, label: 'Finance', roles: [...MGMT, 'backoffice_admin'] },
-  { path: '/marketing', icon: Megaphone, label: 'Marketing', roles: [...MGMT] },
+  { path: '/inventory', icon: Package, label: 'Stock', can: (r) => roleAllows(r, ['manager']) },
+  { path: '/finance', icon: DollarSign, label: 'Finance', can: canSeeMoney },
+  { path: '/marketing', icon: Megaphone, label: 'Marketing', can: (r) => roleAllows(r, ['manager']) },
   { path: '/more', icon: MoreHorizontal, label: 'More' },
 ]
+
+// Pure so it's testable: max 5 tabs, More always kept.
+export function visibleTabsForRole(role: string): TabDef[] {
+  const tabs = allTabs.filter((tab) => !tab.can || tab.can(role)).slice(0, 5)
+  const moreDef = allTabs[allTabs.length - 1]
+  if (!tabs.includes(moreDef)) {
+    if (tabs.length === 5) tabs[4] = moreDef
+    else tabs.push(moreDef)
+  }
+  return tabs
+}
 
 export default function MobileBottomTabs() {
   const location = useLocation()
@@ -32,20 +41,9 @@ export default function MobileBottomTabs() {
   // silently defaulted to admin and saw all tabs.
   const userRole = useAuthStore((s) => s.user)?.role || 'admin'
 
-  // Filter tabs by role - show max 5 tabs on mobile. GM is admin-equivalent
-  // (in MGMT), so it falls through to normal filtering and sees every module,
-  // matching the desktop console (#253).
-  const visibleTabs = allTabs
-    .filter(tab => !tab.roles || tab.roles.includes(userRole))
-    .slice(0, 5)
-
-  // Always ensure More tab is included
-  const moreDef = allTabs.find(t => t.path === '/more')!
-  if (visibleTabs.length === 5 && !visibleTabs.find(t => t.path === '/more')) {
-    visibleTabs[4] = moreDef
-  } else if (!visibleTabs.find(t => t.path === '/more')) {
-    visibleTabs.push(moreDef)
-  }
+  // GM/backoffice_admin are admin-equivalent inside roleAllows/canSeeMoney, so
+  // they see every module, matching the desktop console (#253).
+  const visibleTabs = visibleTabsForRole(userRole)
 
   const isActive = (path: string) => location.pathname.startsWith(path)
 
