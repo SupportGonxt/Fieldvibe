@@ -132,6 +132,24 @@ export default function BOActionQueue() {
           })}
         </div>
       )}
+      {/* Always-visible entries to the review queues — these screens have no bottom-nav
+          tab, and the action rows above only appear when a queue is non-empty, which
+          left them unreachable the rest of the time. */}
+      <div className="flex gap-2 mt-2">
+        {[
+          { label: 'Photos', to: '/agent/photo-review' },
+          { label: 'Uploads', to: '/agent/upload-failures' },
+          { label: 'Commissions', to: '/agent/commissions' },
+        ].map((b) => (
+          <button
+            key={b.to}
+            onClick={() => navigate(b.to)}
+            className="flex-1 text-xs text-gray-400 bg-white/[0.03] border border-white/10 rounded-xl py-2 active:scale-[0.98] transition-transform"
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
       {stats && stats.received > 0 && (
         <div className="text-[11px] text-gray-600 mt-2 px-1">
           {stats.acted}/{stats.received} notifications acted · 7d
