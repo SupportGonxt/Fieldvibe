@@ -34,7 +34,10 @@ async function signPhotoUrl(visitId, jwtSecret, nowMs = Date.now()) {
 }
 
 async function signPhotoRows(rows, jwtSecret) {
-  return Promise.all(rows.map(async (r) => ({
+  // ponytail: photo_base64/additional_photos stripped, not signed — portal
+  // frontend (CompanyDashboardPage) only renders photo_url; sign per-entry if
+  // the portal ever starts rendering additional_photos.
+  return Promise.all(rows.map(async ({ photo_base64, additional_photos, ...r }) => ({
     ...r,
     photo_url: r.photo_url ? await signPhotoUrl(r.id, jwtSecret) : null,
   })));
