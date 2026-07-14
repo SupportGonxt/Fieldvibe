@@ -6,6 +6,7 @@
  */
 import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
+import { canSeeMoney } from '../../lib/capabilities.js';
 import { DEFAULT_CAPTURE_CONFIG } from '../../services/programConfig.js';
 
 // ---- Reusable resolvers (imported by other services) ----
@@ -49,6 +50,9 @@ app.get('/config', async (c) => {
   // company row wins: iterate default-last so specific overwrites default
   const out = {};
   for (const r of results) out[r.key] = JSON.parse(r.value_json);
+  // Field roles never see salary/commission config rand values (counts-only rule)
+  const MONEY_CONFIG_KEYS = ['salaries', 'role_base_salary', 'bo_admin_salary', 'phone_cost_per_agent', 'commission_per_deposit'];
+  if (!canSeeMoney(c.get('role'))) for (const k of MONEY_CONFIG_KEYS) delete out[k];
   return c.json({ success: true, config: out });
 });
 
