@@ -104,7 +104,22 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
         if (sessionStorage.getItem('fv-sw-reloaded')) return
         try { sessionStorage.setItem('fv-sw-reloaded', '1') } catch { /* private mode — best effort */ }
         refreshing = true
-        window.location.reload()
+        // Never reload in the user's face — a deploy landing mid-session (e.g.
+        // right after login) used to blank-flash the screen. The new SW has
+        // already claimed the tab; the old bundle keeps working (hashed assets
+        // are CacheFirst, stale-chunk 404s are handled by lazyWithRetry), so
+        // defer the reload until the tab is hidden and the user won't see it.
+        if (document.visibilityState === 'hidden') {
+          window.location.reload()
+          return
+        }
+        const reloadWhenHidden = () => {
+          if (document.visibilityState === 'hidden') {
+            document.removeEventListener('visibilitychange', reloadWhenHidden)
+            window.location.reload()
+          }
+        }
+        document.addEventListener('visibilitychange', reloadWhenHidden)
       })
       // Poll for SW updates every hour for users who keep the tab open all day.
       if (reg && reg.update) {
