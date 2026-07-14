@@ -22,14 +22,14 @@ describe('applyTenantTheme', () => {
     expect(meta?.content).toBe('#FF5500')
   })
 
-  it('rejects invalid hex — leaves tokens untouched', () => {
+  it('rejects invalid hex — resets to tokens.css defaults', () => {
     applyTenantTheme({ primaryColor: 'red' })
     applyTenantTheme({ primaryColor: '#12345' })
     applyTenantTheme({ primaryColor: '#GGGGGG' })
     expect(root().style.getPropertyValue('--color-primary')).toBe('')
   })
 
-  it('no theme → no-op (brand green from tokens.css stands)', () => {
+  it('no theme → clears managed tokens (brand green from tokens.css stands)', () => {
     applyTenantTheme(undefined)
     applyTenantTheme({})
     expect(root().style.getPropertyValue('--color-primary')).toBe('')
@@ -43,5 +43,21 @@ describe('applyTenantTheme', () => {
   it('keeps default on-primary for light tenant colors', () => {
     applyTenantTheme({ primaryColor: '#FFDD00' }) // bright yellow
     expect(root().style.getPropertyValue('--color-on-primary')).toBe('')
+  })
+
+  it('switching dark → light removes the stale white on-primary override', () => {
+    applyTenantTheme({ primaryColor: '#003300' }) // dark: sets white override
+    applyTenantTheme({ primaryColor: '#FFDD00' }) // light: must clear it
+    expect(root().style.getPropertyValue('--color-on-primary')).toBe('')
+  })
+
+  it('switching to no theme removes all managed tokens and resets meta', () => {
+    applyTenantTheme({ primaryColor: '#003300' })
+    applyTenantTheme(undefined)
+    expect(root().style.getPropertyValue('--color-primary')).toBe('')
+    expect(root().style.getPropertyValue('--color-primary-rgb')).toBe('')
+    expect(root().style.getPropertyValue('--color-on-primary')).toBe('')
+    const meta = document.head.querySelector('meta[name="theme-color"]') as HTMLMetaElement
+    expect(meta?.content).toBe('#0A0F1C')
   })
 })

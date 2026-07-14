@@ -3,15 +3,40 @@
 // so they follow automatically.
 const HEX = /^#[0-9a-fA-F]{6}$/
 
+// Every inline token this module may set. Each apply must set OR remove each
+// one, so switching tenants/themes never leaves a stale value behind
+// (removeProperty falls back to the tokens.css defaults).
+const MANAGED_TOKENS = ['--color-primary', '--color-primary-rgb', '--color-on-primary'] as const
+
+// Matches <meta name="theme-color"> in index.html.
+const DEFAULT_THEME_COLOR = '#0A0F1C'
+
+function setThemeColorMeta(content: string): void {
+  let meta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  if (!meta) {
+    meta = document.createElement('meta')
+    meta.name = 'theme-color'
+    document.head.appendChild(meta)
+  }
+  meta.content = content
+}
+
 export function applyTenantTheme(theme?: { primaryColor?: string }): void {
+  const root = document.documentElement
   const hex = theme?.primaryColor
-  if (!hex || !HEX.test(hex)) return
+
+  if (!hex || !HEX.test(hex)) {
+    // No (valid) tenant theme: clear everything we manage so the
+    // tokens.css brand defaults stand — idempotent across switches/logout.
+    for (const token of MANAGED_TOKENS) root.style.removeProperty(token)
+    setThemeColorMeta(DEFAULT_THEME_COLOR)
+    return
+  }
 
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
 
-  const root = document.documentElement
   root.style.setProperty('--color-primary', hex)
   root.style.setProperty('--color-primary-rgb', `${r} ${g} ${b}`)
 
@@ -25,13 +50,10 @@ export function applyTenantTheme(theme?: { primaryColor?: string }): void {
   // on-primary #04110A luminance ≈ 0.005; contrast = (L+0.05)/(0.005+0.05) — needs ≥ 3
   if ((L + 0.05) / 0.055 < 3) {
     root.style.setProperty('--color-on-primary', '#FFFFFF')
+  } else {
+    // Light tenant color: remove any white override from a previous dark theme.
+    root.style.removeProperty('--color-on-primary')
   }
 
-  let meta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  if (!meta) {
-    meta = document.createElement('meta')
-    meta.name = 'theme-color'
-    document.head.appendChild(meta)
-  }
-  meta.content = hex
+  setThemeColorMeta(hex)
 }
