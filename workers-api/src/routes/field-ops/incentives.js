@@ -133,13 +133,14 @@ app.get('/leaderboard', async (c) => {
   const end = nextMonthStart(period);
   const { results } = await db.prepare(
     `SELECT v.agent_id AS id, u.first_name || ' ' || u.last_name AS name, COUNT(*) AS signups,
-            SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) AS converted
+            SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) AS converted,
+            SUM(CASE WHEN ${VERIFIED_SQL('vi')} THEN 1 ELSE 0 END) AS verified
      FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
      JOIN users u ON u.id = v.agent_id
      WHERE v.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND vi.created_at >= ? AND vi.created_at < ?
        AND ${NOT_REJECTED_SQL('vi')}
-     GROUP BY v.agent_id ORDER BY signups DESC LIMIT ?`
+     GROUP BY v.agent_id ORDER BY verified DESC, converted DESC, signups DESC LIMIT ?`
   ).bind(tenantId, ...AGENT_ROLES, start, end, limit).all();
 
   const board = (results || []).map((r, i) => ({ rank: i + 1, ...r }));

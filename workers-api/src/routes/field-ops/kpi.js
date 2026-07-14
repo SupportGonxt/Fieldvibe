@@ -192,7 +192,7 @@ async function teamMemberIds(db, tenantId, me, role) {
   ).bind(tenantId, me).all()).results.map(r => r.id);
 }
 
-app.get('/kpi/roster', async (c) => {
+app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
