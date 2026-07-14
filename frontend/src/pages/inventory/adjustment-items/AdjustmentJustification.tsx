@@ -166,7 +166,7 @@ export default function AdjustmentJustification() {
                     Uploaded {new Date(doc.uploaded_at).toLocaleString()}
                   </p>
                 </div>
-                <button onClick={() => toast.success('Viewing details')} className="text-primary-600 hover:text-primary-900 text-sm font-medium">
+                <button onClick={() => toast.success('Viewing details')} className="text-info-600 hover:text-info-900 text-sm font-medium">
                   View
                 </button>
               </div>

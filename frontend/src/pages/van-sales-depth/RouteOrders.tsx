@@ -82,7 +82,7 @@ export default function RouteOrders() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(order.date).toLocaleDateString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button onClick={() => navigate(`/orders/${order.id}`)} className="text-primary-600 hover:text-primary-900 flex items-center gap-1">
+                  <button onClick={() => navigate(`/orders/${order.id}`)} className="text-info-600 hover:text-info-900 flex items-center gap-1">
                     <Eye className="h-4 w-4" />
                     View
                   </button>

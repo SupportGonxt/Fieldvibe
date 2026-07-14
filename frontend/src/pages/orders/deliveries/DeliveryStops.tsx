@@ -117,7 +117,7 @@ export default function DeliveryStops() {
               </div>
               <button
                 onClick={() => navigate(`/orders/${orderId}/deliveries/${deliveryId}/stops/${stop.id}`)}
-                className="text-primary-600 hover:text-primary-900"
+                className="text-info-600 hover:text-info-900"
               >
                 <Eye className="h-5 w-5" />
               </button>

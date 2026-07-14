@@ -135,18 +135,18 @@ export default function BackOfficeDeposits() {
   const unmatchedCount = rows.filter((r) => !r.matched).length
 
   return (
-    <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
+    <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-2 mb-1">
-          <Banknote className="w-6 h-6 text-[#00E87B]" />
-          <h1 className="text-2xl font-bold text-white">Deposits</h1>
+          <Banknote className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold text-token">Deposits</h1>
         </div>
-        <p className="text-sm text-gray-500 mb-5">
+        <p className="text-sm text-token-faint mb-5">
           Upload the Goldrush-confirmed deposit IDs. This clears the deposit gate — signups pay out once both gates are met.
         </p>
 
-        <label className="flex items-center justify-center gap-2 w-full mb-3 bg-white/[0.04] border border-dashed border-white/15 rounded-2xl py-3 text-sm text-gray-300 cursor-pointer active:scale-[0.99] transition-transform">
-          <Upload className="w-4 h-4 text-[#00E87B]" />
+        <label className="flex items-center justify-center gap-2 w-full mb-3 bg-white/[0.04] border border-dashed border-white/15 rounded-2xl py-3 text-sm text-token-muted cursor-pointer active:scale-[0.99] transition-transform">
+          <Upload className="w-4 h-4 text-primary" />
           Upload Excel / CSV file
           <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
         </label>
@@ -156,43 +156,43 @@ export default function BackOfficeDeposits() {
           onChange={(e) => { setText(e.target.value); reset() }}
           rows={7}
           placeholder={'123456789\n987654321\n… or paste a CSV export'}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3.5 text-white text-base placeholder-gray-600 focus:outline-none focus:border-[#00E87B]/50 font-mono resize-none"
+          className="w-full bg-white/[0.04] border border-token rounded-2xl px-4 py-3.5 text-token text-base placeholder-gray-600 focus:outline-none focus:border-primary/50 font-mono resize-none"
         />
 
         <input
           value={batch}
           onChange={(e) => setBatch(e.target.value)}
           placeholder="Batch label (optional)"
-          className="w-full mt-3 bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3 text-white text-base placeholder-gray-600 focus:outline-none focus:border-[#00E87B]/50"
+          className="w-full mt-3 bg-white/[0.04] border border-token rounded-2xl px-4 py-3 text-token text-base placeholder-gray-600 focus:outline-none focus:border-primary/50"
         />
 
         <div className="flex gap-3 mt-4">
           <button
             onClick={() => run(true)}
             disabled={busy}
-            className="flex-1 bg-white/[0.06] border border-white/10 text-white rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-50"
+            className="flex-1 bg-white/[0.06] border border-token text-token rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-50"
           >
             {busy && !uploaded ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Preview'}
           </button>
           <button
             onClick={() => run(false)}
             disabled={busy || !preview}
-            className="flex-1 bg-gradient-to-br from-[#00E87B] to-[#00D06E] text-[#0A1628] rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
+            className="flex-1 bg-gradient-to-br from-primary to-[#00D06E] text-on-primary rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
           >
             Upload deposits
           </button>
         </div>
 
         {preview && !uploaded && (
-          <div className="mt-6 bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+          <div className="mt-6 bg-white/[0.03] border border-token rounded-2xl p-4">
             <div className="grid grid-cols-2 gap-3 text-center">
               <div>
-                <div className="text-2xl font-bold text-white tabular-nums">{preview.uploaded}</div>
-                <div className="text-xs text-gray-500 mt-0.5">IDs uploaded</div>
+                <div className="text-2xl font-bold text-token tabular-nums">{preview.uploaded}</div>
+                <div className="text-xs text-token-faint mt-0.5">IDs uploaded</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-[#00E87B] tabular-nums">{preview.matched}</div>
-                <div className="text-xs text-gray-500 mt-0.5">match a signup</div>
+                <div className="text-2xl font-bold text-primary tabular-nums">{preview.matched}</div>
+                <div className="text-xs text-token-faint mt-0.5">match a signup</div>
               </div>
             </div>
             <UnmatchedList ids={preview.unmatched} />
@@ -200,12 +200,12 @@ export default function BackOfficeDeposits() {
         )}
 
         {uploaded && (
-          <div className="mt-6 bg-[#00E87B]/[0.06] border border-[#00E87B]/20 rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-[#00E87B] font-semibold mb-3">
+          <div className="mt-6 bg-primary/[0.06] border border-primary/20 rounded-2xl p-4">
+            <div className="flex items-center gap-2 text-primary font-semibold mb-3">
               <CheckCircle2 className="w-5 h-5" />
               {uploaded.inserted} deposit{uploaded.inserted === 1 ? '' : 's'} uploaded
             </div>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-token-muted">
               {uploaded.matched} of {uploaded.uploaded} matched a signup.
               {uploaded.duplicates > 0 && ` ${uploaded.duplicates} already on file.`}
             </p>
@@ -215,22 +215,22 @@ export default function BackOfficeDeposits() {
 
         {/* Existing deposits */}
         <div className="flex items-center justify-between mt-8 mb-3">
-          <h2 className="text-sm text-gray-500 uppercase tracking-wide">On file</h2>
+          <h2 className="text-sm text-token-faint uppercase tracking-wide">On file</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={reconcile}
               disabled={reconciling}
-              className="flex items-center gap-1.5 text-xs text-[#00E87B] bg-[#00E87B]/10 border border-[#00E87B]/25 rounded-xl px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 border border-primary/25 rounded-xl px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
             >
               {reconciling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardCheckIcon />}
               Qualify
             </button>
             <button
               onClick={loadList}
-              className="p-2 rounded-xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              className="p-2 rounded-xl bg-white/[0.04] border border-token active:scale-95 transition-transform"
               aria-label="Refresh"
             >
-              <RefreshCw className={`w-4 h-4 text-gray-400 ${loadingList ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 text-token-muted ${loadingList ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -244,7 +244,7 @@ export default function BackOfficeDeposits() {
 
         {loadingList ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : rows.length === 0 ? (
           <p className="text-center text-gray-600 py-12">No deposits uploaded yet.</p>
@@ -253,20 +253,20 @@ export default function BackOfficeDeposits() {
             {rows.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3"
+                className="flex items-center gap-3 bg-white/[0.03] border border-token rounded-2xl px-4 py-3"
               >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.matched ? 'bg-[#00E87B]/15 text-[#00E87B]' : 'bg-amber-500/15 text-amber-400'}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.matched ? 'bg-primary/15 text-primary' : 'bg-amber-500/15 text-amber-400'}`}>
                   {r.matched ? <Link2 className="w-4 h-4" /> : <Unlink className="w-4 h-4" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-white font-mono text-sm">{r.goldrush_id}</div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
+                  <div className="text-token font-mono text-sm">{r.goldrush_id}</div>
+                  <div className="text-[11px] text-token-faint mt-0.5">
                     {r.source_batch ? `${r.source_batch} · ` : ''}{whenLabel(r.created_at)}
                     {!r.matched && ' · no signup'}
                   </div>
                 </div>
                 {r.amount != null && (
-                  <div className="text-sm text-gray-300 tabular-nums shrink-0">R{r.amount}</div>
+                  <div className="text-sm text-token-muted tabular-nums shrink-0">R{r.amount}</div>
                 )}
                 <button
                   onClick={() => remove(r.id)}
@@ -292,14 +292,14 @@ function ClipboardCheckIcon() {
 function UnmatchedList({ ids }: { ids: string[] }) {
   if (!ids.length) return null
   return (
-    <div className="mt-4 pt-4 border-t border-white/10">
+    <div className="mt-4 pt-4 border-t border-token">
       <div className="flex items-center gap-1.5 text-amber-400 text-sm font-medium mb-2">
         <AlertTriangle className="w-4 h-4" />
         {ids.length} unmatched — no signup on file
       </div>
       <div className="flex flex-wrap gap-1.5">
         {ids.map((id) => (
-          <span key={id} className="text-xs font-mono text-gray-400 bg-white/[0.04] rounded-lg px-2 py-1">{id}</span>
+          <span key={id} className="text-xs font-mono text-token-muted bg-white/[0.04] rounded-lg px-2 py-1">{id}</span>
         ))}
       </div>
     </div>

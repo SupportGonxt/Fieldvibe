@@ -20,17 +20,17 @@ interface TeamPerformanceSectionProps {
 const TeamPerformanceSection = memo(({ teamPerformance }: TeamPerformanceSectionProps) => {
   return (
     <div className="px-5 mb-4">
-      <div className="bg-[#00E87B]/10 border border-[#00E87B]/20 rounded-2xl p-4">
+      <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Users className="w-4 h-4 text-[#00E87B]" />
-          <span className="text-xs font-semibold text-[#00E87B] uppercase">Team Performance</span>
+          <Users className="w-4 h-4 text-primary" />
+          <span className="text-xs font-semibold text-primary uppercase">Team Performance</span>
         </div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm text-white">
             <span className="font-semibold">{teamPerformance.team_lead_name}</span>
             <span className="text-gray-400"> • {teamPerformance.member_count} members</span>
           </p>
-          <span className={`text-sm font-bold ${teamPerformance.achievement >= 100 ? 'text-[#00E87B]' : teamPerformance.achievement >= 75 ? 'text-amber-400' : 'text-red-400'}`}>
+          <span className={`text-sm font-bold ${teamPerformance.achievement >= 100 ? 'text-primary' : teamPerformance.achievement >= 75 ? 'text-amber-400' : 'text-red-400'}`}>
             {teamPerformance.achievement}%
           </span>
         </div>

@@ -90,7 +90,7 @@ export default function CommissionEdit() {
                 type="number"
                 step="0.01"
                 {...register('base_amount', { required: 'Base amount is required', min: 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.base_amount && (
                 <p className="mt-1 text-sm text-red-600">{errors.base_amount.message}</p>
@@ -105,7 +105,7 @@ export default function CommissionEdit() {
                 type="number"
                 step="0.01"
                 {...register('bonus_amount', { min: 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
             </div>
 
@@ -115,7 +115,7 @@ export default function CommissionEdit() {
               </label>
               <select
                 {...register('status', { required: 'Status is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
@@ -133,7 +133,7 @@ export default function CommissionEdit() {
               <input
                 type="date"
                 {...register('payment_date', { required: 'Payment date is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.payment_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.payment_date.message}</p>
@@ -148,7 +148,7 @@ export default function CommissionEdit() {
             <textarea
               {...register('notes')}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               placeholder="Enter any notes"
             />
           </div>

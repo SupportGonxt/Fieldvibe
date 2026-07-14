@@ -1,0 +1,75 @@
+/* Design tokens — single source of truth (spec: docs/superpowers/specs/2026-07-14-premium-design-system.md §1.2).
+   The ONLY place #00E87B may appear in frontend/src. */
+
+:root {
+  /* Brand */
+  --color-primary: #00E87B;
+  --color-primary-rgb: 0 232 123; /* keep in sync with --color-primary; applyTenantTheme sets both */
+  --color-primary-strong: color-mix(in srgb, var(--color-primary) 85%, black);
+  --color-primary-soft: color-mix(in srgb, var(--color-primary) 12%, var(--color-bg));
+  --color-on-primary: #04110A;
+
+  /* Semantic status */
+  --color-success: #2ECC71;
+  --color-warning: #F39C12;
+  --color-danger: #EF4444;
+  --color-info: #1890ff;
+  --color-info-rgb: 24 144 255;
+
+  /* Surfaces & text — light. -rgb triplets MUST stay in sync with hex vars:
+     Tailwind slash-opacity (bg-bg/80) reads the triplet form. */
+  --color-bg: #F8FAFC;
+  --color-bg-rgb: 248 250 252;
+  --color-surface: #FFFFFF;
+  --color-surface-rgb: 255 255 255;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-raised-rgb: 255 255 255;
+  --color-border: #E2E8F0;
+  --color-text: #0F172A;
+  --color-text-muted: #64748B;
+  --color-text-faint: #94A3B8;
+
+  /* Spacing (4px base; section rhythm, not a Tailwind replacement) */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-full: 9999px;
+
+  /* Elevation — today's values, both themes (pixel-equivalence; dark tuning in Stage 5/6) */
+  --elevation-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --elevation-card-hover: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --elevation-raised: 0 10px 40px rgba(0, 0, 0, 0.12);
+  --elevation-hero: 0 4px 20px rgba(0, 0, 0, 0.08);
+
+  /* Motion */
+  --duration-fast: 120ms; --duration-base: 200ms; --duration-slow: 350ms;
+  --duration-celebrate: 900ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dark {
+  /* Surfaces & text — dark (night scale: 0A0F1C=night, 141929=night.100, 1A1F2E=night.50) */
+  --color-bg: #0A0F1C;
+  --color-bg-rgb: 10 15 28;
+  --color-surface: #141929;
+  --color-surface-rgb: 20 25 41;
+  --color-surface-raised: #1A1F2E;
+  --color-surface-raised-rgb: 26 31 46;
+  --color-border: #1E2638;
+  --color-text: #F1F5F9;
+  --color-text-muted: #94A3B8;
+  --color-text-faint: #64748B;
+}
+
+/* Legacy pulse numbered scale — fallback reference only, no Tailwind classes point here.
+   50:#E6FFF3 100:#B3FFD9 200:#80FFBF 300:#4DFFA6 400:#1AFF8C 500:#00E87B
+   600:#00B862 700:#008849 800:#005830 900:#002817 */
+
+/* Focus ring — global, spec §1 global rule */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

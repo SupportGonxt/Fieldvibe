@@ -49,7 +49,7 @@ export default function BrandCreate() {
             <input
               type="text"
               {...register('name', { required: 'Brand name is required' })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
             />
             {errors.name && (
               <p className="mt-1 text-sm text-red-600">{errors.name.message as string}</p>
@@ -63,7 +63,7 @@ export default function BrandCreate() {
             <input
               type="text"
               {...register('code')}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
             />
           </div>
 
@@ -74,7 +74,7 @@ export default function BrandCreate() {
             <textarea
               {...register('description')}
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
             />
           </div>
 
@@ -85,7 +85,7 @@ export default function BrandCreate() {
             <select
               {...register('status')}
               defaultValue="active"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>

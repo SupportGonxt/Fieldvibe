@@ -145,7 +145,7 @@ export default function TradeMarketingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info-600"></div>
       </div>
     )
   }
@@ -178,7 +178,7 @@ export default function TradeMarketingPage() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`${
                 activeTab === tab.id
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-info-500 text-info-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center`}
             >

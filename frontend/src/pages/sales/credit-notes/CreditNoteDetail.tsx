@@ -215,7 +215,7 @@ export default function CreditNoteDetail() {
                   <td className="px-4 py-3 text-sm text-gray-700">
                     <button
                       onClick={() => navigate(`/sales/orders/${entry.order_id}`)}
-                      className="text-primary-600 hover:text-primary-800"
+                      className="text-info-600 hover:text-info-800"
                     >
                       {entry.order_id}
                     </button>

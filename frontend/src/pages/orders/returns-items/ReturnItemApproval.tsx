@@ -119,7 +119,7 @@ export default function ReturnItemApproval() {
                   type="radio"
                   value="approved"
                   {...register('decision', { required: 'Decision is required' })}
-                  className="text-primary-600 focus:ring-primary-500"
+                  className="text-info-600 focus:ring-info-500"
                 />
                 <CheckCircle className="h-5 w-5 text-green-600" />
                 <div>
@@ -132,7 +132,7 @@ export default function ReturnItemApproval() {
                   type="radio"
                   value="rejected"
                   {...register('decision', { required: 'Decision is required' })}
-                  className="text-primary-600 focus:ring-primary-500"
+                  className="text-info-600 focus:ring-info-500"
                 />
                 <XCircle className="h-5 w-5 text-red-600" />
                 <div>

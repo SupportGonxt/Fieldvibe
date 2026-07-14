@@ -23,11 +23,11 @@ const PerformanceSection = memo(({ perfSummary }: PerformanceSectionProps) => {
     <div className="px-5 mb-4">
       <button
         onClick={() => navigate('/agent/stats')}
-        className="w-full bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 active:bg-white/5 transition-colors"
+        className="w-full bg-gradient-to-r from-surface to-[#0E1D35] border border-white/10 rounded-2xl p-4 active:bg-white/5 transition-colors"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#00E87B]" />
+            <BarChart3 className="w-4 h-4 text-primary" />
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Performance</span>
           </div>
           <ChevronRight className="w-4 h-4 text-gray-600" />
@@ -37,7 +37,7 @@ const PerformanceSection = memo(({ perfSummary }: PerformanceSectionProps) => {
             <div className="relative w-10 h-10 mx-auto mb-1">
               <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
                 <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                <circle cx="20" cy="20" r="16" fill="none" stroke="#00E87B" strokeWidth="3" strokeLinecap="round"
+                <circle cx="20" cy="20" r="16" fill="none" style={{ stroke: 'var(--color-primary)' }} strokeWidth="3" strokeLinecap="round"
                   strokeDasharray={Math.min(perfSummary.overall_achievement, 100) * 1.005 + ' 100.5'} />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">

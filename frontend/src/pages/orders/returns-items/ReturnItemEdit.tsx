@@ -121,7 +121,7 @@ export default function ReturnItemEdit() {
               <input
                 type="checkbox"
                 {...register('restockable')}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                className="rounded border-gray-300 text-info-600 focus:ring-info-500"
               />
               <span className="text-sm font-medium text-gray-700">Restockable</span>
             </label>

@@ -34,7 +34,7 @@ export function ServiceWorkerUpdatePrompt() {
           <div className="mt-4 flex space-x-3">
             <button
               onClick={() => updateServiceWorker(true)}
-              className="flex-1 bg-primary-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-primary-700"
+              className="flex-1 bg-info-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-info-700"
             >
               Reload
             </button>

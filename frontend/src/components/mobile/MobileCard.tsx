@@ -15,7 +15,7 @@ export default function MobileCard({
 }: MobileCardProps) {
   const baseClasses = 'bg-white rounded-lg shadow-sm border p-4 transition-all touch-manipulation'
   const interactiveClasses = onClick ? 'active:scale-98 cursor-pointer' : ''
-  const selectedClasses = selected ? 'border-primary-600 bg-primary-50' : 'border-gray-100'
+  const selectedClasses = selected ? 'border-info-600 bg-info-50' : 'border-gray-100'
   
   return (
     <div

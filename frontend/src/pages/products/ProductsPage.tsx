@@ -356,7 +356,7 @@ export default function ProductsPage() {
                 placeholder="Search products by name, code, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -480,7 +480,7 @@ export default function ProductsPage() {
                     type="checkbox"
                     checked={selectedProducts.length === paginatedProducts.length && paginatedProducts.length > 0}
                     onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    className="rounded border-gray-300 text-info-600 focus:ring-info-500"
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -516,7 +516,7 @@ export default function ProductsPage() {
                         type="checkbox"
                         checked={selectedProducts.includes(product.id)}
                         onChange={() => handleSelectProduct(product.id)}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        className="rounded border-gray-300 text-info-600 focus:ring-info-500"
                       />
                     </td>
                     <td className="px-6 py-4">

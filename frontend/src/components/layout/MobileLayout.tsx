@@ -26,10 +26,10 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
   return (
     <div className="min-h-screen bg-surface-secondary flex flex-col">
       {/* Mobile Header */}
-      <header className="bg-primary-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
+      <header className="bg-info-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md">
         <div className="flex items-center">
           <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center">
-            <span className="text-sm font-bold text-primary-600">SS</span>
+            <span className="text-sm font-bold text-info-600">SS</span>
           </div>
           <span className="ml-2 text-lg font-bold">FieldVibe</span>
         </div>
@@ -37,7 +37,7 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
           <span className="text-sm">{user?.first_name}</span>
           <button
             onClick={handleLogout}
-            className="p-2 hover:bg-primary-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-info-700 rounded-lg transition-colors"
             aria-label="Logout"
           >
             <LogOut className="h-5 w-5" />
@@ -58,8 +58,8 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
             className={({ isActive }) =>
               `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
                 isActive
-                  ? 'text-primary-600 bg-primary-50'
-                  : 'text-gray-600 hover:text-primary-600 hover:bg-surface-secondary'
+                  ? 'text-info-600 bg-info-50'
+                  : 'text-gray-600 hover:text-info-600 hover:bg-surface-secondary'
               }`
             }
           >
@@ -72,8 +72,8 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
             className={({ isActive }) =>
               `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
                 isActive
-                  ? 'text-primary-600 bg-primary-50'
-                  : 'text-gray-600 hover:text-primary-600 hover:bg-surface-secondary'
+                  ? 'text-info-600 bg-info-50'
+                  : 'text-gray-600 hover:text-info-600 hover:bg-surface-secondary'
               }`
             }
           >
@@ -86,8 +86,8 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
             className={({ isActive }) =>
               `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
                 isActive
-                  ? 'text-primary-600 bg-primary-50'
-                  : 'text-gray-600 hover:text-primary-600 hover:bg-surface-secondary'
+                  ? 'text-info-600 bg-info-50'
+                  : 'text-gray-600 hover:text-info-600 hover:bg-surface-secondary'
               }`
             }
           >
@@ -100,8 +100,8 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
             className={({ isActive }) =>
               `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
                 isActive
-                  ? 'text-primary-600 bg-primary-50'
-                  : 'text-gray-600 hover:text-primary-600 hover:bg-surface-secondary'
+                  ? 'text-info-600 bg-info-50'
+                  : 'text-gray-600 hover:text-info-600 hover:bg-surface-secondary'
               }`
             }
           >

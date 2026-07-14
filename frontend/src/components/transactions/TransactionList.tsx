@@ -116,7 +116,7 @@ export default function TransactionList({
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-night-50 rounded-lg bg-white dark:bg-night-50 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-night-50 rounded-lg bg-white dark:bg-night-50 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
             {filters && (

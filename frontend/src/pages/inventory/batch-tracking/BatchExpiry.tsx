@@ -173,7 +173,7 @@ export default function BatchExpiry() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Recommended Actions</h2>
           <div className="space-y-4">
             {expiryInfo.recommendations.map((rec, idx) => (
-              <div key={idx} className="border-l-4 border-primary-600 pl-4 py-2">
+              <div key={idx} className="border-l-4 border-info-600 pl-4 py-2">
                 <h3 className="font-medium text-gray-900 capitalize mb-1">
                   {rec.action.replace('_', ' ')}
                 </h3>

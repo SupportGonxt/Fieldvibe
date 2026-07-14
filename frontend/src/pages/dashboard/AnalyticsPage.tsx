@@ -536,8 +536,8 @@ export default function AnalyticsPage() {
               <div key={product.id} className="flex items-center justify-between p-3 bg-surface-secondary rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-primary-600">#{index + 1}</span>
+                    <div className="w-8 h-8 bg-info-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-info-600">#{index + 1}</span>
                     </div>
                   </div>
                   <div>
@@ -597,8 +597,8 @@ export default function AnalyticsPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                          <span className="text-sm font-medium text-primary-600">
+                        <div className="h-10 w-10 rounded-full bg-info-100 flex items-center justify-center">
+                          <span className="text-sm font-medium text-info-600">
                             {agent.agent_name.split(' ').map(n => n[0]).join('')}
                           </span>
                         </div>

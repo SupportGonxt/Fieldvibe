@@ -45,13 +45,13 @@ export default function BackOfficeReconcile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
+    <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-2 mb-1">
-          <ClipboardCheck className="w-6 h-6 text-[#00E87B]" />
-          <h1 className="text-2xl font-bold text-white">Reconcile</h1>
+          <ClipboardCheck className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold text-token">Reconcile</h1>
         </div>
-        <p className="text-sm text-gray-500 mb-5">
+        <p className="text-sm text-token-faint mb-5">
           Paste the Goldrush-confirmed IDs. Preview the match, then confirm to qualify those signups for payout.
         </p>
 
@@ -67,40 +67,40 @@ export default function BackOfficeReconcile() {
           onChange={(e) => { setText(e.target.value); reset() }}
           rows={8}
           placeholder={'123456789\n987654321\n… or paste a CSV export'}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3.5 text-white text-base placeholder-gray-600 focus:outline-none focus:border-[#00E87B]/50 font-mono resize-none"
+          className="w-full bg-white/[0.04] border border-token rounded-2xl px-4 py-3.5 text-token text-base placeholder-gray-600 focus:outline-none focus:border-primary/50 font-mono resize-none"
         />
 
         <div className="flex gap-3 mt-4">
           <button
             onClick={() => run(true)}
             disabled={busy}
-            className="flex-1 bg-white/[0.06] border border-white/10 text-white rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-50"
+            className="flex-1 bg-white/[0.06] border border-token text-token rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-50"
           >
             {busy && !committed ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Preview'}
           </button>
           <button
             onClick={() => run(false)}
             disabled={busy || !preview || preview.matched === 0}
-            className="flex-1 bg-gradient-to-br from-[#00E87B] to-[#00D06E] text-[#0A1628] rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
+            className="flex-1 bg-gradient-to-br from-primary to-[#00D06E] text-on-primary rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
           >
             Confirm & qualify
           </button>
         </div>
 
         {preview && !committed && (
-          <div className="mt-6 bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+          <div className="mt-6 bg-white/[0.03] border border-token rounded-2xl p-4">
             <div className="grid grid-cols-2 gap-3 text-center">
               <div>
-                <div className="text-2xl font-bold text-white tabular-nums">{preview.uploaded}</div>
-                <div className="text-xs text-gray-500 mt-0.5">IDs uploaded</div>
+                <div className="text-2xl font-bold text-token tabular-nums">{preview.uploaded}</div>
+                <div className="text-xs text-token-faint mt-0.5">IDs uploaded</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-[#00E87B] tabular-nums">{preview.matched}</div>
-                <div className="text-xs text-gray-500 mt-0.5">match a signup</div>
+                <div className="text-2xl font-bold text-primary tabular-nums">{preview.matched}</div>
+                <div className="text-xs text-token-faint mt-0.5">match a signup</div>
               </div>
             </div>
             {preview.matched > 0 && (
-              <p className="text-sm text-gray-400 mt-4 text-center">
+              <p className="text-sm text-token-muted mt-4 text-center">
                 Confirm to qualify {preview.matched} signup{preview.matched === 1 ? '' : 's'} for payout.
               </p>
             )}
@@ -109,12 +109,12 @@ export default function BackOfficeReconcile() {
         )}
 
         {committed && (
-          <div className="mt-6 bg-[#00E87B]/[0.06] border border-[#00E87B]/20 rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-[#00E87B] font-semibold mb-3">
+          <div className="mt-6 bg-primary/[0.06] border border-primary/20 rounded-2xl p-4">
+            <div className="flex items-center gap-2 text-primary font-semibold mb-3">
               <CheckCircle2 className="w-5 h-5" />
               {committed.qualified} signup{committed.qualified === 1 ? '' : 's'} qualified
             </div>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-token-muted">
               {committed.matched} of {committed.uploaded} uploaded IDs matched a signup.
               Already-qualified rows were left as-is (no clawback).
             </p>
@@ -129,14 +129,14 @@ export default function BackOfficeReconcile() {
 function UnmatchedList({ ids }: { ids: string[] }) {
   if (!ids.length) return null
   return (
-    <div className="mt-4 pt-4 border-t border-white/10">
+    <div className="mt-4 pt-4 border-t border-token">
       <div className="flex items-center gap-1.5 text-amber-400 text-sm font-medium mb-2">
         <AlertTriangle className="w-4 h-4" />
         {ids.length} unmatched — no signup on file
       </div>
       <div className="flex flex-wrap gap-1.5">
         {ids.map((id) => (
-          <span key={id} className="text-xs font-mono text-gray-400 bg-white/[0.04] rounded-lg px-2 py-1">{id}</span>
+          <span key={id} className="text-xs font-mono text-token-muted bg-white/[0.04] rounded-lg px-2 py-1">{id}</span>
         ))}
       </div>
     </div>

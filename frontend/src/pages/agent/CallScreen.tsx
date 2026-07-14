@@ -99,20 +99,20 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   const status = state === 'connected' ? mmss : LABELS[state]
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#06090F] flex flex-col items-center justify-between px-6 py-16">
+    <div className="fixed inset-0 z-[100] bg-bg flex flex-col items-center justify-between px-6 py-16">
       {/* Peer identity */}
       <div className="flex flex-col items-center mt-8">
-        <div className="w-28 h-28 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center mb-6">
-          <span className="text-4xl font-semibold text-white">
+        <div className="w-28 h-28 rounded-full bg-white/[0.06] border border-token flex items-center justify-center mb-6">
+          <span className="text-4xl font-semibold text-token">
             {peerName.trim().charAt(0).toUpperCase() || '?'}
           </span>
         </div>
-        <h1 className="text-2xl font-semibold text-white text-center">{peerName}</h1>
-        <div className="mt-3 flex items-center gap-2 text-[#00E87B] tabular-nums">
+        <h1 className="text-2xl font-semibold text-token text-center">{peerName}</h1>
+        <div className="mt-3 flex items-center gap-2 text-primary tabular-nums">
           {(state === 'connecting' || state === 'ringing' || state === 'reconnecting') && (
             <Loader2 className="w-4 h-4 animate-spin" />
           )}
-          <span className={state === 'failed' ? 'text-red-400' : state === 'connected' ? 'text-white' : 'text-gray-400'}>
+          <span className={state === 'failed' ? 'text-red-400' : state === 'connected' ? 'text-token' : 'text-token-muted'}>
             {status}
           </span>
         </div>
@@ -130,9 +130,9 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             </button>
             <button
               onClick={accept}
-              className="w-16 h-16 rounded-full bg-[#00E87B] flex items-center justify-center active:scale-95 transition-transform shadow-lg shadow-[#00E87B]/30"
+              className="w-16 h-16 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform shadow-lg shadow-primary/30"
             >
-              <Phone className="w-7 h-7 text-[#0A1628]" />
+              <Phone className="w-7 h-7 text-on-primary" />
             </button>
           </div>
         ) : (
@@ -140,7 +140,7 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             <button
               onClick={toggleMute}
               className={`w-14 h-14 rounded-full flex items-center justify-center border transition-colors ${
-                muted ? 'bg-white/90 border-white text-[#0A1628]' : 'bg-white/[0.06] border-white/10 text-white'
+                muted ? 'bg-white/90 border-white text-token' : 'bg-white/[0.06] border-token text-token'
               }`}
             >
               {muted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}

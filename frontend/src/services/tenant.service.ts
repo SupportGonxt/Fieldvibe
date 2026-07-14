@@ -3,6 +3,8 @@
  * Supports multiple tenant resolution strategies for scalable deployment
  */
 
+import { applyTenantTheme } from '../lib/applyTenantTheme'
+
 export interface TenantConfig {
   code: string
   name: string
@@ -28,7 +30,6 @@ const DEFAULT_TENANT_MAPPINGS: TenantMapping = {
     name: 'Demo Tenant',
     domain: 'demo.fieldvibe.com',
     theme: {
-      primaryColor: '#3B82F6',
       logo: '/assets/demo-logo.png'
     }
   },
@@ -37,7 +38,6 @@ const DEFAULT_TENANT_MAPPINGS: TenantMapping = {
     name: 'Pepsi South Africa',
     domain: 'pepsi.fieldvibe.com',
     theme: {
-      primaryColor: '#004B93',
       logo: '/assets/pepsi-logo.png'
     }
   },
@@ -227,9 +227,7 @@ class TenantService {
    */
   private async applyTenantConfiguration(tenant: TenantConfig): Promise<void> {
     // Apply theme
-    if (tenant.theme?.primaryColor) {
-      document.documentElement.style.setProperty('--primary-color', tenant.theme.primaryColor)
-    }
+    applyTenantTheme(tenant.theme)
 
     // Update favicon
     if (tenant.theme?.favicon) {

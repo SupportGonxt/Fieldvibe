@@ -41,7 +41,7 @@ export default function MobileWorkflowLayout({
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                className="bg-info-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
@@ -70,7 +70,7 @@ export default function MobileWorkflowLayout({
             <button
               onClick={onNext}
               disabled={nextDisabled}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 active:bg-primary-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-info-600 text-white rounded-lg font-medium hover:bg-info-700 active:bg-info-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
             >
               {nextLabel}
               <ChevronRight className="h-5 w-5" />

@@ -36,7 +36,7 @@ export default function SalesOrdersList() {
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/sales/orders/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium"
+          className="text-info-600 hover:text-info-800 font-medium"
         >
           {value}
         </button>
@@ -90,7 +90,7 @@ export default function SalesOrdersList() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(`/sales/orders/${row.id}`)}
-            className="p-1 text-gray-600 hover:text-primary-600"
+            className="p-1 text-gray-600 hover:text-info-600"
             title="View"
           >
             <Eye className="w-4 h-4" />
@@ -98,7 +98,7 @@ export default function SalesOrdersList() {
           {row.status === 'draft' && (
             <button
               onClick={() => navigate(`/sales/orders/${row.id}/edit`)}
-              className="p-1 text-gray-600 hover:text-primary-600"
+              className="p-1 text-gray-600 hover:text-info-600"
               title="Edit"
             >
               <Edit className="w-4 h-4" />

@@ -3,8 +3,10 @@ import { DollarSign, Clock, CheckCircle, Users } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function CommissionInsights() {
+  const chart = getChartColors()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['insights-commissions'],
     queryFn: insightsService.getCommissionsDashboard,
@@ -50,7 +52,7 @@ export default function CommissionInsights() {
               <XAxis dataKey="earner" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="total" fill="#00E87B" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total" fill={chart.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

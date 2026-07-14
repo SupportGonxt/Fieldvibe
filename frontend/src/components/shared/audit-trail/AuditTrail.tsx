@@ -123,7 +123,7 @@ export default function AuditTrail() {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
                     onClick={() => navigate(`/${entityType}/${entityId}/audit-trail/${entry.id}`)}
-                    className="text-primary-600 hover:text-primary-900"
+                    className="text-info-600 hover:text-info-900"
                   >
                     <FileText className="h-4 w-4" />
                   </button>

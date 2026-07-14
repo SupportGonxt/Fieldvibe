@@ -5,7 +5,7 @@ import { signalText, type Signal } from '../../lib/signalRegistry'
 
 // Agent self-performance cockpit tile. Self-fetching (/field-ops/kpi/self),
 // renders nothing until data arrives so it never flashes empty. Uses the
-// shared mobile-dark styling (bg-white/[0.03], accent #00E87B).
+// shared mobile-dark styling (bg-white/[0.03], accent color from --color-primary token).
 
 type Actual = {
   visits_per_day: number
@@ -35,7 +35,7 @@ function Metric({ label, value, target, suffix = '' }: { label: string; value: n
         </span>
       </div>
       <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-        <div className={`h-full rounded-full ${below ? 'bg-amber-400' : 'bg-[#00E87B]'}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${below ? 'bg-amber-400' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
@@ -59,7 +59,7 @@ export default function PerformanceCard({ title = 'Your performance' }: { title?
   return (
     <div className="bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 mb-4">
       <div className="flex items-center gap-2 mb-3">
-        <Activity className="w-4 h-4 text-[#00E87B]" />
+        <Activity className="w-4 h-4 text-primary" />
         <span className="text-xs text-gray-500 uppercase tracking-wide">{title} · last {actual.days}d</span>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">

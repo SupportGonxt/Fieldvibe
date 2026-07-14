@@ -162,7 +162,7 @@ export default function SourceTransactions() {
                   {transaction.transaction_type === 'order' && (
                     <button
                       onClick={() => navigate(`/orders/${transaction.id}`)}
-                      className="text-primary-600 hover:text-primary-900"
+                      className="text-info-600 hover:text-info-900"
                     >
                       <Eye className="h-4 w-4" />
                     </button>

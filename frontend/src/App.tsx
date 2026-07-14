@@ -507,7 +507,7 @@ function App() {
 
   if (!hydrated || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#06090F]">
+      <div className="min-h-screen flex items-center justify-center bg-bg">
         <LoadingSpinner size="lg" />
       </div>
     )
@@ -517,7 +517,7 @@ function App() {
     <ErrorBoundary>
       <ToastContainer />
       <AppUpdater />
-      <div className="min-h-screen bg-[#06090F]">
+      <div className="min-h-screen bg-bg">
         <Routes>
           {/* Marketing Landing Page (installed PWA + logged-in users skip it: /auth redirects by role, or shows login) */}
           <Route path="/" element={isStandalonePwa() || isAuthenticated ? <Navigate to="/auth" replace /> : <PageLoader><LandingPage /></PageLoader>} />

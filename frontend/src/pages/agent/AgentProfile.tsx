@@ -74,38 +74,38 @@ export default function AgentProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#06090F] pb-24">
+    <div className="min-h-screen bg-bg pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-br from-[#0A1628] to-[#0F2140] px-5 pt-8 pb-6 text-center">
-        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-[#00E87B]/30">
-          <User className="w-10 h-10 text-[#00E87B]" />
+      <div className="bg-gradient-to-br from-surface to-[#0F2140] px-5 pt-8 pb-6 text-center">
+        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-primary/30">
+          <User className="w-10 h-10 text-primary" />
         </div>
-        <h1 className="text-xl font-bold text-white">{authUser?.first_name && authUser?.last_name ? authUser.first_name + ' ' + authUser.last_name : (authUser as any)?.name || 'Agent'}</h1>
-        <p className="text-sm text-gray-400 capitalize">{(authUser?.role || 'agent').replace('_', ' ')}</p>
+        <h1 className="text-xl font-bold text-token">{authUser?.first_name && authUser?.last_name ? authUser.first_name + ' ' + authUser.last_name : (authUser as any)?.name || 'Agent'}</h1>
+        <p className="text-sm text-token-muted capitalize">{(authUser?.role || 'agent').replace('_', ' ')}</p>
       </div>
 
       <div className="px-5 pt-4 space-y-3">
         {/* Info Cards */}
-        <div className="bg-white/5 border border-white/10 rounded-xl divide-y divide-white/5">
-          <InfoRow icon={<Phone className="w-4 h-4 text-[#00E87B]" />} label="Phone" value={authUser?.phone || 'Not set'} />
-          <InfoRow icon={<Shield className="w-4 h-4 text-[#00E87B]" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
-          <InfoRow icon={<Building2 className="w-4 h-4 text-[#00E87B]" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
+        <div className="bg-white/5 border border-token rounded-xl divide-y divide-token">
+          <InfoRow icon={<Phone className="w-4 h-4 text-primary" />} label="Phone" value={authUser?.phone || 'Not set'} />
+          <InfoRow icon={<Shield className="w-4 h-4 text-primary" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
+          <InfoRow icon={<Building2 className="w-4 h-4 text-primary" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
         </div>
 
         {/* Change PIN */}
         <button
           onClick={() => setShowChangePin(!showChangePin)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between active:bg-white/10 transition-colors"
+          className="w-full bg-white/5 border border-token rounded-xl p-4 flex items-center justify-between active:bg-white/10 transition-colors"
         >
           <div className="flex items-center gap-3">
             <Lock className="w-5 h-5 text-amber-400" />
-            <span className="text-sm text-white font-medium">Change PIN</span>
+            <span className="text-sm text-token font-medium">Change PIN</span>
           </div>
-          <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${showChangePin ? 'rotate-90' : ''}`} />
+          <ChevronRight className={`w-4 h-4 text-token-faint transition-transform ${showChangePin ? 'rotate-90' : ''}`} />
         </button>
 
         {showChangePin && (
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+          <div className="bg-white/5 border border-token rounded-xl p-4 space-y-3">
             {pinError && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
@@ -124,7 +124,7 @@ export default function AgentProfile() {
             <button
               onClick={handleChangePin}
               disabled={pinLoading}
-              className="w-full min-h-[44px] py-2.5 bg-[#00E87B] text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
+              className="w-full min-h-[44px] py-2.5 bg-primary text-on-primary font-semibold rounded-xl text-sm disabled:opacity-50"
             >
               {pinLoading ? 'Updating...' : 'Update PIN'}
             </button>
@@ -143,7 +143,7 @@ export default function AgentProfile() {
         {/* Release version — tap to pull the latest build (SW reloads if one exists) */}
         <button
           onClick={() => { checkForUpdate(); toast('Checking for updates…') }}
-          className="w-full text-center py-2 text-[11px] text-gray-600 active:text-gray-400 transition-colors"
+          className="w-full text-center py-2 text-[11px] text-gray-600 active:text-token-muted transition-colors"
         >
           FieldVibe v{APP_VERSION} · tap to check for updates
         </button>
@@ -157,8 +157,8 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
     <div className="px-4 py-3 flex items-center gap-3">
       {icon}
       <div className="flex-1">
-        <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
-        <p className="text-sm text-white capitalize">{value}</p>
+        <p className="text-[10px] text-token-faint uppercase tracking-wider">{label}</p>
+        <p className="text-sm text-token capitalize">{value}</p>
       </div>
     </div>
   )
@@ -167,7 +167,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 function PinInput({ label, value, onChange, show, toggle }: { label: string; value: string; onChange: (v: string) => void; show: boolean; toggle: () => void }) {
   return (
     <div>
-      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+      <label className="block text-xs text-token-muted mb-1">{label}</label>
       <div className="relative">
         <input
           type={show ? 'text' : 'password'}
@@ -176,9 +176,9 @@ function PinInput({ label, value, onChange, show, toggle }: { label: string; val
           maxLength={6}
           value={value}
           onChange={(e) => onChange(e.target.value.replace(/\D/g, '').substring(0, 6))}
-          className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm tracking-[0.3em] focus:outline-none focus:border-[#00E87B]/50"
+          className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-token rounded-lg text-token text-sm tracking-[0.3em] focus:outline-none focus:border-primary/50"
         />
-        <button type="button" onClick={toggle} className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500">
+        <button type="button" onClick={toggle} className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-token-faint">
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>

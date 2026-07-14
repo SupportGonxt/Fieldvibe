@@ -73,7 +73,7 @@ export default function AttachmentUpload({ entityType, entityId }: AttachmentUpl
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select Files
           </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary-500 transition-colors">
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-info-500 transition-colors">
             <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
             <p className="text-sm text-gray-600 mb-2">
               Drag and drop files here, or click to select

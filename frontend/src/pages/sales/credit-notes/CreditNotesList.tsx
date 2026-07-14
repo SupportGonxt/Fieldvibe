@@ -48,7 +48,7 @@ export default function CreditNotesList() {
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/sales/credit-notes/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium"
+          className="text-info-600 hover:text-info-800 font-medium"
         >
           {value || row.credit_note_number || '—'}
         </button>
@@ -98,7 +98,7 @@ export default function CreditNotesList() {
       render: (_: any, row: any) => (
         <button
           onClick={() => navigate(`/sales/credit-notes/${row.id}`)}
-          className="p-1 text-gray-600 hover:text-primary-600"
+          className="p-1 text-gray-600 hover:text-info-600"
           title="View"
         >
           <Eye className="w-4 h-4" />

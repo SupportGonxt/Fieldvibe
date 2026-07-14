@@ -148,25 +148,25 @@ interface PerformanceData {
 }
 
 function getBarBg(isToday: boolean, count: number): string {
-  if (isToday) return 'linear-gradient(to top, #00E87B, #00D06E)'
-  if (count > 0) return 'rgba(0, 232, 123, 0.3)'
+  if (isToday) return 'linear-gradient(to top, var(--color-primary), #00D06E)'
+  if (count > 0) return 'rgb(var(--color-primary-rgb) / 0.3)'
   return 'rgba(255,255,255,0.05)'
 }
 
 function achievementColor(pct: number): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return '#EF4444'
 }
 
 function pctClass(pct: number): string {
-  if (pct >= 100) return 'text-[#00E87B]'
+  if (pct >= 100) return 'text-primary'
   if (pct >= 75) return 'text-amber-400'
   return 'text-red-400'
 }
 
 function progressBg(pct: number, base: string): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return base
 }
@@ -191,10 +191,10 @@ function earningBadgeClass(status: string): string {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+    <div className="bg-white/5 border border-token rounded-xl p-4 text-center">
       <div className="flex justify-center mb-1">{icon}</div>
-      <p className="text-2xl font-bold text-white">{value}</p>
-      <p className="text-[10px] text-gray-500 uppercase">{label}</p>
+      <p className="text-2xl font-bold text-token">{value}</p>
+      <p className="text-[10px] text-token-faint uppercase">{label}</p>
     </div>
   )
 }
@@ -204,8 +204,8 @@ function ProgressRow({ label, actual, target, color }: { label: string; actual: 
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-gray-400">{label}</span>
-        <span className="text-white font-medium">{actual}/{target} ({pct}%)</span>
+        <span className="text-token-muted">{label}</span>
+        <span className="text-token font-medium">{actual}/{target} ({pct}%)</span>
       </div>
       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: pct + '%', backgroundColor: color }} />
@@ -218,8 +218,8 @@ function CommissionRow({ label, amount, count, color }: { label: string; amount:
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-300">{label}</span>
-        {count > 0 && <span className="text-[10px] text-gray-500">({count})</span>}
+        <span className="text-sm text-token-muted">{label}</span>
+        {count > 0 && <span className="text-[10px] text-token-faint">({count})</span>}
       </div>
       <span className={'text-sm font-semibold ' + color}>R{amount.toLocaleString()}</span>
     </div>
@@ -251,18 +251,18 @@ function VisitBreakdownSection({ breakdown, companies }: { breakdown: VisitBreak
   if (companyEntries.length === 0) return null
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Visit Breakdown</h3>
+    <div className="bg-white/5 border border-token rounded-2xl p-4">
+      <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Visit Breakdown</h3>
       <div className="space-y-3">
         {companyEntries.map(([key, data]) => (
           <div key={key} className="bg-white/5 rounded-xl p-3">
-            <p className="text-sm font-semibold text-white mb-2">{data.company_name}</p>
+            <p className="text-sm font-semibold text-token mb-2">{data.company_name}</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex items-center gap-2">
                 <Store className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
                 <div>
-                  <p className="text-[10px] text-gray-500 uppercase">Store Visits</p>
-                  <p className="text-sm text-white font-medium">
+                  <p className="text-[10px] text-token-faint uppercase">Store Visits</p>
+                  <p className="text-sm text-token font-medium">
                     <span className="text-purple-400">{data.store_today}</span>
                     <span className="text-gray-600 text-xs"> today</span>
                     {' / '}
@@ -274,8 +274,8 @@ function VisitBreakdownSection({ breakdown, companies }: { breakdown: VisitBreak
               <div className="flex items-center gap-2">
                 <User className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
                 <div>
-                  <p className="text-[10px] text-gray-500 uppercase">Individual</p>
-                  <p className="text-sm text-white font-medium">
+                  <p className="text-[10px] text-token-faint uppercase">Individual</p>
+                  <p className="text-sm text-token font-medium">
                     <span className="text-cyan-400">{data.individual_today}</span>
                     <span className="text-gray-600 text-xs"> today</span>
                     {' / '}
@@ -286,7 +286,7 @@ function VisitBreakdownSection({ breakdown, companies }: { breakdown: VisitBreak
               </div>
             </div>
             {(data.other_today > 0 || data.other_month > 0) && (
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-token-faint">
                 Other: {data.other_today} today / {data.other_month} month
               </div>
             )}
@@ -312,33 +312,33 @@ function OverviewTab({
   return (
     <>
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+        <div className="bg-white/5 border border-token rounded-2xl p-4 text-center">
           <div className="relative w-14 h-14 mx-auto mb-2">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
               <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke="#00E87B" strokeWidth="5" strokeLinecap="round"
+              <circle cx="28" cy="28" r="22" fill="none" style={{ stroke: 'var(--color-primary)' }} strokeWidth="5" strokeLinecap="round"
                 strokeDasharray={Math.min(overallPct, 100) * 1.382 + ' 138.2'} />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-sm font-bold text-white">{overallPct}%</span>
+              <span className="text-sm font-bold text-token">{overallPct}%</span>
             </div>
           </div>
-          <p className="text-[10px] text-gray-500 uppercase">Target</p>
+          <p className="text-[10px] text-token-faint uppercase">Target</p>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+        <div className="bg-white/5 border border-token rounded-2xl p-4 text-center">
           <DollarSign className="w-6 h-6 text-amber-400 mx-auto mb-1" />
-          <p className="text-lg font-bold text-white">R{totalEarnings.toLocaleString()}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Earnings</p>
+          <p className="text-lg font-bold text-token">R{totalEarnings.toLocaleString()}</p>
+          <p className="text-[10px] text-token-faint uppercase">Earnings</p>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+        <div className="bg-white/5 border border-token rounded-2xl p-4 text-center">
           <Flame className={'w-6 h-6 mx-auto mb-1 ' + (streak > 0 ? 'text-orange-400' : 'text-gray-600')} />
-          <p className="text-lg font-bold text-white">{streak}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Streak</p>
+          <p className="text-lg font-bold text-token">{streak}</p>
+          <p className="text-[10px] text-token-faint uppercase">Streak</p>
         </div>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">This Week <span className="text-[9px] text-gray-600 normal-case">(Individual Visits)</span></h3>
+      <div className="bg-white/5 border border-token rounded-2xl p-4">
+        <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">This Week <span className="text-[9px] text-gray-600 normal-case">(Individual Visits)</span></h3>
         <div className="flex items-end justify-between gap-1 h-20">
           {weekDays.map(date => {
             const found = (perfData?.weekly_individual_visits || perfData?.weekly_visits)?.find(w => w.visit_date === date)
@@ -350,12 +350,12 @@ function OverviewTab({
             const isToday = date === todayStr
             return (
               <div key={date} className="flex-1 flex flex-col items-center gap-1">
-                <span className={'text-[9px] font-medium ' + (count === 0 ? 'text-gray-600' : isAtOrOverTarget ? 'text-[#00E87B]' : isUnderTarget ? 'text-red-400' : 'text-gray-400')}>{count || ''}</span>
+                <span className={'text-[9px] font-medium ' + (count === 0 ? 'text-gray-600' : isAtOrOverTarget ? 'text-primary' : isUnderTarget ? 'text-red-400' : 'text-token-muted')}>{count || ''}</span>
                 <div className="w-full rounded-t-md" style={{
                   height: Math.max(height, 4) + '%',
-                  background: isAtOrOverTarget ? '#00E87B' : isUnderTarget ? '#EF4444' : getBarBg(isToday, count),
+                  background: isAtOrOverTarget ? 'var(--color-primary)' : isUnderTarget ? '#EF4444' : getBarBg(isToday, count),
                 }} />
-                <span className={'text-[9px] ' + (isToday ? 'text-[#00E87B] font-semibold' : 'text-gray-600')}>
+                <span className={'text-[9px] ' + (isToday ? 'text-primary font-semibold' : 'text-gray-600')}>
                   {new Date(date + 'T12:00:00').toLocaleDateString('en-ZA', { weekday: 'narrow' })}
                 </span>
               </div>
@@ -368,33 +368,33 @@ function OverviewTab({
       </div>
 
       {/* Period summary table: Day / Week / MTD / Prior Month */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Performance Summary</h3>
+      <div className="bg-white/5 border border-token rounded-2xl p-4">
+        <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Performance Summary</h3>
         <div className="grid grid-cols-4 gap-0 text-[10px]">
-          <div className="p-1.5 text-gray-500 font-medium">Period</div>
-          <div className="p-1.5 text-gray-500 font-medium text-center">Individual</div>
-          <div className="p-1.5 text-gray-500 font-medium text-center">Store</div>
-          <div className="p-1.5 text-gray-500 font-medium text-center">Total</div>
+          <div className="p-1.5 text-token-faint font-medium">Period</div>
+          <div className="p-1.5 text-token-faint font-medium text-center">Individual</div>
+          <div className="p-1.5 text-token-faint font-medium text-center">Store</div>
+          <div className="p-1.5 text-token-faint font-medium text-center">Total</div>
 
-          <div className="p-1.5 text-[#00E87B] font-semibold">Day</div>
-          <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_individual_visits ?? dashData?.today_visits ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_store_visits ?? dashData?.today_stores ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_visits ?? 0}</div>
+          <div className="p-1.5 text-primary font-semibold">Day</div>
+          <div className="p-1.5 text-center font-semibold text-token">{dashData?.today_individual_visits ?? dashData?.today_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token">{dashData?.today_store_visits ?? dashData?.today_stores ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token">{dashData?.today_visits ?? 0}</div>
 
           <div className="p-1.5 text-blue-400 font-semibold">Week</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.week_individual_visits ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.week_store_visits ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.week_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.week_individual_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.week_store_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.week_visits ?? 0}</div>
 
           <div className="p-1.5 text-amber-400 font-semibold">MTD</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.month_individual_visits ?? dashData?.month_visits ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.month_store_visits ?? dashData?.month_stores ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.month_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.month_individual_visits ?? dashData?.month_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.month_store_visits ?? dashData?.month_stores ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.month_visits ?? 0}</div>
 
           <div className="p-1.5 text-purple-400 font-semibold">Prior Mo</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.prior_month_individual_visits ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.prior_month_store_visits ?? 0}</div>
-          <div className="p-1.5 text-center font-semibold text-gray-300">{dashData?.prior_month_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.prior_month_individual_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.prior_month_store_visits ?? 0}</div>
+          <div className="p-1.5 text-center font-semibold text-token-muted">{dashData?.prior_month_visits ?? 0}</div>
         </div>
       </div>
 
@@ -404,8 +404,8 @@ function OverviewTab({
       )}
 
       {perfData && perfData.total_target_visits > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Monthly Achievement</h3>
+        <div className="bg-white/5 border border-token rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Monthly Achievement</h3>
           <div className="space-y-3">
             <ProgressRow label="Individual Visits" actual={perfData.total_actual_visits} target={perfData.total_target_visits} color="#3B82F6" />
             <ProgressRow label="Store Visits" actual={perfData.total_actual_registrations} target={perfData.total_target_registrations} color="#8B5CF6" />
@@ -418,72 +418,72 @@ function OverviewTab({
 
       {/* Team summary on Overview */}
       {perfData?.team_performance && (
-        <div className="bg-gradient-to-br from-[#00E87B]/20 to-[#00D06E]/10 border border-[#00E87B]/20 rounded-2xl p-3 flex items-center gap-3">
-          <Users className="w-5 h-5 text-[#00E87B]" />
+        <div className="bg-gradient-to-br from-primary/20 to-[#00D06E]/10 border border-primary/20 rounded-2xl p-3 flex items-center gap-3">
+          <Users className="w-5 h-5 text-primary" />
           <div className="flex-1">
-            <p className="text-sm font-bold text-white">{perfData.team_performance.team_lead_name}&apos;s Team</p>
-            <p className="text-[10px] text-gray-400">{perfData.team_performance.member_count} members</p>
+            <p className="text-sm font-bold text-token">{perfData.team_performance.team_lead_name}&apos;s Team</p>
+            <p className="text-[10px] text-token-muted">{perfData.team_performance.member_count} members</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-400">Team</p>
-            <p className={'text-sm font-bold ' + (perfData.team_performance.achievement >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{perfData.team_performance.achievement}%</p>
+            <p className="text-xs text-token-muted">Team</p>
+            <p className={'text-sm font-bold ' + (perfData.team_performance.achievement >= 100 ? 'text-primary' : 'text-amber-400')}>{perfData.team_performance.achievement}%</p>
           </div>
         </div>
       )}
 
       {/* Hierarchy Scorecard: Agent → Team Lead → Manager */}
       {(perfData?.team_performance || perfData?.manager_performance) && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <div className="bg-white/5 border border-token rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5" /> Hierarchy Scores
           </h3>
           <div className="space-y-2.5">
             {/* My Score */}
             <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                <UserCheck className="w-4 h-4 text-[#00E87B]" />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <UserCheck className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-gray-400">My Score</p>
-                <p className="text-sm font-semibold text-white">Agent</p>
+                <p className="text-xs text-token-muted">My Score</p>
+                <p className="text-sm font-semibold text-token">Agent</p>
               </div>
               <div className="text-right">
                 <span className={`text-lg font-bold ${pctClass(overallPct)}`}>{overallPct}%</span>
               </div>
-              <div className={`w-2.5 h-2.5 rounded-full ${overallPct >= 100 ? 'bg-[#00E87B]' : overallPct >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${overallPct >= 100 ? 'bg-primary' : overallPct >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
             </div>
 
             {/* Team Lead Score */}
             {perfData?.team_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-[#00E87B]" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-400">Team Lead</p>
-                  <p className="text-sm font-semibold text-white">{perfData.team_performance.team_lead_name}</p>
+                  <p className="text-xs text-token-muted">Team Lead</p>
+                  <p className="text-sm font-semibold text-token">{perfData.team_performance.team_lead_name}</p>
                 </div>
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(perfData.team_performance.achievement)}`}>{perfData.team_performance.achievement}%</span>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${perfData.team_performance.achievement >= 100 ? 'bg-[#00E87B]' : perfData.team_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${perfData.team_performance.achievement >= 100 ? 'bg-primary' : perfData.team_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
               </div>
             )}
 
             {/* Manager Score */}
             {perfData?.manager_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-[#00E87B]" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-400">Manager</p>
-                  <p className="text-sm font-semibold text-white">{perfData.manager_performance.manager_name}</p>
+                  <p className="text-xs text-token-muted">Manager</p>
+                  <p className="text-sm font-semibold text-token">{perfData.manager_performance.manager_name}</p>
                 </div>
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(perfData.manager_performance.achievement)}`}>{perfData.manager_performance.achievement}%</span>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${perfData.manager_performance.achievement >= 100 ? 'bg-[#00E87B]' : perfData.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${perfData.manager_performance.achievement >= 100 ? 'bg-primary' : perfData.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
               </div>
             )}
           </div>
@@ -497,7 +497,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
   const ach = perfData?.overall_achievement || 0
   return (
     <>
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center gap-5">
+      <div className="bg-white/5 border border-token rounded-2xl p-5 flex items-center gap-5">
         <div className="relative w-20 h-20 flex-shrink-0">
           <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
             <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
@@ -505,15 +505,15 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
               strokeDasharray={Math.min(ach, 100) * 2.136 + ' 213.6'} />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-bold text-white">{ach}%</span>
+            <span className="text-lg font-bold text-token">{ach}%</span>
           </div>
         </div>
         <div>
-          <p className="text-sm font-semibold text-white">Monthly Achievement</p>
-          <p className="text-xs text-gray-500 mt-0.5">{perfData?.total_actual_visits || 0} of {perfData?.total_target_visits || 0} individual visits</p>
-          <p className="text-xs text-gray-500">{perfData?.total_actual_registrations || 0} of {perfData?.total_target_registrations || 0} store visits</p>
+          <p className="text-sm font-semibold text-token">Monthly Achievement</p>
+          <p className="text-xs text-token-faint mt-0.5">{perfData?.total_actual_visits || 0} of {perfData?.total_target_visits || 0} individual visits</p>
+          <p className="text-xs text-token-faint">{perfData?.total_actual_registrations || 0} of {perfData?.total_target_registrations || 0} store visits</p>
           {ach >= 100 && (
-            <p className="text-xs text-[#00E87B] font-semibold mt-1 flex items-center gap-1">
+            <p className="text-xs text-primary font-semibold mt-1 flex items-center gap-1">
               <Trophy className="w-3 h-3" /> Target exceeded!
             </p>
           )}
@@ -524,7 +524,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
         const targetsToShow = dashData?.company_targets && dashData.company_targets.length > 0 ? dashData.company_targets : (perfData?.monthly_targets && perfData.monthly_targets.length > 0 ? perfData.monthly_targets : [])
         return targetsToShow.length > 0 ? (
         <div>
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Company Targets</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Company Targets</h2>
           <div className="space-y-2">
             {targetsToShow.map((t, i) => {
               const vTarget = t.daily_target_visits ?? t.target_visits ?? 0
@@ -534,9 +534,9 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
               const vPct = vTarget > 0 ? Math.min(100, Math.round((vActual / vTarget) * 100)) : 0
               const rPct = rTarget > 0 ? Math.min(100, Math.round((rActual / rTarget) * 100)) : 0
               return (
-                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div key={i} className="bg-white/5 border border-token rounded-xl p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold text-white">{t.company_name}</p>
+                    <p className="text-sm font-semibold text-token">{t.company_name}</p>
                     {t.commission_amount > 0 && (
                       <span className="text-xs text-amber-400 font-medium">R{t.commission_amount.toLocaleString()}</span>
                     )}
@@ -544,8 +544,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                   <div className="space-y-2">
                     <div>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Individual Visits</span>
-                        <span className="text-white font-medium">{t.daily_actual_visits ?? t.actual_visits}/{t.target_visits} <span className={pctClass(vPct)}>({vPct}%)</span></span>
+                        <span className="text-token-muted">Individual Visits</span>
+                        <span className="text-token font-medium">{t.daily_actual_visits ?? t.actual_visits}/{t.target_visits} <span className={pctClass(vPct)}>({vPct}%)</span></span>
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: vPct + '%', background: progressBg(vPct, '#3B82F6') }} />
@@ -553,8 +553,8 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                     </div>
                     <div>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Store Visits</span>
-                        <span className="text-white font-medium">{rActual}/{rTarget} <span className={pctClass(rPct)}>({rPct}%)</span></span>
+                        <span className="text-token-muted">Store Visits</span>
+                        <span className="text-token font-medium">{rActual}/{rTarget} <span className={pctClass(rPct)}>({rPct}%)</span></span>
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: rPct + '%', background: progressBg(rPct, '#8B5CF6') }} />
@@ -570,7 +570,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                             <Store className="w-3 h-3 text-purple-400" />
                             <span className="text-[10px] text-purple-300 font-medium">Store</span>
                           </div>
-                          <p className="text-xs text-white font-semibold">{t.store_visits} visits</p>
+                          <p className="text-xs text-token font-semibold">{t.store_visits} visits</p>
                         </div>
                       )}
                       {(t.individual_visits || 0) > 0 && (
@@ -579,16 +579,16 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                             <User className="w-3 h-3 text-cyan-400" />
                             <span className="text-[10px] text-cyan-300 font-medium">Individual</span>
                           </div>
-                          <p className="text-xs text-white font-semibold">{t.individual_visits} visits</p>
+                          <p className="text-xs text-token font-semibold">{t.individual_visits} visits</p>
                         </div>
                       )}
                     </div>
                   )}
                   {t.working_days > 0 && (
-                    <p className="text-[10px] text-gray-500 mt-2">{t.working_days} working days this month</p>
+                    <p className="text-[10px] text-token-faint mt-2">{t.working_days} working days this month</p>
                   )}
                   {t.commission_rate > 0 && (
-                    <p className="text-[10px] text-gray-500 mt-1">Commission rate: {t.commission_rate}%</p>
+                    <p className="text-[10px] text-token-faint mt-1">Commission rate: {t.commission_rate}%</p>
                   )}
                 </div>
               )
@@ -596,9 +596,9 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
           </div>
         </div>
       ) : (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+        <div className="bg-white/5 border border-token rounded-2xl p-8 text-center">
           <Target className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">No targets set for this month</p>
+          <p className="text-sm text-token-muted">No targets set for this month</p>
           <p className="text-xs text-gray-600 mt-1">Contact your manager to set targets</p>
         </div>
       )
@@ -606,22 +606,22 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
 
       {dashData?.daily_targets && dashData.daily_targets.length > 0 && (
         <div>
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Today&apos;s Targets</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Today&apos;s Targets</h2>
           <div className="space-y-2">
             {dashData.daily_targets.map((t, i) => {
               const visitPct = t.target_visits > 0 ? Math.min(100, Math.round((t.actual_visits / t.target_visits) * 100)) : 0
               return (
-                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div key={i} className="bg-white/5 border border-token rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-white">{t.company_name}</span>
-                    <span className={'text-xs font-semibold ' + (visitPct >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{visitPct}%</span>
+                    <span className="text-sm font-medium text-token">{t.company_name}</span>
+                    <span className={'text-xs font-semibold ' + (visitPct >= 100 ? 'text-primary' : 'text-amber-400')}>{visitPct}%</span>
                   </div>
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: visitPct + '%' }} />
+                    <div className="h-full bg-gradient-to-r from-primary to-[#00D06E] rounded-full transition-all" style={{ width: visitPct + '%' }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
-                    <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
+                    <span className="text-[10px] text-token-faint">Individual: {t.actual_visits}/{t.target_visits}</span>
+                    <span className="text-[10px] text-token-faint">Store: {t.actual_registrations}/{t.target_registrations}</span>
                   </div>
                 </div>
               )
@@ -644,28 +644,28 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 rounded-2xl p-4">
           <DollarSign className="w-5 h-5 text-amber-400 mb-1" />
-          <p className="text-xl font-bold text-white">R{totalEarnings.toLocaleString()}</p>
+          <p className="text-xl font-bold text-token">R{totalEarnings.toLocaleString()}</p>
           <p className="text-[10px] text-amber-300/70 uppercase">Total Earnings</p>
         </div>
         <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/20 rounded-2xl p-4">
           <Zap className="w-5 h-5 text-green-400 mb-1" />
-          <p className="text-xl font-bold text-white">R{(perfData?.commission_summary?.paid || 0).toLocaleString()}</p>
+          <p className="text-xl font-bold text-token">R{(perfData?.commission_summary?.paid || 0).toLocaleString()}</p>
           <p className="text-[10px] text-green-300/70 uppercase">Paid Out</p>
         </div>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Commission Breakdown</h3>
+      <div className="bg-white/5 border border-token rounded-2xl p-4">
+        <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Commission Breakdown</h3>
         <div className="space-y-3">
           <CommissionRow label="Pending" amount={perfData?.commission_summary?.pending || 0} count={perfData?.commission_summary?.pending_count || 0} color="text-yellow-400" />
           <CommissionRow label="Approved" amount={perfData?.commission_summary?.approved || 0} count={perfData?.commission_summary?.approved_count || 0} color="text-blue-400" />
           <CommissionRow label="Paid" amount={perfData?.commission_summary?.paid || 0} count={perfData?.commission_summary?.paid_count || 0} color="text-green-400" />
         </div>
         {(perfData?.commission_summary?.target_commission || 0) > 0 && (
-          <div className="mt-3 pt-3 border-t border-white/5">
+          <div className="mt-3 pt-3 border-t border-token">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">Target Commission</span>
-              <span className="text-sm font-bold text-[#00E87B]">R{(perfData?.commission_summary?.target_commission || 0).toLocaleString()}</span>
+              <span className="text-xs text-token-muted">Target Commission</span>
+              <span className="text-sm font-bold text-primary">R{(perfData?.commission_summary?.target_commission || 0).toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -673,15 +673,15 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
 
       {/* Incentive Tiers */}
       {tiers.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <div className="bg-white/5 border border-token rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5" /> Incentive Tiers
           </h3>
           <div className="space-y-2">
             {tiers.map((tier) => (
               <div key={tier.amount} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02]">
-                <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
-                <span className="text-sm font-semibold text-[#00E87B]">{rand(tier.amount)}</span>
+                <p className="text-xs text-token-muted">{tier.signups} signups + {tier.deposits} deposits /day</p>
+                <span className="text-sm font-semibold text-primary">{rand(tier.amount)}</span>
               </div>
             ))}
           </div>
@@ -691,21 +691,21 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
 
       {/* Team Performance */}
       {team && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <div className="bg-white/5 border border-token rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" /> Team Performance
           </h3>
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
-              <UserCheck className="w-5 h-5 text-[#00E87B]" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">{team.team_lead_name}&apos;s Team</p>
-              <p className="text-xs text-gray-500">{team.member_count} members</p>
+              <p className="text-sm font-medium text-token">{team.team_lead_name}&apos;s Team</p>
+              <p className="text-xs text-token-faint">{team.member_count} members</p>
             </div>
             <div className="ml-auto text-right">
-              <p className={'text-lg font-bold ' + (team.achievement >= 100 ? 'text-[#00E87B]' : team.achievement >= 75 ? 'text-amber-400' : 'text-red-400')}>{team.achievement}%</p>
-              <p className="text-[10px] text-gray-500">Team Target</p>
+              <p className={'text-lg font-bold ' + (team.achievement >= 100 ? 'text-primary' : team.achievement >= 75 ? 'text-amber-400' : 'text-red-400')}>{team.achievement}%</p>
+              <p className="text-[10px] text-token-faint">Team Target</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -717,32 +717,32 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
       )}
 
       <div>
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Recent Earnings</h2>
+        <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Recent Earnings</h2>
         {perfData?.recent_earnings && perfData.recent_earnings.length > 0 ? (
           <div className="space-y-2">
             {perfData.recent_earnings.map((earning) => (
-              <div key={earning.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+              <div key={earning.id} className="bg-white/5 border border-token rounded-xl p-3 flex items-center gap-3">
                 <div className={'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ' + earningBgClass(earning.status)}>
                   <DollarSign className={'w-5 h-5 ' + earningIconClass(earning.status)} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-token truncate">
                     {earning.rule_name || earning.source_type || 'Commission'}
                   </p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <p className="text-xs text-token-faint flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {new Date(earning.created_at).toLocaleDateString('en-ZA')}
                     <span className={'ml-1 px-1.5 py-0.5 rounded text-[9px] font-medium ' + earningBadgeClass(earning.status)}>{earning.status}</span>
                   </p>
                 </div>
-                <p className="text-sm font-bold text-white flex-shrink-0">R{earning.amount.toLocaleString()}</p>
+                <p className="text-sm font-bold text-token flex-shrink-0">R{earning.amount.toLocaleString()}</p>
               </div>
             ))}
           </div>
         ) : (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+          <div className="bg-white/5 border border-token rounded-2xl p-8 text-center">
             <DollarSign className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">No earnings yet</p>
+            <p className="text-sm text-token-muted">No earnings yet</p>
             <p className="text-xs text-gray-600 mt-1">Complete visits and meet targets to earn commissions</p>
           </div>
         )}
@@ -846,8 +846,8 @@ export default function AgentStats() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -871,13 +871,13 @@ export default function AgentStats() {
 
   const tabClass = (tab: string) =>
     'flex-1 py-2 text-xs font-semibold rounded-lg capitalize transition-all ' +
-    (activeTab === tab ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400')
+    (activeTab === tab ? 'bg-primary text-on-primary' : 'text-token-muted')
 
   return (
-    <div className="min-h-screen bg-[#06090F] pb-24">
-      <div className="bg-[#0A1628] px-5 pt-5 pb-4 border-b border-white/5">
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-[#00E87B]" /> My Performance
+    <div className="min-h-screen bg-bg pb-24">
+      <div className="bg-surface px-5 pt-5 pb-4 border-b border-token">
+        <h1 className="text-xl font-bold text-token flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-primary" /> My Performance
         </h1>
         <div className="flex items-center justify-between mt-1">
           <button
@@ -885,9 +885,9 @@ export default function AgentStats() {
             className="p-1 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors"
             aria-label="Previous month"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-400" />
+            <ChevronLeft className="w-5 h-5 text-token-muted" />
           </button>
-          <p className="text-xs text-gray-500 flex items-center gap-1">
+          <p className="text-xs text-token-faint flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             {selectedMonthLabel}
           </p>
@@ -897,7 +897,7 @@ export default function AgentStats() {
             className={'p-1 rounded-lg transition-colors ' + (isCurrentMonth ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 active:bg-white/20')}
             aria-label="Next month"
           >
-            <ChevronRight className="w-5 h-5 text-gray-400" />
+            <ChevronRight className="w-5 h-5 text-token-muted" />
           </button>
         </div>
       </div>

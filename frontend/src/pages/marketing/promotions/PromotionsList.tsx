@@ -36,7 +36,7 @@ export default function PromotionsList() {
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/marketing/promotions/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium"
+          className="text-info-600 hover:text-info-800 font-medium"
         >
           {value}
         </button>
@@ -94,7 +94,7 @@ export default function PromotionsList() {
       render: (_: any, row: any) => (
         <button
           onClick={() => navigate(`/marketing/promotions/${row.id}`)}
-          className="p-1 text-gray-600 hover:text-primary-600"
+          className="p-1 text-gray-600 hover:text-info-600"
           title="View"
         >
           <Eye className="w-4 h-4" />

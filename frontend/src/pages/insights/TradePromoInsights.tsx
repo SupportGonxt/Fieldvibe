@@ -3,8 +3,10 @@ import { Tag, DollarSign, TrendingUp, Users } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function TradePromoInsights() {
+  const chart = getChartColors()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['insights-trade-promotions'],
     queryFn: insightsService.getTradePromotionsDashboard,
@@ -51,7 +53,7 @@ export default function TradePromoInsights() {
               <YAxis />
               <Tooltip />
               <Bar dataKey="budget" fill="#36A2EB" name="Budget" />
-              <Bar dataKey="spent" fill="#00E87B" name="Spent" />
+              <Bar dataKey="spent" fill={chart.primary} name="Spent" />
             </BarChart>
           </ResponsiveContainer>
         </div>

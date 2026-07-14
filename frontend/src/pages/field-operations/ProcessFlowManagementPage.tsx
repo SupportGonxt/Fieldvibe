@@ -28,6 +28,7 @@ import {
 import { surveysService } from '../../services/surveys.service'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { escapeHtml } from '../../utils/export'
+import { getChartColors } from '../../lib/chartTheme'
 
 // ── Types ──
 
@@ -144,7 +145,12 @@ const FIELD_TYPES = [
 
 // FieldVibe logo (light-background variant of public/fieldvibe-logo-light.svg),
 // inlined so the print window renders it without waiting on an image request.
-const FIELDVIBE_LOGO_SVG = `<svg viewBox="0 0 280 64" width="170" height="39" fill="none" xmlns="http://www.w3.org/2000/svg">
+// The gradient's brand-green stop is read from the primary token at print time
+// (chart theme reader, since raw SVG can't use var()); it's the only stop that
+// tracks the token — the rest are fixed FieldVibe brand marks used elsewhere in
+// this same logo.
+function fieldvibeLogoSvg(primary: string) {
+  return `<svg viewBox="0 0 280 64" width="170" height="39" fill="none" xmlns="http://www.w3.org/2000/svg">
   <circle cx="32" cy="32" r="28" stroke="url(#fvl-grad)" stroke-width="2.5" stroke-dasharray="5 3.5" opacity="0.3"/>
   <path d="M19 38C19 38 23 25 32 25C41 25 45 38 45 38" stroke="url(#fvl-grad)" stroke-width="2.8" stroke-linecap="round" fill="none"/>
   <path d="M13 43C13 43 20 18 32 18C44 18 51 43 51 43" stroke="url(#fvl-grad)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.35"/>
@@ -157,10 +163,11 @@ const FIELDVIBE_LOGO_SVG = `<svg viewBox="0 0 280 64" width="170" height="39" fi
   <defs>
     <linearGradient id="fvl-grad" x1="10" y1="10" x2="54" y2="54">
       <stop offset="0%" stop-color="#00C968"/>
-      <stop offset="100%" stop-color="#00E87B"/>
+      <stop offset="100%" stop-color="${primary}"/>
     </linearGradient>
   </defs>
 </svg>`
+}
 
 interface PrintFormSection {
   heading?: string
@@ -197,6 +204,7 @@ function surveyQuestionToPrintable(q: SurveyQuestion, index: number): CustomQues
 }
 
 function printQuestionForm(sections: PrintFormSection[], title: string) {
+  const chart = getChartColors()
   const answerArea = (q: CustomQuestion): string => {
     const opts = Array.isArray(q.field_options) ? q.field_options : []
     if (q.field_type === 'toggle') {
@@ -247,7 +255,7 @@ function printQuestionForm(sections: PrintFormSection[], title: string) {
     </style>
     </head><body>
     <div class="brand">
-      ${FIELDVIBE_LOGO_SVG}
+      ${fieldvibeLogoSvg(chart.primary)}
       <h1>${escapeHtml(title)}</h1>
     </div>
     <div class="fill-header">
@@ -1659,11 +1667,11 @@ function GoldrushKpiTargetsCard({ companies }: { companies: { id: string; name: 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Signups / Day</label>
-              <input type="number" min={0} value={signups} onChange={(e) => setSignups(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              <input type="number" min={0} value={signups} onChange={(e) => setSignups(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Conversion Floor %</label>
-              <input type="number" min={0} max={100} value={conv} onChange={(e) => setConv(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              <input type="number" min={0} max={100} value={conv} onChange={(e) => setConv(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
             </div>
           </div>
         )}
@@ -1825,20 +1833,20 @@ function CompanyTargetRulesTab() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Individual Visits / Day</label>
-                  <input type="number" min={0} value={form.individual_target_per_day} onChange={(e) => setForm(f => ({ ...f, individual_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.individual_target_per_day} onChange={(e) => setForm(f => ({ ...f, individual_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Individual Visits / Month</label>
-                  <input type="number" min={0} value={form.individual_target_per_month} onChange={(e) => setForm(f => ({ ...f, individual_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.individual_target_per_month} onChange={(e) => setForm(f => ({ ...f, individual_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                   <p className="text-[10px] text-gray-400 mt-1">0 = auto-calc from daily × working days</p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Store Visits / Day</label>
-                  <input type="number" min={0} value={form.store_target_per_day} onChange={(e) => setForm(f => ({ ...f, store_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.store_target_per_day} onChange={(e) => setForm(f => ({ ...f, store_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Store Visits / Month{activeRole === 'team_lead' ? ' (Team)' : ''}</label>
-                  <input type="number" min={0} value={form.store_target_per_month} onChange={(e) => setForm(f => ({ ...f, store_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.store_target_per_month} onChange={(e) => setForm(f => ({ ...f, store_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                   <p className="text-[10px] text-gray-400 mt-1">0 = auto-calc from daily × working days</p>
                 </div>
               </div>

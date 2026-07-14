@@ -14,7 +14,15 @@ export default {
         data: ['DM Mono', 'JetBrains Mono', 'monospace'],
       },
       colors: {
+        // Brand — RGB-triplet var so slash opacity (bg-primary/20) works
         primary: {
+          DEFAULT: 'rgb(var(--color-primary-rgb) / <alpha-value>)',
+          strong: 'var(--color-primary-strong)',
+          soft: 'var(--color-primary-soft)',
+        },
+        'on-primary': 'var(--color-on-primary)',
+        // Old blue "primary" scale renamed info (chart/info blue) — hexes unchanged
+        info: {
           50: '#e6f4ff',
           100: '#bae0ff',
           200: '#91caff',
@@ -26,6 +34,9 @@ export default {
           800: '#002c8c',
           900: '#001d66',
         },
+        success: 'var(--color-success)',
+        warning: 'var(--color-warning)',
+        danger: 'var(--color-danger)',
         accent: {
           blue: '#36A2EB',
           purple: '#9B59B6',
@@ -34,8 +45,11 @@ export default {
           cyan: '#00BCD4',
           pink: '#E91E63',
         },
+        // Semantic surfaces (flip with .dark via tokens.css); rgb form for slash opacity
+        bg: 'rgb(var(--color-bg-rgb) / <alpha-value>)',
         surface: {
-          DEFAULT: '#ffffff',
+          DEFAULT: 'rgb(var(--color-surface-rgb) / <alpha-value>)',
+          raised: 'rgb(var(--color-surface-raised-rgb) / <alpha-value>)',
           secondary: '#f8fafc',
           tertiary: '#f1f5f9',
         },
@@ -48,30 +62,36 @@ export default {
           400: '#070B15',
           500: '#04060D',
         },
+        // pulse remapped onto primary var (spec §1.2); numbered fallbacks live in tokens.css comment
         pulse: {
-          DEFAULT: '#00E87B',
-          50: '#E6FFF3',
-          100: '#B3FFD9',
-          200: '#80FFBF',
-          300: '#4DFFA6',
-          400: '#1AFF8C',
-          500: '#00E87B',
-          600: '#00B862',
-          700: '#008849',
-          800: '#005830',
-          900: '#002817',
+          DEFAULT: 'rgb(var(--color-primary-rgb) / <alpha-value>)',
+          500: 'rgb(var(--color-primary-rgb) / <alpha-value>)',
+          600: 'var(--color-primary-strong)',
         },
       },
+      textColor: {
+        token: {
+          DEFAULT: 'var(--color-text)',
+          muted: 'var(--color-text-muted)',
+          faint: 'var(--color-text-faint)',
+        },
+      },
+      borderColor: {
+        token: 'var(--color-border)',
+      },
+      divideColor: {
+        token: 'var(--color-border)',
+      },
       borderRadius: {
-        'xl': '1rem',
-        '2xl': '1.25rem',
+        'xl': 'var(--radius-lg)',
+        '2xl': 'var(--radius-xl)',
         '3xl': '1.5rem',
       },
       boxShadow: {
-        'card': '0 2px 8px rgba(0, 0, 0, 0.06)',
-        'card-hover': '0 4px 16px rgba(0, 0, 0, 0.1)',
-        'dropdown': '0 10px 40px rgba(0, 0, 0, 0.12)',
-        'stat': '0 4px 20px rgba(0, 0, 0, 0.08)',
+        'card': 'var(--elevation-card)',
+        'card-hover': 'var(--elevation-card-hover)',
+        'dropdown': 'var(--elevation-raised)',
+        'stat': 'var(--elevation-hero)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',

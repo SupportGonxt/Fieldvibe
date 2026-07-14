@@ -92,7 +92,7 @@ export default function SurveyResponses() {
             </div>
 
             <div className="mb-4">
-              <span className="text-2xl font-bold text-primary-600">{response.score}</span>
+              <span className="text-2xl font-bold text-info-600">{response.score}</span>
               <span className="text-gray-600"> / 5.0</span>
             </div>
 

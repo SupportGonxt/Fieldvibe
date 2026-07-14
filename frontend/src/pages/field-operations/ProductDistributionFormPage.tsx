@@ -271,7 +271,7 @@ export default function ProductDistributionFormPage() {
                       </div>
                     </div>
                     {selectedProduct?.id === product.id && (
-                      <CheckCircle className="h-5 w-5 text-primary-600" />
+                      <CheckCircle className="h-5 w-5 text-info-600" />
                     )}
                   </div>
                 </MobileCard>
@@ -443,7 +443,7 @@ export default function ProductDistributionFormPage() {
           <button
             onClick={handleNext}
             disabled={loading}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            className="px-4 py-2 bg-info-600 text-white rounded-lg hover:bg-info-700 disabled:opacity-50"
           >
             {activeStep === 4 ? 'Finish' : 'Next'}
           </button>

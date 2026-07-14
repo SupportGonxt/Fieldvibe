@@ -3,8 +3,10 @@ import { Target, TrendingUp, CheckCircle, AlertTriangle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function GoalsInsights() {
+  const chart = getChartColors()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['insights-goals'],
     queryFn: insightsService.getGoalsDashboard,
@@ -51,7 +53,7 @@ export default function GoalsInsights() {
               <YAxis />
               <Tooltip />
               <Bar dataKey="target" fill="#36A2EB" name="Target" />
-              <Bar dataKey="actual" fill="#00E87B" name="Actual" />
+              <Bar dataKey="actual" fill={chart.primary} name="Actual" />
             </BarChart>
           </ResponsiveContainer>
         </div>

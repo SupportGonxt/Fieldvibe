@@ -115,15 +115,15 @@ export default function GmOverview() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-primary animate-spin" />
       </div>
     )
   }
   if (!data) {
     return (
-      <div className="min-h-screen bg-[#06090F] px-4 pt-6 text-center">
-        <p className="text-gray-500 mt-20">No overview data available.</p>
+      <div className="min-h-screen bg-bg px-4 pt-6 text-center">
+        <p className="text-token-faint mt-20">No overview data available.</p>
       </div>
     )
   }
@@ -141,10 +141,10 @@ export default function GmOverview() {
   const hasExceptions = mineOpen > 0 || unmanaged.length > 0 || risks.length > 0
 
   return (
-    <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
+    <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
       <div className={`max-w-md mx-auto transition-opacity ${loading ? 'opacity-60' : ''}`}>
-        <h1 className="text-2xl font-bold text-white mb-1">Overview</h1>
-        <p className="text-sm text-gray-500 mb-4">What's driving the business.</p>
+        <h1 className="text-2xl font-bold text-token mb-1">Overview</h1>
+        <p className="text-sm text-token-faint mb-4">What's driving the business.</p>
 
         {/* Company selector */}
         {companies.length > 1 && (
@@ -157,13 +157,13 @@ export default function GmOverview() {
         )}
 
         {/* Period toggle */}
-        <div className="flex bg-white/[0.04] border border-white/10 rounded-2xl p-1 mb-2">
+        <div className="flex bg-white/[0.04] border border-token rounded-2xl p-1 mb-2">
           {PERIODS.map((p) => (
             <button
               key={p.key}
               onClick={() => { setPeriod(p.key); setAnchor(null) }}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                period === p.key ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400'
+                period === p.key ? 'bg-primary text-on-primary' : 'text-token-muted'
               }`}
             >
               {p.label}
@@ -175,16 +175,16 @@ export default function GmOverview() {
         <div className="flex items-center justify-between mb-5">
           <button
             onClick={() => setAnchor(shiftAnchor(anchor ?? data.window.start, period, -1) ?? shiftAnchor(null, period, -1))}
-            className="p-3 -ml-3 text-gray-400 active:text-white"
+            className="p-3 -ml-3 text-token-muted active:text-token"
             aria-label="Previous period"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-xs font-medium text-gray-400 tabular-nums">{windowLabel(data.window, period)}</span>
+          <span className="text-xs font-medium text-token-muted tabular-nums">{windowLabel(data.window, period)}</span>
           <button
             onClick={() => setAnchor(anchor ? shiftAnchor(anchor, period, 1) : null)}
             disabled={!anchor}
-            className="p-3 -mr-3 text-gray-400 active:text-white disabled:opacity-30"
+            className="p-3 -mr-3 text-token-muted active:text-token disabled:opacity-30"
             aria-label="Next period"
           >
             <ChevronRight className="w-5 h-5" />
@@ -199,7 +199,7 @@ export default function GmOverview() {
         {/* Exceptions first — what the GM must action, ahead of any read-only reporting.
             PresenceAlerts/MyIssues/UnmanagedIssues self-hide when empty. */}
         {hasExceptions && (
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Needs action</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-token-faint mb-2">Needs action</p>
         )}
         <div className="mb-4 empty:hidden"><PresenceAlerts /></div>
         <div className="mb-4 empty:hidden"><MyIssues surface="pwa" /></div>
@@ -210,15 +210,15 @@ export default function GmOverview() {
           <div className="bg-white/[0.03] border border-red-500/20 rounded-2xl p-4 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <h2 className="text-sm font-semibold text-white">Risks</h2>
+              <h2 className="text-sm font-semibold text-token">Risks</h2>
             </div>
             <div className="space-y-3">
               {risks.map((r) => (
                 <div key={r.id} className="flex items-start gap-2.5">
                   <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${r.severity === 'high' ? 'bg-red-400' : 'bg-amber-400'}`} />
                   <div className="min-w-0">
-                    <div className="text-sm text-white leading-snug">{r.label}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{r.detail}</div>
+                    <div className="text-sm text-token leading-snug">{r.label}</div>
+                    <div className="text-xs text-token-faint mt-0.5">{r.detail}</div>
                   </div>
                 </div>
               ))}
@@ -227,33 +227,33 @@ export default function GmOverview() {
         )}
 
         {/* The numbers — read-only reporting, below the exceptions. */}
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2 mt-1">The numbers</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-token-faint mb-2 mt-1">The numbers</p>
 
         {/* Revenue hero */}
-        <div onClick={goPnl} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
+        <div onClick={goPnl} className="bg-white/[0.03] border border-token rounded-2xl p-5 mb-4 cursor-pointer active:bg-white/[0.06]">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Revenue</span>
+            <span className="text-xs text-token-faint uppercase tracking-wide">Revenue</span>
             <Delta now={money.revenue} prev={money.prevRevenue} money />
           </div>
-          <div className="text-4xl font-bold tabular-nums text-[#00E87B] mt-1">{rand(money.revenue)}</div>
-          <p className="text-xs text-gray-500 mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
+          <div className="text-4xl font-bold tabular-nums text-primary mt-1">{rand(money.revenue)}</div>
+          <p className="text-xs text-token-faint mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
         </div>
 
         {/* Net / costs — monthly only */}
         {money.costsAvailable ? (
-          <div onClick={goPnl} className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/5 mb-4 cursor-pointer active:bg-white/[0.06]">
+          <div onClick={goPnl} className="bg-white/[0.03] border border-token rounded-2xl divide-y divide-token mb-4 cursor-pointer active:bg-white/[0.06]">
             <Row label="Incentive payouts" value={`-${rand(money.incentiveCost || 0)}`} />
             <Row label="Salaries" value={`-${rand(money.salaryCost || 0)}`} />
             <div className="flex items-center justify-between px-4 py-3.5">
               <div className="flex items-center gap-2">
-                {(money.net || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-[#00E87B]" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
-                <span className="text-sm text-white">Net</span>
+                {(money.net || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-primary" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
+                <span className="text-sm text-token">Net</span>
               </div>
-              <span className={`text-base font-semibold tabular-nums ${(money.net || 0) >= 0 ? 'text-[#00E87B]' : 'text-red-400'}`}>{rand(money.net || 0)}</span>
+              <span className={`text-base font-semibold tabular-nums ${(money.net || 0) >= 0 ? 'text-primary' : 'text-red-400'}`}>{rand(money.net || 0)}</span>
             </div>
           </div>
         ) : (
-          <p className="text-xs text-gray-500 mb-4 px-1">Cost &amp; net figures are monthly — switch to <span className="text-gray-300 font-medium">Month</span> for the full P&amp;L.</p>
+          <p className="text-xs text-token-faint mb-4 px-1">Cost &amp; net figures are monthly — switch to <span className="text-token-muted font-medium">Month</span> for the full P&amp;L.</p>
         )}
 
         {/* Funnel stats */}
@@ -264,40 +264,40 @@ export default function GmOverview() {
 
         {/* Field force + calls */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-1"><Users className="w-4 h-4 text-[#00E87B]" /><span className="text-xs text-gray-500">Active agents</span></div>
-            <div className="text-2xl font-bold text-white tabular-nums">{field.activeAgents}<span className="text-gray-600">/{field.totalAgents}</span></div>
+          <div className="bg-white/[0.03] border border-token rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-1"><Users className="w-4 h-4 text-primary" /><span className="text-xs text-token-faint">Active agents</span></div>
+            <div className="text-2xl font-bold text-token tabular-nums">{field.activeAgents}<span className="text-gray-600">/{field.totalAgents}</span></div>
             <div className="text-xs text-gray-600 mt-1">
               {field.unassignedAgents > 0 ? <span className="text-amber-400">{field.unassignedAgents} without team lead</span> : 'active today'}
             </div>
           </div>
-          <div onClick={() => navigate('/agent/call-list')} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 cursor-pointer active:bg-white/[0.06]">
-            <div className="flex items-center gap-2 mb-1"><Phone className="w-4 h-4 text-[#00E87B]" /><span className="text-xs text-gray-500">BO calls</span></div>
-            <div className="text-2xl font-bold text-white tabular-nums">{calls.contacted}<span className="text-gray-600">/{calls.target}</span></div>
+          <div onClick={() => navigate('/agent/call-list')} className="bg-white/[0.03] border border-token rounded-2xl p-4 cursor-pointer active:bg-white/[0.06]">
+            <div className="flex items-center gap-2 mb-1"><Phone className="w-4 h-4 text-primary" /><span className="text-xs text-token-faint">BO calls</span></div>
+            <div className="text-2xl font-bold text-token tabular-nums">{calls.contacted}<span className="text-gray-600">/{calls.target}</span></div>
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-2">
-              <div className="h-full rounded-full bg-[#00E87B]" style={{ width: `${callPct}%` }} />
+              <div className="h-full rounded-full bg-primary" style={{ width: `${callPct}%` }} />
             </div>
           </div>
         </div>
 
         {/* Teams */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Teams</h2></div>
-          {teams.length === 0 ? <p className="text-xs text-gray-500">No team leads set up yet.</p> : (
+        <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-token">Teams</h2></div>
+          {teams.length === 0 ? <p className="text-xs text-token-faint">No team leads set up yet.</p> : (
             <div className="space-y-3.5">
               {teams.map((t) => (
                 <div key={t.id} onClick={() => navigate(`/agent/team-detail/${t.id}`)} className="cursor-pointer active:opacity-70">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-white truncate mr-2">{t.name}</span>
+                    <span className="text-sm text-token truncate mr-2">{t.name}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-sm font-semibold text-white tabular-nums">{t.signups}</span>
+                      <span className="text-sm font-semibold text-token tabular-nums">{t.signups}</span>
                       <Delta now={t.signups} prev={t.prev.signups} />
                     </div>
                   </div>
                   <div className="h-1 rounded-full bg-white/10 overflow-hidden mb-1">
-                    <div className="h-full rounded-full bg-[#00E87B]/70" style={{ width: `${Math.round((t.signups / maxTeamSignups) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.round((t.signups / maxTeamSignups) * 100)}%` }} />
                   </div>
-                  <div className="text-xs text-gray-500 tabular-nums">
+                  <div className="text-xs text-token-faint tabular-nums">
                     {t.activeAgents}/{t.agents} agents active · {t.converted} converted ({t.conversionRate}%)
                   </div>
                 </div>
@@ -307,19 +307,19 @@ export default function GmOverview() {
         </div>
 
         {/* Managers — static rows; ponytail: no manager-detail page exists yet, add nav when one does */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Briefcase className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Managers</h2></div>
-          {management.managers.length === 0 ? <p className="text-xs text-gray-500">No managers on roster.</p> : (
+        <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3"><Briefcase className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-token">Managers</h2></div>
+          {management.managers.length === 0 ? <p className="text-xs text-token-faint">No managers on roster.</p> : (
             <div className="space-y-2.5">
               {management.managers.map((m) => {
                 const seen = agoLabel(m.lastSeen)
                 return (
                   <div key={m.id} className="flex items-center justify-between">
                     <div className="min-w-0 mr-2">
-                      <div className="text-sm text-white truncate">{m.name}</div>
-                      <div className="text-xs text-gray-500 tabular-nums">{m.teamLeads} team leads · {m.agents} agents · {m.signups} sign-ups</div>
+                      <div className="text-sm text-token truncate">{m.name}</div>
+                      <div className="text-xs text-token-faint tabular-nums">{m.teamLeads} team leads · {m.agents} agents · {m.signups} sign-ups</div>
                     </div>
-                    <span className={`text-xs flex-shrink-0 ${seen.stale ? 'text-amber-400' : 'text-gray-500'}`}>{seen.text}</span>
+                    <span className={`text-xs flex-shrink-0 ${seen.stale ? 'text-amber-400' : 'text-token-faint'}`}>{seen.text}</span>
                   </div>
                 )
               })}
@@ -328,21 +328,21 @@ export default function GmOverview() {
         </div>
 
         {/* Back office */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Headphones className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Back office</h2></div>
-          {management.boAdmins.length === 0 ? <p className="text-xs text-gray-500">No back-office staff on roster.</p> : (
+        <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3"><Headphones className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-token">Back office</h2></div>
+          {management.boAdmins.length === 0 ? <p className="text-xs text-token-faint">No back-office staff on roster.</p> : (
             <div className="space-y-2.5">
               {management.boAdmins.map((b) => {
                 const seen = agoLabel(b.lastSeen)
                 return (
                   <div key={b.id} onClick={() => navigate('/agent/call-list')} className="flex items-center justify-between cursor-pointer active:opacity-70">
                     <div className="min-w-0 mr-2">
-                      <div className="text-sm text-white truncate">{b.name}</div>
-                      <div className="text-xs text-gray-500 tabular-nums">
+                      <div className="text-sm text-token truncate">{b.name}</div>
+                      <div className="text-xs text-token-faint tabular-nums">
                         {b.calls} calls · {b.answered} answered · {b.reached} reached{b.durationS > 0 ? ` · ${Math.round(b.durationS / 60)}m` : ''}
                       </div>
                     </div>
-                    <span className={`text-xs flex-shrink-0 ${seen.stale ? 'text-amber-400' : 'text-gray-500'}`}>{seen.text}</span>
+                    <span className={`text-xs flex-shrink-0 ${seen.stale ? 'text-amber-400' : 'text-token-faint'}`}>{seen.text}</span>
                   </div>
                 )
               })}
@@ -351,17 +351,17 @@ export default function GmOverview() {
         </div>
 
         {/* Top performers */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Top performers</h2></div>
-          {leaders.length === 0 ? <p className="text-xs text-gray-500">No sign-ups yet this period.</p> : (
+        <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-token">Top performers</h2></div>
+          {leaders.length === 0 ? <p className="text-xs text-token-faint">No sign-ups yet this period.</p> : (
             <div className="space-y-2">
               {leaders.map((l, i) => (
                 <div key={l.id} onClick={() => navigate(`/agent/agent-detail/${l.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#00E87B]/15 text-[#00E87B] text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
-                    <span className="text-sm text-white">{l.name}</span>
+                    <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
+                    <span className="text-sm text-token">{l.name}</span>
                   </div>
-                  <span className="text-xs text-gray-500 tabular-nums">{l.signups} · {l.converted} conv.</span>
+                  <span className="text-xs text-token-faint tabular-nums">{l.signups} · {l.converted} conv.</span>
                 </div>
               ))}
             </div>
@@ -369,14 +369,14 @@ export default function GmOverview() {
         </div>
 
         {/* Needs attention */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-3"><UserX className="w-4 h-4 text-amber-400" /><h2 className="text-sm font-semibold text-white">Needs attention</h2></div>
-          {field.leastActive.length === 0 ? <p className="text-xs text-gray-500">No agents on roster.</p> : (
+        <div className="bg-white/[0.03] border border-token rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3"><UserX className="w-4 h-4 text-amber-400" /><h2 className="text-sm font-semibold text-token">Needs attention</h2></div>
+          {field.leastActive.length === 0 ? <p className="text-xs text-token-faint">No agents on roster.</p> : (
             <div className="space-y-2">
               {field.leastActive.map((a) => (
                 <div key={a.id} onClick={() => navigate(`/agent/agent-detail/${a.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
-                  <span className="text-sm text-white">{a.name}</span>
-                  <span className={`text-xs tabular-nums ${(a.today || 0) > 0 ? 'text-gray-500' : 'text-amber-400'}`}>
+                  <span className="text-sm text-token">{a.name}</span>
+                  <span className={`text-xs tabular-nums ${(a.today || 0) > 0 ? 'text-token-faint' : 'text-amber-400'}`}>
                     {(a.today || 0) > 0 ? `${a.today} today` : 'nothing today'}
                   </span>
                 </div>
@@ -389,8 +389,8 @@ export default function GmOverview() {
   )
 }
 
-// Pulse chip tones. Solid fixed colors (not #06090F-relative or white-opacity), so the
-// light-theme override in index.css leaves them alone and contrast holds in both themes.
+// Pulse chip tones. Solid fixed colors (not semantic bg-tokens or white-opacity), so
+// nothing theme-remaps them and contrast holds in both themes.
 // Everything good and bad the GM should see at a glance, worst-first. Pure over the payload
 // plus the two issue lists (already cached) — no fetch, no I/O. Test: buildPulse.selfcheck below.
 export function buildPulse(d: Overview, mine: Issue[], unmanaged: Issue[]): Chip[] {
@@ -425,7 +425,7 @@ function CompanyChip({ label, active, onClick }: { label: string; active: boolea
     <button
       onClick={onClick}
       className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        active ? 'bg-[#00E87B] text-[#0A1628] border-[#00E87B]' : 'bg-white/[0.04] text-gray-400 border-white/10'
+        active ? 'bg-primary text-on-primary border-primary' : 'bg-white/[0.04] text-token-muted border-token'
       }`}
     >
       {label}
@@ -441,7 +441,7 @@ function Delta({ now, prev, money }: { now: number; prev: number; money?: boolea
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight
   return (
     <span className={`inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums ${
-      flat ? 'text-gray-500' : up ? 'text-[#00E87B]' : 'text-red-400'
+      flat ? 'text-token-faint' : up ? 'text-primary' : 'text-red-400'
     }`} title={money ? `prev ${rand(prev)}` : `prev ${prev}`}>
       <Icon className="w-3 h-3" />{text}
     </span>
@@ -451,20 +451,20 @@ function Delta({ now, prev, money }: { now: number; prev: number; money?: boolea
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between px-4 py-3.5">
-      <div className="text-sm text-white">{label}</div>
-      <div className="text-base font-semibold tabular-nums text-gray-400">{value}</div>
+      <div className="text-sm text-token">{label}</div>
+      <div className="text-base font-semibold tabular-nums text-token-muted">{value}</div>
     </div>
   )
 }
 
 function Stat({ label, value, sub, delta, onClick }: { label: string; value: number; sub: string; delta?: React.ReactNode; onClick?: () => void }) {
   return (
-    <div onClick={onClick} className={`bg-white/[0.03] border border-white/10 rounded-2xl p-4 ${onClick ? 'cursor-pointer active:bg-white/[0.06]' : ''}`}>
+    <div onClick={onClick} className={`bg-white/[0.03] border border-token rounded-2xl p-4 ${onClick ? 'cursor-pointer active:bg-white/[0.06]' : ''}`}>
       <div className="flex items-center justify-between">
-        <div className="text-2xl font-bold text-white tabular-nums">{value}</div>
+        <div className="text-2xl font-bold text-token tabular-nums">{value}</div>
         {delta}
       </div>
-      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+      <div className="text-xs text-token-faint mt-0.5">{label}</div>
       <div className="text-xs text-gray-600 mt-1">{sub}</div>
     </div>
   )

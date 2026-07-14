@@ -41,7 +41,7 @@ export default function CashReconciliationList() {
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/van-sales/cash-reconciliation/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium text-xs"
+          className="text-info-600 hover:text-info-800 font-medium text-xs"
         >
           {String(value || '').slice(0, 8)}…
         </button>
@@ -106,7 +106,7 @@ export default function CashReconciliationList() {
       render: (_: any, row: any) => (
         <button
           onClick={() => navigate(`/van-sales/cash-reconciliation/${row.id}`)}
-          className="p-1 text-gray-600 hover:text-primary-600"
+          className="p-1 text-gray-600 hover:text-info-600"
           title="View"
         >
           <Eye className="w-4 h-4" />

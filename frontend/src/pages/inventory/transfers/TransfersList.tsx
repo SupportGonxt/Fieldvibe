@@ -58,7 +58,7 @@ export default function TransfersList() {
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/inventory/transfers/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium"
+          className="text-info-600 hover:text-info-800 font-medium"
         >
           {value}
         </button>
@@ -110,7 +110,7 @@ export default function TransfersList() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(`/inventory/transfers/${row.id}`)}
-            className="p-1 text-gray-600 hover:text-primary-600"
+            className="p-1 text-gray-600 hover:text-info-600"
             title="View"
           >
             <Eye className="w-4 h-4" />

@@ -400,7 +400,7 @@ export default function VanSalesWorkflowPageMobile() {
                   ))}
                   <div className="pt-2 flex justify-between items-center">
                     <span className="font-semibold text-gray-900">Total:</span>
-                    <span className="text-xl font-bold text-primary-600">${orderTotal.toFixed(2)}</span>
+                    <span className="text-xl font-bold text-info-600">${orderTotal.toFixed(2)}</span>
                   </div>
                 </div>
               </MobileCard>
@@ -414,7 +414,7 @@ export default function VanSalesWorkflowPageMobile() {
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{product.name}</p>
                       <p className="text-sm text-gray-600">SKU: {product.sku}</p>
-                      <p className="text-sm font-medium text-primary-600">${product.price.toFixed(2)}</p>
+                      <p className="text-sm font-medium text-info-600">${product.price.toFixed(2)}</p>
                       <p className="text-xs text-gray-500">Stock: {product.stock_quantity}</p>
                     </div>
                     <MobileButton
@@ -447,7 +447,7 @@ export default function VanSalesWorkflowPageMobile() {
                 </div>
                 <div className="flex justify-between pt-2 border-t border-gray-100">
                   <span className="font-semibold">Total:</span>
-                  <span className="font-bold text-primary-600">${orderTotal.toFixed(2)}</span>
+                  <span className="font-bold text-info-600">${orderTotal.toFixed(2)}</span>
                 </div>
               </div>
             </MobileCard>
@@ -521,7 +521,7 @@ export default function VanSalesWorkflowPageMobile() {
                       <p className="text-sm text-gray-600">Items</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-primary-600">${orderTotal.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-info-600">${orderTotal.toFixed(2)}</p>
                       <p className="text-sm text-gray-600">Total</p>
                     </div>
                   </div>

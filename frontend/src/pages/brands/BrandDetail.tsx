@@ -63,13 +63,13 @@ export default function BrandDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-3 mb-2">
-            <Package className="h-5 w-5 text-primary-600" />
+            <Package className="h-5 w-5 text-info-600" />
             <h3 className="font-semibold text-gray-900">Products</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900">{brand.product_count || 0}</p>
           <button
             onClick={() => navigate(`/brands/${id}/products`)}
-            className="text-sm text-primary-600 hover:text-primary-800 mt-2"
+            className="text-sm text-info-600 hover:text-info-800 mt-2"
           >
             View all products →
           </button>
@@ -77,13 +77,13 @@ export default function BrandDetail() {
 
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-3 mb-2">
-            <FileText className="h-5 w-5 text-primary-600" />
+            <FileText className="h-5 w-5 text-info-600" />
             <h3 className="font-semibold text-gray-900">Surveys</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900">{brand.survey_count || 0}</p>
           <button
             onClick={() => navigate(`/brands/${id}/surveys`)}
-            className="text-sm text-primary-600 hover:text-primary-800 mt-2"
+            className="text-sm text-info-600 hover:text-info-800 mt-2"
           >
             View surveys →
           </button>
@@ -91,13 +91,13 @@ export default function BrandDetail() {
 
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-3 mb-2">
-            <Target className="h-5 w-5 text-primary-600" />
+            <Target className="h-5 w-5 text-info-600" />
             <h3 className="font-semibold text-gray-900">Activations</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900">{brand.activation_count || 0}</p>
           <button
             onClick={() => navigate(`/brands/${id}/activations`)}
-            className="text-sm text-primary-600 hover:text-primary-800 mt-2"
+            className="text-sm text-info-600 hover:text-info-800 mt-2"
           >
             View activations →
           </button>
@@ -138,7 +138,7 @@ export default function BrandDetail() {
           className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow text-left"
         >
           <div className="flex items-center gap-3 mb-2">
-            <LayoutGrid className="h-6 w-6 text-primary-600" />
+            <LayoutGrid className="h-6 w-6 text-info-600" />
             <h3 className="font-semibold text-gray-900">Board Placements</h3>
           </div>
           <p className="text-sm text-gray-600">View and manage brand board placements</p>

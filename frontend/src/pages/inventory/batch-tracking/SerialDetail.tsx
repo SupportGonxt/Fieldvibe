@@ -119,7 +119,7 @@ export default function SerialDetail() {
             <dd className="mt-1 text-sm text-gray-900">
               <button
                 onClick={() => navigate(`/inventory/batches/${serial.batch_id}`)}
-                className="text-primary-600 hover:text-primary-900"
+                className="text-info-600 hover:text-info-900"
               >
                 {serial.batch_number}
               </button>

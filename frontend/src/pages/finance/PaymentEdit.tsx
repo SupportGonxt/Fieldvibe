@@ -85,7 +85,7 @@ export default function PaymentEdit() {
                 type="number"
                 step="0.01"
                 {...register('amount', { required: 'Amount is required', min: 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.amount && (
                 <p className="mt-1 text-sm text-red-600">{errors.amount.message}</p>
@@ -99,7 +99,7 @@ export default function PaymentEdit() {
               <input
                 type="date"
                 {...register('payment_date', { required: 'Payment date is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.payment_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.payment_date.message}</p>
@@ -112,7 +112,7 @@ export default function PaymentEdit() {
               </label>
               <select
                 {...register('payment_method', { required: 'Payment method is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="">Select method</option>
                 <option value="Cash">Cash</option>
@@ -132,7 +132,7 @@ export default function PaymentEdit() {
               <input
                 type="text"
                 {...register('reference_number')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
             </div>
 
@@ -142,7 +142,7 @@ export default function PaymentEdit() {
               </label>
               <select
                 {...register('status', { required: 'Status is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
@@ -160,7 +160,7 @@ export default function PaymentEdit() {
             <textarea
               {...register('notes')}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               placeholder="Enter any notes"
             />
           </div>

@@ -3,8 +3,10 @@ import { Truck, DollarSign, Package, AlertTriangle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { insightsService } from '../../services/insights.service'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { getChartColors } from '../../lib/chartTheme'
 
 export default function VanSalesInsights() {
+  const chart = getChartColors()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['insights-van-sales'],
     queryFn: insightsService.getVanSalesDashboard,
@@ -50,7 +52,7 @@ export default function VanSalesInsights() {
               <XAxis dataKey="vehicle_reg" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="revenue" fill="#00E87B" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="revenue" fill={chart.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

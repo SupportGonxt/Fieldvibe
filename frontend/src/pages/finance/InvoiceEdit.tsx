@@ -83,7 +83,7 @@ export default function InvoiceEdit() {
               <input
                 type="date"
                 {...register('issue_date', { required: 'Issue date is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.issue_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.issue_date.message}</p>
@@ -97,7 +97,7 @@ export default function InvoiceEdit() {
               <input
                 type="date"
                 {...register('due_date', { required: 'Due date is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.due_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.due_date.message}</p>
@@ -112,7 +112,7 @@ export default function InvoiceEdit() {
                 type="number"
                 step="0.01"
                 {...register('subtotal', { required: 'Subtotal is required', min: 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.subtotal && (
                 <p className="mt-1 text-sm text-red-600">{errors.subtotal.message}</p>
@@ -127,7 +127,7 @@ export default function InvoiceEdit() {
                 type="number"
                 step="0.01"
                 {...register('tax', { required: 'Tax is required', min: 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.tax && (
                 <p className="mt-1 text-sm text-red-600">{errors.tax.message}</p>
@@ -142,7 +142,7 @@ export default function InvoiceEdit() {
             <textarea
               {...register('notes')}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               placeholder="Enter any notes"
             />
           </div>

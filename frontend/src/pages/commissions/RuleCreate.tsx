@@ -67,7 +67,7 @@ export default function RuleCreate() {
                 type="text"
                 {...register('name', { required: 'Name is required' })}
                 placeholder="e.g., Standard Sales Commission"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.name && (
                 <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
@@ -82,7 +82,7 @@ export default function RuleCreate() {
                 {...register('description')}
                 rows={3}
                 placeholder="Describe when this rule applies"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
             </div>
 
@@ -94,7 +94,7 @@ export default function RuleCreate() {
                 type="number"
                 step="0.01"
                 {...register('base_rate', { required: 'Base rate is required', min: 0, max: 100 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.base_rate && (
                 <p className="mt-1 text-sm text-red-600">{errors.base_rate.message}</p>
@@ -109,7 +109,7 @@ export default function RuleCreate() {
                 type="number"
                 step="0.01"
                 {...register('bonus_threshold', { required: 'Bonus threshold is required', min: 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.bonus_threshold && (
                 <p className="mt-1 text-sm text-red-600">{errors.bonus_threshold.message}</p>
@@ -124,7 +124,7 @@ export default function RuleCreate() {
                 type="number"
                 step="0.01"
                 {...register('bonus_rate', { required: 'Bonus rate is required', min: 0, max: 100 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.bonus_rate && (
                 <p className="mt-1 text-sm text-red-600">{errors.bonus_rate.message}</p>
@@ -137,7 +137,7 @@ export default function RuleCreate() {
               </label>
               <select
                 {...register('status', { required: 'Status is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -154,7 +154,7 @@ export default function RuleCreate() {
               <input
                 type="date"
                 {...register('effective_from', { required: 'Effective date is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
               {errors.effective_from && (
                 <p className="mt-1 text-sm text-red-600">{errors.effective_from.message}</p>

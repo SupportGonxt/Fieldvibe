@@ -148,7 +148,7 @@ export default function TransactionForm({
             {...commonProps}
             checked={value}
             onChange={(e) => handleChange(field.name, e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+            className="w-4 h-4 text-info-600 border-gray-300 rounded focus:ring-info-500"
           />
         )
 
