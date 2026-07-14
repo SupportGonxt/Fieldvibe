@@ -4,7 +4,10 @@ import { roleAllows } from './capabilities.js';
 export const rateLimiter = (limit, windowMs) => async (c, next) => {
   const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
   const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs).toISOString();
-  const key = `rl:${ip}:${Math.floor(windowMs / 1000)}`;
+  // Bucket per ip+path+limit+window: distinct limiter instances must never share
+  // a counter (global 100/min limiter was polluting the login/refresh buckets,
+  // 429-locking active users out of auth routes).
+  const key = `rl:${ip}:${c.req.path}:${limit}:${Math.floor(windowMs / 1000)}`;
   try {
     const db = c.env.DB;
     const row = await db.prepare('SELECT count FROM rate_limits WHERE key = ? AND window_start = ?').bind(key, windowStart).first();
