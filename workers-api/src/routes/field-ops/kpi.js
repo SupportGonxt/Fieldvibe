@@ -41,17 +41,18 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
   const ids = Array.isArray(agentIds) ? agentIds : [agentIds];
   if (!ids.length) return [];
   return (await db.prepare(
-    // vi pre-aggregated to one row per visit → the join is 1:1, so v-level board/quality
-    // columns aren't fanned out by the individual count. surveys/qualified stay individual-grain
-    // (summed/OR-ed inside the subquery). survey_completed lives on visit_individuals.
+    // vi/vp pre-aggregated to one row per visit → the joins are 1:1, no fan-out.
+    // surveys/qualified stay individual-grain (summed/OR-ed inside the vi subquery);
+    // board placement + sample-board match score live on visit_photos, not visits —
+    // vp rolls a visit's photos up to has_board + best match_score per visit.
     `SELECT v.visit_date date,
             COUNT(v.id) visits,
             SUM(CASE WHEN LOWER(v.visit_type)='individual' THEN 1 ELSE 0 END) signups,
             SUM(COALESCE(vi.qualified_flag, 0)) qualified,
-            SUM(CASE WHEN v.board_placement_location IS NOT NULL THEN 1 ELSE 0 END) boards,
+            SUM(COALESCE(vp.has_board, 0)) boards,
             SUM(COALESCE(vi.surveys, 0)) surveys,
-            SUM(CASE WHEN v.sample_board_match_score IS NOT NULL THEN v.sample_board_match_score ELSE 0 END) quality_sum,
-            SUM(CASE WHEN v.sample_board_match_score IS NOT NULL THEN 1 ELSE 0 END) quality_n
+            SUM(CASE WHEN vp.match_score IS NOT NULL THEN vp.match_score ELSE 0 END) quality_sum,
+            SUM(CASE WHEN vp.match_score IS NOT NULL THEN 1 ELSE 0 END) quality_n
      FROM visits v
      LEFT JOIN (
        SELECT visit_id,
@@ -59,6 +60,12 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
               MAX(CASE WHEN ${CONVERTED_SQL('visit_individuals')} THEN 1 ELSE 0 END) qualified_flag
        FROM visit_individuals GROUP BY visit_id
      ) vi ON vi.visit_id = v.id
+     LEFT JOIN (
+       SELECT visit_id,
+              MAX(CASE WHEN board_placement_location IS NOT NULL THEN 1 ELSE 0 END) has_board,
+              MAX(sample_board_match_score) match_score
+       FROM visit_photos GROUP BY visit_id
+     ) vp ON vp.visit_id = v.id
      WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date
      ORDER BY v.visit_date`
