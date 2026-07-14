@@ -3,10 +3,10 @@ import { analyzePhotoWithAI } from '../lib/photoAi.js';
 import { buildGmOverview, digestSlot } from '../routes/field-ops/gm.js';
 import { agentSignals, boAdminSignals } from '../routes/field-ops/kpi.js';
 import { ensureIssues } from '../routes/field-ops/issues.js';
-import { getConfig } from '../routes/field-ops/config.js';
+import { getConfig, getScale } from '../routes/field-ops/config.js';
 import { severityOf, isBreached, nextOwnerRole, slaClockOf, slaAppliesTo } from '../services/issueEngine.js';
 import { sendPush } from '../lib/web-push.js';
-import { dueEscalation, computeIncentive } from '../services/incentiveService.js';
+import { dueEscalation, agentCount, nextGate, workingDaysElapsed } from '../services/incentiveService.js';
 import { signalBelowGate, signalLabel, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { isConverted } from '../services/funnelService.js';
@@ -419,6 +419,23 @@ async function reactToIssues(db, env) {
           return gateKeysCache.get(key);
         };
 
+        // Pace context per (company, role). computeIncentive re-derived scale/working-days/base
+        // salary per agent (~8 D1 queries each); at 64 agents that alone blew Workers'
+        // 1000-subrequest invocation budget — every later D1 call threw, all swallowed by the
+        // catch layers below, and this job went silent while earlier jobs in the tick kept working.
+        // ponytail: if the budget is breached again, move reactToIssues onto its own cron trigger
+        // ("30 6-15 * * *" + event.cron routing in index.js) for a fresh per-invocation budget.
+        const paceCache = new Map();
+        const paceFor = async (companyId, role) => {
+          const key = `${companyId || ''}|${role}`;
+          if (!paceCache.has(key)) {
+            const scale = await getScale(db, tenantId, companyId, role);
+            const wd = await workingDaysElapsed(db, tenantId, companyId, today.slice(0, 7), today);
+            paceCache.set(key, { tiers: scale?.tiers || [], wd });
+          }
+          return paceCache.get(key);
+        };
+
         // Backstop owner. Three org-chart gaps make this load-bearing: agents with neither
         // team_lead_id nor manager_id (4 live today), managers with a NULL gm_id, and leaders who
         // sit at the top of their own chain. GMs cover many customers, so prefer
@@ -463,9 +480,14 @@ async function reactToIssues(db, env) {
               // visits floors workingDaysElapsed at 1 with all-zero averages and opens a below_gate issue
               // on day one.
               if (AGENT_SUBJECT.has(agent.role) && actual.days > 0) {
-                const inc = await computeIncentive(db, tenantId, agent.company_id, agent.id, agent.role, today.slice(0, 7), today);
+                // Same math as computeIncentive's provisional nextTier (count/wd vs tier gates),
+                // minus the qualified/base-salary/working-days queries the pace signal never reads.
+                const { tiers, wd } = await paceFor(agent.company_id, agent.role);
+                const { count, deposits } = tiers.length
+                  ? await agentCount(db, tenantId, agent.id, today.slice(0, 7))
+                  : { count: 0, deposits: 0 };
                 const allowedKeys = await gateKeysFor(agent.company_id);
-                const ng = inc?.nextTier || null;
+                const ng = tiers.length ? nextGate(tiers, { signups: count / wd, deposits: deposits / wd }) : null;
                 const gatedNg = ng
                   ? {
                       ...ng,
