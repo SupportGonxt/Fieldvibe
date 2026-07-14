@@ -184,7 +184,7 @@ app.post('/portal/ask', portalAuthMiddleware, async (c) => {
   let question = '';
   try {
     const body = await c.req.json();
-    question = typeof body?.question === 'string' ? body.question : '';
+    question = typeof body?.question === 'string' ? body.question.trim().slice(0, 500) : '';
   } catch {
     question = '';
   }
