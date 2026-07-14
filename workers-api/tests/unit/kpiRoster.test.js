@@ -1,6 +1,7 @@
 // workers-api/tests/unit/kpiRoster.test.js
 import { describe, it, expect } from 'vitest';
 import { resolveRoleKpiKey, rankRoster, coachingNoteRow } from '../../src/routes/field-ops/kpi.js';
+import { doNudge } from '../../src/routes/field-ops/issues.js';
 
 describe('resolveRoleKpiKey', () => {
   it('maps agent-tier roles to kpi.agent', () => {
@@ -43,5 +44,32 @@ describe('coachingNoteRow', () => {
   it('nulls missing companyId/signalType/note', () => {
     expect(coachingNoteRow({ id: 'x', tenantId: 't', managerId: 'm', agentId: 'a', action: 'note' }))
       .toEqual({ id: 'x', tenant_id: 't', company_id: null, manager_id: 'm', agent_id: 'a', signal_type: null, action: 'note', note: null });
+  });
+});
+
+describe('doNudge message sanitization', () => {
+  // Minimal D1 stub: targetExists .first() hits, notification INSERT binds captured, no push subs.
+  const stubDb = (captured) => ({
+    prepare: (sql) => ({
+      bind: (...args) => ({
+        first: async () => ({ id: 'a' }),
+        run: async () => { if (sql.includes('INSERT INTO notifications')) captured.push(args); },
+        all: async () => ({ results: [] }),
+      }),
+    }),
+  });
+  async function sentMessage(message) {
+    const captured = [];
+    await doNudge({ db: stubDb(captured), env: {}, tenantId: 't', userId: 'm', body: { agentId: 'a', message }, issue: null });
+    return captured[0][5]; // message column of the notifications INSERT
+  }
+  it('trims and caps at 300 chars', async () => {
+    expect(await sentMessage('  hi there  ')).toBe('hi there');
+    expect((await sentMessage('x'.repeat(500))).length).toBe(300);
+  });
+  it('falls back to default when absent, blank, or non-string', async () => {
+    expect(await sentMessage(undefined)).toBe('Check in with your manager.');
+    expect(await sentMessage('   ')).toBe('Check in with your manager.');
+    expect(await sentMessage(42)).toBe('Check in with your manager.');
   });
 });

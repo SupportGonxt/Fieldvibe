@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Shield, Store, AlertCircle, Bell, Phone, Loader2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useRemediate } from '../../hooks/useRemediate'
+import { NudgeSheet } from '../../components/agent/NudgeSheet'
 
 type Period = 'day' | 'week' | 'month' | 'prior_month'
 
@@ -104,6 +105,7 @@ function progressColor(pct: number): string {
 export default function TeamTab() {
   const navigate = useNavigate()
   const { busy, nudge, call } = useRemediate()
+  const [nudgeTarget, setNudgeTarget] = useState<{ id: string; name: string } | null>(null)
   const [data, setData] = useState<TeamData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -511,7 +513,7 @@ export default function TeamTab() {
                       {/* Act on the agent from the row itself — the PWA has no other nudge/call entry point. */}
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => nudge(agent.id, agent.first_name)}
+                          onClick={() => setNudgeTarget({ id: agent.id, name: agent.first_name })}
                           disabled={busy === agent.id}
                           className="min-h-[44px] py-2 bg-amber-400/10 border border-amber-400/25 rounded-lg text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5 disabled:opacity-50"
                         >
@@ -544,6 +546,12 @@ export default function TeamTab() {
           </div>
         )}
       </div>
+
+      <NudgeSheet
+        target={nudgeTarget}
+        onSend={(msg) => { if (nudgeTarget) nudge(nudgeTarget.id, nudgeTarget.name, msg); setNudgeTarget(null) }}
+        onClose={() => setNudgeTarget(null)}
+      />
     </div>
   )
 }

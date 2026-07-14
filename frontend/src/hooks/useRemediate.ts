@@ -8,18 +8,22 @@ import { useToast } from '../components/ui/Toast'
  * send a push/in-app nudge, or open a WebRTC call. `busy` holds the id being acted on so
  * the row can disable its own buttons.
  */
+/** Pre-filled default shown in the nudge editor; also used when no message is passed. */
+export const defaultNudgeMessage = (name: string) =>
+  `${name}, your manager is checking in — log your next visit.`
+
 export function useRemediate() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [busy, setBusy] = useState<string | null>(null)
 
-  async function nudge(userId: string, name: string) {
+  async function nudge(userId: string, name: string, message?: string) {
     if (busy) return
     setBusy(userId)
     try {
       await apiClient.post('/field-ops/kpi/remediate/nudge', {
         agentId: userId,
-        message: `${name}, your manager is checking in — log your next visit.`,
+        message: message?.trim() || defaultNudgeMessage(name),
       })
       toast.success('Nudge sent')
     } catch {

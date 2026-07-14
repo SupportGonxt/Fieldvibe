@@ -109,7 +109,10 @@ export async function doNudge(ctx) {
   const { db, env, tenantId, userId, body, issue } = ctx;
   const agentId = issue?.subject_id || body.agentId;
   const title = 'Performance nudge';
-  const message = body.message || 'Check in with your manager.';
+  // Trust boundary for both /kpi/remediate/nudge and issue actions: trim, cap, default.
+  const message =
+    (typeof body.message === 'string' ? body.message.trim().slice(0, 300) : '') ||
+    'Check in with your manager.';
   if (!(await targetExists(db, tenantId, agentId))) return { ok: false, httpStatus: 400, message: 'Unknown agent' };
 
   await db.prepare(
