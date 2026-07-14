@@ -7,7 +7,7 @@ const read = (name: string, fallback: string) => {
 }
 
 export function getChartColors() {
-  // fallback in rgb form: tokens.css is the only file allowed to contain #00E87B
+  // fallback in rgb form: tokens.css is the only file allowed to spell out the brand hex
   const primary = read('--color-primary', 'rgb(0 232 123)')
   const info = read('--color-info', '#1890ff')
   const success = read('--color-success', '#2ECC71')
