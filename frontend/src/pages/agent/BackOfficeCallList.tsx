@@ -146,10 +146,10 @@ export default function BackOfficeCallList() {
   const pct = target ? Math.min(100, Math.round((target.contacted / Math.max(1, target.target)) * 100)) : 0
 
   return (
-    <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
+    <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-1">
-          <h1 className="text-2xl font-bold text-white">Agents</h1>
+          <h1 className="text-2xl font-bold text-token">Agents</h1>
           <div className="flex items-center gap-2">
             <button
               onClick={toggleHistory}
@@ -160,14 +160,14 @@ export default function BackOfficeCallList() {
             </button>
             <button
               onClick={load}
-              className="p-3 rounded-xl bg-white/[0.04] border border-white/10 active:scale-95 transition-transform"
+              className="p-3 rounded-xl bg-white/[0.04] border border-token active:scale-95 transition-transform"
               aria-label="Refresh"
             >
-              <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 text-token-muted ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
-        <p className="text-sm text-gray-500 mb-5">
+        <p className="text-sm text-token-faint mb-5">
           {quiet > 0
             ? `${quiet} ${quiet === 1 ? 'agent has' : 'agents have'} no signups today — tap to call.`
             : 'Everyone has logged a signup today.'}
@@ -185,12 +185,12 @@ export default function BackOfficeCallList() {
 
         {/* Today's target progress */}
         {target && (
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 mb-4">
+          <div className="bg-white/[0.03] border border-token rounded-2xl px-4 py-3 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 uppercase tracking-wide">Contacted today</span>
+              <span className="text-xs text-token-faint uppercase tracking-wide">Contacted today</span>
               {editingTarget ? (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500">target</span>
+                  <span className="text-xs text-token-faint">target</span>
                   <input
                     autoFocus
                     type="number"
@@ -198,7 +198,7 @@ export default function BackOfficeCallList() {
                     value={targetDraft}
                     onChange={(e) => setTargetDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') saveTarget() }}
-                    className="w-14 bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-white text-sm text-center focus:outline-none focus:border-primary/50"
+                    className="w-14 bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-token text-sm text-center focus:outline-none focus:border-primary/50"
                   />
                   <button onClick={saveTarget} className="p-1 rounded-lg bg-primary/15 text-primary" aria-label="Save target">
                     <Check className="w-4 h-4" />
@@ -207,15 +207,15 @@ export default function BackOfficeCallList() {
               ) : (
                 <button
                   onClick={() => { setTargetDraft(String(target.target)); setEditingTarget(true) }}
-                  className="text-xs text-gray-400 underline decoration-dotted underline-offset-2"
+                  className="text-xs text-token-muted underline decoration-dotted underline-offset-2"
                 >
                   target {target.target}
                 </button>
               )}
             </div>
             <div className="flex items-baseline gap-1.5 mb-2">
-              <span className="text-2xl font-bold text-white tabular-nums">{target.contacted}</span>
-              <span className="text-sm text-gray-500">/ {target.target} agents · {target.calls} calls</span>
+              <span className="text-2xl font-bold text-token tabular-nums">{target.contacted}</span>
+              <span className="text-sm text-token-faint">/ {target.target} agents · {target.calls} calls</span>
               {(target.missed ?? 0) > 0 && <span className="text-sm text-amber-400">· {target.missed} missed</span>}
             </div>
             <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
@@ -229,14 +229,14 @@ export default function BackOfficeCallList() {
 
         {/* Call history panel */}
         {showHistory && (
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 mb-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Recent calls</div>
+          <div className="bg-white/[0.03] border border-token rounded-2xl px-4 py-3 mb-4">
+            <div className="text-xs text-token-faint uppercase tracking-wide mb-2">Recent calls</div>
             {history === null ? (
               <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 text-primary animate-spin" /></div>
             ) : history.length === 0 ? (
               <p className="text-sm text-gray-600 py-3">No calls yet.</p>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-token">
                 {history.map((h) => {
                   const answered = h.status === 'answered'
                   return (
@@ -245,8 +245,8 @@ export default function BackOfficeCallList() {
                         {answered ? <Phone className="w-4 h-4" /> : h.status === 'declined' ? <PhoneOff className="w-4 h-4" /> : <PhoneMissed className="w-4 h-4" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-white text-sm truncate">{h.callee_name || 'Agent'}</div>
-                        <div className="text-[11px] text-gray-500 capitalize">{h.status}{durLabel(h.duration_s) ? ` · ${durLabel(h.duration_s)}` : ''}</div>
+                        <div className="text-token text-sm truncate">{h.callee_name || 'Agent'}</div>
+                        <div className="text-[11px] text-token-faint capitalize">{h.status}{durLabel(h.duration_s) ? ` · ${durLabel(h.duration_s)}` : ''}</div>
                       </div>
                       <div className="text-[11px] text-gray-600 shrink-0">{whenLabel(h.started_at)}</div>
                     </div>
@@ -263,7 +263,7 @@ export default function BackOfficeCallList() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search name or number"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-white text-base placeholder-gray-600 focus:outline-none focus:border-primary/50"
+            className="w-full bg-white/[0.04] border border-token rounded-2xl pl-10 pr-4 py-3 text-token text-base placeholder-gray-600 focus:outline-none focus:border-primary/50"
           />
         </div>
 
@@ -282,15 +282,15 @@ export default function BackOfficeCallList() {
                   key={r.id}
                   onClick={() => startCall(r)}
                   disabled={!!calling}
-                  className="flex items-center w-full text-left bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 active:scale-[0.99] transition-transform disabled:opacity-60"
+                  className="flex items-center w-full text-left bg-white/[0.03] border border-token rounded-2xl px-4 py-3 active:scale-[0.99] transition-transform disabled:opacity-60"
                 >
                   <div className="flex items-center gap-3 w-full">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <div className="text-white font-medium truncate">{r.name || 'Unnamed agent'}</div>
+                        <div className="text-token font-medium truncate">{r.name || 'Unnamed agent'}</div>
                         {target?.contacted_ids?.includes(r.id) && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
+                      <div className="flex items-center gap-1.5 text-xs text-token-faint mt-0.5">
                         <CircleDot className={`w-3 h-3 ${r.today > 0 ? 'text-primary' : 'text-gray-600'}`} />
                         {sinceLabel(r.last_activity)}
                       </div>
@@ -320,7 +320,7 @@ function CompanyChip({ label, active, onClick }: { label: string; active: boolea
     <button
       onClick={onClick}
       className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        active ? 'bg-primary text-[#0A1628] border-primary' : 'bg-white/[0.04] text-gray-400 border-white/10'
+        active ? 'bg-primary text-on-primary border-primary' : 'bg-white/[0.04] text-token-muted border-token'
       }`}
     >
       {label}

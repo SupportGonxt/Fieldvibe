@@ -1667,11 +1667,11 @@ function GoldrushKpiTargetsCard({ companies }: { companies: { id: string; name: 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Signups / Day</label>
-              <input type="number" min={0} value={signups} onChange={(e) => setSignups(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              <input type="number" min={0} value={signups} onChange={(e) => setSignups(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Conversion Floor %</label>
-              <input type="number" min={0} max={100} value={conv} onChange={(e) => setConv(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+              <input type="number" min={0} max={100} value={conv} onChange={(e) => setConv(parseInt(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
             </div>
           </div>
         )}
@@ -1833,20 +1833,20 @@ function CompanyTargetRulesTab() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Individual Visits / Day</label>
-                  <input type="number" min={0} value={form.individual_target_per_day} onChange={(e) => setForm(f => ({ ...f, individual_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.individual_target_per_day} onChange={(e) => setForm(f => ({ ...f, individual_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Individual Visits / Month</label>
-                  <input type="number" min={0} value={form.individual_target_per_month} onChange={(e) => setForm(f => ({ ...f, individual_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.individual_target_per_month} onChange={(e) => setForm(f => ({ ...f, individual_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                   <p className="text-[10px] text-gray-400 mt-1">0 = auto-calc from daily × working days</p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Store Visits / Day</label>
-                  <input type="number" min={0} value={form.store_target_per_day} onChange={(e) => setForm(f => ({ ...f, store_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.store_target_per_day} onChange={(e) => setForm(f => ({ ...f, store_target_per_day: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Store Visits / Month{activeRole === 'team_lead' ? ' (Team)' : ''}</label>
-                  <input type="number" min={0} value={form.store_target_per_month} onChange={(e) => setForm(f => ({ ...f, store_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                  <input type="number" min={0} value={form.store_target_per_month} onChange={(e) => setForm(f => ({ ...f, store_target_per_month: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white" />
                   <p className="text-[10px] text-gray-400 mt-1">0 = auto-calc from daily × working days</p>
                 </div>
               </div>

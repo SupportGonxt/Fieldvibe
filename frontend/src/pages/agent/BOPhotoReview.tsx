@@ -157,7 +157,7 @@ export default function BOPhotoReview() {
                       <button
                         onClick={() => approve.mutate(p.id)}
                         disabled={approve.isPending}
-                        className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-[#06090F] text-sm font-semibold active:scale-[0.99]"
+                        className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-on-primary text-sm font-semibold active:scale-[0.99]"
                       >
                         <Check className="w-4 h-4" /> Approve
                       </button>

@@ -66,7 +66,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   return (
     <>
-      <div className="sticky top-0 z-[1000] flex-shrink-0 flex items-center h-14 bg-white/80 dark:bg-[#0A0E18]/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5">
+      <div className="sticky top-0 z-[1000] flex-shrink-0 flex items-center h-14 bg-white/80 dark:bg-surface/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5">
         <button
           type="button"
           className="px-4 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white lg:hidden transition-colors"
@@ -101,7 +101,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
               onClick={() => setShowUserMenu(!showUserMenu)}
             >
               <div className="h-8 w-8 bg-gradient-to-br from-primary to-[#00B862] rounded-lg flex items-center justify-center">
-                <span className="text-xs font-bold text-[#06090F]">
+                <span className="text-xs font-bold text-on-primary">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
                 </span>
               </div>
@@ -112,7 +112,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             </button>
 
             {showUserMenu && (
-              <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl bg-white dark:bg-[#0A0E18] border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden">
+              <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl bg-white dark:bg-surface border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-white/5">
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-200">{user?.first_name} {user?.last_name}</div>
                   <div className="text-xs text-gray-500">{user?.email}</div>
@@ -145,7 +145,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
       {showCommandPalette && (
         <div className="fixed inset-0 z-[2000] flex items-start justify-center pt-[20vh]">
           <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm" onClick={() => setShowCommandPalette(false)} />
-          <div className="relative w-full max-w-lg mx-4 rounded-xl bg-white dark:bg-[#0A0E18] border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden">
+          <div className="relative w-full max-w-lg mx-4 rounded-xl bg-white dark:bg-surface border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-white/5">
               <Search className="h-4 w-4 text-gray-500" />
               <input

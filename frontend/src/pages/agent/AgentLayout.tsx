@@ -132,13 +132,13 @@ export default function AgentLayout() {
   usePresenceHeartbeat(user?.role)
 
   return (
-    <div className="min-h-screen bg-[#06090F] flex flex-col">
+    <div className="min-h-screen bg-bg flex flex-col">
       <FirstLoginTour />
       <PresenceConsentNotice role={user?.role} />
 
       {/* Sub-page header with back button */}
       {onSubPage && (
-        <div className="sticky top-0 z-40 bg-[#0A1628]/95 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center gap-3">
+        <div className="sticky top-0 z-40 bg-surface/95 backdrop-blur-xl border-b border-token px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => {
               const backPath = getBackPath(location.pathname)
@@ -146,9 +146,9 @@ export default function AgentLayout() {
             }}
             className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-white" />
+            <ArrowLeft className="w-5 h-5 text-token" />
           </button>
-          <h1 className="text-lg font-semibold text-white">{getSubPageTitle(location.pathname)}</h1>
+          <h1 className="text-lg font-semibold text-token">{getSubPageTitle(location.pathname)}</h1>
         </div>
       )}
 
@@ -166,7 +166,7 @@ export default function AgentLayout() {
 
       {/* Bottom Navigation - hidden on sub-pages */}
       {!onSubPage && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-[#0A1628]/95 backdrop-blur-xl border-t border-white/5 px-2 pb-[env(safe-area-inset-bottom)] z-50">
+        <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-token px-2 pb-[env(safe-area-inset-bottom)] z-50">
           <div className="max-w-md mx-auto flex items-end justify-around py-1">
             {tabs.map((tab) => {
               const isActive = location.pathname === tab.path || (tab.path === '/agent/dashboard' && location.pathname === '/agent')
@@ -182,7 +182,7 @@ export default function AgentLayout() {
                     className="flex flex-col items-center -mt-5"
                   >
                     <div className="w-14 h-14 bg-gradient-to-br from-primary to-[#00D06E] rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30 active:scale-95 transition-transform">
-                      <Icon className="w-6 h-6 text-[#0A1628]" />
+                      <Icon className="w-6 h-6 text-on-primary" />
                     </div>
                     <span className="text-[10px] text-primary mt-1 font-medium">{tab.label}</span>
                   </button>

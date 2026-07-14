@@ -272,7 +272,7 @@ export default function AgentHierarchyPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-[#00D06E] text-[#06090F] font-semibold rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-[#00D06E] text-on-primary font-semibold rounded-lg transition-colors"
         >
           <UserPlus className="w-4 h-4" />
           Add Person
@@ -348,15 +348,15 @@ export default function AgentHierarchyPage() {
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       <Mail className="w-3.5 h-3.5 text-gray-400" />
-                      <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-36 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                      <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-36 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                     </div>
                     <div className="flex items-center gap-1">
                       <Phone className="w-3.5 h-3.5 text-gray-400" />
-                      <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                      <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                     </div>
                     <div className="flex items-center gap-1">
                       <KeyRound className="w-3.5 h-3.5 text-gray-400" />
-                      <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="New PIN" className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                      <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="New PIN" className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                     </div>
                     <button onClick={() => saveQuickEdit(manager.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save">
                       <Check className="w-4 h-4" />
@@ -474,15 +474,15 @@ export default function AgentHierarchyPage() {
                         <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                             <Mail className="w-3.5 h-3.5 text-gray-400" />
-                            <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-36 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                            <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-36 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                           </div>
                           <div className="flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5 text-gray-400" />
-                            <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                            <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                           </div>
                           <div className="flex items-center gap-1">
                             <KeyRound className="w-3.5 h-3.5 text-gray-400" />
-                            <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="New PIN" className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                            <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="New PIN" className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                           </div>
                           <button onClick={() => saveQuickEdit(tl.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save"><Check className="w-4 h-4" /></button>
                           <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel"><X className="w-4 h-4" /></button>
@@ -558,15 +558,15 @@ export default function AgentHierarchyPage() {
                               <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center gap-1">
                                   <Mail className="w-3 h-3 text-gray-400" />
-                                  <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                                  <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Phone className="w-3 h-3 text-gray-400" />
-                                  <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-24 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                                  <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-24 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <KeyRound className="w-3 h-3 text-gray-400" />
-                                  <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="PIN" className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white" />
+                                  <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="PIN" className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
                                 </div>
                                 <button onClick={() => saveQuickEdit(agent.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save"><Check className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel"><X className="w-3.5 h-3.5" /></button>
@@ -740,7 +740,7 @@ export default function AgentHierarchyPage() {
       {/* ═══ Reassign Modal ═══ */}
       {reassigningUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-md w-full shadow-2xl">
+          <div className="bg-white dark:bg-surface-raised rounded-xl max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Reassign {reassigningUser.name}</h3>
               <button onClick={() => { setReassigningUser(null); setReassignTarget('') }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -784,7 +784,7 @@ export default function AgentHierarchyPage() {
       {/* ═══ Delete Confirmation Modal ═══ */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-sm w-full shadow-2xl">
+          <div className="bg-white dark:bg-surface-raised rounded-xl max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Remove {deleteConfirm.role}</h3>
               <button onClick={() => setDeleteConfirm(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -815,7 +815,7 @@ export default function AgentHierarchyPage() {
       {/* ═══ Archive Confirmation Modal ═══ */}
       {archiveConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-sm w-full shadow-2xl">
+          <div className="bg-white dark:bg-surface-raised rounded-xl max-w-sm w-full shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{archiveConfirm.isArchived ? 'Unarchive' : 'Archive'} {archiveConfirm.role}</h3>
               <button onClick={() => setArchiveConfirm(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -859,7 +859,7 @@ export default function AgentHierarchyPage() {
       {/* ═══ Create Person Modal ═══ */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-surface-raised rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {generatedPassword ? 'Person Created' : 'Add New Person'}
@@ -891,7 +891,7 @@ export default function AgentHierarchyPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Temporary Password</label>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 px-3 py-2 bg-gray-100 dark:bg-[#0F1420] rounded-lg text-lg font-mono text-gray-900 dark:text-white tracking-wider">{generatedPassword}</code>
+                    <code className="flex-1 px-3 py-2 bg-gray-100 dark:bg-bg rounded-lg text-lg font-mono text-gray-900 dark:text-white tracking-wider">{generatedPassword}</code>
                     <button
                       onClick={() => { navigator.clipboard.writeText(generatedPassword); toast.success('Copied!') }}
                       className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -901,7 +901,7 @@ export default function AgentHierarchyPage() {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <button onClick={closeCreateModal} className="px-4 py-2 bg-primary text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E]">
+                  <button onClick={closeCreateModal} className="px-4 py-2 bg-primary text-on-primary font-semibold rounded-lg hover:bg-[#00D06E]">
                     Done
                   </button>
                 </div>
@@ -983,7 +983,7 @@ export default function AgentHierarchyPage() {
                       required
                       value={createForm.firstName}
                       onChange={(e) => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -993,7 +993,7 @@ export default function AgentHierarchyPage() {
                       required
                       value={createForm.lastName}
                       onChange={(e) => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -1007,7 +1007,7 @@ export default function AgentHierarchyPage() {
                     value={createForm.email}
                     onChange={(e) => setCreateForm(f => ({ ...f, email: e.target.value }))}
                     placeholder={createForm.role === 'agent' ? 'Optional for agents' : ''}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
@@ -1019,7 +1019,7 @@ export default function AgentHierarchyPage() {
                     value={createForm.phone}
                     onChange={(e) => setCreateForm(f => ({ ...f, phone: e.target.value }))}
                     placeholder="+27..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
@@ -1033,7 +1033,7 @@ export default function AgentHierarchyPage() {
                     value={createForm.pin}
                     onChange={(e) => setCreateForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                     placeholder="4-6 digits (default: 12345)"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#0F1420] text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-400 mt-1">Leave blank to use default PIN: 12345</p>
                 </div>
@@ -1119,7 +1119,7 @@ export default function AgentHierarchyPage() {
                   <button
                     type="submit"
                     disabled={creating}
-                    className="px-4 py-2 text-sm bg-primary text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E] disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 text-sm bg-primary text-on-primary font-semibold rounded-lg hover:bg-[#00D06E] disabled:opacity-50 transition-colors"
                   >
                     {creating ? 'Creating...' : 'Create'}
                   </button>

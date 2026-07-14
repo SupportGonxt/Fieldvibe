@@ -58,7 +58,7 @@ export default function DashboardLayout() {
     return <Navigate to="/agent/dashboard" replace />
   }
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#06090F] text-gray-900 dark:text-gray-100 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-bg text-gray-900 dark:text-gray-100 flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -139,7 +139,7 @@ export default function DashboardLayout() {
 
       <button
         onClick={() => setHelpPanelOpen(true)}
-        className="fixed bottom-6 right-6 z-40 hidden lg:flex bg-primary hover:bg-[#00D06E] text-[#06090F] p-3 rounded-full shadow-lg transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 hidden lg:flex bg-primary hover:bg-[#00D06E] text-on-primary p-3 rounded-full shadow-lg transition-all hover:scale-105"
         title="Help & Training"
       >
         <HelpCircle className="h-5 w-5" />

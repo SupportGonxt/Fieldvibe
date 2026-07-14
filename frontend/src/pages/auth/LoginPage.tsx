@@ -54,10 +54,10 @@ export default function LoginPage() {
   return (
     <div className={`space-y-6 transition-all duration-500 ease-out ${isFormVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white">
+        <h2 className="text-3xl font-bold text-token">
           Welcome Back
         </h2>
-        <p className="mt-3 text-base text-slate-400">
+        <p className="mt-3 text-base text-token-muted">
           Sign in to your account
         </p>
       </div>
@@ -65,12 +65,12 @@ export default function LoginPage() {
       <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
         {/* Email field */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-token-muted mb-2">
             Email Address
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-slate-500" />
+              <Mail className="h-5 w-5 text-token-faint" />
             </div>
             <input
               {...register('email', {
@@ -81,7 +81,7 @@ export default function LoginPage() {
                 },
               })}
               type="email"
-              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="you@company.com"
               autoComplete="email"
             />
@@ -93,12 +93,12 @@ export default function LoginPage() {
 
         {/* Password field */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="password" className="block text-sm font-medium text-token-muted mb-2">
             Password
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-slate-500" />
+              <Lock className="h-5 w-5 text-token-faint" />
             </div>
             <input
               {...register('password', {
@@ -109,13 +109,13 @@ export default function LoginPage() {
                 },
               })}
               type={showPassword ? 'text' : 'password'}
-              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="••••••••"
               autoComplete="current-password"
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-token-faint hover:text-token-muted transition-colors"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? (
@@ -137,9 +137,9 @@ export default function LoginPage() {
               {...register('remember_me')}
               id="remember-me"
               type="checkbox"
-              className="h-4 w-4 bg-white/5 border-white/10 rounded text-primary focus:ring-primary focus:ring-offset-[#06090F] transition-colors"
+              className="h-4 w-4 bg-white/5 border-token rounded text-primary focus:ring-primary focus:ring-offset-bg transition-colors"
             />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-400 hover:text-slate-300 transition-colors">
+            <label htmlFor="remember-me" className="ml-2 block text-sm text-token-muted hover:text-token-muted transition-colors">
               Remember me
             </label>
           </div>
@@ -170,7 +170,7 @@ export default function LoginPage() {
             // login to resolve — the layouts subscribe afterwards using the answer.
             onClick={requestPushPermission}
             disabled={isLoading}
-            className="w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 hover:shadow-primary/40"
+            className="w-full bg-primary hover:bg-[#1DFFB2] text-on-primary font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 hover:shadow-primary/40"
           >
             {isLoading ? (
               <>

@@ -102,13 +102,13 @@ export default function FirstLoginTour() {
   const nav = (
     <div className="flex items-center gap-3 mt-5">
       {step > 0 && (
-        <button onClick={() => setStep((s) => s - 1)} className="flex-1 py-3 rounded-2xl border border-white/10 text-white font-medium">
+        <button onClick={() => setStep((s) => s - 1)} className="flex-1 py-3 rounded-2xl border border-token text-token font-medium">
           Back
         </button>
       )}
       <button
         onClick={() => (isLast ? finish() : setStep((s) => s + 1))}
-        className="flex-1 py-3 rounded-2xl bg-primary text-[#0A1628] font-semibold"
+        className="flex-1 py-3 rounded-2xl bg-primary text-on-primary font-semibold"
       >
         {isLast ? 'Get started' : 'Next'}
       </button>
@@ -116,7 +116,7 @@ export default function FirstLoginTour() {
   )
 
   const skip = (
-    <button onClick={finish} className="p-2 -mr-2 text-gray-400 hover:text-white" aria-label="Skip tour">
+    <button onClick={finish} className="p-2 -mr-2 text-token-muted hover:text-token" aria-label="Skip tour">
       <X className="w-5 h-5" />
     </button>
   )
@@ -139,15 +139,15 @@ export default function FirstLoginTour() {
         />
         {/* Tooltip floats just above the nav bar. */}
         <div
-          className="absolute left-4 right-4 bg-[#0A1628] border border-white/10 rounded-3xl p-5 shadow-2xl"
+          className="absolute left-4 right-4 bg-surface border border-token rounded-3xl p-5 shadow-2xl"
           style={{ bottom: window.innerHeight - rect.top + 16 }}
         >
           <div className="flex items-center justify-between mb-3">
             {dots}
             {skip}
           </div>
-          <h2 className="text-lg font-semibold text-white mb-1">{current.label}</h2>
-          <p className="text-gray-300 leading-relaxed">{TAB_HELP[current.path] || `Open ${current.label}.`}</p>
+          <h2 className="text-lg font-semibold text-token mb-1">{current.label}</h2>
+          <p className="text-token-muted leading-relaxed">{TAB_HELP[current.path] || `Open ${current.label}.`}</p>
           {nav}
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function FirstLoginTour() {
   // --- Centered card: welcome / notify (and the fallback if a tab couldn't be measured).
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/78 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-[#0A1628] border border-white/10 rounded-3xl p-6 shadow-2xl">
+      <div className="w-full max-w-md bg-surface border border-token rounded-3xl p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           {dots}
           {skip}
@@ -165,8 +165,8 @@ export default function FirstLoginTour() {
 
         {current.kind === 'notify' ? (
           <>
-            <h2 className="text-xl font-semibold text-white mb-2">Stay in the loop</h2>
-            <p className="text-gray-300 leading-relaxed">
+            <h2 className="text-xl font-semibold text-token mb-2">Stay in the loop</h2>
+            <p className="text-token-muted leading-relaxed">
               Turn on notifications so you never miss an incoming call or a nudge — even when the app is closed. Try it now.
             </p>
             <button
@@ -183,8 +183,8 @@ export default function FirstLoginTour() {
           </>
         ) : (
           <>
-            <h2 className="text-xl font-semibold text-white mb-2">{user.first_name ? `Welcome, ${user.first_name}` : 'Welcome to FieldVibe'}</h2>
-            <p className="text-gray-300 leading-relaxed">
+            <h2 className="text-xl font-semibold text-token mb-2">{user.first_name ? `Welcome, ${user.first_name}` : 'Welcome to FieldVibe'}</h2>
+            <p className="text-token-muted leading-relaxed">
               Quick tour — we’ll point out what each button does. Takes ten seconds.
             </p>
           </>

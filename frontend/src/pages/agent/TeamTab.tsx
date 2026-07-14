@@ -131,10 +131,10 @@ export default function TeamTab() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400 text-sm">Loading team data...</p>
+          <p className="text-token-muted text-sm">Loading team data...</p>
         </div>
       </div>
     )
@@ -171,16 +171,16 @@ export default function TeamTab() {
   const teamPeriod = getTeamTotals(period)
 
   return (
-    <div className="min-h-screen bg-[#06090F] pb-24">
+    <div className="min-h-screen bg-bg pb-24">
       {/* Header */}
-      <div className="bg-[#0A1628] px-5 py-4 border-b border-white/5">
+      <div className="bg-surface px-5 py-4 border-b border-token">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-white">My Team</h1>
-            <p className="text-xs text-gray-500">{data?.team_size || 0} agents</p>
+            <h1 className="text-lg font-bold text-token">My Team</h1>
+            <p className="text-xs text-token-faint">{data?.team_size || 0} agents</p>
           </div>
           <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 text-gray-400 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function TeamTab() {
         <div className="flex gap-1 bg-white/5 rounded-xl p-1">
           {(['day', 'week', 'month', 'prior_month'] as Period[]).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={'flex-1 py-1.5 text-[10px] font-semibold rounded-lg capitalize transition-all ' + (period === p ? 'bg-primary text-[#0A1628]' : 'text-gray-400')}>
+              className={'flex-1 py-1.5 text-[10px] font-semibold rounded-lg capitalize transition-all ' + (period === p ? 'bg-primary text-on-primary' : 'text-token-muted')}>
               {p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}
             </button>
           ))}
@@ -199,35 +199,35 @@ export default function TeamTab() {
 
       {/* Team KPIs */}
       <div className="px-5 pt-2 pb-2">
-        <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">{periodLabel(period)} Team Totals</p>
+        <p className="text-[10px] text-token-faint uppercase tracking-wider mb-2">{periodLabel(period)} Team Totals</p>
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+          <div className="bg-white/5 border border-token rounded-xl p-3.5">
             <div className="flex items-center gap-1.5 mb-2">
               <div className="p-1.5 rounded-lg bg-blue-500/10"><MapPin className="w-3.5 h-3.5 text-blue-400" /></div>
-              <span className="text-[10px] text-gray-500">Individual</span>
+              <span className="text-[10px] text-token-faint">Individual</span>
             </div>
-            <p className="text-xl font-bold text-white">{teamPeriod.individual}</p>
+            <p className="text-xl font-bold text-token">{teamPeriod.individual}</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+          <div className="bg-white/5 border border-token rounded-xl p-3.5">
             <div className="flex items-center gap-1.5 mb-2">
               <div className="p-1.5 rounded-lg bg-purple-500/10"><Store className="w-3.5 h-3.5 text-purple-400" /></div>
-              <span className="text-[10px] text-gray-500">Store</span>
+              <span className="text-[10px] text-token-faint">Store</span>
             </div>
-            <p className="text-xl font-bold text-white">{teamPeriod.store}</p>
+            <p className="text-xl font-bold text-token">{teamPeriod.store}</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+          <div className="bg-white/5 border border-token rounded-xl p-3.5">
             <div className="flex items-center gap-1.5 mb-2">
               <div className="p-1.5 rounded-lg bg-primary/10"><TrendingUp className="w-3.5 h-3.5 text-primary" /></div>
-              <span className="text-[10px] text-gray-500">Total</span>
+              <span className="text-[10px] text-token-faint">Total</span>
             </div>
-            <p className="text-xl font-bold text-white">{teamPeriod.total}</p>
+            <p className="text-xl font-bold text-token">{teamPeriod.total}</p>
           </div>
         </div>
       </div>
 
       {/* Team Targets - Individual + Store Visits with progress bars */}
       <div className="px-5 py-2">
-        <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+        <div className="bg-gradient-to-r from-surface to-[#0E1D35] border border-token rounded-2xl p-4">
           <div className="flex items-center gap-4 mb-3">
             <div className="relative w-16 h-16 flex-shrink-0">
               <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
@@ -236,25 +236,25 @@ export default function TeamTab() {
                   strokeDasharray={`${Math.min(achievement, 100) * 1.634} 163.4`} />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-white">{achievement}%</span>
+                <span className="text-sm font-bold text-token">{achievement}%</span>
               </div>
             </div>
             <div className="flex-1">
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Team Achievement</p>
-              <p className="text-[10px] text-gray-400">Overall target progress</p>
+              <p className="text-xs text-token-faint uppercase tracking-wider mb-1">Team Achievement</p>
+              <p className="text-[10px] text-token-muted">Overall target progress</p>
             </div>
             <div className="text-right">
               <DollarSign className="w-5 h-5 text-amber-400 ml-auto mb-0.5" />
-              <p className="text-lg font-bold text-white">R{totalEarnings.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-500">My Earnings</p>
+              <p className="text-lg font-bold text-token">R{totalEarnings.toLocaleString()}</p>
+              <p className="text-[10px] text-token-faint">My Earnings</p>
             </div>
           </div>
 
           {/* Individual Visits progress */}
           <div className="mb-2">
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-400">Individual Visits</span>
-              <span className="text-white font-medium">
+              <span className="text-token-muted">Individual Visits</span>
+              <span className="text-token font-medium">
                 {data?.team_targets?.actual_visits || 0}/{data?.team_targets?.target_visits || 0}
                 <span className={' ml-1 ' + pctClass(vPct)}>({vPct}%)</span>
               </span>
@@ -267,8 +267,8 @@ export default function TeamTab() {
           {/* Store Visits progress */}
           <div className="mb-3">
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-400">Store Visits</span>
-              <span className="text-white font-medium">
+              <span className="text-token-muted">Store Visits</span>
+              <span className="text-token font-medium">
                 {data?.team_targets?.actual_stores || 0}/{data?.team_targets?.target_stores || 0}
                 <span className={' ml-1 ' + pctClass(rPct)}>({rPct}%)</span>
               </span>
@@ -279,18 +279,18 @@ export default function TeamTab() {
           </div>
 
           {/* Earnings breakdown */}
-          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/5">
+          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-token">
             <div className="text-center">
               <p className="text-xs font-semibold text-amber-400">R{(data?.team_commission?.pending || 0).toLocaleString()}</p>
-              <p className="text-[9px] text-gray-500">Pending</p>
+              <p className="text-[9px] text-token-faint">Pending</p>
             </div>
             <div className="text-center">
               <p className="text-xs font-semibold text-blue-400">R{(data?.team_commission?.approved || 0).toLocaleString()}</p>
-              <p className="text-[9px] text-gray-500">Approved</p>
+              <p className="text-[9px] text-token-faint">Approved</p>
             </div>
             <div className="text-center">
               <p className="text-xs font-semibold text-primary">R{(data?.team_commission?.paid || 0).toLocaleString()}</p>
-              <p className="text-[9px] text-gray-500">Paid</p>
+              <p className="text-[9px] text-token-faint">Paid</p>
             </div>
           </div>
         </div>
@@ -301,21 +301,21 @@ export default function TeamTab() {
         <div className="px-5 py-2">
           <button
             onClick={() => setShowRules(!showRules)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3"
+            className="w-full bg-white/5 border border-token rounded-xl p-3 flex items-center gap-3"
           >
-            <Shield className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex-1 text-left">Incentive Tiers</span>
-            {showRules ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+            <Shield className="w-4 h-4 text-token-muted" />
+            <span className="text-xs font-semibold text-token-muted uppercase tracking-wider flex-1 text-left">Incentive Tiers</span>
+            {showRules ? <ChevronUp className="w-4 h-4 text-token-faint" /> : <ChevronDown className="w-4 h-4 text-token-faint" />}
           </button>
           {showRules && (
             <div className="mt-2 space-y-2">
               {tlTiers.length > 0 && (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                  <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Team Leads (team avg/day)</h3>
+                <div className="bg-white/5 border border-token rounded-xl p-3">
+                  <h3 className="text-[10px] font-semibold text-token-faint uppercase tracking-wider mb-2">Team Leads (team avg/day)</h3>
                   <div className="space-y-1.5">
                     {tlTiers.map((tier) => (
                       <div key={tier.amount} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
-                        <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
+                        <p className="text-xs text-token-muted">{tier.signups} signups + {tier.deposits} deposits /day</p>
                         <span className="text-xs font-semibold text-primary">{rand(tier.amount)}</span>
                       </div>
                     ))}
@@ -323,12 +323,12 @@ export default function TeamTab() {
                 </div>
               )}
               {agentTiers.length > 0 && (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                  <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Agents</h3>
+                <div className="bg-white/5 border border-token rounded-xl p-3">
+                  <h3 className="text-[10px] font-semibold text-token-faint uppercase tracking-wider mb-2">Agents</h3>
                   <div className="space-y-1.5">
                     {agentTiers.map((tier) => (
                       <div key={tier.amount} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
-                        <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
+                        <p className="text-xs text-token-muted">{tier.signups} signups + {tier.deposits} deposits /day</p>
                         <span className="text-xs font-semibold text-primary">{rand(tier.amount)}</span>
                       </div>
                     ))}
@@ -343,8 +343,8 @@ export default function TeamTab() {
 
       {/* Hierarchy Scorecard: Team Lead → Agents → Manager */}
       <div className="px-5 py-2">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <div className="bg-white/5 border border-token rounded-2xl p-4">
+          <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3 flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5" /> Hierarchy Scores
           </h3>
           <div className="space-y-2.5">
@@ -354,8 +354,8 @@ export default function TeamTab() {
                 <Users className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-gray-400">My Score (Team Total)</p>
-                <p className="text-sm font-semibold text-white">Team Lead</p>
+                <p className="text-xs text-token-muted">My Score (Team Total)</p>
+                <p className="text-sm font-semibold text-token">Team Lead</p>
               </div>
               <div className="text-right">
                 <span className={`text-lg font-bold ${pctClass(achievement)}`}>{achievement}%</span>
@@ -370,8 +370,8 @@ export default function TeamTab() {
                   <UserCheck className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-400">My Own Contribution</p>
-                  <p className="text-[10px] text-gray-500">{data.team_lead_own.actual_visits}/{data.team_lead_own.target_visits} visits</p>
+                  <p className="text-xs text-token-muted">My Own Contribution</p>
+                  <p className="text-[10px] text-token-faint">{data.team_lead_own.actual_visits}/{data.team_lead_own.target_visits} visits</p>
                 </div>
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(data.team_lead_own.achievement)}`}>{data.team_lead_own.achievement}%</span>
@@ -387,8 +387,8 @@ export default function TeamTab() {
                   <Shield className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-400">Manager</p>
-                  <p className="text-sm font-semibold text-white">{data.manager_performance.manager_name}</p>
+                  <p className="text-xs text-token-muted">Manager</p>
+                  <p className="text-sm font-semibold text-token">{data.manager_performance.manager_name}</p>
                 </div>
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(data.manager_performance.achievement)}`}>{data.manager_performance.achievement}%</span>
@@ -402,11 +402,11 @@ export default function TeamTab() {
 
       {/* Agent List */}
       <div className="px-5 pt-2 pb-4">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Agent Performance</h2>
+        <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Agent Performance</h2>
         {(data?.agents || []).length === 0 ? (
-          <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+          <div className="bg-white/5 border border-token rounded-xl p-6 text-center">
             <Users className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No agents assigned to your team</p>
+            <p className="text-sm text-token-faint">No agents assigned to your team</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -415,7 +415,7 @@ export default function TeamTab() {
               const agentVPct = (agent.target_visits || 0) > 0 ? Math.min(100, Math.round((agent.actual_visits / agent.target_visits) * 100)) : 0
               const agentRPct = (agent.target_stores || 0) > 0 ? Math.min(100, Math.round((agent.actual_stores / agent.target_stores) * 100)) : 0
               return (
-                <div key={agent.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                <div key={agent.id} className="bg-white/5 border border-token rounded-xl overflow-hidden">
                   <button
                     onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
                     className="w-full p-3 flex items-center gap-3"
@@ -425,7 +425,7 @@ export default function TeamTab() {
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
+                        <p className="text-sm font-medium text-token truncate">{agent.first_name} {agent.last_name}</p>
                         {(agent.rejected_photos || 0) > 0 && (
                           <span
                             onClick={(e) => { e.stopPropagation(); navigate(`/agent/agent-detail/${agent.id}?filter=rejected_photos`) }}
@@ -436,34 +436,34 @@ export default function TeamTab() {
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-gray-500">{getAgentPeriod(agent, period).individual} individual · {getAgentPeriod(agent, period).store} store ({periodLabel(period).toLowerCase()})</p>
+                      <p className="text-[10px] text-token-faint">{getAgentPeriod(agent, period).individual} individual · {getAgentPeriod(agent, period).store} store ({periodLabel(period).toLowerCase()})</p>
                     </div>
                     <div className="text-right mr-1">
                       <span className={`text-xs font-bold ${pctClass(agent.achievement)}`}>
                         {agent.achievement}%
                       </span>
                     </div>
-                    {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-token-faint" /> : <ChevronDown className="w-4 h-4 text-token-faint" />}
                   </button>
                   {isExpanded && (() => {
                     const ap = getAgentPeriod(agent, period)
                     return (
-                    <div className="px-3 pb-3 pt-0 border-t border-white/5">
+                    <div className="px-3 pb-3 pt-0 border-t border-token">
                       {/* Period breakdown table */}
                       <div className="mt-2 bg-white/5 rounded-lg overflow-hidden">
                         <div className="grid grid-cols-4 gap-0 text-[10px]">
-                          <div className="p-1.5 text-gray-500 font-medium">Period</div>
-                          <div className="p-1.5 text-gray-500 font-medium text-center">Individual</div>
-                          <div className="p-1.5 text-gray-500 font-medium text-center">Store</div>
-                          <div className="p-1.5 text-gray-500 font-medium text-center">Total</div>
+                          <div className="p-1.5 text-token-faint font-medium">Period</div>
+                          <div className="p-1.5 text-token-faint font-medium text-center">Individual</div>
+                          <div className="p-1.5 text-token-faint font-medium text-center">Store</div>
+                          <div className="p-1.5 text-token-faint font-medium text-center">Total</div>
                           {(['day', 'week', 'month', 'prior_month'] as Period[]).map(p => {
                             const d = getAgentPeriod(agent, p)
                             const isActive = p === period
                             return (<React.Fragment key={p}>
-                              <div className={'p-1.5 ' + (isActive ? 'text-primary font-semibold' : 'text-gray-400')}>{p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}</div>
-                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.individual}</div>
-                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.store}</div>
-                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.total}</div>
+                              <div className={'p-1.5 ' + (isActive ? 'text-primary font-semibold' : 'text-token-muted')}>{p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}</div>
+                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-token' : 'text-token-muted')}>{d.individual}</div>
+                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-token' : 'text-token-muted')}>{d.store}</div>
+                              <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-token' : 'text-token-muted')}>{d.total}</div>
                             </React.Fragment>)
                           })}
                         </div>
@@ -472,18 +472,18 @@ export default function TeamTab() {
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div className="bg-blue-500/10 rounded-lg p-2">
                           <p className="text-[10px] text-blue-300">{periodLabel(period)} Individual</p>
-                          <p className="text-sm font-semibold text-white">{ap.individual}</p>
+                          <p className="text-sm font-semibold text-token">{ap.individual}</p>
                         </div>
                         <div className="bg-purple-500/10 rounded-lg p-2">
                           <p className="text-[10px] text-purple-300">{periodLabel(period)} Store</p>
-                          <p className="text-sm font-semibold text-white">{ap.store}</p>
+                          <p className="text-sm font-semibold text-token">{ap.store}</p>
                         </div>
                       </div>
                       {/* Individual target progress */}
                       <div className="mt-2">
                         <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Individual Target</span>
-                          <span className="text-white">{agent.actual_visits}/{agent.target_visits} <span className={pctClass(agentVPct)}>({agentVPct}%)</span></span>
+                          <span className="text-token-faint">Individual Target</span>
+                          <span className="text-token">{agent.actual_visits}/{agent.target_visits} <span className={pctClass(agentVPct)}>({agentVPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: agentVPct + '%', backgroundColor: progressColor(agentVPct) }} />
@@ -492,8 +492,8 @@ export default function TeamTab() {
                       {/* Store target progress */}
                       <div className="mt-1.5">
                         <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Store Target</span>
-                          <span className="text-white">{agent.actual_stores}/{agent.target_stores} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
+                          <span className="text-token-faint">Store Target</span>
+                          <span className="text-token">{agent.actual_stores}/{agent.target_stores} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: '#8B5CF6' }} />
@@ -530,7 +530,7 @@ export default function TeamTab() {
                       {/* Drill-down button */}
                       <button
                         onClick={() => navigate(`/agent/agent-detail/${agent.id}`)}
-                        className="w-full mt-2 min-h-[44px] py-2 bg-white/5 border border-white/10 rounded-lg text-xs font-semibold text-gray-300 flex items-center justify-center gap-1.5"
+                        className="w-full mt-2 min-h-[44px] py-2 bg-white/5 border border-token rounded-lg text-xs font-semibold text-token-muted flex items-center justify-center gap-1.5"
                       >
                         <MapPin className="w-3.5 h-3.5" /> View Visit History
                         <ChevronRight className="w-3 h-3" />

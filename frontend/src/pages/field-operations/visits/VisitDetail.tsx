@@ -283,22 +283,22 @@ export default function VisitDetail() {
     const individuals = visit.individuals || []
 
     return (
-      <div className="min-h-screen bg-[#06090F] pb-24">
+      <div className="min-h-screen bg-bg pb-24">
         {/* Header */}
-        <div className="bg-[#0A1628] px-5 pt-5 pb-4 border-b border-white/5">
-          <button onClick={() => navigate('/agent/visits')} className="flex items-center gap-1 text-gray-400 text-sm mb-3">
+        <div className="bg-surface px-5 pt-5 pb-4 border-b border-token">
+          <button onClick={() => navigate('/agent/visits')} className="flex items-center gap-1 text-token-muted text-sm mb-3">
             <ChevronLeft className="w-4 h-4" /> Back to Visits
           </button>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-white">{displayName}</h1>
+              <h1 className="text-xl font-bold text-token">{displayName}</h1>
               <div className="flex items-center gap-2 mt-1">
                 {visitType === 'store'
                   ? <Store className="w-3 h-3 text-purple-400" />
                   : <User className="w-3 h-3 text-cyan-400" />}
-                <span className="text-xs text-gray-500 capitalize">{visitType}</span>
+                <span className="text-xs text-token-faint capitalize">{visitType}</span>
                 <span className="text-[8px] text-gray-600">&bull;</span>
-                <span className="text-xs text-gray-500">{visit.visit_date}</span>
+                <span className="text-xs text-token-faint">{visit.visit_date}</span>
               </div>
             </div>
             <span className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${statusBg}`}>
@@ -309,40 +309,40 @@ export default function VisitDetail() {
 
         <div className="px-5 pt-4 space-y-4">
           {/* Visit Info */}
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Visit Details</h3>
+          <div className="bg-white/5 border border-token rounded-xl p-4 space-y-3">
+            <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider">Visit Details</h3>
             <div className="flex justify-between">
-              <span className="text-xs text-gray-500 flex items-center gap-1"><Hash className="w-3 h-3" /> Visit ID</span>
-              <span className="text-sm text-white font-mono">{visit.visit_number || visit.id}</span>
+              <span className="text-xs text-token-faint flex items-center gap-1"><Hash className="w-3 h-3" /> Visit ID</span>
+              <span className="text-sm text-token font-mono">{visit.visit_number || visit.id}</span>
             </div>
             {visit.agent_name && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500 flex items-center gap-1"><UserCheck className="w-3 h-3" /> Created By</span>
-                <span className="text-sm text-white">{visit.agent_name}</span>
+                <span className="text-xs text-token-faint flex items-center gap-1"><UserCheck className="w-3 h-3" /> Created By</span>
+                <span className="text-sm text-token">{visit.agent_name}</span>
               </div>
             )}
             {visit.company_name && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Company</span>
-                <span className="text-sm text-white">{visit.company_name}</span>
+                <span className="text-xs text-token-faint">Company</span>
+                <span className="text-sm text-token">{visit.company_name}</span>
               </div>
             )}
             {visit.check_in_time && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Check-in</span>
-                <span className="text-sm text-white">{new Date(visit.check_in_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-xs text-token-faint">Check-in</span>
+                <span className="text-sm text-token">{new Date(visit.check_in_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             )}
             {visit.check_out_time && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Check-out</span>
-                <span className="text-sm text-white">{new Date(visit.check_out_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-xs text-token-faint">Check-out</span>
+                <span className="text-sm text-token">{new Date(visit.check_out_time).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             )}
             {visit.check_in_time && visit.check_out_time && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500 flex items-center gap-1"><Timer className="w-3 h-3" /> Duration</span>
-                <span className="text-sm text-white">
+                <span className="text-xs text-token-faint flex items-center gap-1"><Timer className="w-3 h-3" /> Duration</span>
+                <span className="text-sm text-token">
                   {(() => {
                     const mins = Math.round((new Date(visit.check_out_time).getTime() - new Date(visit.check_in_time).getTime()) / 60000)
                     if (mins < 60) return `${mins} min`
@@ -353,14 +353,14 @@ export default function VisitDetail() {
             )}
             {!visit.check_out_time && visit.duration && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500 flex items-center gap-1"><Timer className="w-3 h-3" /> Duration</span>
-                <span className="text-sm text-white">{visit.duration} min</span>
+                <span className="text-xs text-token-faint flex items-center gap-1"><Timer className="w-3 h-3" /> Duration</span>
+                <span className="text-sm text-token">{visit.duration} min</span>
               </div>
             )}
             {(visit.latitude || visit.checkin_latitude) && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">GPS</span>
-                <span className="text-sm text-white">
+                <span className="text-xs text-token-faint">GPS</span>
+                <span className="text-sm text-token">
                   {(() => {
                     const lat = formatCoordinate(visit.checkin_latitude || visit.latitude)
                     const lng = formatCoordinate(visit.checkin_longitude || visit.longitude)
@@ -372,40 +372,40 @@ export default function VisitDetail() {
             )}
             {visit.notes && (
               <div>
-                <span className="text-xs text-gray-500">Notes</span>
-                <p className="text-sm text-white mt-1">{visit.notes}</p>
+                <span className="text-xs text-token-faint">Notes</span>
+                <p className="text-sm text-token mt-1">{visit.notes}</p>
               </div>
             )}
           </div>
 
           {/* Individual Details (for individual visits) */}
           {individuals.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="bg-white/5 border border-token rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider flex items-center gap-1.5">
                 <User className="w-3 h-3" /> Individual Details
               </h3>
               {individuals.map((ind: any, idx: number) => (
                 <div key={idx} className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-xs text-gray-500">Name</span>
-                    <span className="text-sm text-white">{ind.first_name} {ind.last_name}</span>
+                    <span className="text-xs text-token-faint">Name</span>
+                    <span className="text-sm text-token">{ind.first_name} {ind.last_name}</span>
                   </div>
                   {ind.id_number && (
                     <div className="flex justify-between">
-                      <span className="text-xs text-gray-500">ID Number</span>
-                      <span className="text-sm text-white">{ind.id_number}</span>
+                      <span className="text-xs text-token-faint">ID Number</span>
+                      <span className="text-sm text-token">{ind.id_number}</span>
                     </div>
                   )}
                   {ind.phone && (
                     <div className="flex justify-between">
-                      <span className="text-xs text-gray-500">Phone</span>
-                      <span className="text-sm text-white">{ind.phone}</span>
+                      <span className="text-xs text-token-faint">Phone</span>
+                      <span className="text-sm text-token">{ind.phone}</span>
                     </div>
                   )}
                   {ind.email && (
                     <div className="flex justify-between">
-                      <span className="text-xs text-gray-500">Email</span>
-                      <span className="text-sm text-white">{ind.email}</span>
+                      <span className="text-xs text-token-faint">Email</span>
+                      <span className="text-sm text-token">{ind.email}</span>
                     </div>
                   )}
                 </div>
@@ -420,7 +420,7 @@ export default function VisitDetail() {
                   {getGoldrushRejectionReason(visit) && (
                     <p className="text-xs text-orange-300/80 mb-2">{getGoldrushRejectionReason(visit)}</p>
                   )}
-                  <p className="text-xs text-gray-400 mb-2">Please enter the correct Goldrush ID below.</p>
+                  <p className="text-xs text-token-muted mb-2">Please enter the correct Goldrush ID below.</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -429,14 +429,14 @@ export default function VisitDetail() {
                       value={goldrushIdValue}
                       onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
                       maxLength={9}
-                      className="flex-1 px-3 py-2 text-sm bg-white/10 border border-orange-500/40 rounded-lg text-white placeholder-gray-500 focus:ring-1 focus:ring-orange-400"
+                      className="flex-1 px-3 py-2 text-sm bg-white/10 border border-orange-500/40 rounded-lg text-token placeholder-gray-500 focus:ring-1 focus:ring-orange-400"
                       placeholder="9-digit ID"
                       onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId() }}
                     />
                     <button
                       onClick={handleSaveGoldrushId}
                       disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9}
-                      className="px-3 py-2 bg-primary text-[#0A1628] text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1"
+                      className="px-3 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1"
                     >
                       <Save className="w-3.5 h-3.5" />
                       {savingGoldrushId ? 'Saving...' : 'Submit'}
@@ -446,7 +446,7 @@ export default function VisitDetail() {
               )}
               {!getGoldrushRejected(visit) && (
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">Goldrush ID</span>
+                  <span className="text-xs text-token-faint">Goldrush ID</span>
                   {editingGoldrushId ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -456,7 +456,7 @@ export default function VisitDetail() {
                         value={goldrushIdValue}
                         onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
                         maxLength={9}
-                        className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-primary"
+                        className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-token placeholder-gray-500 focus:ring-1 focus:ring-primary"
                         placeholder="9 digits"
                         autoFocus
                         onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(); if (e.key === 'Escape') setEditingGoldrushId(false); }}
@@ -464,7 +464,7 @@ export default function VisitDetail() {
                       <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9} className="p-1 text-primary disabled:opacity-50">
                         <Save className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => setEditingGoldrushId(false)} className="p-1 text-gray-500">
+                      <button onClick={() => setEditingGoldrushId(false)} className="p-1 text-token-faint">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -473,7 +473,7 @@ export default function VisitDetail() {
                       <span className={`text-sm ${getGoldrushId(visit) ? 'text-blue-400' : 'text-gray-600'}`}>
                         {getGoldrushId(visit) || '—'}
                       </span>
-                      <button onClick={() => { setGoldrushIdValue(getGoldrushId(visit)); setEditingGoldrushId(true); }} className="p-1 text-gray-500 hover:text-primary">
+                      <button onClick={() => { setGoldrushIdValue(getGoldrushId(visit)); setEditingGoldrushId(true); }} className="p-1 text-token-faint hover:text-primary">
                         <Edit2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -485,33 +485,33 @@ export default function VisitDetail() {
 
           {/* Store visit: show individual_name/surname if stored directly */}
           {!individuals.length && (visit.individual_name || visit.individual_surname) && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="bg-white/5 border border-token rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider flex items-center gap-1.5">
                 <User className="w-3 h-3" /> Individual Details
               </h3>
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Name</span>
-                <span className="text-sm text-white">{visit.individual_name} {visit.individual_surname}</span>
+                <span className="text-xs text-token-faint">Name</span>
+                <span className="text-sm text-token">{visit.individual_name} {visit.individual_surname}</span>
               </div>
               {visit.individual_id_number && (
                 <div className="flex justify-between">
-                  <span className="text-xs text-gray-500">ID Number</span>
-                  <span className="text-sm text-white">{visit.individual_id_number}</span>
+                  <span className="text-xs text-token-faint">ID Number</span>
+                  <span className="text-sm text-token">{visit.individual_id_number}</span>
                 </div>
               )}
               {visit.individual_phone && (
                 <div className="flex justify-between">
-                  <span className="text-xs text-gray-500">Phone</span>
-                  <span className="text-sm text-white">{visit.individual_phone}</span>
+                  <span className="text-xs text-token-faint">Phone</span>
+                  <span className="text-sm text-token">{visit.individual_phone}</span>
                 </div>
               )}
             </div>
           )}
 
           {/* Photos — ref attached for scroll-to on rejected photo navigation */}
-          <div ref={rejectedPhotosSectionRef} className="bg-white/5 border border-white/10 rounded-xl p-4">
+          <div ref={rejectedPhotosSectionRef} className="bg-white/5 border border-token rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider flex items-center gap-1.5">
                 <Camera className="w-3 h-3" /> Photos ({photos.length})
               </h3>
               {hasRejectedPhotos && (
@@ -537,7 +537,7 @@ export default function VisitDetail() {
             {photos.length === 0 && (
               <div className="text-center py-6">
                 <Camera className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-                <p className="text-xs text-gray-500">No photos uploaded yet</p>
+                <p className="text-xs text-token-faint">No photos uploaded yet</p>
               </div>
             )}
 
@@ -565,7 +565,7 @@ export default function VisitDetail() {
                           <button
                             onClick={() => photoFileRefs.current[photo.id]?.click()}
                             disabled={uploading}
-                            className="mt-1 flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md bg-primary text-[#0A1628] disabled:opacity-50"
+                            className="mt-1 flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md bg-primary text-on-primary disabled:opacity-50"
                           >
                             <Upload className="w-3 h-3" /> Tap to Replace
                           </button>
@@ -600,8 +600,8 @@ export default function VisitDetail() {
                                 {labels.board_detected !== undefined && (
                                   <div className="flex items-center gap-1">
                                     <Sparkles className="w-3 h-3 text-violet-400" />
-                                    <span className="text-[10px] text-gray-400">Board:</span>
-                                    <span className={`text-[10px] font-medium ${labels.board_detected ? 'text-green-400' : 'text-gray-500'}`}>
+                                    <span className="text-[10px] text-token-muted">Board:</span>
+                                    <span className={`text-[10px] font-medium ${labels.board_detected ? 'text-green-400' : 'text-token-faint'}`}>
                                       {labels.board_detected ? 'Detected' : 'Not found'}
                                     </span>
                                   </div>
@@ -609,14 +609,14 @@ export default function VisitDetail() {
                                 {labels.brand && (
                                   <div className="flex items-center gap-1">
                                     <Sparkles className="w-3 h-3 text-violet-400" />
-                                    <span className="text-[10px] text-gray-400">Brand:</span>
-                                    <span className="text-[10px] font-medium text-white">{labels.brand}</span>
+                                    <span className="text-[10px] text-token-muted">Brand:</span>
+                                    <span className="text-[10px] font-medium text-token">{labels.brand}</span>
                                   </div>
                                 )}
                                 {labels.condition && (
                                   <div className="flex items-center gap-1">
                                     <Sparkles className="w-3 h-3 text-violet-400" />
-                                    <span className="text-[10px] text-gray-400">Condition:</span>
+                                    <span className="text-[10px] text-token-muted">Condition:</span>
                                     <span className={`text-[10px] font-medium ${labels.condition === 'good' ? 'text-green-400' : labels.condition === 'damaged' ? 'text-red-400' : 'text-yellow-400'}`}>
                                       {labels.condition}
                                     </span>
@@ -625,14 +625,14 @@ export default function VisitDetail() {
                                 {labels.visibility && (
                                   <div className="flex items-center gap-1">
                                     <Sparkles className="w-3 h-3 text-violet-400" />
-                                    <span className="text-[10px] text-gray-400">Visibility:</span>
+                                    <span className="text-[10px] text-token-muted">Visibility:</span>
                                     <span className={`text-[10px] font-medium ${labels.visibility === 'high' ? 'text-green-400' : labels.visibility === 'low' ? 'text-red-400' : 'text-yellow-400'}`}>
                                       {labels.visibility}
                                     </span>
                                   </div>
                                 )}
                                 {labels.description && !labels.brand && !labels.condition && (
-                                  <p className="text-[10px] text-gray-400 truncate" title={labels.description}>{labels.description}</p>
+                                  <p className="text-[10px] text-token-muted truncate" title={labels.description}>{labels.description}</p>
                                 )}
                               </div>
                             )
@@ -649,7 +649,7 @@ export default function VisitDetail() {
                       {photo.ai_share_of_voice != null && photo.ai_share_of_voice > 0 && (
                         <div className="flex items-center gap-1">
                           <BarChart3 className="w-3 h-3 text-cyan-400" />
-                          <span className="text-[10px] text-gray-400">SOV:</span>
+                          <span className="text-[10px] text-token-muted">SOV:</span>
                           <span className={`text-xs font-semibold ${photo.ai_share_of_voice >= 50 ? 'text-green-400' : photo.ai_share_of_voice >= 25 ? 'text-yellow-400' : 'text-red-400'}`}>
                             {photo.ai_share_of_voice}%
                           </span>
@@ -658,9 +658,9 @@ export default function VisitDetail() {
                       {photo.board_placement_location && (
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-purple-400" />
-                          <span className="text-[10px] text-gray-400 capitalize">{photo.board_placement_location.replace(/_/g, ' ')}</span>
+                          <span className="text-[10px] text-token-muted capitalize">{photo.board_placement_location.replace(/_/g, ' ')}</span>
                           {photo.board_placement_position && (
-                            <span className="text-[10px] text-gray-500">/ {photo.board_placement_position}</span>
+                            <span className="text-[10px] text-token-faint">/ {photo.board_placement_position}</span>
                           )}
                         </div>
                       )}
@@ -675,7 +675,7 @@ export default function VisitDetail() {
                       {photo.sample_board_match_score != null && (
                         <div className="flex items-center gap-1">
                           <CheckCircle className="w-3 h-3 text-blue-400" />
-                          <span className="text-[10px] text-gray-400">Match:</span>
+                          <span className="text-[10px] text-token-muted">Match:</span>
                           <span className="text-xs font-semibold text-blue-400">{photo.sample_board_match_score}%</span>
                         </div>
                       )}
@@ -699,8 +699,8 @@ export default function VisitDetail() {
             const photoEntries = Object.entries(allParsed).filter(([, v]) => v != null && isPhotoUrl(String(v)))
             if (textEntries.length === 0 && photoEntries.length === 0) return null
             return (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="bg-white/5 border border-token rounded-xl p-4 space-y-4">
+                <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider flex items-center gap-1.5">
                   <MessageSquare className="w-3 h-3" /> {questionnaireDef?.name || 'Questionnaire'}
                 </h3>
 
@@ -708,9 +708,9 @@ export default function VisitDetail() {
                 {textEntries.length > 0 && (
                   <div className="space-y-2.5">
                     {textEntries.map(([key, value]) => (
-                      <div key={key} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">{getLabelForKey(key)}</p>
-                        <p className="text-sm text-white">{String(value)}</p>
+                      <div key={key} className="border-b border-token pb-2.5 last:border-0 last:pb-0">
+                        <p className="text-[10px] text-token-faint uppercase tracking-wide mb-0.5">{getLabelForKey(key)}</p>
+                        <p className="text-sm text-token">{String(value)}</p>
                       </div>
                     ))}
                   </div>
@@ -719,7 +719,7 @@ export default function VisitDetail() {
                 {/* Photo answers */}
                 {photoEntries.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <p className="text-[10px] text-token-faint uppercase tracking-wide mb-2 flex items-center gap-1">
                       <Camera className="w-3 h-3" /> Photos
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -727,11 +727,11 @@ export default function VisitDetail() {
                         <div key={key}>
                           <button
                             onClick={() => setExpandedPhoto(String(url))}
-                            className="block w-full rounded-lg overflow-hidden border border-white/10 active:opacity-80 transition-opacity"
+                            className="block w-full rounded-lg overflow-hidden border border-token active:opacity-80 transition-opacity"
                           >
                             <img src={String(url)} alt={getLabelForKey(key)} className="w-full h-28 object-cover" />
                           </button>
-                          <p className="mt-1 text-[10px] text-gray-500 text-center truncate">{getLabelForKey(key)}</p>
+                          <p className="mt-1 text-[10px] text-token-faint text-center truncate">{getLabelForKey(key)}</p>
                         </div>
                       ))}
                     </div>
@@ -750,7 +750,7 @@ export default function VisitDetail() {
               <img src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
               <button
                 onClick={() => setExpandedPhoto(null)}
-                className="absolute top-4 right-4 p-2 bg-white/10 rounded-full text-white"
+                className="absolute top-4 right-4 p-2 bg-white/10 rounded-full text-token"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -849,8 +849,8 @@ export default function VisitDetail() {
 
         {photos.length === 0 && (
           <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
-            <Camera className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">No photos uploaded for this visit</p>
+            <Camera className="w-10 h-10 text-token-muted mx-auto mb-2" />
+            <p className="text-sm text-token-faint dark:text-gray-400">No photos uploaded for this visit</p>
           </div>
         )}
 
@@ -889,7 +889,7 @@ export default function VisitDetail() {
                       <button
                         onClick={() => photoFileRefs.current[photo.id]?.click()}
                         disabled={uploading}
-                        className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-[#0A1628] hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                        className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-50 transition-colors"
                       >
                         <Upload className="w-3.5 h-3.5" /> Click to Replace
                       </button>
@@ -923,8 +923,8 @@ export default function VisitDetail() {
                               {labels.board_detected !== undefined && (
                                 <div className="flex items-center gap-1">
                                   <Sparkles className="w-3 h-3 text-violet-500" />
-                                  <span className="text-xs text-gray-500">Board:</span>
-                                  <span className={`text-xs font-medium ${labels.board_detected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                  <span className="text-xs text-token-faint">Board:</span>
+                                  <span className={`text-xs font-medium ${labels.board_detected ? 'text-green-600 dark:text-green-400' : 'text-token-muted'}`}>
                                     {labels.board_detected ? 'Detected' : 'Not found'}
                                   </span>
                                 </div>
@@ -932,14 +932,14 @@ export default function VisitDetail() {
                               {labels.brand && (
                                 <div className="flex items-center gap-1">
                                   <Sparkles className="w-3 h-3 text-violet-500" />
-                                  <span className="text-xs text-gray-500">Brand:</span>
+                                  <span className="text-xs text-token-faint">Brand:</span>
                                   <span className="text-xs font-medium text-gray-900 dark:text-white">{labels.brand}</span>
                                 </div>
                               )}
                               {labels.condition && (
                                 <div className="flex items-center gap-1">
                                   <Sparkles className="w-3 h-3 text-violet-500" />
-                                  <span className="text-xs text-gray-500">Condition:</span>
+                                  <span className="text-xs text-token-faint">Condition:</span>
                                   <span className={`text-xs font-medium ${labels.condition === 'good' ? 'text-green-600 dark:text-green-400' : labels.condition === 'damaged' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                                     {labels.condition}
                                   </span>
@@ -948,14 +948,14 @@ export default function VisitDetail() {
                               {labels.visibility && (
                                 <div className="flex items-center gap-1">
                                   <Sparkles className="w-3 h-3 text-violet-500" />
-                                  <span className="text-xs text-gray-500">Visibility:</span>
+                                  <span className="text-xs text-token-faint">Visibility:</span>
                                   <span className={`text-xs font-medium ${labels.visibility === 'high' ? 'text-green-600 dark:text-green-400' : labels.visibility === 'low' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                                     {labels.visibility}
                                   </span>
                                 </div>
                               )}
                               {labels.description && !labels.brand && !labels.condition && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={labels.description}>{labels.description}</p>
+                                <p className="text-xs text-token-faint dark:text-gray-400 truncate" title={labels.description}>{labels.description}</p>
                               )}
                             </div>
                           )
@@ -972,7 +972,7 @@ export default function VisitDetail() {
                     {photo.ai_share_of_voice != null && photo.ai_share_of_voice > 0 && (
                       <div className="flex items-center gap-1">
                         <BarChart3 className="w-3 h-3 text-cyan-500" />
-                        <span className="text-xs text-gray-500">SOV:</span>
+                        <span className="text-xs text-token-faint">SOV:</span>
                         <span className={`text-xs font-semibold ${photo.ai_share_of_voice >= 50 ? 'text-green-500' : photo.ai_share_of_voice >= 25 ? 'text-yellow-500' : 'text-red-500'}`}>
                           {photo.ai_share_of_voice}%
                         </span>
@@ -1007,7 +1007,7 @@ export default function VisitDetail() {
               <div key={idx} className="space-y-2">
                 {Object.entries(parsed).map(([key, value]) => (
                   <div key={key} className="flex justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">{getLabelForKey(key)}</span>
+                    <span className="text-sm text-token-faint dark:text-gray-400 capitalize">{getLabelForKey(key)}</span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{String(value)}</span>
                   </div>
                 ))}

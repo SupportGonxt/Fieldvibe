@@ -6,7 +6,7 @@ export default function NotFoundPage() {
   const { isAuthenticated } = useAuthStore()
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#06090F] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-bg px-4">
       <div className="text-center max-w-md">
         <h1 className="text-6xl font-bold text-gray-300 dark:text-gray-600 mb-4">404</h1>
         <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">

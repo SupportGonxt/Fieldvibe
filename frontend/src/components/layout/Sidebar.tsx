@@ -63,9 +63,9 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   return (
-    <div className={`flex flex-col h-full bg-[#0A0E18] text-gray-300 transition-all duration-200 ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}>
+    <div className={`flex flex-col h-full bg-surface text-token-muted transition-all duration-200 ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}>
       {/* Logo */}
-      <div className="flex items-center h-16 flex-shrink-0 px-3 border-b border-white/5">
+      <div className="flex items-center h-16 flex-shrink-0 px-3 border-b border-token">
         {collapsed ? (
           <img src="/fieldvibe-icon.svg" alt="FV" className="h-8 w-8 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
         ) : (
@@ -84,12 +84,12 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
               {/* Section label */}
               {!collapsed && (
                 <div className="px-4 py-2 mt-2 first:mt-0">
-                  <span className="text-[10px] font-semibold tracking-widest text-gray-500 uppercase">
+                  <span className="text-[10px] font-semibold tracking-widest text-token-faint uppercase">
                     {sectionLabels[section] || section}
                   </span>
                 </div>
               )}
-              {collapsed && <div className="border-t border-white/5 mx-2 my-1" />}
+              {collapsed && <div className="border-t border-token mx-2 my-1" />}
 
               {/* Items */}
               {visibleItems.map((item) => {
@@ -106,7 +106,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                           className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
                             active
                               ? 'bg-primary/10 text-primary'
-                              : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                              : 'text-token-muted hover:bg-white/5 hover:text-token'
                           }`}
                         >
                           <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
@@ -125,7 +125,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                           className={`flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
                             active
                               ? 'bg-primary/10 text-primary'
-                              : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                              : 'text-token-muted hover:bg-white/5 hover:text-token'
                           } ${collapsed ? 'justify-center' : ''}`}
                         >
                           <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
@@ -151,7 +151,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                                   `flex items-center pl-6 pr-2 py-1.5 rounded-md text-[13px] transition-colors ${
                                     isActive
                                       ? 'text-primary bg-primary/5 font-medium'
-                                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                      : 'text-token-faint hover:text-token-muted hover:bg-white/5'
                                   }`
                                 }
                               >
@@ -183,7 +183,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                                   className={`w-full flex items-center gap-1 pl-5 pr-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${
                                     groupActive
                                       ? 'text-primary/70'
-                                      : 'text-gray-600 hover:text-gray-400'
+                                      : 'text-gray-600 hover:text-token-muted'
                                   }`}
                                 >
                                   {groupExpanded || groupActive ? (
@@ -204,7 +204,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                                           `flex items-center pl-9 pr-2 py-1.5 rounded-md text-[13px] transition-colors ${
                                             isActive
                                               ? 'text-primary bg-primary/5 font-medium'
-                                              : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                              : 'text-token-faint hover:text-token-muted hover:bg-white/5'
                                           }`
                                         }
                                       >
@@ -231,7 +231,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
       {onToggleCollapse && (
         <button
           onClick={onToggleCollapse}
-          className="hidden lg:flex items-center justify-center h-10 border-t border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
+          className="hidden lg:flex items-center justify-center h-10 border-t border-token text-token-faint hover:text-token-muted hover:bg-white/5 transition-colors"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -240,7 +240,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
 
       {/* User info */}
       {!collapsed && (
-        <div className="flex-shrink-0 border-t border-white/5 p-3">
+        <div className="flex-shrink-0 border-t border-token p-3">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
               <span className="text-xs font-semibold text-primary">
@@ -248,12 +248,12 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-200 truncate">
+              <p className="text-sm font-medium text-token truncate">
                 {user?.first_name} {user?.last_name}
               </p>
               <div className="flex items-center gap-1.5">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                <p className="text-[11px] text-gray-500 capitalize truncate">
+                <p className="text-[11px] text-token-faint capitalize truncate">
                   {user?.role?.replace('_', ' ')}
                 </p>
               </div>
@@ -262,7 +262,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
         </div>
       )}
       {collapsed && (
-        <div className="flex-shrink-0 border-t border-white/5 p-2 flex justify-center">
+        <div className="flex-shrink-0 border-t border-token p-2 flex justify-center">
           <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <span className="text-xs font-semibold text-primary">
               {user?.first_name?.[0]}{user?.last_name?.[0]}

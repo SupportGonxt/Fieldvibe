@@ -62,7 +62,7 @@ export default function HeroIncentive({ companyId, team }: { companyId?: string;
   if (!hero) {
     return (
       <div className="px-5 mb-4">
-        <div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" />
+        <div className="bg-gradient-to-br from-surface to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" />
       </div>
     )
   }
@@ -72,7 +72,7 @@ export default function HeroIncentive({ companyId, team }: { companyId?: string;
 
   return (
     <div className="px-5 mb-4">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-primary/20 rounded-2xl p-4">
+      <div className="relative overflow-hidden bg-gradient-to-br from-surface to-[#0E1D35] border border-primary/20 rounded-2xl p-4">
         {/* rank badge */}
         {hero.rank != null && (
           <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1">

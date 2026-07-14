@@ -52,15 +52,15 @@ export default function GmStats() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center">
         <Loader2 className="w-6 h-6 text-primary animate-spin" />
       </div>
     )
   }
   if (!data) {
     return (
-      <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24 text-center">
-        <p className="text-sm text-gray-400 mt-20">Could not load performance stats.</p>
+      <div className="min-h-screen bg-bg px-4 pt-6 pb-24 text-center">
+        <p className="text-sm text-token-muted mt-20">Could not load performance stats.</p>
       </div>
     )
   }
@@ -74,11 +74,11 @@ export default function GmStats() {
     .sort((a, b) => b[1] - a[1])
 
   return (
-    <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
+    <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto space-y-5">
         <div>
-          <h1 className="text-2xl font-bold text-white">Performance</h1>
-          <p className="text-sm text-gray-500">{windowLabel(data.window, period)}</p>
+          <h1 className="text-2xl font-bold text-token">Performance</h1>
+          <p className="text-sm text-token-faint">{windowLabel(data.window, period)}</p>
         </div>
 
         {data.companies.length > 1 && (
@@ -100,7 +100,7 @@ export default function GmStats() {
           </div>
           <button
             onClick={() => setAnchor(shiftAnchor(anchor, period, -1))}
-            className="w-11 h-11 flex items-center justify-center rounded-xl bg-white/[0.06] border border-white/10 text-white"
+            className="w-11 h-11 flex items-center justify-center rounded-xl bg-white/[0.06] border border-token text-token"
             aria-label="Previous period"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -108,7 +108,7 @@ export default function GmStats() {
           <button
             onClick={() => setAnchor(shiftAnchor(anchor, period, 1))}
             disabled={data.window.isCurrent}
-            className="w-11 h-11 flex items-center justify-center rounded-xl bg-white/[0.06] border border-white/10 text-white disabled:opacity-30"
+            className="w-11 h-11 flex items-center justify-center rounded-xl bg-white/[0.06] border border-token text-token disabled:opacity-30"
             aria-label="Next period"
           >
             <ChevronRight className="w-4 h-4" />
@@ -134,7 +134,7 @@ export default function GmStats() {
         </div>
 
         {/* Capacity: numbers can only move if agents are in the field and leads are being called. */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/[0.06]">
+        <div className="bg-white/[0.03] border border-token rounded-2xl divide-y divide-white/[0.06]">
           <Row
             icon={<Users className="w-4 h-4 text-primary" />}
             label="Agents in the field"
@@ -163,16 +163,16 @@ export default function GmStats() {
         {/* Why the numbers look like they do. Tap a signal to see who is triggering it. */}
         <div>
           <div className="flex items-baseline justify-between mb-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">What&apos;s dragging performance</h2>
+            <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider">What&apos;s dragging performance</h2>
             {sig && (
-              <span className="text-xs text-gray-500">{sig.flaggedAgents} of {sig.totalAgents} flagged</span>
+              <span className="text-xs text-token-faint">{sig.flaggedAgents} of {sig.totalAgents} flagged</span>
             )}
           </div>
 
           {!groups.length ? (
-            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 text-center">
+            <div className="bg-white/[0.03] border border-token rounded-2xl p-8 text-center">
               <CheckCircle2 className="w-10 h-10 text-primary/60 mx-auto mb-3" />
-              <p className="text-sm text-gray-400">No signals firing</p>
+              <p className="text-sm text-token-muted">No signals firing</p>
               <p className="text-xs text-gray-600 mt-1">Every active agent is inside their thresholds</p>
             </div>
           ) : (
@@ -184,19 +184,19 @@ export default function GmStats() {
                 const agents = (sig?.flagged || []).filter((a) => a.signals.some((s) => s.type === type))
                 const isOpen = open === type
                 return (
-                  <div key={type} className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
+                  <div key={type} className="bg-white/[0.03] border border-token rounded-2xl overflow-hidden">
                     <button
                       onClick={() => setOpen(isOpen ? null : type)}
                       className="w-full min-h-[56px] flex items-center gap-3 px-4 py-3 text-left"
                     >
                       <span className={`w-1.5 h-8 rounded-full flex-shrink-0 ${heavy ? 'bg-red-500' : 'bg-amber-500'}`} />
                       <span className="flex-1">
-                        <span className="block text-sm font-semibold text-white">{SIGNAL_REGISTRY[type]?.label ?? type.replace(/_/g, ' ')}</span>
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-sm font-semibold text-token">{SIGNAL_REGISTRY[type]?.label ?? type.replace(/_/g, ' ')}</span>
+                        <span className="block text-xs text-token-faint">
                           {count} agent{count === 1 ? '' : 's'}{heavy ? '' : ' · root cause'}
                         </span>
                       </span>
-                      <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-4 h-4 text-token-faint transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {isOpen && (
                       <ul className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
@@ -209,8 +209,8 @@ export default function GmStats() {
                                 className="w-full min-h-[56px] flex items-center gap-3 px-4 py-3 text-left active:bg-white/[0.03]"
                               >
                                 <span className="flex-1 min-w-0">
-                                  <span className="block text-sm font-medium text-white truncate">{a.name}</span>
-                                  <span className="block text-xs text-gray-500 truncate">{signalText(s)}</span>
+                                  <span className="block text-sm font-medium text-token truncate">{a.name}</span>
+                                  <span className="block text-xs text-token-faint truncate">{signalText(s)}</span>
                                 </span>
                                 {a.signals.length > 1 && (
                                   <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-red-600 text-white flex-shrink-0">
@@ -246,7 +246,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       onClick={onClick}
       className={`min-h-[44px] whitespace-nowrap px-4 rounded-xl text-sm font-medium border ${
-        active ? 'bg-primary text-[#0A1628] border-transparent' : 'bg-white/[0.06] text-gray-300 border-white/10'
+        active ? 'bg-primary text-on-primary border-transparent' : 'bg-white/[0.06] text-token-muted border-token'
       }`}
     >
       {children}
@@ -261,11 +261,11 @@ function Kpi({ label, value, delta, unit = '%', hint }: {
   const down = delta != null && delta < -0.5
   const Icon = up ? ArrowUpRight : down ? ArrowDownRight : Minus
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-2xl font-bold text-white tabular-nums mt-1">{value}</p>
+    <div className="bg-white/[0.03] border border-token rounded-2xl p-4">
+      <p className="text-xs text-token-faint">{label}</p>
+      <p className="text-2xl font-bold text-token tabular-nums mt-1">{value}</p>
       {delta != null ? (
-        <p className={`text-xs mt-1 flex items-center gap-0.5 ${up ? 'text-primary' : down ? 'text-red-400' : 'text-gray-500'}`}>
+        <p className={`text-xs mt-1 flex items-center gap-0.5 ${up ? 'text-primary' : down ? 'text-red-400' : 'text-token-faint'}`}>
           <Icon className="w-3 h-3" />
           {Math.abs(delta) < 0.05 ? '0' : Math.abs(delta).toFixed(unit === 'pts' ? 1 : 0)}{unit === 'pts' ? ' pts' : '%'}
           <span className="text-gray-600">vs prev</span>
@@ -284,10 +284,10 @@ function Row({ icon, label, value, note, bad }: {
     <div className="flex items-center gap-3 px-4 py-3">
       {icon}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white">{label}</p>
-        <p className={`text-xs ${bad ? 'text-amber-400' : 'text-gray-500'}`}>{note}</p>
+        <p className="text-sm font-medium text-token">{label}</p>
+        <p className={`text-xs ${bad ? 'text-amber-400' : 'text-token-faint'}`}>{note}</p>
       </div>
-      <span className="text-lg font-bold text-white tabular-nums">{value}</span>
+      <span className="text-lg font-bold text-token tabular-nums">{value}</span>
     </div>
   )
 }

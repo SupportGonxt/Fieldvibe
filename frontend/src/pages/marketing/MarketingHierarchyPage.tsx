@@ -353,7 +353,7 @@ export default function MarketingHierarchyPage() {
       {/* Reassign Modal */}
       {reassigningUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-md w-full shadow-2xl">
+          <div className="bg-white dark:bg-surface-raised rounded-xl max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Reassign {reassigningUser.name}</h3>
               <button onClick={() => { setReassigningUser(null); setReassignTarget('') }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -399,7 +399,7 @@ export default function MarketingHierarchyPage() {
       {/* Create Person Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1A1F2E] rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-surface-raised rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add Marketing Person</h3>
               <button onClick={closeCreateModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">

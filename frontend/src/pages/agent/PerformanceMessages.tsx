@@ -161,7 +161,7 @@ export default function PerformanceMessages() {
   if (loading) {
     return (
       <div className="px-5 mb-4">
-        <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+        <div className="bg-gradient-to-r from-surface to-[#0E1D35] border border-white/10 rounded-2xl p-4">
           <div className="w-40 h-4 bg-gray-800 rounded animate-pulse mb-3" />
           <div className="space-y-2">
             {[...Array(2)].map((_, i) => (
@@ -179,7 +179,7 @@ export default function PerformanceMessages() {
 
   return (
     <div className="px-5 mb-4">
-      <div className="bg-gradient-to-br from-primary/10 via-[#0A1628] to-[#00D06E]/10 border border-primary/20 rounded-2xl overflow-hidden">
+      <div className="bg-gradient-to-br from-primary/10 via-surface to-[#00D06E]/10 border border-primary/20 rounded-2xl overflow-hidden">
         {/* Header */}
         <button
           onClick={() => setExpanded(!expanded)}

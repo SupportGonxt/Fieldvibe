@@ -23,14 +23,14 @@ export default function PresenceConsentNotice({ role }: { role: string | undefin
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[60] px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-      <div className="max-w-md mx-auto bg-[#0A1628] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-4">
-        <p className="text-sm text-gray-300 leading-relaxed">
+      <div className="max-w-md mx-auto bg-surface border border-token rounded-2xl shadow-2xl shadow-black/50 p-4">
+        <p className="text-sm text-token-muted leading-relaxed">
           FieldVibe records your location during work hours to verify field presence,
           per your work policy. Continue?
         </p>
         <button
           onClick={accept}
-          className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-br from-primary to-[#00D06E] text-[#0A1628] text-sm font-semibold active:scale-95 transition-transform"
+          className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-br from-primary to-[#00D06E] text-on-primary text-sm font-semibold active:scale-95 transition-transform"
         >
           I understand
         </button>

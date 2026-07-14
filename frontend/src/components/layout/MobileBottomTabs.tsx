@@ -50,7 +50,7 @@ export default function MobileBottomTabs() {
   const isActive = (path: string) => location.pathname.startsWith(path)
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white dark:bg-[#0A0E18] border-t border-gray-200 dark:border-white/10 safe-area-bottom">
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white dark:bg-surface border-t border-gray-200 dark:border-white/10 safe-area-bottom">
       <div className="flex items-center justify-around h-16">
         {visibleTabs.map((tab) => {
           const active = isActive(tab.path)

@@ -2,8 +2,9 @@
 // MyIssues — what the cron has put on *you*; UnmanagedIssues — who is sitting on theirs.
 //
 // Both render on the web dashboard and inside the field PWA. The PWA shell is hard-dark
-// (#06090F) rather than `.dark`-classed, so `dark:` variants never fire there and the two
-// surfaces need real skins, not one set of classes. surface="pwa" picks the dark one.
+// (bg-bg, forced regardless of `.dark`) rather than `.dark`-classed, so `dark:` variants
+// never fire there and the two surfaces need real skins, not one set of classes.
+// surface="pwa" picks the dark one.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShieldAlert, Check } from 'lucide-react'
 import { toast } from 'react-hot-toast'
@@ -87,9 +88,9 @@ const SKIN = {
   },
   pwa: {
     // Solid dark-red card (not translucent) so the white/white-opacity text below stays
-    // legible even in light app-theme, where PWA pages get their #06090F root lightened by
-    // the global override but text-white/NN opacity variants are not remapped. bg-red-900 is
-    // a fixed color the light-mode override never touches, so contrast holds in both themes.
+    // legible even in light app-theme, where PWA pages force a dark bg-bg root but
+    // text-white/NN opacity variants are not theme-remapped. bg-red-900 is a fixed color
+    // (not a semantic token), so contrast holds in both themes regardless.
     section: 'rounded-2xl border border-red-500/40 bg-red-900',
     icon: 'text-red-400',
     title: 'font-semibold text-white',

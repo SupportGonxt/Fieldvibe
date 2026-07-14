@@ -23,7 +23,7 @@ const PerformanceSection = memo(({ perfSummary }: PerformanceSectionProps) => {
     <div className="px-5 mb-4">
       <button
         onClick={() => navigate('/agent/stats')}
-        className="w-full bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 active:bg-white/5 transition-colors"
+        className="w-full bg-gradient-to-r from-surface to-[#0E1D35] border border-white/10 rounded-2xl p-4 active:bg-white/5 transition-colors"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">

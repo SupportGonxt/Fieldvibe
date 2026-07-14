@@ -198,7 +198,7 @@ export default function AgentOnboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-[#06090F] flex flex-col">
+    <div className="min-h-screen bg-bg flex flex-col">
       {/* Progress bar */}
       <div className="px-5 pt-4 pb-2">
         <div className="flex gap-1">
@@ -212,9 +212,9 @@ export default function AgentOnboarding() {
           ))}
         </div>
         <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] text-gray-500">Step {currentStep + 1} of {STEPS.length}</span>
+          <span className="text-[10px] text-token-faint">Step {currentStep + 1} of {STEPS.length}</span>
           {!isLast && (
-            <button onClick={skip} className="min-h-[44px] px-2 inline-flex items-center text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            <button onClick={skip} className="min-h-[44px] px-2 inline-flex items-center text-xs text-token-faint hover:text-token-muted transition-colors">
               Skip Guide
             </button>
           )}
@@ -226,20 +226,20 @@ export default function AgentOnboarding() {
         {/* Icon */}
         <div className="flex justify-center mb-6">
           <div className={`w-20 h-20 bg-gradient-to-br ${step.color} rounded-3xl flex items-center justify-center shadow-lg`}>
-            <Icon className="w-10 h-10 text-white" />
+            <Icon className="w-10 h-10 text-token" />
           </div>
         </div>
 
         {/* Title */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-white mb-1">{step.title}</h1>
-          <p className="text-sm text-gray-400">{step.subtitle}</p>
+          <h1 className="text-2xl font-bold text-token mb-1">{step.title}</h1>
+          <p className="text-sm text-token-muted">{step.subtitle}</p>
         </div>
 
         {/* Content */}
         <div className="space-y-3 mb-6">
           {step.content.map((text, i) => (
-            <p key={i} className="text-sm text-gray-300 leading-relaxed text-center">
+            <p key={i} className="text-sm text-token-muted leading-relaxed text-center">
               {text}
             </p>
           ))}
@@ -247,13 +247,13 @@ export default function AgentOnboarding() {
 
         {/* Tips */}
         {step.tips.length > 0 && (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2.5 mb-6">
+          <div className="bg-white/5 border border-token rounded-2xl p-4 space-y-2.5 mb-6">
             {step.tips.map((tip, i) => (
               <div key={i} className="flex items-start gap-2.5">
                 <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <ChevronRight className="w-3 h-3 text-primary" />
                 </div>
-                <p className="text-sm text-gray-300">{tip}</p>
+                <p className="text-sm text-token-muted">{tip}</p>
               </div>
             ))}
           </div>
@@ -267,7 +267,7 @@ export default function AgentOnboarding() {
           {!isFirst && (
             <button
               onClick={goBack}
-              className="px-5 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white font-medium flex items-center gap-2 active:bg-white/10 transition-colors"
+              className="px-5 py-3.5 bg-white/5 border border-token rounded-2xl text-token font-medium flex items-center gap-2 active:bg-white/10 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
               Back
@@ -275,7 +275,7 @@ export default function AgentOnboarding() {
           )}
           <button
             onClick={goNext}
-            className={`flex-1 py-3.5 bg-gradient-to-r ${step.color} text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform`}
+            className={`flex-1 py-3.5 bg-gradient-to-r ${step.color} text-token font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform`}
           >
             {isLast ? (
               <>

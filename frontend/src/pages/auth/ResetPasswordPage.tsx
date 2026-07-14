@@ -55,10 +55,10 @@ export default function ResetPasswordPage() {
     return (
       <div className="space-y-6 text-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">
+          <h2 className="text-2xl font-bold text-token">
             Invalid Reset Link
           </h2>
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-token-muted">
             This password reset link is invalid or has expired.
           </p>
         </div>
@@ -66,7 +66,7 @@ export default function ResetPasswordPage() {
         <div className="space-y-4">
           <Link
             to="/auth/forgot-password"
-            className="block text-center w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-primary/25"
+            className="block text-center w-full bg-primary hover:bg-[#1DFFB2] text-on-primary font-semibold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-primary/25"
           >
             Request new reset link
           </Link>
@@ -94,10 +94,10 @@ export default function ResetPasswordPage() {
           Back to sign in
         </Link>
         
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold text-token">
           Reset your password
         </h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-token-muted">
           Enter your new password below.
         </p>
       </div>
@@ -105,12 +105,12 @@ export default function ResetPasswordPage() {
       <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
         {/* New password field */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="password" className="block text-sm font-medium text-token-muted mb-2">
             New password
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-slate-500" />
+              <Lock className="h-5 w-5 text-token-faint" />
             </div>
             <input
               {...register('password', {
@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
                 },
               })}
               type={showPassword ? 'text' : 'password'}
-              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="Enter new password"
             />
             <button
@@ -134,9 +134,9 @@ export default function ResetPasswordPage() {
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? (
-                <EyeOff className="h-5 w-5 text-slate-500" />
+                <EyeOff className="h-5 w-5 text-token-faint" />
               ) : (
-                <Eye className="h-5 w-5 text-slate-500" />
+                <Eye className="h-5 w-5 text-token-faint" />
               )}
             </button>
           </div>
@@ -147,12 +147,12 @@ export default function ResetPasswordPage() {
 
         {/* Confirm password field */}
         <div>
-          <label htmlFor="password_confirmation" className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="password_confirmation" className="block text-sm font-medium text-token-muted mb-2">
             Confirm new password
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-slate-500" />
+              <Lock className="h-5 w-5 text-token-faint" />
             </div>
             <input
               {...register('password_confirmation', {
@@ -161,7 +161,7 @@ export default function ResetPasswordPage() {
                   value === password || 'Passwords do not match',
               })}
               type={showConfirmPassword ? 'text' : 'password'}
-              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="Confirm new password"
             />
             <button
@@ -170,9 +170,9 @@ export default function ResetPasswordPage() {
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             >
               {showConfirmPassword ? (
-                <EyeOff className="h-5 w-5 text-slate-500" />
+                <EyeOff className="h-5 w-5 text-token-faint" />
               ) : (
-                <Eye className="h-5 w-5 text-slate-500" />
+                <Eye className="h-5 w-5 text-token-faint" />
               )}
             </button>
           </div>
@@ -182,7 +182,7 @@ export default function ResetPasswordPage() {
         </div>
 
         {/* Password requirements */}
-        <div className="text-sm text-slate-400">
+        <div className="text-sm text-token-muted">
           <p className="font-medium mb-1">Password requirements:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>At least 8 characters long</li>
@@ -196,7 +196,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
+            className="w-full bg-primary hover:bg-[#1DFFB2] text-on-primary font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
           >
             {isLoading ? (
               <>

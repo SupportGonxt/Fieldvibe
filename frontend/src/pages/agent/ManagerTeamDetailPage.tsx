@@ -66,7 +66,7 @@ export default function ManagerTeamDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -74,13 +74,13 @@ export default function ManagerTeamDetailPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-bg flex items-center justify-center px-6">
         <div className="text-center">
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Couldn't load this team.</p>
+          <p className="text-token-muted text-sm">Couldn't load this team.</p>
           <div className="mt-3 flex items-center justify-center gap-3">
             <button onClick={() => fetchData()} className="text-primary text-sm font-medium">Retry</button>
-            <button onClick={() => navigate(-1)} className="text-gray-500 text-sm font-medium">Go back</button>
+            <button onClick={() => navigate(-1)} className="text-token-faint text-sm font-medium">Go back</button>
           </div>
         </div>
       </div>
@@ -89,10 +89,10 @@ export default function ManagerTeamDetailPage() {
 
   if (!teamLead) {
     return (
-      <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center">
         <div className="text-center">
           <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Team not found</p>
+          <p className="text-token-muted text-sm">Team not found</p>
           <button onClick={() => navigate(-1)} className="mt-3 text-primary text-sm font-medium">Go back</button>
         </div>
       </div>
@@ -109,10 +109,10 @@ export default function ManagerTeamDetailPage() {
     : 0
 
   return (
-    <div className="min-h-screen bg-[#06090F] pb-24">
+    <div className="min-h-screen bg-bg pb-24">
       {/* Header */}
-      <div className="bg-[#0A1628] px-5 py-4 border-b border-white/5">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 mb-3">
+      <div className="bg-surface px-5 py-4 border-b border-token">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-token-muted mb-3">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-xs">Back to Teams</span>
         </button>
@@ -121,12 +121,12 @@ export default function ManagerTeamDetailPage() {
             <Users className="w-6 h-6 text-primary" />
           </div>
           <div className="flex-1">
-            <h1 className="text-lg font-bold text-white">{teamLead.first_name} {teamLead.last_name}</h1>
-            <p className="text-xs text-gray-500">Team Lead &middot; {agents.length} agents</p>
+            <h1 className="text-lg font-bold text-token">{teamLead.first_name} {teamLead.last_name}</h1>
+            <p className="text-xs text-token-faint">Team Lead &middot; {agents.length} agents</p>
           </div>
           <div className="text-right">
             <span className={`text-2xl font-bold ${pctClass(teamAch)}`}>{teamAch}%</span>
-            <p className="text-[10px] text-gray-500">Team Ach.</p>
+            <p className="text-[10px] text-token-faint">Team Ach.</p>
           </div>
         </div>
       </div>
@@ -134,26 +134,26 @@ export default function ManagerTeamDetailPage() {
       {/* Team Summary */}
       <div className="px-5 pt-4">
         <div className="grid grid-cols-2 gap-2 mb-4">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-            <p className="text-lg font-bold text-white">{agents.length}</p>
-            <p className="text-[10px] text-gray-500">Agents</p>
+          <div className="bg-white/5 border border-token rounded-xl p-3 text-center">
+            <p className="text-lg font-bold text-token">{agents.length}</p>
+            <p className="text-[10px] text-token-faint">Agents</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-            <p className="text-lg font-bold text-white">{totalVisits}<span className="text-xs text-gray-500">/{totalTarget}</span></p>
-            <p className="text-[10px] text-gray-500">Individual Visits</p>
+          <div className="bg-white/5 border border-token rounded-xl p-3 text-center">
+            <p className="text-lg font-bold text-token">{totalVisits}<span className="text-xs text-token-faint">/{totalTarget}</span></p>
+            <p className="text-[10px] text-token-faint">Individual Visits</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center col-span-2">
-            <p className="text-lg font-bold text-white">{totalStores}</p>
-            <p className="text-[10px] text-gray-500">Store Visits (month)</p>
+          <div className="bg-white/5 border border-token rounded-xl p-3 text-center col-span-2">
+            <p className="text-lg font-bold text-token">{totalStores}</p>
+            <p className="text-[10px] text-token-faint">Store Visits (month)</p>
           </div>
         </div>
 
         {/* Agent List */}
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Agent Performance</h2>
+        <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Agent Performance</h2>
         {agents.length === 0 ? (
-          <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+          <div className="bg-white/5 border border-token rounded-xl p-6 text-center">
             <Users className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No agents in this team</p>
+            <p className="text-sm text-token-faint">No agents in this team</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -162,42 +162,42 @@ export default function ManagerTeamDetailPage() {
               const agentVPct = agent.target_visits > 0 ? Math.min(100, Math.round((agent.actual_visits / agent.target_visits) * 100)) : 0
               const agentRPct = agent.target_stores > 0 ? Math.min(100, Math.round((agent.actual_stores / agent.target_stores) * 100)) : 0
               return (
-                <div key={agent.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                <div key={agent.id} className="bg-white/5 border border-token rounded-xl overflow-hidden">
                   <button
                     onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
                     <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
+                      <span className="text-xs font-bold text-token">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{agent.first_name} {agent.last_name}</p>
-                      <p className="text-[10px] text-gray-500">{agent.today_visits} individual &middot; {agent.today_stores} store today</p>
+                      <p className="text-sm font-medium text-token truncate">{agent.first_name} {agent.last_name}</p>
+                      <p className="text-[10px] text-token-faint">{agent.today_visits} individual &middot; {agent.today_stores} store today</p>
                     </div>
                     <div className="text-right mr-1">
                       <span className={`text-xs font-bold ${pctClass(agent.achievement)}`}>
                         {agent.achievement}%
                       </span>
                     </div>
-                    {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-token-faint" /> : <ChevronDown className="w-4 h-4 text-token-faint" />}
                   </button>
                   {isExpanded && (
-                    <div className="px-3 pb-3 pt-0 border-t border-white/5">
+                    <div className="px-3 pb-3 pt-0 border-t border-token">
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Individual</p>
-                          <p className="text-sm font-semibold text-white">{agent.month_visits}</p>
+                          <p className="text-[10px] text-token-faint">Month Individual</p>
+                          <p className="text-sm font-semibold text-token">{agent.month_visits}</p>
                         </div>
                         <div className="bg-white/5 rounded-lg p-2">
-                          <p className="text-[10px] text-gray-500">Month Store</p>
-                          <p className="text-sm font-semibold text-white">{agent.month_stores}</p>
+                          <p className="text-[10px] text-token-faint">Month Store</p>
+                          <p className="text-sm font-semibold text-token">{agent.month_stores}</p>
                         </div>
                       </div>
                       {/* Visit target progress */}
                       <div className="mt-2">
                         <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Individual Target</span>
-                          <span className="text-white">{agent.actual_visits}/{agent.target_visits} <span className={pctClass(agentVPct)}>({agentVPct}%)</span></span>
+                          <span className="text-token-faint">Individual Target</span>
+                          <span className="text-token">{agent.actual_visits}/{agent.target_visits} <span className={pctClass(agentVPct)}>({agentVPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: agentVPct + '%', backgroundColor: progressColor(agentVPct) }} />
@@ -206,8 +206,8 @@ export default function ManagerTeamDetailPage() {
                       {/* Store target progress */}
                       <div className="mt-1.5">
                         <div className="flex justify-between text-[10px] mb-0.5">
-                          <span className="text-gray-500">Store Target</span>
-                          <span className="text-white">{agent.actual_stores}/{agent.target_stores} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
+                          <span className="text-token-faint">Store Target</span>
+                          <span className="text-token">{agent.actual_stores}/{agent.target_stores} <span className={pctClass(agentRPct)}>({agentRPct}%)</span></span>
                         </div>
                         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: agentRPct + '%', backgroundColor: progressColor(agentRPct) }} />

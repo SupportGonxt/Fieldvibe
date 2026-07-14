@@ -41,17 +41,17 @@ export default function ForgotPasswordPage() {
           <div className="mx-auto h-12 w-12 bg-primary/20 rounded-full flex items-center justify-center">
             <Mail className="h-6 w-6 text-primary" />
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-white">
+          <h2 className="mt-4 text-2xl font-bold text-token">
             Check your email
           </h2>
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-token-muted">
             We've sent a password reset link to{' '}
             <span className="font-medium">{getValues('email')}</span>
           </p>
         </div>
 
         <div className="space-y-4">
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-token-faint">
             Didn't receive the email? Check your spam folder or try again.
           </p>
           
@@ -85,22 +85,22 @@ export default function ForgotPasswordPage() {
           Back to sign in
         </Link>
         
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold text-token">
           Forgot your password?
         </h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-token-muted">
           No worries! Enter your email address and we'll send you a link to reset your password.
         </p>
       </div>
 
       <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-token-muted mb-2">
             Email address
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-slate-500" />
+              <Mail className="h-5 w-5 text-token-faint" />
             </div>
             <input
               {...register('email', {
@@ -111,7 +111,7 @@ export default function ForgotPasswordPage() {
                 },
               })}
               type="email"
-              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="Enter your email"
               autoComplete="email"
             />
@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
+            className="w-full bg-primary hover:bg-[#1DFFB2] text-on-primary font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
           >
             {isLoading ? (
               <>

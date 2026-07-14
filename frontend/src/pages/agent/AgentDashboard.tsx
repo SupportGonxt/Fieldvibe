@@ -420,9 +420,9 @@ export default function AgentDashboard() {
 
   if (loading || !criticalLoaded) {
     return (
-      <div className="min-h-screen bg-[#06090F] pb-24">
+      <div className="min-h-screen bg-bg pb-24">
         {/* Header skeleton */}
-        <div className="bg-[#0A1628] px-4 py-2 border-b border-white/5">
+        <div className="bg-surface px-4 py-2 border-b border-token">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-3.5 h-3.5 bg-gray-700 rounded animate-pulse" />
@@ -446,7 +446,7 @@ export default function AgentDashboard() {
         <div className="px-5 mb-4">
           <div className="grid grid-cols-2 gap-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+              <div key={i} className="bg-white/5 border border-token rounded-xl p-3.5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-8 h-8 bg-gray-700 rounded-lg animate-pulse" />
                   <div className="w-12 h-3 bg-gray-700 rounded animate-pulse" />
@@ -463,7 +463,7 @@ export default function AgentDashboard() {
           <div className="w-28 h-4 bg-gray-800 rounded animate-pulse mb-2" />
           <div className="flex gap-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex-shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+              <div key={i} className="flex-shrink-0 bg-white/5 border border-token rounded-xl px-4 py-2.5">
                 <div className="w-24 h-4 bg-gray-700 rounded animate-pulse" />
               </div>
             ))}
@@ -475,7 +475,7 @@ export default function AgentDashboard() {
           <div className="w-32 h-4 bg-gray-800 rounded animate-pulse mb-2" />
           <div className="grid grid-cols-2 gap-3">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
+              <div key={i} className="bg-white/5 border border-token rounded-xl p-3">
                 <div className="w-20 h-3 bg-gray-700 rounded animate-pulse mb-2" />
                 <div className="w-16 h-5 bg-gray-600 rounded animate-pulse mb-2" />
                 <div className="w-full h-1.5 bg-gray-700 rounded-full animate-pulse" />
@@ -489,7 +489,7 @@ export default function AgentDashboard() {
           <div className="w-28 h-4 bg-gray-800 rounded animate-pulse mb-2" />
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+              <div key={i} className="bg-white/5 border border-token rounded-xl p-3 flex items-center gap-3">
                 <div className="w-10 h-10 bg-gray-700 rounded-xl animate-pulse" />
                 <div className="flex-1">
                   <div className="w-32 h-4 bg-gray-600 rounded animate-pulse mb-1" />
@@ -504,26 +504,26 @@ export default function AgentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#06090F] pb-24">
-      <div className="bg-[#0A1628] px-4 py-2 flex items-center justify-between border-b border-white/5">
+    <div className="min-h-screen bg-bg pb-24">
+      <div className="bg-surface px-4 py-2 flex items-center justify-between border-b border-token">
         <div className="flex items-center gap-2">
           {online ? <Wifi className="w-3.5 h-3.5 text-primary" /> : <WifiOff className="w-3.5 h-3.5 text-red-400" />}
-          <span className="text-[10px] text-gray-500">{online ? 'Online' : 'Offline'}</span>
+          <span className="text-[10px] text-token-faint">{online ? 'Online' : 'Offline'}</span>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => fetchDashboard(true)} className="p-1" disabled={refreshing}>
-            <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-token-faint ${refreshing ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={handleLogout} className="p-1">
-            <LogOut className="w-3.5 h-3.5 text-gray-500" />
+            <LogOut className="w-3.5 h-3.5 text-token-faint" />
           </button>
         </div>
       </div>
 
       <div className="px-5 pt-5 pb-3">
-        <p className="text-sm text-gray-500">{greeting()}</p>
-        <h1 className="text-2xl font-bold text-white">{firstName}</h1>
-        <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+        <p className="text-sm text-token-faint">{greeting()}</p>
+        <h1 className="text-2xl font-bold text-token">{firstName}</h1>
+        <p className="text-xs text-token-faint flex items-center gap-1 mt-1">
           <Calendar className="w-3 h-3" />
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
@@ -589,7 +589,7 @@ export default function AgentDashboard() {
             <div className="px-5 mb-4">
               <button
                 onClick={() => navigate('/agent/visits/create?type=individual')}
-                className="w-full flex items-center gap-3 bg-primary text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
+                className="w-full flex items-center gap-3 bg-primary text-on-primary rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
               >
                 <Zap className="w-6 h-6 flex-shrink-0" />
                 <span className="flex-1 text-left leading-tight">Fast Signup<span className="block text-xs font-medium opacity-70">Snap the photo — one tap</span></span>
@@ -597,7 +597,7 @@ export default function AgentDashboard() {
               </button>
             </div>
           )}
-          <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" /></div>}>
+          <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-surface to-[#0E1D35] border border-token rounded-2xl p-4 h-40 animate-pulse" /></div>}>
             <HeroIncentive companyId={goldrushCompany.id} team={isTeamRole} />
             {isAgentRole && <Leaderboard meId={authUser?.id} />}
           </Suspense>
@@ -610,7 +610,7 @@ export default function AgentDashboard() {
           <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 relative">
             <button
               onClick={dismissInstall}
-              className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
+              className="absolute top-2 right-2 p-1 text-token-faint hover:text-token-muted transition-colors"
               aria-label="Dismiss"
             >
               <X className="w-4 h-4" />
@@ -620,13 +620,13 @@ export default function AgentDashboard() {
                 <Download className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">Install FieldVibe</p>
-                <p className="text-xs text-gray-400">Add to your home screen for quick access</p>
+                <p className="text-sm font-semibold text-token">Install FieldVibe</p>
+                <p className="text-xs text-token-muted">Add to your home screen for quick access</p>
               </div>
             </div>
             <button
               onClick={promptInstall}
-              className="mt-3 w-full py-2.5 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
+              className="mt-3 w-full py-2.5 bg-gradient-to-r from-primary to-[#00D06E] text-on-primary font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
             >
               Install App
             </button>
@@ -639,29 +639,29 @@ export default function AgentDashboard() {
         <div className="px-5 mb-4">
           <button
             onClick={() => navigate('/agent/team')}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+            className="w-full bg-white/[0.04] border border-token rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
             <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
               <Users className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-white">Team Overview</p>
-              <p className="text-xs text-gray-400">View your agents' performance</p>
+              <p className="text-sm font-semibold text-token">Team Overview</p>
+              <p className="text-xs text-token-muted">View your agents' performance</p>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-500" />
+            <ChevronRight className="w-5 h-5 text-token-faint" />
           </button>
           <button
             onClick={() => navigate('/agent/visits/create?type=store')}
-            className="mt-3 w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+            className="mt-3 w-full bg-white/[0.04] border border-token rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
             <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
               <Store className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-white">Store Visit</p>
-              <p className="text-xs text-gray-400">Log a visit to a store</p>
+              <p className="text-sm font-semibold text-token">Store Visit</p>
+              <p className="text-xs text-token-muted">Log a visit to a store</p>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-500" />
+            <ChevronRight className="w-5 h-5 text-token-faint" />
           </button>
         </div>
       )}
@@ -670,16 +670,16 @@ export default function AgentDashboard() {
         <div className="px-5 mb-4">
           <button
             onClick={() => navigate('/agent/teams')}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
+            className="w-full bg-white/[0.04] border border-token rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
             <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
               <Building2 className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-semibold text-white">Organization Overview</p>
-              <p className="text-xs text-gray-400">View all teams & agents</p>
+              <p className="text-sm font-semibold text-token">Organization Overview</p>
+              <p className="text-xs text-token-muted">View all teams & agents</p>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-500" />
+            <ChevronRight className="w-5 h-5 text-token-faint" />
           </button>
         </div>
       )}
@@ -688,7 +688,7 @@ export default function AgentDashboard() {
       {isLeader(authUser?.role) && (
         <Suspense fallback={
           <div className="px-5 mb-4">
-            <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+            <div className="bg-gradient-to-r from-surface to-[#0E1D35] border border-token rounded-2xl p-4">
               <div className="w-40 h-4 bg-gray-800 rounded animate-pulse mb-3" />
               <div className="space-y-2">
                 <div className="w-full h-16 bg-gray-800/50 rounded-xl animate-pulse" />
@@ -704,7 +704,7 @@ export default function AgentDashboard() {
         <div className="grid grid-cols-2 gap-3 mb-3">
           <button
             onClick={() => navigate('/agent/visits/create?type=store')}
-            className="py-3.5 bg-white/[0.06] border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+            className="py-3.5 bg-white/[0.06] border border-token text-token font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
           >
             <Store className="w-4 h-4 text-primary" />
             Store Visit
@@ -712,7 +712,7 @@ export default function AgentDashboard() {
           {!isStellr && (
             <button
               onClick={() => navigate('/agent/visits/create?type=individual')}
-              className="py-3.5 bg-white/[0.06] border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="py-3.5 bg-white/[0.06] border border-token text-token font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
             >
               <User className="w-4 h-4 text-primary" />
               Individual Visit
@@ -721,7 +721,7 @@ export default function AgentDashboard() {
         </div>
         <button
           onClick={() => navigate('/agent/visits/create')}
-          className="w-full py-3 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+          className="w-full py-3 bg-gradient-to-r from-primary to-[#00D06E] text-on-primary font-bold rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
         >
           <Plus className="w-4 h-4" />
           Start New Visit
@@ -746,7 +746,7 @@ export default function AgentDashboard() {
                   navigate('/agent/visits?filter=rejected_photos')
                 }
               }}
-              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-token font-bold rounded-2xl shadow-lg shadow-red-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={rejectedPhotoLoading || rejectedPhotoCount === 0}
               style={{ opacity: rejectedPhotoCount === 0 ? 0.5 : 1 }}
             >
@@ -769,7 +769,7 @@ export default function AgentDashboard() {
             />
             <button
               onClick={() => navigate('/agent/visits?filter=rejected_goldrush')}
-              className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-500 text-token font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={rejectedGoldrushLoading || rejectedGoldrushCount === 0}
               style={{ opacity: rejectedGoldrushCount === 0 ? 0.5 : 1 }}
             >
@@ -792,7 +792,7 @@ export default function AgentDashboard() {
             />
             <button
               onClick={() => navigate('/agent/upload-failures')}
-              className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+              className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-token font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={uploadFailuresLoading}
               style={{ opacity: uploadFailuresCount === 0 ? 0.5 : 1 }}
             >
@@ -821,7 +821,7 @@ export default function AgentDashboard() {
       {perfSummary && (
         <Suspense fallback={
           <div className="px-5 mb-4">
-            <div className="bg-gradient-to-r from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+            <div className="bg-gradient-to-r from-surface to-[#0E1D35] border border-token rounded-2xl p-4">
               <div className="w-24 h-4 bg-gray-800 rounded animate-pulse mb-3" />
               <div className="grid grid-cols-3 gap-3">
                 {[...Array(3)].map((_, i) => (
@@ -842,7 +842,7 @@ export default function AgentDashboard() {
       {perfSummary?.team_performance && (
         <Suspense fallback={
           <div className="px-5 mb-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div className="bg-white/5 border border-token rounded-2xl p-4">
               <div className="w-32 h-4 bg-gray-700 rounded animate-pulse mb-3" />
               <div className="w-48 h-4 bg-gray-700 rounded animate-pulse mb-3" />
               <div className="grid grid-cols-2 gap-3">
@@ -858,12 +858,12 @@ export default function AgentDashboard() {
 
       {data?.companies && data.companies.length > 0 && (
         <div className="px-5 mb-4">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Assigned Companies</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Assigned Companies</h2>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {data.companies.map((c) => (
-              <div key={c.id} className="flex-shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 flex items-center gap-2">
+              <div key={c.id} className="flex-shrink-0 bg-white/5 border border-token rounded-xl px-4 py-2.5 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-primary" />
-                <span className="text-sm text-white whitespace-nowrap">{c.name}</span>
+                <span className="text-sm text-token whitespace-nowrap">{c.name}</span>
               </div>
             ))}
           </div>
@@ -873,15 +873,15 @@ export default function AgentDashboard() {
       {/* Weekly & Monthly Targets */}
       {targets && targets.weekIndivTarget + targets.monthIndivTarget + targets.monthStoreTarget > 0 && (
         <div className="px-5 mb-4">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Week & Month Progress</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Week & Month Progress</h2>
           <div className="grid grid-cols-2 gap-3 mb-3">
             {targets.weekIndivTarget > 0 && (
               <div className={`border rounded-xl p-3 ${targets.weekIndivActual >= targets.weekIndivTarget ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <Calendar className="w-3 h-3 text-blue-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Week Individual</span>
+                  <span className="text-[10px] text-token-faint uppercase">Week Individual</span>
                 </div>
-                <p className="text-lg font-bold text-white">{targets.weekIndivActual}<span className="text-sm text-gray-500">/{targets.weekIndivTarget}</span></p>
+                <p className="text-lg font-bold text-token">{targets.weekIndivActual}<span className="text-sm text-token-faint">/{targets.weekIndivTarget}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((targets.weekIndivActual / targets.weekIndivTarget) * 100))}%` }} />
                 </div>
@@ -897,9 +897,9 @@ export default function AgentDashboard() {
               <div className={`border rounded-xl p-3 ${targets.monthIndivActual >= targets.monthIndivTarget ? 'bg-primary/10 border-primary/30' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <Target className="w-3 h-3 text-primary" />
-                  <span className="text-[10px] text-gray-500 uppercase">Month Individual</span>
+                  <span className="text-[10px] text-token-faint uppercase">Month Individual</span>
                 </div>
-                <p className="text-lg font-bold text-white">{targets.monthIndivActual}<span className="text-sm text-gray-500">/{targets.monthIndivTarget}</span></p>
+                <p className="text-lg font-bold text-token">{targets.monthIndivActual}<span className="text-sm text-token-faint">/{targets.monthIndivTarget}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthIndivActual / targets.monthIndivTarget) * 100))}%` }} />
                 </div>
@@ -915,9 +915,9 @@ export default function AgentDashboard() {
               <div className={`border rounded-xl p-3 ${targets.monthStoreActual >= targets.monthStoreTarget ? 'bg-amber-500/10 border-amber-500/30' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <Users className="w-3 h-3 text-amber-400" />
-                  <span className="text-[10px] text-gray-500 uppercase">Month Store</span>
+                  <span className="text-[10px] text-token-faint uppercase">Month Store</span>
                 </div>
-                <p className="text-lg font-bold text-white">{targets.monthStoreActual}<span className="text-sm text-gray-500">/{targets.monthStoreTarget}</span></p>
+                <p className="text-lg font-bold text-token">{targets.monthStoreActual}<span className="text-sm text-token-faint">/{targets.monthStoreTarget}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthStoreActual / targets.monthStoreTarget) * 100))}%` }} />
                 </div>
@@ -935,14 +935,14 @@ export default function AgentDashboard() {
 
       {data?.company_targets && data.company_targets.length > 0 ? (
         <div className="px-5 mb-4">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Targets by Company</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Targets by Company</h2>
           <div className="space-y-3">
             {data.company_targets.map((ct, i) => {
               const dailyPct = ct.daily_target_visits > 0 ? Math.min(100, Math.round((ct.daily_actual_visits / ct.daily_target_visits) * 100)) : 0
               return (
-                <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
+                <div key={i} className="bg-white/5 border border-token rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-white">{ct.company_name}</span>
+                    <span className="text-sm font-semibold text-token">{ct.company_name}</span>
                     <span className={'text-xs font-semibold ' + (dailyPct >= 100 ? 'text-primary' : 'text-amber-400')}>{dailyPct}%</span>
                   </div>
                   {/* Daily progress bar */}
@@ -950,8 +950,8 @@ export default function AgentDashboard() {
                     <div className="h-full bg-gradient-to-r from-primary to-[#00D06E] rounded-full transition-all" style={{ width: `${dailyPct}%` }} />
                   </div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-[10px] text-gray-500">Individual: {ct.daily_actual_visits}/{ct.daily_target_visits} today</span>
-                    <span className="text-[10px] text-gray-500">Store: {ct.daily_actual_stores}/{ct.daily_target_stores}</span>
+                    <span className="text-[10px] text-token-faint">Individual: {ct.daily_actual_visits}/{ct.daily_target_visits} today</span>
+                    <span className="text-[10px] text-token-faint">Store: {ct.daily_actual_stores}/{ct.daily_target_stores}</span>
                   </div>
                   {/* Store vs Individual split */}
                   <div className="grid grid-cols-2 gap-2 mt-1">
@@ -961,12 +961,12 @@ export default function AgentDashboard() {
                           <Store className="w-3 h-3 text-amber-400" />
                           <span className="text-[10px] text-amber-300 font-medium">Store</span>
                         </div>
-                        <p className="text-xs text-white">
+                        <p className="text-xs text-token">
                           <span className="font-semibold">{ct.store_actual_today}</span>
-                          <span className="text-gray-500"> today</span>
+                          <span className="text-token-faint"> today</span>
                         </p>
                         {ct.store_target_per_month > 0 && (
-                          <p className="text-[10px] text-gray-500">{ct.store_actual_month}/{ct.store_target_per_month} month</p>
+                          <p className="text-[10px] text-token-faint">{ct.store_actual_month}/{ct.store_target_per_month} month</p>
                         )}
                       </div>
                     )}
@@ -976,15 +976,15 @@ export default function AgentDashboard() {
                           <User className="w-3 h-3 text-blue-400" />
                           <span className="text-[10px] text-blue-300 font-medium">Individual</span>
                         </div>
-                        <p className="text-xs text-white">
+                        <p className="text-xs text-token">
                           <span className="font-semibold">{ct.individual_actual_today}</span>
-                          <span className="text-gray-500"> today</span>
+                          <span className="text-token-faint"> today</span>
                         </p>
                         {ct.individual_target_per_month > 0 && (
-                          <p className="text-[10px] text-gray-500">{ct.individual_actual_month}/{ct.individual_target_per_month} month</p>
+                          <p className="text-[10px] text-token-faint">{ct.individual_actual_month}/{ct.individual_target_per_month} month</p>
                         )}
                         {ct.individual_target_per_week > 0 && (
-                          <p className="text-[10px] text-gray-500">{ct.individual_actual_week}/{ct.individual_target_per_week} week</p>
+                          <p className="text-[10px] text-token-faint">{ct.individual_actual_week}/{ct.individual_target_per_week} week</p>
                         )}
                       </div>
                     )}
@@ -996,7 +996,7 @@ export default function AgentDashboard() {
         </div>
       ) : data?.daily_targets && data.daily_targets.length > 0 ? (
         <div className="px-5 mb-4">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Daily Targets</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Daily Targets</h2>
           <div className="space-y-2">
             {data.daily_targets.map((t, i) => {
               const visitPct = t.target_visits > 0 ? Math.min(100, Math.round((t.actual_visits / t.target_visits) * 100)) : 0
@@ -1005,7 +1005,7 @@ export default function AgentDashboard() {
               return (
                 <div key={i} className={`border rounded-xl p-3 ${isAchieved ? 'bg-primary/10 border-primary/30' : 'bg-white/5 border-white/10'}`}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-white">{t.company_name}</span>
+                    <span className="text-sm font-medium text-token">{t.company_name}</span>
                     <span className={'text-xs font-semibold flex items-center gap-1 ' + (visitPct >= 100 ? 'text-primary' : visitPct >= 75 ? 'text-amber-400' : 'text-red-400')}>
                       {visitPct}% {isAchieved ? '🎯' : visitPct >= 75 ? '🔥' : ''}
                     </span>
@@ -1014,8 +1014,8 @@ export default function AgentDashboard() {
                     <div className={`h-full rounded-full transition-all ${isAchieved ? 'bg-gradient-to-r from-primary to-[#00D06E]' : 'bg-gradient-to-r from-primary to-[#00D06E]'}`} style={{ width: `${visitPct}%` }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
-                    <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
-                    <span className="text-[10px] text-gray-500">Store: {t.actual_registrations}/{t.target_registrations}</span>
+                    <span className="text-[10px] text-token-faint">Individual: {t.actual_visits}/{t.target_visits}</span>
+                    <span className="text-[10px] text-token-faint">Store: {t.actual_registrations}/{t.target_registrations}</span>
                   </div>
                   {!isAchieved && remaining > 0 && (
                     <p className="text-[9px] text-amber-400 mt-1.5 flex items-center gap-1">
@@ -1034,7 +1034,7 @@ export default function AgentDashboard() {
 
       <div className="px-5 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Visits</h2>
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider">Recent Visits</h2>
           <button onClick={() => navigate('/agent/visits')} className="text-xs text-primary flex items-center">
             View All <ChevronRight className="w-3 h-3" />
           </button>
@@ -1042,9 +1042,9 @@ export default function AgentDashboard() {
         {recentVisitsWithPhotos && recentVisitsWithPhotos.length > 0 ? (
           <div className="space-y-2">
             {recentVisitsWithPhotos.slice(0, 5).map((visit) => (
-              <div key={visit.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+              <div key={visit.id} className="bg-white/5 border border-token rounded-xl p-3 flex items-center gap-3">
                 {/* Photo thumbnail or status icon */}
-                <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-white/10">
+                <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-token">
                   {visit.thumbnail_url ? (
                     <img src={visit.thumbnail_url} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
                   ) : (
@@ -1060,10 +1060,10 @@ export default function AgentDashboard() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-token truncate">
                     {visit.customer_name || visit.individual_name || 'Visit'}
                   </p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <p className="text-xs text-token-faint flex items-center gap-1">
                     {(visit.visit_type || '').toLowerCase() === 'store' ? <Store className="w-3 h-3 text-amber-400" /> :
                      (visit.visit_type || '').toLowerCase() === 'individual' ? <User className="w-3 h-3 text-blue-400" /> : null}
                     {visit.visit_type} &middot; {visit.visit_date}
@@ -1073,39 +1073,39 @@ export default function AgentDashboard() {
             ))}
           </div>
         ) : (
-          <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+          <div className="bg-white/5 border border-token rounded-xl p-6 text-center">
             <MapPin className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No visits yet today</p>
+            <p className="text-sm text-token-faint">No visits yet today</p>
             <p className="text-xs text-gray-600 mt-1">Start your first visit above</p>
           </div>
         )}
       </div>
       {/* Help & Training */}
       <div className="px-5 mb-4">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Help & Training</h2>
+        <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-2">Help & Training</h2>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => navigate('/agent/onboarding')}
-            className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
+            className="bg-white/5 border border-token rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
           >
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <GraduationCap className="w-4 h-4 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-xs font-medium text-white">Get Started</p>
-              <p className="text-[10px] text-gray-500">Onboarding</p>
+              <p className="text-xs font-medium text-token">Get Started</p>
+              <p className="text-[10px] text-token-faint">Onboarding</p>
             </div>
           </button>
           <button
             onClick={() => navigate('/agent/training')}
-            className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
+            className="bg-white/5 border border-token rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
           >
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <BookOpen className="w-4 h-4 text-primary" />
             </div>
             <div className="text-left">
-              <p className="text-xs font-medium text-white">Training</p>
-              <p className="text-[10px] text-gray-500">Visit guide</p>
+              <p className="text-xs font-medium text-token">Training</p>
+              <p className="text-[10px] text-token-faint">Visit guide</p>
             </div>
           </button>
         </div>
@@ -1117,17 +1117,17 @@ export default function AgentDashboard() {
 const StatCard = memo(({ icon, label, value, target, color }: { icon: React.ReactNode; label: string; value: number; target?: number; color: string }) => {
   const showTarget = target != null && target > 0
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+    <div className="bg-white/5 border border-token rounded-xl p-3.5">
       <div className="flex items-center justify-between mb-2">
-        <div className={`p-2 rounded-lg ${color} text-white`}>{icon}</div>
+        <div className={`p-2 rounded-lg ${color} text-token`}>{icon}</div>
         {showTarget && (
           <span className={`text-[9px] font-semibold ${value >= target ? 'text-primary' : 'text-amber-400'}`}>
             {value}/{target}
           </span>
         )}
       </div>
-      <p className="text-xl font-bold text-white">{value}</p>
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
+      <p className="text-xl font-bold text-token">{value}</p>
+      <p className="text-[10px] text-token-faint uppercase tracking-wider">{label}</p>
       {showTarget && (
         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-2">
           <div className={`h-full rounded-full transition-all ${value >= target ? 'bg-gradient-to-r from-primary to-[#00D06E]' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`} style={{ width: `${Math.min(100, Math.round((value / target) * 100))}%` }} />

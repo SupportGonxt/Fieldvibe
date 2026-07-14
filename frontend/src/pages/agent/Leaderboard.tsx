@@ -27,7 +27,7 @@ export default function Leaderboard({ meId }: { meId?: string }) {
   if (!rows) {
     return (
       <div className="px-5 mb-4">
-        <div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" />
+        <div className="bg-gradient-to-br from-surface to-[#0E1D35] border border-white/10 rounded-2xl p-4 h-40 animate-pulse" />
       </div>
     )
   }
@@ -38,7 +38,7 @@ export default function Leaderboard({ meId }: { meId?: string }) {
 
   return (
     <div className="px-5 mb-4">
-      <div className="bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-white/10 rounded-2xl p-4">
+      <div className="bg-gradient-to-br from-surface to-[#0E1D35] border border-white/10 rounded-2xl p-4">
         <div className="flex items-center gap-2 mb-3">
           <Medal className="w-4 h-4 text-amber-400" />
           <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Team Leaderboard</span>
