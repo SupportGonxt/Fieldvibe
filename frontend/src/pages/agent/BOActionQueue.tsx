@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Banknote, Bell, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
+import { Banknote, Bell, Camera, CloudOff, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { photoReviewService } from '../../services/insights.service'
 
 // BO Home work queue: the back-office admin's job is clearing gates — unmatched
 // deposits and unactioned agent notifications. This surfaces both as live counts
@@ -32,17 +33,25 @@ export default function BOActionQueue() {
   const [loading, setLoading] = useState(true)
   const [unmatched, setUnmatched] = useState(0)
   const [stats, setStats] = useState<Stats | null>(null)
+  const [pendingPhotos, setPendingPhotos] = useState(0)
+  const [uploadFails, setUploadFails] = useState(0)
 
   useEffect(() => {
     let live = true
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     Promise.all([
       apiClient.get('/field-ops/deposits?limit=200').catch(() => null),
       apiClient.get('/field-ops/issues/stats').catch(() => null),
-    ]).then(([dep, st]) => {
+      photoReviewService.getAdminReview({ page: '1', limit: '1', review_status: 'pending' }).catch(() => null),
+      apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).catch(() => null),
+    ]).then(([dep, st, rev, uf]) => {
       if (!live) return
       const rows: DepositRow[] = dep?.data?.deposits || []
       setUnmatched(rows.filter((r) => !r.matched).length)
       if (st?.data?.success) setStats({ received: st.data.received, acted: st.data.acted })
+      setPendingPhotos(rev?.pagination?.total || 0)
+      setUploadFails(uf?.data?.total || uf?.data?.data?.length || 0)
       setLoading(false)
     })
     return () => { live = false }
@@ -56,6 +65,18 @@ export default function BOActionQueue() {
       key: 'deposits', tone: 'bad', icon: Banknote, count: unmatched,
       label: `${unmatched} deposit${unmatched === 1 ? '' : 's'} unmatched`,
       hint: 'Chase the signup or remove the row', to: '/agent/deposits',
+    })
+  if (uploadFails > 0)
+    actions.push({
+      key: 'uploads', tone: 'bad', icon: CloudOff, count: uploadFails,
+      label: `${uploadFails} signup${uploadFails === 1 ? '' : 's'} not loaded`,
+      hint: 'Fix the capture so it loads', to: '/agent/upload-failures',
+    })
+  if (pendingPhotos > 0)
+    actions.push({
+      key: 'photos', tone: 'warn', icon: Camera, count: pendingPhotos,
+      label: `${pendingPhotos} photo${pendingPhotos === 1 ? '' : 's'} to review`,
+      hint: 'Approve or reject for reshoot', to: '/agent/photo-review',
     })
   if (outstanding > 0)
     actions.push({

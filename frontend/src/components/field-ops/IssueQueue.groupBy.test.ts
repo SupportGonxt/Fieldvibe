@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { groupByCompany } from './IssueQueue'
+import { canSeeUnmanaged, groupByCompany } from './IssueQueue'
+
+describe('canSeeUnmanaged', () => {
+  // Mirrors backend requireRole('admin','general_manager') — backoffice_admin
+  // is admin-equivalent and must pass; field roles must not (403 loop guard).
+  it('admits admin-equivalents and GM', () => {
+    expect(canSeeUnmanaged('admin')).toBe(true)
+    expect(canSeeUnmanaged('backoffice_admin')).toBe(true)
+    expect(canSeeUnmanaged('general_manager')).toBe(true)
+  })
+  it('rejects field roles and undefined', () => {
+    expect(canSeeUnmanaged('manager')).toBe(false)
+    expect(canSeeUnmanaged('team_lead')).toBe(false)
+    expect(canSeeUnmanaged(undefined)).toBe(false)
+  })
+})
 
 describe('groupByCompany', () => {
   it('groups rows by company_name preserving first-seen order, nulls under "Unassigned"', () => {

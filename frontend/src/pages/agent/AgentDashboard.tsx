@@ -325,7 +325,9 @@ export default function AgentDashboard() {
   const homePulse = useMemo(() => buildHomePulse({
     agent: isAgentRole,
     leader: isLeader(authUser?.role),
-    orgLeader: isManagerPlus(authUser?.role),
+    // canSeeUnmanaged (not isManagerPlus) so backoffice_admin — admin-equivalent
+    // for issue triage — gets the unmanaged/past-SLA pulse chips too.
+    orgLeader: canSeeUnmanaged(authUser?.role),
     mine: mineData?.issues ?? [],
     unmanaged: unmanagedData?.issues ?? [],
     todayIndiv: dataProps?.today_individual_visits ?? 0,
@@ -565,8 +567,9 @@ export default function AgentDashboard() {
         <MyIssues surface="pwa" />
       </div>
 
-      {/* Org issues not yet owned — managers/GM/admin triage these from Home. */}
-      {isManagerPlus(authUser?.role) && (
+      {/* Org issues not yet owned — GM/admin-equivalents (incl. backoffice_admin)
+          triage these from Home; canSeeUnmanaged mirrors the backend gate. */}
+      {canSeeUnmanaged(authUser?.role) && (
         <div className="px-5 mb-3 empty:hidden">
           <UnmanagedIssues surface="pwa" />
         </div>
@@ -788,7 +791,7 @@ export default function AgentDashboard() {
               color="bg-red-600"
             />
             <button
-              onClick={() => navigate('/field-operations/reports/goldrush-upload-failures')}
+              onClick={() => navigate('/agent/upload-failures')}
               className="w-full py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
               disabled={uploadFailuresLoading}
               style={{ opacity: uploadFailuresCount === 0 ? 0.5 : 1 }}
