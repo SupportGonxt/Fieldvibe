@@ -4,7 +4,6 @@ import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 
 // Layout Components (eager - needed immediately)
 import AuthLayout from './components/layout/AuthLayout'
-import DashboardLayout from './components/layout/DashboardLayout'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -45,6 +44,9 @@ function lazyWithRetry<T extends ComponentType<any>>(importFn: () => Promise<{ d
 }
 
 // T-15: All page components loaded via React.lazy for code splitting
+// DashboardLayout is the desktop back-office shell (sidebar, header, help panel,
+// shortcuts...). PWA/agent routes never mount it, so keep it out of the entry chunk.
+const DashboardLayout = lazyWithRetry(() => import('./components/layout/DashboardLayout'))
 const ActivationCreate = lazyWithRetry(() => import('./pages/marketing/activations/ActivationCreate'))
 const MarketingHierarchyPage = lazyWithRetry(() => import('./pages/marketing/MarketingHierarchyPage'))
 const ActivationDetail = lazyWithRetry(() => import('./pages/marketing/activations/ActivationDetail'))
@@ -548,7 +550,7 @@ function App() {
           {/* Protected Routes - using pathless parent to avoid catch-all matching "/" */}
           <Route element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <PageLoader><DashboardLayout /></PageLoader>
             </ProtectedRoute>
           }>
             {/* Dashboard Routes */}
