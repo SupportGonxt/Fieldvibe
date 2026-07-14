@@ -17,8 +17,8 @@ export default function PwaInstallBanner() {
           <X className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#00E87B]/20 flex items-center justify-center flex-shrink-0">
-            <Download className="w-5 h-5 text-[#00E87B]" />
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <Download className="w-5 h-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-900 dark:text-white">Install FieldVibe</p>
@@ -27,7 +27,7 @@ export default function PwaInstallBanner() {
         </div>
         <button
           onClick={promptInstall}
-          className="mt-3 w-full py-2.5 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
+          className="mt-3 w-full py-2.5 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
         >
           Install App
         </button>

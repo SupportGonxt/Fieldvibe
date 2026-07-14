@@ -12,7 +12,7 @@ const STEPS = [
     title: 'Welcome to FieldVibe',
     subtitle: 'Your mobile field operations companion',
     icon: Smartphone,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'FieldVibe helps you manage your daily visits, track performance, and stay connected with your team.',
       'This quick guide will walk you through everything you need to know to get started.',
@@ -24,7 +24,7 @@ const STEPS = [
     title: 'Logging In',
     subtitle: 'Access your agent account',
     icon: Lock,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'Your manager will provide you with your phone number and a PIN code.',
       'Go to the Agent Login page and enter your phone number (starting with +27) and your PIN (4-6 digits).',
@@ -40,7 +40,7 @@ const STEPS = [
     title: 'Your Dashboard',
     subtitle: 'Everything at a glance',
     icon: Target,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'After logging in, you\'ll see your dashboard with today\'s stats, daily targets, and recent visits.',
       'The dashboard shows your visit count, individual count, and progress towards daily targets for each company.',
@@ -56,7 +56,7 @@ const STEPS = [
     title: 'Store Visits',
     subtitle: 'How to complete a store visit',
     icon: Store,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'Store visits are for shops and businesses. Tap the "Store Visit" button on your dashboard to start.',
     ],
@@ -74,7 +74,7 @@ const STEPS = [
     title: 'Individual Visits',
     subtitle: 'How to complete an individual visit',
     icon: User,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'Individual visits are for people (customers, prospects). Tap the "Individual Visit" button to start.',
     ],
@@ -92,7 +92,7 @@ const STEPS = [
     title: 'GPS & Location',
     subtitle: 'Why location matters',
     icon: Navigation,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'FieldVibe uses GPS to verify your visits. You must allow location access when prompted.',
       'Your check-in location is recorded to confirm you were at the right place.',
@@ -126,7 +126,7 @@ const STEPS = [
     title: 'Track Performance',
     subtitle: 'Your stats & achievements',
     icon: BarChart3,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'Use the Stats tab to see your performance metrics — visits completed, individuals, and target achievement.',
       'Your manager can see your stats too, so keep your numbers up!',
@@ -142,7 +142,7 @@ const STEPS = [
     title: 'Pro Tips',
     subtitle: 'Get the most out of FieldVibe',
     icon: Shield,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'Follow these best practices to be a top-performing agent:',
     ],
@@ -161,7 +161,7 @@ const STEPS = [
     title: 'You\'re Ready!',
     subtitle: 'Start making visits',
     icon: CheckCircle,
-    color: 'from-[#00E87B] to-[#00D06E]',
+    color: 'from-primary to-[#00D06E]',
     content: [
       'You now know everything you need to get started with FieldVibe.',
       'Head to your dashboard and start your first visit. Good luck!',
@@ -206,7 +206,7 @@ export default function AgentOnboarding() {
             <div
               key={i}
               className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                i <= currentStep ? 'bg-[#00E87B]' : 'bg-white/10'
+                i <= currentStep ? 'bg-primary' : 'bg-white/10'
               }`}
             />
           ))}
@@ -250,8 +250,8 @@ export default function AgentOnboarding() {
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2.5 mb-6">
             {step.tips.map((tip, i) => (
               <div key={i} className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-[#00E87B]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <ChevronRight className="w-3 h-3 text-[#00E87B]" />
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <ChevronRight className="w-3 h-3 text-primary" />
                 </div>
                 <p className="text-sm text-gray-300">{tip}</p>
               </div>

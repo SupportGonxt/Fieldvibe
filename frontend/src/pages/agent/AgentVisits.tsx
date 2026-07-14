@@ -194,7 +194,7 @@ export default function AgentVisits() {
             </button>
             <button
               onClick={() => navigate('/agent/visits/create')}
-              className="bg-[#00E87B] text-[#0A1628] px-3 min-h-[44px] rounded-lg text-xs font-semibold flex items-center gap-1"
+              className="bg-primary text-[#0A1628] px-3 min-h-[44px] rounded-lg text-xs font-semibold flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" /> New Visit
             </button>
@@ -209,7 +209,7 @@ export default function AgentVisits() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search visits..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50"
+            className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary/50"
           />
         </div>
 
@@ -218,7 +218,7 @@ export default function AgentVisits() {
           <button
             onClick={() => setTypeFilter('all')}
             className={`flex-shrink-0 px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg text-xs font-medium transition-colors ${
-              typeFilter === 'all' ? 'bg-[#00E87B] text-[#0A1628]' : 'bg-white/5 text-gray-400 border border-white/10'
+              typeFilter === 'all' ? 'bg-primary text-[#0A1628]' : 'bg-white/5 text-gray-400 border border-white/10'
             }`}
           >
             All ({visits.length})
@@ -273,7 +273,7 @@ export default function AgentVisits() {
       <div className="px-5 pt-4">
         {loading ? (
           <div className="flex flex-col items-center py-12 gap-3">
-            <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-xs text-gray-500">Loading visits...</p>
           </div>
         ) : error && visits.length === 0 ? (
@@ -283,7 +283,7 @@ export default function AgentVisits() {
             <p className="text-gray-600 text-xs mb-4">The server may be slow. Please try again.</p>
             <button
               onClick={handleRetry}
-              className="bg-[#00E87B] text-[#0A1628] px-4 min-h-[44px] rounded-lg text-sm font-semibold flex items-center gap-2 mx-auto"
+              className="bg-primary text-[#0A1628] px-4 min-h-[44px] rounded-lg text-sm font-semibold flex items-center gap-2 mx-auto"
             >
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
@@ -296,7 +296,7 @@ export default function AgentVisits() {
             <p className="text-gray-500 text-sm">No {typeFilter !== 'all' ? `${typeFilter} ` : ''}visits found</p>
             <button
               onClick={() => navigate(`/agent/visits/create${typeFilter !== 'all' ? `?type=${typeFilter}` : ''}`)}
-              className="mt-3 min-h-[44px] px-3 inline-flex items-center justify-center mx-auto text-[#00E87B] text-sm font-medium"
+              className="mt-3 min-h-[44px] px-3 inline-flex items-center justify-center mx-auto text-primary text-sm font-medium"
             >
               + Create {typeFilter !== 'all' ? `${typeFilter} ` : ''}visit
             </button>

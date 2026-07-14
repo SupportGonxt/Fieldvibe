@@ -171,7 +171,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-[#00E87B] to-[#00C968] rounded-lg flex items-center justify-center shadow-lg shadow-[#00E87B]/20">
+              <div className="w-9 h-9 bg-gradient-to-br from-primary to-[#00C968] rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-white tracking-tight">FieldVibe</span>
@@ -189,7 +189,7 @@ export default function LandingPage() {
               </Link>
               <Link
                 to="/auth/login"
-                className="ml-2 bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] px-5 py-2 rounded-full transition-all font-semibold text-sm shadow-lg shadow-[#00E87B]/20 hover:shadow-[#00E87B]/40"
+                className="ml-2 bg-primary hover:bg-[#1DFFB2] text-[#06090F] px-5 py-2 rounded-full transition-all font-semibold text-sm shadow-lg shadow-primary/20 hover:shadow-primary/40"
               >
                 Sign In
               </Link>
@@ -211,7 +211,7 @@ export default function LandingPage() {
             <Link to="/auth/mobile-login" onClick={() => setMobileMenuOpen(false)} className="block text-slate-300 hover:text-white py-2 px-3 rounded-lg hover:bg-white/5 text-sm font-medium">
               Agent Login
             </Link>
-            <Link to="/auth/login" onClick={() => setMobileMenuOpen(false)} className="block bg-[#00E87B] text-[#06090F] py-2.5 px-4 rounded-full font-semibold text-sm text-center mt-3">
+            <Link to="/auth/login" onClick={() => setMobileMenuOpen(false)} className="block bg-primary text-[#06090F] py-2.5 px-4 rounded-full font-semibold text-sm text-center mt-3">
               Sign In
             </Link>
           </div>
@@ -220,21 +220,21 @@ export default function LandingPage() {
 
       {/* HERO */}
       <section className={`pt-28 pb-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-        <div className="absolute top-20 -left-40 w-[500px] h-[500px] bg-[#00E87B]/10 rounded-full blur-[120px]" />
+        <div className="absolute top-20 -left-40 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-blue-600/10 rounded-full blur-[100px]" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[100px]" />
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
-              <div className="inline-flex items-center space-x-2 bg-[#00E87B]/10 border border-[#00E87B]/20 text-[#00E87B] px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
+              <div className="inline-flex items-center space-x-2 bg-primary/10 border border-primary/20 text-primary px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
                 <Star className="w-3.5 h-3.5" />
                 <span>Enterprise Field Force Platform</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight">
                 Power Your{' '}
-                <span className="bg-gradient-to-r from-[#00E87B] via-[#1DFFB2] to-[#4BFFB5] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-primary via-[#1DFFB2] to-[#4BFFB5] bg-clip-text text-transparent">
                   Field Operations
                 </span>
               </h1>
@@ -248,7 +248,7 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link
                   to="/auth/login"
-                  className="inline-flex items-center justify-center bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] px-7 py-3.5 rounded-full transition-all font-bold text-base group shadow-lg shadow-[#00E87B]/25 hover:shadow-[#00E87B]/40 hover:scale-[1.02]"
+                  className="inline-flex items-center justify-center bg-primary hover:bg-[#1DFFB2] text-[#06090F] px-7 py-3.5 rounded-full transition-all font-bold text-base group shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02]"
                 >
                   Start Free Trial
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -263,15 +263,15 @@ export default function LandingPage() {
 
               <div className="flex items-center gap-6 pt-2">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <CheckCircle className="h-4 w-4 text-[#00E87B]" />
+                  <CheckCircle className="h-4 w-4 text-primary" />
                   <span>No credit card</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <CheckCircle className="h-4 w-4 text-[#00E87B]" />
+                  <CheckCircle className="h-4 w-4 text-primary" />
                   <span>14-day free trial</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <CheckCircle className="h-4 w-4 text-[#00E87B]" />
+                  <CheckCircle className="h-4 w-4 text-primary" />
                   <span>SOC2 compliant</span>
                 </div>
               </div>
@@ -279,7 +279,7 @@ export default function LandingPage() {
 
             {/* Hero dashboard mockup */}
             <div className="relative hidden lg:block">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#00E87B]/20 to-blue-500/20 rounded-3xl blur-3xl opacity-40" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-blue-500/20 rounded-3xl blur-3xl opacity-40" />
               <div className="relative bg-[#0A1628]/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5 bg-[#0A1628]">
                   <div className="flex gap-1.5">
@@ -294,7 +294,7 @@ export default function LandingPage() {
                 <div className="p-5 space-y-4">
                   <div className="grid grid-cols-4 gap-3">
                     {[
-                      { label: 'Visits Today', value: '847', change: '+12%', color: 'text-[#00E87B]' },
+                      { label: 'Visits Today', value: '847', change: '+12%', color: 'text-primary' },
                       { label: 'Revenue', value: 'R2.4M', change: '+8%', color: 'text-blue-400' },
                       { label: 'Active Agents', value: '234', change: '+3%', color: 'text-purple-400' },
                       { label: 'Orders', value: '1,203', change: '+15%', color: 'text-amber-400' },
@@ -315,7 +315,7 @@ export default function LandingPage() {
                       {[35, 52, 44, 68, 55, 78, 60, 85, 72, 90, 65, 95, 70, 80, 62, 88, 75, 92, 58, 82, 70, 88, 95, 78].map((h, i) => (
                         <div
                           key={i}
-                          className="flex-1 rounded-t-sm bg-gradient-to-t from-[#00E87B] to-[#00E87B]/60"
+                          className="flex-1 rounded-t-sm bg-gradient-to-t from-primary to-primary/60"
                           style={{ height: `${h}%`, opacity: 0.4 + (i / 24) * 0.6 }}
                         />
                       ))}
@@ -330,14 +330,14 @@ export default function LandingPage() {
                     ].map((agent, i) => (
                       <div key={i} className="flex items-center justify-between py-2 border-t border-white/5 first:border-0">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#00E87B]/30 to-blue-500/30 flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary/30 to-blue-500/30 flex items-center justify-center">
                             <span className="text-[9px] font-bold text-white">{agent.name[0]}</span>
                           </div>
                           <span className="text-xs text-slate-300">{agent.name}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-slate-500">{agent.visits} visits</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${agent.status === 'Online' ? 'bg-[#00E87B]/10 text-[#00E87B]' : 'bg-blue-500/10 text-blue-400'}`}>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${agent.status === 'Online' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-400'}`}>
                             {agent.status}
                           </span>
                         </div>
@@ -368,7 +368,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <Reveal>
             <div className="text-center mb-16">
-              <p className="text-[#00E87B] text-sm font-semibold uppercase tracking-widest mb-3">Core Capabilities</p>
+              <p className="text-primary text-sm font-semibold uppercase tracking-widest mb-3">Core Capabilities</p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
                 Everything you need to run field operations
               </h2>
@@ -392,7 +392,7 @@ export default function LandingPage() {
               { icon: Shield, title: 'Enterprise Security', desc: 'Role-based access, audit logs, API key management, and multi-tenant architecture', gradient: 'from-slate-500 to-zinc-600' },
             ].map((feature, index) => (
               <Reveal key={index} delay={index}>
-                <div className="group p-5 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/5 hover:border-[#00E87B]/30 hover:bg-white/[0.04] transition-all duration-300">
+                <div className="group p-5 bg-white/[0.02] backdrop-blur-sm rounded-2xl border border-white/5 hover:border-primary/30 hover:bg-white/[0.04] transition-all duration-300">
                   <div className={`inline-flex p-2.5 bg-gradient-to-br ${feature.gradient} rounded-xl mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
                     <feature.icon className="h-5 w-5 text-white" />
                   </div>
@@ -410,7 +410,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <Reveal>
             <div className="text-center mb-16">
-              <p className="text-[#00E87B] text-sm font-semibold uppercase tracking-widest mb-3">Platform Modules</p>
+              <p className="text-primary text-sm font-semibold uppercase tracking-widest mb-3">Platform Modules</p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
                 9 integrated modules, one platform
               </h2>
@@ -428,15 +428,15 @@ export default function LandingPage() {
                   onClick={() => setActiveModule(i)}
                   className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 flex items-center gap-3 ${
                     activeModule === i
-                      ? 'bg-[#00E87B]/10 border border-[#00E87B]/30 text-white'
+                      ? 'bg-primary/10 border border-primary/30 text-white'
                       : 'bg-white/[0.02] border border-transparent hover:bg-white/[0.04] text-slate-400 hover:text-white'
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${activeModule === i ? 'bg-[#00E87B]/20' : 'bg-white/5'}`}>
-                    <mod.icon className={`w-4 h-4 ${activeModule === i ? 'text-[#00E87B]' : 'text-slate-500'}`} />
+                  <div className={`p-2 rounded-lg ${activeModule === i ? 'bg-primary/20' : 'bg-white/5'}`}>
+                    <mod.icon className={`w-4 h-4 ${activeModule === i ? 'text-primary' : 'text-slate-500'}`} />
                   </div>
                   <span className="text-sm font-semibold">{mod.title}</span>
-                  {activeModule === i && <ChevronRight className="w-4 h-4 text-[#00E87B] ml-auto" />}
+                  {activeModule === i && <ChevronRight className="w-4 h-4 text-primary ml-auto" />}
                 </button>
               ))}
             </div>
@@ -450,7 +450,7 @@ export default function LandingPage() {
               <div className="grid sm:grid-cols-2 gap-3">
                 {platformModules[activeModule].features.map((feat, i) => (
                   <div key={i} className="flex items-center gap-2.5 bg-white/[0.03] px-4 py-3 rounded-xl border border-white/5">
-                    <CheckCircle className="w-4 h-4 text-[#00E87B] flex-shrink-0" />
+                    <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                     <span className="text-sm text-slate-300">{feat}</span>
                   </div>
                 ))}
@@ -465,7 +465,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <Reveal>
             <div className="text-center mb-16">
-              <p className="text-[#00E87B] text-sm font-semibold uppercase tracking-widest mb-3">How It Works</p>
+              <p className="text-primary text-sm font-semibold uppercase tracking-widest mb-3">How It Works</p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
                 Up and running in under an hour
               </h2>
@@ -478,10 +478,10 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {howItWorks.map((item, i) => (
               <Reveal key={i} delay={i}>
-                <div className="relative p-6 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-[#00E87B]/20 transition-colors">
+                <div className="relative p-6 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-primary/20 transition-colors">
                   <div className="text-5xl font-extrabold text-white/[0.03] absolute top-3 right-4">{item.step}</div>
-                  <div className="inline-flex p-2.5 bg-[#00E87B]/10 rounded-xl mb-4">
-                    <item.icon className="w-5 h-5 text-[#00E87B]" />
+                  <div className="inline-flex p-2.5 bg-primary/10 rounded-xl mb-4">
+                    <item.icon className="w-5 h-5 text-primary" />
                   </div>
                   <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
                   <p className="text-sm text-slate-400 leading-relaxed">{item.description}</p>
@@ -494,14 +494,14 @@ export default function LandingPage() {
 
       {/* MOBILE APP SHOWCASE */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0A0E18] relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#00E87B]/5 rounded-full blur-[120px]" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]" />
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <Reveal>
               <div className="flex justify-center">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#00E87B]/20 to-blue-500/20 rounded-[3rem] blur-3xl opacity-50" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-primary/20 to-blue-500/20 rounded-[3rem] blur-3xl opacity-50" />
                   <div className="relative w-[280px] bg-[#06090F] rounded-[2.5rem] border-[3px] border-white/10 overflow-hidden shadow-2xl">
                     <div className="flex justify-center pt-2 pb-1">
                       <div className="w-20 h-5 bg-[#06090F] rounded-full border border-white/10" />
@@ -509,8 +509,8 @@ export default function LandingPage() {
                     <div className="px-4 pb-4 space-y-3">
                       <div className="flex justify-between items-center px-1 py-1">
                         <div className="flex items-center gap-1">
-                          <Wifi className="w-3 h-3 text-[#00E87B]" />
-                          <span className="text-[9px] text-[#00E87B] font-medium">Online</span>
+                          <Wifi className="w-3 h-3 text-primary" />
+                          <span className="text-[9px] text-primary font-medium">Online</span>
                         </div>
                         <span className="text-[9px] text-slate-500">9:41 AM</span>
                       </div>
@@ -522,7 +522,7 @@ export default function LandingPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-gradient-to-r from-[#00E87B] to-[#00C968] rounded-xl py-2.5 text-center">
+                        <div className="bg-gradient-to-r from-primary to-[#00C968] rounded-xl py-2.5 text-center">
                           <Building2 className="w-4 h-4 text-white mx-auto mb-0.5" />
                           <p className="text-[9px] font-semibold text-white">Store Visit</p>
                         </div>
@@ -552,8 +552,8 @@ export default function LandingPage() {
                           { label: 'Stats', active: false },
                           { label: 'Profile', active: false },
                         ].map((tab, i) => (
-                          <div key={i} className={`text-center ${tab.active ? 'text-[#00E87B]' : 'text-slate-600'}`}>
-                            <div className={`w-5 h-5 mx-auto mb-0.5 rounded ${tab.active ? 'bg-[#00E87B]/20' : 'bg-white/5'}`} />
+                          <div key={i} className={`text-center ${tab.active ? 'text-primary' : 'text-slate-600'}`}>
+                            <div className={`w-5 h-5 mx-auto mb-0.5 rounded ${tab.active ? 'bg-primary/20' : 'bg-white/5'}`} />
                             <p className="text-[8px] font-medium mt-0.5">{tab.label}</p>
                           </div>
                         ))}
@@ -566,7 +566,7 @@ export default function LandingPage() {
 
             <Reveal delay={2}>
               <div className="space-y-6">
-                <div className="inline-flex items-center space-x-2 bg-[#00E87B]/10 border border-[#00E87B]/20 text-[#00E87B] px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
+                <div className="inline-flex items-center space-x-2 bg-primary/10 border border-primary/20 text-primary px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
                   <Smartphone className="w-3.5 h-3.5" />
                   <span>Mobile-First Experience</span>
                 </div>
@@ -588,7 +588,7 @@ export default function LandingPage() {
                     'Daily targets and performance dashboard'
                   ].map((item, i) => (
                     <div key={i} className="flex items-center gap-3">
-                      <CheckCircle className="w-4 h-4 text-[#00E87B] flex-shrink-0" />
+                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm text-slate-300">{item}</span>
                     </div>
                   ))}
@@ -600,7 +600,7 @@ export default function LandingPage() {
       </section>
 
       {/* STATS */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-[#00C968] via-[#00E87B] to-[#1DFFB2] relative overflow-hidden">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-[#00C968] via-primary to-[#1DFFB2] relative overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{
           backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.15) 1px, transparent 0)',
           backgroundSize: '24px 24px'
@@ -632,7 +632,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <Reveal>
             <div className="text-center mb-16">
-              <p className="text-[#00E87B] text-sm font-semibold uppercase tracking-widest mb-3">What They Say</p>
+              <p className="text-primary text-sm font-semibold uppercase tracking-widest mb-3">What They Say</p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
                 Trusted by field operations leaders
               </h2>
@@ -645,7 +645,7 @@ export default function LandingPage() {
                 <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-white/10 transition-colors h-full flex flex-col">
                   <div className="flex gap-1 mb-4">
                     {Array(t.rating).fill(0).map((_, j) => (
-                      <Star key={j} className="w-4 h-4 text-[#00E87B] fill-[#00E87B]" />
+                      <Star key={j} className="w-4 h-4 text-primary fill-primary" />
                     ))}
                   </div>
                   <p className="text-slate-300 text-sm leading-relaxed flex-1 mb-5">&ldquo;{t.quote}&rdquo;</p>
@@ -665,7 +665,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <Reveal>
             <div className="text-center mb-16">
-              <p className="text-[#00E87B] text-sm font-semibold uppercase tracking-widest mb-3">Pricing</p>
+              <p className="text-primary text-sm font-semibold uppercase tracking-widest mb-3">Pricing</p>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
                 Simple, transparent pricing
               </h2>
@@ -705,12 +705,12 @@ export default function LandingPage() {
               <Reveal key={i} delay={i}>
                 <div className={`relative p-7 rounded-2xl border h-full flex flex-col ${
                   plan.popular
-                    ? 'border-[#00E87B]/40 bg-gradient-to-b from-[#00E87B]/5 to-transparent shadow-xl shadow-[#00E87B]/10 scale-[1.02]'
+                    ? 'border-primary/40 bg-gradient-to-b from-primary/5 to-transparent shadow-xl shadow-primary/10 scale-[1.02]'
                     : 'border-white/5 bg-white/[0.02]'
                 }`}>
                   {plan.popular && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                      <span className="bg-[#00E87B] text-[#06090F] px-4 py-1 rounded-full text-xs font-bold">
+                      <span className="bg-primary text-[#06090F] px-4 py-1 rounded-full text-xs font-bold">
                         Most Popular
                       </span>
                     </div>
@@ -726,7 +726,7 @@ export default function LandingPage() {
                   <ul className="space-y-3 flex-1 mb-7">
                     {plan.features.map((feat, j) => (
                       <li key={j} className="flex items-center gap-2.5">
-                        <CheckCircle className={`w-4 h-4 flex-shrink-0 ${plan.popular ? 'text-[#00E87B]' : 'text-slate-600'}`} />
+                        <CheckCircle className={`w-4 h-4 flex-shrink-0 ${plan.popular ? 'text-primary' : 'text-slate-600'}`} />
                         <span className="text-sm text-slate-300">{feat}</span>
                       </li>
                     ))}
@@ -735,7 +735,7 @@ export default function LandingPage() {
                     to="/auth/login"
                     className={`block text-center py-3 rounded-full font-semibold text-sm transition-all ${
                       plan.popular
-                        ? 'bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] shadow-lg shadow-[#00E87B]/20'
+                        ? 'bg-primary hover:bg-[#1DFFB2] text-[#06090F] shadow-lg shadow-primary/20'
                         : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
                     }`}
                   >
@@ -750,8 +750,8 @@ export default function LandingPage() {
 
       {/* FINAL CTA */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#00E87B]/10 via-blue-600/5 to-purple-600/10" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#00E87B]/5 rounded-full blur-[120px]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-blue-600/5 to-purple-600/10" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
 
         <Reveal>
           <div className="max-w-3xl mx-auto text-center relative z-10">
@@ -765,7 +765,7 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/auth/login"
-                className="inline-flex items-center justify-center bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] px-8 py-4 rounded-full transition-all font-bold text-base group shadow-lg shadow-[#00E87B]/25 hover:shadow-[#00E87B]/40 hover:scale-[1.02]"
+                className="inline-flex items-center justify-center bg-primary hover:bg-[#1DFFB2] text-[#06090F] px-8 py-4 rounded-full transition-all font-bold text-base group shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02]"
               >
                 Get Started Free
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -788,7 +788,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center space-x-2.5 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#00E87B] to-[#00C968] rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-primary to-[#00C968] rounded-lg flex items-center justify-center">
                   <Zap className="w-4 h-4 text-white" />
                 </div>
                 <span className="text-lg font-bold text-white">FieldVibe</span>
@@ -843,8 +843,8 @@ export default function LandingPage() {
               &copy; {new Date().getFullYear()} GONXT Technology (Pty) Ltd. A Vanta X Holdings company.
             </p>
             <div className="flex items-center gap-6">
-              <Link to="/auth/login" className="text-xs text-slate-500 hover:text-[#00E87B] font-medium transition-colors">Admin Login</Link>
-              <Link to="/auth/mobile-login" className="text-xs text-slate-500 hover:text-[#00E87B] font-medium transition-colors">Agent Login</Link>
+              <Link to="/auth/login" className="text-xs text-slate-500 hover:text-primary font-medium transition-colors">Admin Login</Link>
+              <Link to="/auth/mobile-login" className="text-xs text-slate-500 hover:text-primary font-medium transition-colors">Agent Login</Link>
             </div>
           </div>
         </div>

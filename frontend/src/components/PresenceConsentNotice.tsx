@@ -30,7 +30,7 @@ export default function PresenceConsentNotice({ role }: { role: string | undefin
         </p>
         <button
           onClick={accept}
-          className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-br from-[#00E87B] to-[#00D06E] text-[#0A1628] text-sm font-semibold active:scale-95 transition-transform"
+          className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-br from-primary to-[#00D06E] text-[#0A1628] text-sm font-semibold active:scale-95 transition-transform"
         >
           I understand
         </button>

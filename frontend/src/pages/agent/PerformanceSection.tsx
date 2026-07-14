@@ -27,7 +27,7 @@ const PerformanceSection = memo(({ perfSummary }: PerformanceSectionProps) => {
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#00E87B]" />
+            <BarChart3 className="w-4 h-4 text-primary" />
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Performance</span>
           </div>
           <ChevronRight className="w-4 h-4 text-gray-600" />

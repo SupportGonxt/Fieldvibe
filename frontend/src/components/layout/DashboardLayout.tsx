@@ -109,7 +109,7 @@ export default function DashboardLayout() {
             <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0">
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <span>A Product of</span>
-                <a href="https://www.gonxt.tech" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#00E87B] transition-colors font-medium">
+                <a href="https://www.gonxt.tech" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors font-medium">
                   GONXT
                 </a>
               </div>
@@ -139,7 +139,7 @@ export default function DashboardLayout() {
 
       <button
         onClick={() => setHelpPanelOpen(true)}
-        className="fixed bottom-6 right-6 z-40 hidden lg:flex bg-[#00E87B] hover:bg-[#00D06E] text-[#06090F] p-3 rounded-full shadow-lg transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 hidden lg:flex bg-primary hover:bg-[#00D06E] text-[#06090F] p-3 rounded-full shadow-lg transition-all hover:scale-105"
         title="Help & Training"
       >
         <HelpCircle className="h-5 w-5" />

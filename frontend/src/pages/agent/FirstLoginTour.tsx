@@ -94,7 +94,7 @@ export default function FirstLoginTour() {
   const dots = (
     <div className="flex gap-1.5">
       {frames.map((_, i) => (
-        <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-[#00E87B]' : 'w-1.5 bg-white/20'}`} />
+        <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-primary' : 'w-1.5 bg-white/20'}`} />
       ))}
     </div>
   )
@@ -108,7 +108,7 @@ export default function FirstLoginTour() {
       )}
       <button
         onClick={() => (isLast ? finish() : setStep((s) => s + 1))}
-        className="flex-1 py-3 rounded-2xl bg-[#00E87B] text-[#0A1628] font-semibold"
+        className="flex-1 py-3 rounded-2xl bg-primary text-[#0A1628] font-semibold"
       >
         {isLast ? 'Get started' : 'Next'}
       </button>
@@ -128,7 +128,7 @@ export default function FirstLoginTour() {
       <div className="fixed inset-0 z-[60]">
         {/* Cutout: a box the size of the target with a huge shadow spread dims everything else. */}
         <div
-          className="absolute rounded-2xl ring-2 ring-[#00E87B] transition-all duration-200"
+          className="absolute rounded-2xl ring-2 ring-primary transition-all duration-200"
           style={{
             top: rect.top - pad,
             left: rect.left - pad,
@@ -172,7 +172,7 @@ export default function FirstLoginTour() {
             <button
               onClick={testNotifications}
               disabled={notifyState === 'sending' || notifyState === 'sent'}
-              className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#00E87B]/15 border border-[#00E87B]/40 text-[#00E87B] font-medium disabled:opacity-60"
+              className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary/15 border border-primary/40 text-primary font-medium disabled:opacity-60"
             >
               {notifyState === 'sent' ? <Check className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
               {notifyState === 'idle' && 'Enable & send test'}

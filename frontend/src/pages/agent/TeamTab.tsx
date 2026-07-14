@@ -90,13 +90,13 @@ interface TeamData {
 const rand = (n: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n || 0)
 
 function pctClass(pct: number): string {
-  if (pct >= 100) return 'text-[#00E87B]'
+  if (pct >= 100) return 'text-primary'
   if (pct >= 75) return 'text-amber-400'
   return 'text-red-400'
 }
 
 function progressColor(pct: number): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return '#EF4444'
 }
@@ -133,7 +133,7 @@ export default function TeamTab() {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#00E87B] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 text-sm">Loading team data...</p>
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function TeamTab() {
         <div className="flex gap-1 bg-white/5 rounded-xl p-1">
           {(['day', 'week', 'month', 'prior_month'] as Period[]).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={'flex-1 py-1.5 text-[10px] font-semibold rounded-lg capitalize transition-all ' + (period === p ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400')}>
+              className={'flex-1 py-1.5 text-[10px] font-semibold rounded-lg capitalize transition-all ' + (period === p ? 'bg-primary text-[#0A1628]' : 'text-gray-400')}>
               {p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}
             </button>
           ))}
@@ -217,7 +217,7 @@ export default function TeamTab() {
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
             <div className="flex items-center gap-1.5 mb-2">
-              <div className="p-1.5 rounded-lg bg-[#00E87B]/10"><TrendingUp className="w-3.5 h-3.5 text-[#00E87B]" /></div>
+              <div className="p-1.5 rounded-lg bg-primary/10"><TrendingUp className="w-3.5 h-3.5 text-primary" /></div>
               <span className="text-[10px] text-gray-500">Total</span>
             </div>
             <p className="text-xl font-bold text-white">{teamPeriod.total}</p>
@@ -289,7 +289,7 @@ export default function TeamTab() {
               <p className="text-[9px] text-gray-500">Approved</p>
             </div>
             <div className="text-center">
-              <p className="text-xs font-semibold text-[#00E87B]">R{(data?.team_commission?.paid || 0).toLocaleString()}</p>
+              <p className="text-xs font-semibold text-primary">R{(data?.team_commission?.paid || 0).toLocaleString()}</p>
               <p className="text-[9px] text-gray-500">Paid</p>
             </div>
           </div>
@@ -316,7 +316,7 @@ export default function TeamTab() {
                     {tlTiers.map((tier) => (
                       <div key={tier.amount} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
                         <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
-                        <span className="text-xs font-semibold text-[#00E87B]">{rand(tier.amount)}</span>
+                        <span className="text-xs font-semibold text-primary">{rand(tier.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -329,7 +329,7 @@ export default function TeamTab() {
                     {agentTiers.map((tier) => (
                       <div key={tier.amount} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02]">
                         <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
-                        <span className="text-xs font-semibold text-[#00E87B]">{rand(tier.amount)}</span>
+                        <span className="text-xs font-semibold text-primary">{rand(tier.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -350,8 +350,8 @@ export default function TeamTab() {
           <div className="space-y-2.5">
             {/* My Score (Team Lead) */}
             <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                <Users className="w-4 h-4 text-[#00E87B]" />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Users className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-gray-400">My Score (Team Total)</p>
@@ -360,14 +360,14 @@ export default function TeamTab() {
               <div className="text-right">
                 <span className={`text-lg font-bold ${pctClass(achievement)}`}>{achievement}%</span>
               </div>
-              <div className={`w-2.5 h-2.5 rounded-full ${achievement >= 100 ? 'bg-[#00E87B]' : achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${achievement >= 100 ? 'bg-primary' : achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
             </div>
 
             {/* Team Lead's Own Contribution */}
             {data?.team_lead_own && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 text-[#00E87B]" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">My Own Contribution</p>
@@ -376,15 +376,15 @@ export default function TeamTab() {
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(data.team_lead_own.achievement)}`}>{data.team_lead_own.achievement}%</span>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${data.team_lead_own.achievement >= 100 ? 'bg-[#00E87B]' : data.team_lead_own.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${data.team_lead_own.achievement >= 100 ? 'bg-primary' : data.team_lead_own.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
               </div>
             )}
 
             {/* Manager Score */}
             {data?.manager_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-[#00E87B]" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">Manager</p>
@@ -393,7 +393,7 @@ export default function TeamTab() {
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(data.manager_performance.achievement)}`}>{data.manager_performance.achievement}%</span>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${data.manager_performance.achievement >= 100 ? 'bg-[#00E87B]' : data.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${data.manager_performance.achievement >= 100 ? 'bg-primary' : data.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
               </div>
             )}
           </div>
@@ -420,8 +420,8 @@ export default function TeamTab() {
                     onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-[#00E87B]/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-[#00E87B]">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-primary">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -460,7 +460,7 @@ export default function TeamTab() {
                             const d = getAgentPeriod(agent, p)
                             const isActive = p === period
                             return (<React.Fragment key={p}>
-                              <div className={'p-1.5 ' + (isActive ? 'text-[#00E87B] font-semibold' : 'text-gray-400')}>{p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}</div>
+                              <div className={'p-1.5 ' + (isActive ? 'text-primary font-semibold' : 'text-gray-400')}>{p === 'prior_month' ? 'Prior Mo' : p === 'month' ? 'MTD' : p === 'week' ? 'Week' : 'Day'}</div>
                               <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.individual}</div>
                               <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.store}</div>
                               <div className={'p-1.5 text-center font-semibold ' + (isActive ? 'text-white' : 'text-gray-300')}>{d.total}</div>
@@ -522,7 +522,7 @@ export default function TeamTab() {
                         <button
                           onClick={() => call(agent.id, `${agent.first_name} ${agent.last_name}`.trim())}
                           disabled={busy === agent.id}
-                          className="min-h-[44px] py-2 bg-[#00E87B]/10 border border-[#00E87B]/25 rounded-lg text-xs font-semibold text-[#00E87B] flex items-center justify-center gap-1.5 disabled:opacity-50"
+                          className="min-h-[44px] py-2 bg-primary/10 border border-primary/25 rounded-lg text-xs font-semibold text-primary flex items-center justify-center gap-1.5 disabled:opacity-50"
                         >
                           <Phone className="w-3.5 h-3.5" /> Call
                         </button>

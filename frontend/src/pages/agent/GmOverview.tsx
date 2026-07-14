@@ -116,7 +116,7 @@ export default function GmOverview() {
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+        <Loader2 className="w-6 h-6 text-primary animate-spin" />
       </div>
     )
   }
@@ -163,7 +163,7 @@ export default function GmOverview() {
               key={p.key}
               onClick={() => { setPeriod(p.key); setAnchor(null) }}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                period === p.key ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400'
+                period === p.key ? 'bg-primary text-[#0A1628]' : 'text-gray-400'
               }`}
             >
               {p.label}
@@ -235,7 +235,7 @@ export default function GmOverview() {
             <span className="text-xs text-gray-500 uppercase tracking-wide">Revenue</span>
             <Delta now={money.revenue} prev={money.prevRevenue} money />
           </div>
-          <div className="text-4xl font-bold tabular-nums text-[#00E87B] mt-1">{rand(money.revenue)}</div>
+          <div className="text-4xl font-bold tabular-nums text-primary mt-1">{rand(money.revenue)}</div>
           <p className="text-xs text-gray-500 mt-1">{funnel.converted} deposits × {rand(funnel.commissionPerDeposit)}</p>
         </div>
 
@@ -246,10 +246,10 @@ export default function GmOverview() {
             <Row label="Salaries" value={`-${rand(money.salaryCost || 0)}`} />
             <div className="flex items-center justify-between px-4 py-3.5">
               <div className="flex items-center gap-2">
-                {(money.net || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-[#00E87B]" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
+                {(money.net || 0) >= 0 ? <TrendingUp className="w-4 h-4 text-primary" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
                 <span className="text-sm text-white">Net</span>
               </div>
-              <span className={`text-base font-semibold tabular-nums ${(money.net || 0) >= 0 ? 'text-[#00E87B]' : 'text-red-400'}`}>{rand(money.net || 0)}</span>
+              <span className={`text-base font-semibold tabular-nums ${(money.net || 0) >= 0 ? 'text-primary' : 'text-red-400'}`}>{rand(money.net || 0)}</span>
             </div>
           </div>
         ) : (
@@ -265,24 +265,24 @@ export default function GmOverview() {
         {/* Field force + calls */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-1"><Users className="w-4 h-4 text-[#00E87B]" /><span className="text-xs text-gray-500">Active agents</span></div>
+            <div className="flex items-center gap-2 mb-1"><Users className="w-4 h-4 text-primary" /><span className="text-xs text-gray-500">Active agents</span></div>
             <div className="text-2xl font-bold text-white tabular-nums">{field.activeAgents}<span className="text-gray-600">/{field.totalAgents}</span></div>
             <div className="text-xs text-gray-600 mt-1">
               {field.unassignedAgents > 0 ? <span className="text-amber-400">{field.unassignedAgents} without team lead</span> : 'active today'}
             </div>
           </div>
           <div onClick={() => navigate('/agent/call-list')} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 cursor-pointer active:bg-white/[0.06]">
-            <div className="flex items-center gap-2 mb-1"><Phone className="w-4 h-4 text-[#00E87B]" /><span className="text-xs text-gray-500">BO calls</span></div>
+            <div className="flex items-center gap-2 mb-1"><Phone className="w-4 h-4 text-primary" /><span className="text-xs text-gray-500">BO calls</span></div>
             <div className="text-2xl font-bold text-white tabular-nums">{calls.contacted}<span className="text-gray-600">/{calls.target}</span></div>
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mt-2">
-              <div className="h-full rounded-full bg-[#00E87B]" style={{ width: `${callPct}%` }} />
+              <div className="h-full rounded-full bg-primary" style={{ width: `${callPct}%` }} />
             </div>
           </div>
         </div>
 
         {/* Teams */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Teams</h2></div>
+          <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-white">Teams</h2></div>
           {teams.length === 0 ? <p className="text-xs text-gray-500">No team leads set up yet.</p> : (
             <div className="space-y-3.5">
               {teams.map((t) => (
@@ -295,7 +295,7 @@ export default function GmOverview() {
                     </div>
                   </div>
                   <div className="h-1 rounded-full bg-white/10 overflow-hidden mb-1">
-                    <div className="h-full rounded-full bg-[#00E87B]/70" style={{ width: `${Math.round((t.signups / maxTeamSignups) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.round((t.signups / maxTeamSignups) * 100)}%` }} />
                   </div>
                   <div className="text-xs text-gray-500 tabular-nums">
                     {t.activeAgents}/{t.agents} agents active · {t.converted} converted ({t.conversionRate}%)
@@ -308,7 +308,7 @@ export default function GmOverview() {
 
         {/* Managers — static rows; ponytail: no manager-detail page exists yet, add nav when one does */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Briefcase className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Managers</h2></div>
+          <div className="flex items-center gap-2 mb-3"><Briefcase className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-white">Managers</h2></div>
           {management.managers.length === 0 ? <p className="text-xs text-gray-500">No managers on roster.</p> : (
             <div className="space-y-2.5">
               {management.managers.map((m) => {
@@ -329,7 +329,7 @@ export default function GmOverview() {
 
         {/* Back office */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Headphones className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Back office</h2></div>
+          <div className="flex items-center gap-2 mb-3"><Headphones className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-white">Back office</h2></div>
           {management.boAdmins.length === 0 ? <p className="text-xs text-gray-500">No back-office staff on roster.</p> : (
             <div className="space-y-2.5">
               {management.boAdmins.map((b) => {
@@ -352,13 +352,13 @@ export default function GmOverview() {
 
         {/* Top performers */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-[#00E87B]" /><h2 className="text-sm font-semibold text-white">Top performers</h2></div>
+          <div className="flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-white">Top performers</h2></div>
           {leaders.length === 0 ? <p className="text-xs text-gray-500">No sign-ups yet this period.</p> : (
             <div className="space-y-2">
               {leaders.map((l, i) => (
                 <div key={l.id} onClick={() => navigate(`/agent/agent-detail/${l.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
                   <div className="flex items-center gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-[#00E87B]/15 text-[#00E87B] text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
+                    <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
                     <span className="text-sm text-white">{l.name}</span>
                   </div>
                   <span className="text-xs text-gray-500 tabular-nums">{l.signups} · {l.converted} conv.</span>
@@ -425,7 +425,7 @@ function CompanyChip({ label, active, onClick }: { label: string; active: boolea
     <button
       onClick={onClick}
       className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        active ? 'bg-[#00E87B] text-[#0A1628] border-[#00E87B]' : 'bg-white/[0.04] text-gray-400 border-white/10'
+        active ? 'bg-primary text-[#0A1628] border-primary' : 'bg-white/[0.04] text-gray-400 border-white/10'
       }`}
     >
       {label}
@@ -441,7 +441,7 @@ function Delta({ now, prev, money }: { now: number; prev: number; money?: boolea
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight
   return (
     <span className={`inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums ${
-      flat ? 'text-gray-500' : up ? 'text-[#00E87B]' : 'text-red-400'
+      flat ? 'text-gray-500' : up ? 'text-primary' : 'text-red-400'
     }`} title={money ? `prev ${rand(prev)}` : `prev ${prev}`}>
       <Icon className="w-3 h-3" />{text}
     </span>

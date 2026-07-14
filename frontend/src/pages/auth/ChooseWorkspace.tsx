@@ -46,16 +46,16 @@ export default function ChooseWorkspace() {
               <button
                 key={o.key}
                 onClick={() => navigate(o.to, { replace: true })}
-                className="group flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-[#00E87B]/60 hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-[#00E87B]/50"
+                className="group flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-primary/60 hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#00E87B]/10 text-[#00E87B]">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon size={22} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{o.title}</span>
                   <span className="block text-xs text-white/50">{o.desc}</span>
                 </span>
-                <ArrowRight size={18} className="shrink-0 text-white/30 transition group-hover:text-[#00E87B]" />
+                <ArrowRight size={18} className="shrink-0 text-white/30 transition group-hover:text-primary" />
               </button>
             )
           })}

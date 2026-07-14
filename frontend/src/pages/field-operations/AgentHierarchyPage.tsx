@@ -272,7 +272,7 @@ export default function AgentHierarchyPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#00E87B] hover:bg-[#00D06E] text-[#06090F] font-semibold rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-[#00D06E] text-[#06090F] font-semibold rounded-lg transition-colors"
         >
           <UserPlus className="w-4 h-4" />
           Add Person
@@ -901,7 +901,7 @@ export default function AgentHierarchyPage() {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <button onClick={closeCreateModal} className="px-4 py-2 bg-[#00E87B] text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E]">
+                  <button onClick={closeCreateModal} className="px-4 py-2 bg-primary text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E]">
                     Done
                   </button>
                 </div>
@@ -1119,7 +1119,7 @@ export default function AgentHierarchyPage() {
                   <button
                     type="submit"
                     disabled={creating}
-                    className="px-4 py-2 text-sm bg-[#00E87B] text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E] disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 text-sm bg-primary text-[#06090F] font-semibold rounded-lg hover:bg-[#00D06E] disabled:opacity-50 transition-colors"
                   >
                     {creating ? 'Creating...' : 'Create'}
                   </button>

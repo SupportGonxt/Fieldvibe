@@ -42,13 +42,13 @@ interface Visit {
 }
 
 function pctClass(pct: number): string {
-  if (pct >= 100) return 'text-[#00E87B]'
+  if (pct >= 100) return 'text-primary'
   if (pct >= 75) return 'text-amber-400'
   return 'text-red-400'
 }
 
 function progressColor(pct: number): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return '#EF4444'
 }
@@ -108,7 +108,7 @@ export default function AgentDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -119,7 +119,7 @@ export default function AgentDetailPage() {
         <div className="text-center">
           <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Agent not found</p>
-          <button onClick={() => navigate(-1)} className="mt-3 min-h-[44px] px-3 inline-flex items-center text-[#00E87B] text-sm font-medium">Go back</button>
+          <button onClick={() => navigate(-1)} className="mt-3 min-h-[44px] px-3 inline-flex items-center text-primary text-sm font-medium">Go back</button>
         </div>
       </div>
     )
@@ -137,8 +137,8 @@ export default function AgentDetailPage() {
           <span className="text-xs">Back</span>
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
-            <span className="text-lg font-bold text-[#00E87B]">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <span className="text-lg font-bold text-primary">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
           </div>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-white">{agent.first_name} {agent.last_name}</h1>

@@ -8,7 +8,7 @@ export type Chip = { tone: Tone; label: string }
 
 // Solid fills the light-mode index.css override never touches — contrast holds in both themes.
 const TONE: Record<Tone, string> = {
-  good: 'bg-[#00E87B] text-[#052e1c]',
+  good: 'bg-primary text-[#052e1c]',
   warn: 'bg-amber-400 text-amber-950',
   bad: 'bg-red-500 text-white',
 }
@@ -22,7 +22,7 @@ export function PulseBar({ chips, title = 'Pulse' }: { chips: Chip[]; title?: st
   return (
     <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4">
       <div className="flex items-center gap-2 mb-3">
-        <Activity className="w-4 h-4 text-[#00E87B]" />
+        <Activity className="w-4 h-4 text-primary" />
         <h2 className="text-sm font-semibold text-white">{title}</h2>
         <span className="text-xs text-gray-500 ml-auto tabular-nums">
           {good > 0 ? `${good} good` : ''}{good > 0 && attn > 0 ? ' · ' : ''}{attn > 0 ? `${attn} flagged` : ''}

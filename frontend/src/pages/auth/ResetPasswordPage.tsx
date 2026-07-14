@@ -66,14 +66,14 @@ export default function ResetPasswordPage() {
         <div className="space-y-4">
           <Link
             to="/auth/forgot-password"
-            className="block text-center w-full bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-[#00E87B]/25"
+            className="block text-center w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-primary/25"
           >
             Request new reset link
           </Link>
           
           <Link
             to="/auth/login"
-            className="flex items-center justify-center text-sm text-[#00E87B] hover:text-[#4BFFB5] transition-colors"
+            className="flex items-center justify-center text-sm text-primary hover:text-[#4BFFB5] transition-colors"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to sign in
@@ -88,7 +88,7 @@ export default function ResetPasswordPage() {
       <div>
         <Link
           to="/auth/login"
-          className="flex items-center text-sm text-[#00E87B] hover:text-[#4BFFB5] transition-colors mb-4"
+          className="flex items-center text-sm text-primary hover:text-[#4BFFB5] transition-colors mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to sign in
@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
                 },
               })}
               type={showPassword ? 'text' : 'password'}
-              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#00E87B] focus:border-[#00E87B] transition-all"
+              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="Enter new password"
             />
             <button
@@ -161,7 +161,7 @@ export default function ResetPasswordPage() {
                   value === password || 'Passwords do not match',
               })}
               type={showConfirmPassword ? 'text' : 'password'}
-              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#00E87B] focus:border-[#00E87B] transition-all"
+              className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="Confirm new password"
             />
             <button
@@ -196,7 +196,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#00E87B]/25"
+            className="w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
           >
             {isLoading ? (
               <>

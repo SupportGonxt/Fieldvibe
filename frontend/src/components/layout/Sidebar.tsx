@@ -105,7 +105,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                           onClick={() => toggleExpand(item.name)}
                           className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
                             active
-                              ? 'bg-[#00E87B]/10 text-[#00E87B]'
+                              ? 'bg-primary/10 text-primary'
                               : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
                           }`}
                         >
@@ -124,7 +124,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                           title={collapsed ? item.name : undefined}
                           className={`flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
                             active
-                              ? 'bg-[#00E87B]/10 text-[#00E87B]'
+                              ? 'bg-primary/10 text-primary'
                               : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
                           } ${collapsed ? 'justify-center' : ''}`}
                         >
@@ -150,7 +150,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                                 className={({ isActive }) =>
                                   `flex items-center pl-6 pr-2 py-1.5 rounded-md text-[13px] transition-colors ${
                                     isActive
-                                      ? 'text-[#00E87B] bg-[#00E87B]/5 font-medium'
+                                      ? 'text-primary bg-primary/5 font-medium'
                                       : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                   }`
                                 }
@@ -182,7 +182,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                                   onClick={() => toggleGroup(`${item.name}:${groupName}`)}
                                   className={`w-full flex items-center gap-1 pl-5 pr-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${
                                     groupActive
-                                      ? 'text-[#00E87B]/70'
+                                      ? 'text-primary/70'
                                       : 'text-gray-600 hover:text-gray-400'
                                   }`}
                                 >
@@ -203,7 +203,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                                         className={({ isActive }) =>
                                           `flex items-center pl-9 pr-2 py-1.5 rounded-md text-[13px] transition-colors ${
                                             isActive
-                                              ? 'text-[#00E87B] bg-[#00E87B]/5 font-medium'
+                                              ? 'text-primary bg-primary/5 font-medium'
                                               : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                           }`
                                         }
@@ -242,8 +242,8 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
       {!collapsed && (
         <div className="flex-shrink-0 border-t border-white/5 p-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-[#00E87B]/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-semibold text-[#00E87B]">
+            <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-semibold text-primary">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </span>
             </div>
@@ -252,7 +252,7 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
                 {user?.first_name} {user?.last_name}
               </p>
               <div className="flex items-center gap-1.5">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#00E87B]" />
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                 <p className="text-[11px] text-gray-500 capitalize truncate">
                   {user?.role?.replace('_', ' ')}
                 </p>
@@ -263,8 +263,8 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
       )}
       {collapsed && (
         <div className="flex-shrink-0 border-t border-white/5 p-2 flex justify-center">
-          <div className="h-8 w-8 rounded-lg bg-[#00E87B]/20 flex items-center justify-center">
-            <span className="text-xs font-semibold text-[#00E87B]">
+          <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
+            <span className="text-xs font-semibold text-primary">
               {user?.first_name?.[0]}{user?.last_name?.[0]}
             </span>
           </div>

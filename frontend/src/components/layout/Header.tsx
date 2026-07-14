@@ -100,7 +100,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
               className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
               onClick={() => setShowUserMenu(!showUserMenu)}
             >
-              <div className="h-8 w-8 bg-gradient-to-br from-[#00E87B] to-[#00B862] rounded-lg flex items-center justify-center">
+              <div className="h-8 w-8 bg-gradient-to-br from-primary to-[#00B862] rounded-lg flex items-center justify-center">
                 <span className="text-xs font-bold text-[#06090F]">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
                 </span>

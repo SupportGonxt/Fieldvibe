@@ -507,7 +507,7 @@ export default function AgentDashboard() {
     <div className="min-h-screen bg-[#06090F] pb-24">
       <div className="bg-[#0A1628] px-4 py-2 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-2">
-          {online ? <Wifi className="w-3.5 h-3.5 text-[#00E87B]" /> : <WifiOff className="w-3.5 h-3.5 text-red-400" />}
+          {online ? <Wifi className="w-3.5 h-3.5 text-primary" /> : <WifiOff className="w-3.5 h-3.5 text-red-400" />}
           <span className="text-[10px] text-gray-500">{online ? 'Online' : 'Offline'}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -589,7 +589,7 @@ export default function AgentDashboard() {
             <div className="px-5 mb-4">
               <button
                 onClick={() => navigate('/agent/visits/create?type=individual')}
-                className="w-full flex items-center gap-3 bg-[#00E87B] text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
+                className="w-full flex items-center gap-3 bg-primary text-[#06090F] rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
               >
                 <Zap className="w-6 h-6 flex-shrink-0" />
                 <span className="flex-1 text-left leading-tight">Fast Signup<span className="block text-xs font-medium opacity-70">Snap the photo — one tap</span></span>
@@ -607,7 +607,7 @@ export default function AgentDashboard() {
       {/* PWA Install Prompt */}
       {showInstallPrompt && (
         <div className="px-5 mb-4">
-          <div className="bg-[#00E87B]/10 border border-[#00E87B]/20 rounded-2xl p-4 relative">
+          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 relative">
             <button
               onClick={dismissInstall}
               className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
@@ -616,8 +616,8 @@ export default function AgentDashboard() {
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#00E87B]/20 flex items-center justify-center flex-shrink-0">
-                <Download className="w-5 h-5 text-[#00E87B]" />
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <Download className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">Install FieldVibe</p>
@@ -626,7 +626,7 @@ export default function AgentDashboard() {
             </div>
             <button
               onClick={promptInstall}
-              className="mt-3 w-full py-2.5 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
+              className="mt-3 w-full py-2.5 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-semibold rounded-xl text-sm active:scale-[0.98] transition-transform"
             >
               Install App
             </button>
@@ -641,8 +641,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/team')}
             className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#00E87B]" />
+            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Users className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Team Overview</p>
@@ -654,8 +654,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/visits/create?type=store')}
             className="mt-3 w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
-              <Store className="w-5 h-5 text-[#00E87B]" />
+            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Store className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Store Visit</p>
@@ -672,8 +672,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/teams')}
             className="w-full bg-white/[0.04] border border-white/10 rounded-2xl p-4 flex items-center gap-3 active:bg-white/5 transition-colors"
           >
-            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/15 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-[#00E87B]" />
+            <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-semibold text-white">Organization Overview</p>
@@ -706,7 +706,7 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/visits/create?type=store')}
             className="py-3.5 bg-white/[0.06] border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
           >
-            <Store className="w-4 h-4 text-[#00E87B]" />
+            <Store className="w-4 h-4 text-primary" />
             Store Visit
           </button>
           {!isStellr && (
@@ -714,14 +714,14 @@ export default function AgentDashboard() {
               onClick={() => navigate('/agent/visits/create?type=individual')}
               className="py-3.5 bg-white/[0.06] border border-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
             >
-              <User className="w-4 h-4 text-[#00E87B]" />
+              <User className="w-4 h-4 text-primary" />
               Individual Visit
             </button>
           )}
         </div>
         <button
           onClick={() => navigate('/agent/visits/create')}
-          className="w-full py-3 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-[#00E87B]/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
+          className="w-full py-3 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-bold rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform text-sm"
         >
           <Plus className="w-4 h-4" />
           Start New Visit
@@ -862,7 +862,7 @@ export default function AgentDashboard() {
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {data.companies.map((c) => (
               <div key={c.id} className="flex-shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-[#00E87B]" />
+                <Building2 className="w-4 h-4 text-primary" />
                 <span className="text-sm text-white whitespace-nowrap">{c.name}</span>
               </div>
             ))}
@@ -894,17 +894,17 @@ export default function AgentDashboard() {
               </div>
             )}
             {targets.monthIndivTarget > 0 && (
-              <div className={`border rounded-xl p-3 ${targets.monthIndivActual >= targets.monthIndivTarget ? 'bg-[#00E87B]/10 border-[#00E87B]/30' : 'bg-white/5 border-white/10'}`}>
+              <div className={`border rounded-xl p-3 ${targets.monthIndivActual >= targets.monthIndivTarget ? 'bg-primary/10 border-primary/30' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Target className="w-3 h-3 text-[#00E87B]" />
+                  <Target className="w-3 h-3 text-primary" />
                   <span className="text-[10px] text-gray-500 uppercase">Month Individual</span>
                 </div>
                 <p className="text-lg font-bold text-white">{targets.monthIndivActual}<span className="text-sm text-gray-500">/{targets.monthIndivTarget}</span></p>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1">
-                  <div className="h-full bg-[#00E87B] rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthIndivActual / targets.monthIndivTarget) * 100))}%` }} />
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, Math.round((targets.monthIndivActual / targets.monthIndivTarget) * 100))}%` }} />
                 </div>
                 {targets.monthIndivActual >= targets.monthIndivTarget && (
-                  <p className="text-[8px] text-[#00E87B] mt-1 font-semibold">✓ Month target met! 🏆</p>
+                  <p className="text-[8px] text-primary mt-1 font-semibold">✓ Month target met! 🏆</p>
                 )}
                 {targets.monthIndivActual < targets.monthIndivTarget && targets.monthIndivTarget - targets.monthIndivActual > 0 && (
                   <p className="text-[8px] text-amber-400 mt-1">{targets.monthIndivTarget - targets.monthIndivActual} more to go! 💪</p>
@@ -943,11 +943,11 @@ export default function AgentDashboard() {
                 <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-semibold text-white">{ct.company_name}</span>
-                    <span className={'text-xs font-semibold ' + (dailyPct >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{dailyPct}%</span>
+                    <span className={'text-xs font-semibold ' + (dailyPct >= 100 ? 'text-primary' : 'text-amber-400')}>{dailyPct}%</span>
                   </div>
                   {/* Daily progress bar */}
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-2">
-                    <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: `${dailyPct}%` }} />
+                    <div className="h-full bg-gradient-to-r from-primary to-[#00D06E] rounded-full transition-all" style={{ width: `${dailyPct}%` }} />
                   </div>
                   <div className="flex justify-between mb-2">
                     <span className="text-[10px] text-gray-500">Individual: {ct.daily_actual_visits}/{ct.daily_target_visits} today</span>
@@ -1003,15 +1003,15 @@ export default function AgentDashboard() {
               const isAchieved = visitPct >= 100
               const remaining = Math.max(0, t.target_visits - t.actual_visits)
               return (
-                <div key={i} className={`border rounded-xl p-3 ${isAchieved ? 'bg-[#00E87B]/10 border-[#00E87B]/30' : 'bg-white/5 border-white/10'}`}>
+                <div key={i} className={`border rounded-xl p-3 ${isAchieved ? 'bg-primary/10 border-primary/30' : 'bg-white/5 border-white/10'}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-white">{t.company_name}</span>
-                    <span className={'text-xs font-semibold flex items-center gap-1 ' + (visitPct >= 100 ? 'text-[#00E87B]' : visitPct >= 75 ? 'text-amber-400' : 'text-red-400')}>
+                    <span className={'text-xs font-semibold flex items-center gap-1 ' + (visitPct >= 100 ? 'text-primary' : visitPct >= 75 ? 'text-amber-400' : 'text-red-400')}>
                       {visitPct}% {isAchieved ? '🎯' : visitPct >= 75 ? '🔥' : ''}
                     </span>
                   </div>
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${isAchieved ? 'bg-gradient-to-r from-[#00E87B] to-[#00D06E]' : 'bg-gradient-to-r from-[#00E87B] to-[#00D06E]'}`} style={{ width: `${visitPct}%` }} />
+                    <div className={`h-full rounded-full transition-all ${isAchieved ? 'bg-gradient-to-r from-primary to-[#00D06E]' : 'bg-gradient-to-r from-primary to-[#00D06E]'}`} style={{ width: `${visitPct}%` }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
                     <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
@@ -1023,7 +1023,7 @@ export default function AgentDashboard() {
                     </p>
                   )}
                   {isAchieved && (
-                    <p className="text-[9px] text-[#00E87B] mt-1.5 font-semibold">✓ Target Achieved! Great job! 🎉</p>
+                    <p className="text-[9px] text-primary mt-1.5 font-semibold">✓ Target Achieved! Great job! 🎉</p>
                   )}
                 </div>
               )
@@ -1035,7 +1035,7 @@ export default function AgentDashboard() {
       <div className="px-5 mb-4">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Visits</h2>
-          <button onClick={() => navigate('/agent/visits')} className="text-xs text-[#00E87B] flex items-center">
+          <button onClick={() => navigate('/agent/visits')} className="text-xs text-primary flex items-center">
             View All <ChevronRight className="w-3 h-3" />
           </button>
         </div>
@@ -1088,8 +1088,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/onboarding')}
             className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-[#00E87B]" />
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <GraduationCap className="w-4 h-4 text-primary" />
             </div>
             <div className="text-left">
               <p className="text-xs font-medium text-white">Get Started</p>
@@ -1100,8 +1100,8 @@ export default function AgentDashboard() {
             onClick={() => navigate('/agent/training')}
             className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-2.5 active:bg-white/10 transition-colors"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-              <BookOpen className="w-4 h-4 text-[#00E87B]" />
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-primary" />
             </div>
             <div className="text-left">
               <p className="text-xs font-medium text-white">Training</p>
@@ -1121,7 +1121,7 @@ const StatCard = memo(({ icon, label, value, target, color }: { icon: React.Reac
       <div className="flex items-center justify-between mb-2">
         <div className={`p-2 rounded-lg ${color} text-white`}>{icon}</div>
         {showTarget && (
-          <span className={`text-[9px] font-semibold ${value >= target ? 'text-[#00E87B]' : 'text-amber-400'}`}>
+          <span className={`text-[9px] font-semibold ${value >= target ? 'text-primary' : 'text-amber-400'}`}>
             {value}/{target}
           </span>
         )}
@@ -1130,7 +1130,7 @@ const StatCard = memo(({ icon, label, value, target, color }: { icon: React.Reac
       <p className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</p>
       {showTarget && (
         <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-2">
-          <div className={`h-full rounded-full transition-all ${value >= target ? 'bg-gradient-to-r from-[#00E87B] to-[#00D06E]' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`} style={{ width: `${Math.min(100, Math.round((value / target) * 100))}%` }} />
+          <div className={`h-full rounded-full transition-all ${value >= target ? 'bg-gradient-to-r from-primary to-[#00D06E]' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`} style={{ width: `${Math.min(100, Math.round((value / target) * 100))}%` }} />
         </div>
       )}
     </div>

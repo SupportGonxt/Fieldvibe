@@ -59,13 +59,13 @@ export default function MobileBottomTabs() {
               key={tab.path}
               onClick={() => navigate(tab.path)}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                active ? 'text-[#00E87B]' : 'text-gray-500'
+                active ? 'text-primary' : 'text-gray-500'
               }`}
             >
               <tab.icon className={`h-5 w-5 ${active ? 'stroke-[2.5]' : ''}`} />
               <span className="text-[10px] mt-1 font-medium">{tab.label}</span>
               {active && (
-                <div className="absolute top-0 w-8 h-0.5 bg-[#00E87B] rounded-full" />
+                <div className="absolute top-0 w-8 h-0.5 bg-primary rounded-full" />
               )}
             </button>
           )

@@ -148,25 +148,25 @@ interface PerformanceData {
 }
 
 function getBarBg(isToday: boolean, count: number): string {
-  if (isToday) return 'linear-gradient(to top, #00E87B, #00D06E)'
-  if (count > 0) return 'rgba(0, 232, 123, 0.3)'
+  if (isToday) return 'linear-gradient(to top, var(--color-primary), #00D06E)'
+  if (count > 0) return 'rgba(var(--color-primary-rgb), 0.3)'
   return 'rgba(255,255,255,0.05)'
 }
 
 function achievementColor(pct: number): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return '#EF4444'
 }
 
 function pctClass(pct: number): string {
-  if (pct >= 100) return 'text-[#00E87B]'
+  if (pct >= 100) return 'text-primary'
   if (pct >= 75) return 'text-amber-400'
   return 'text-red-400'
 }
 
 function progressBg(pct: number, base: string): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return base
 }
@@ -350,12 +350,12 @@ function OverviewTab({
             const isToday = date === todayStr
             return (
               <div key={date} className="flex-1 flex flex-col items-center gap-1">
-                <span className={'text-[9px] font-medium ' + (count === 0 ? 'text-gray-600' : isAtOrOverTarget ? 'text-[#00E87B]' : isUnderTarget ? 'text-red-400' : 'text-gray-400')}>{count || ''}</span>
+                <span className={'text-[9px] font-medium ' + (count === 0 ? 'text-gray-600' : isAtOrOverTarget ? 'text-primary' : isUnderTarget ? 'text-red-400' : 'text-gray-400')}>{count || ''}</span>
                 <div className="w-full rounded-t-md" style={{
                   height: Math.max(height, 4) + '%',
-                  background: isAtOrOverTarget ? '#00E87B' : isUnderTarget ? '#EF4444' : getBarBg(isToday, count),
+                  background: isAtOrOverTarget ? 'var(--color-primary)' : isUnderTarget ? '#EF4444' : getBarBg(isToday, count),
                 }} />
-                <span className={'text-[9px] ' + (isToday ? 'text-[#00E87B] font-semibold' : 'text-gray-600')}>
+                <span className={'text-[9px] ' + (isToday ? 'text-primary font-semibold' : 'text-gray-600')}>
                   {new Date(date + 'T12:00:00').toLocaleDateString('en-ZA', { weekday: 'narrow' })}
                 </span>
               </div>
@@ -376,7 +376,7 @@ function OverviewTab({
           <div className="p-1.5 text-gray-500 font-medium text-center">Store</div>
           <div className="p-1.5 text-gray-500 font-medium text-center">Total</div>
 
-          <div className="p-1.5 text-[#00E87B] font-semibold">Day</div>
+          <div className="p-1.5 text-primary font-semibold">Day</div>
           <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_individual_visits ?? dashData?.today_visits ?? 0}</div>
           <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_store_visits ?? dashData?.today_stores ?? 0}</div>
           <div className="p-1.5 text-center font-semibold text-white">{dashData?.today_visits ?? 0}</div>
@@ -418,15 +418,15 @@ function OverviewTab({
 
       {/* Team summary on Overview */}
       {perfData?.team_performance && (
-        <div className="bg-gradient-to-br from-[#00E87B]/20 to-[#00D06E]/10 border border-[#00E87B]/20 rounded-2xl p-3 flex items-center gap-3">
-          <Users className="w-5 h-5 text-[#00E87B]" />
+        <div className="bg-gradient-to-br from-primary/20 to-[#00D06E]/10 border border-primary/20 rounded-2xl p-3 flex items-center gap-3">
+          <Users className="w-5 h-5 text-primary" />
           <div className="flex-1">
             <p className="text-sm font-bold text-white">{perfData.team_performance.team_lead_name}&apos;s Team</p>
             <p className="text-[10px] text-gray-400">{perfData.team_performance.member_count} members</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-400">Team</p>
-            <p className={'text-sm font-bold ' + (perfData.team_performance.achievement >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{perfData.team_performance.achievement}%</p>
+            <p className={'text-sm font-bold ' + (perfData.team_performance.achievement >= 100 ? 'text-primary' : 'text-amber-400')}>{perfData.team_performance.achievement}%</p>
           </div>
         </div>
       )}
@@ -440,8 +440,8 @@ function OverviewTab({
           <div className="space-y-2.5">
             {/* My Score */}
             <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-              <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                <UserCheck className="w-4 h-4 text-[#00E87B]" />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <UserCheck className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-gray-400">My Score</p>
@@ -450,14 +450,14 @@ function OverviewTab({
               <div className="text-right">
                 <span className={`text-lg font-bold ${pctClass(overallPct)}`}>{overallPct}%</span>
               </div>
-              <div className={`w-2.5 h-2.5 rounded-full ${overallPct >= 100 ? 'bg-[#00E87B]' : overallPct >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+              <div className={`w-2.5 h-2.5 rounded-full ${overallPct >= 100 ? 'bg-primary' : overallPct >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
             </div>
 
             {/* Team Lead Score */}
             {perfData?.team_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-[#00E87B]" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">Team Lead</p>
@@ -466,15 +466,15 @@ function OverviewTab({
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(perfData.team_performance.achievement)}`}>{perfData.team_performance.achievement}%</span>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${perfData.team_performance.achievement >= 100 ? 'bg-[#00E87B]' : perfData.team_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${perfData.team_performance.achievement >= 100 ? 'bg-primary' : perfData.team_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
               </div>
             )}
 
             {/* Manager Score */}
             {perfData?.manager_performance && (
               <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-[#00E87B]" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-400">Manager</p>
@@ -483,7 +483,7 @@ function OverviewTab({
                 <div className="text-right">
                   <span className={`text-lg font-bold ${pctClass(perfData.manager_performance.achievement)}`}>{perfData.manager_performance.achievement}%</span>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${perfData.manager_performance.achievement >= 100 ? 'bg-[#00E87B]' : perfData.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${perfData.manager_performance.achievement >= 100 ? 'bg-primary' : perfData.manager_performance.achievement >= 75 ? 'bg-amber-400' : 'bg-red-400'}`} />
               </div>
             )}
           </div>
@@ -513,7 +513,7 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
           <p className="text-xs text-gray-500 mt-0.5">{perfData?.total_actual_visits || 0} of {perfData?.total_target_visits || 0} individual visits</p>
           <p className="text-xs text-gray-500">{perfData?.total_actual_registrations || 0} of {perfData?.total_target_registrations || 0} store visits</p>
           {ach >= 100 && (
-            <p className="text-xs text-[#00E87B] font-semibold mt-1 flex items-center gap-1">
+            <p className="text-xs text-primary font-semibold mt-1 flex items-center gap-1">
               <Trophy className="w-3 h-3" /> Target exceeded!
             </p>
           )}
@@ -614,10 +614,10 @@ function TargetsTab({ perfData, dashData }: { perfData: PerformanceData | null; 
                 <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-white">{t.company_name}</span>
-                    <span className={'text-xs font-semibold ' + (visitPct >= 100 ? 'text-[#00E87B]' : 'text-amber-400')}>{visitPct}%</span>
+                    <span className={'text-xs font-semibold ' + (visitPct >= 100 ? 'text-primary' : 'text-amber-400')}>{visitPct}%</span>
                   </div>
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-[#00E87B] to-[#00D06E] rounded-full transition-all" style={{ width: visitPct + '%' }} />
+                    <div className="h-full bg-gradient-to-r from-primary to-[#00D06E] rounded-full transition-all" style={{ width: visitPct + '%' }} />
                   </div>
                   <div className="flex justify-between mt-1.5">
                     <span className="text-[10px] text-gray-500">Individual: {t.actual_visits}/{t.target_visits}</span>
@@ -665,7 +665,7 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
           <div className="mt-3 pt-3 border-t border-white/5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400">Target Commission</span>
-              <span className="text-sm font-bold text-[#00E87B]">R{(perfData?.commission_summary?.target_commission || 0).toLocaleString()}</span>
+              <span className="text-sm font-bold text-primary">R{(perfData?.commission_summary?.target_commission || 0).toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -681,7 +681,7 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
             {tiers.map((tier) => (
               <div key={tier.amount} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02]">
                 <p className="text-xs text-gray-400">{tier.signups} signups + {tier.deposits} deposits /day</p>
-                <span className="text-sm font-semibold text-[#00E87B]">{rand(tier.amount)}</span>
+                <span className="text-sm font-semibold text-primary">{rand(tier.amount)}</span>
               </div>
             ))}
           </div>
@@ -696,15 +696,15 @@ function EarningsTab({ perfData, totalEarnings }: { perfData: PerformanceData | 
             <Users className="w-3.5 h-3.5" /> Team Performance
           </h3>
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
-              <UserCheck className="w-5 h-5 text-[#00E87B]" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-primary" />
             </div>
             <div>
               <p className="text-sm font-medium text-white">{team.team_lead_name}&apos;s Team</p>
               <p className="text-xs text-gray-500">{team.member_count} members</p>
             </div>
             <div className="ml-auto text-right">
-              <p className={'text-lg font-bold ' + (team.achievement >= 100 ? 'text-[#00E87B]' : team.achievement >= 75 ? 'text-amber-400' : 'text-red-400')}>{team.achievement}%</p>
+              <p className={'text-lg font-bold ' + (team.achievement >= 100 ? 'text-primary' : team.achievement >= 75 ? 'text-amber-400' : 'text-red-400')}>{team.achievement}%</p>
               <p className="text-[10px] text-gray-500">Team Target</p>
             </div>
           </div>
@@ -847,7 +847,7 @@ export default function AgentStats() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -871,13 +871,13 @@ export default function AgentStats() {
 
   const tabClass = (tab: string) =>
     'flex-1 py-2 text-xs font-semibold rounded-lg capitalize transition-all ' +
-    (activeTab === tab ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400')
+    (activeTab === tab ? 'bg-primary text-[#0A1628]' : 'text-gray-400')
 
   return (
     <div className="min-h-screen bg-[#06090F] pb-24">
       <div className="bg-[#0A1628] px-5 pt-5 pb-4 border-b border-white/5">
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-[#00E87B]" /> My Performance
+          <BarChart3 className="w-5 h-5 text-primary" /> My Performance
         </h1>
         <div className="flex items-center justify-between mt-1">
           <button

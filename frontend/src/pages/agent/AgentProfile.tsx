@@ -77,8 +77,8 @@ export default function AgentProfile() {
     <div className="min-h-screen bg-[#06090F] pb-24">
       {/* Header */}
       <div className="bg-gradient-to-br from-[#0A1628] to-[#0F2140] px-5 pt-8 pb-6 text-center">
-        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-[#00E87B]/30">
-          <User className="w-10 h-10 text-[#00E87B]" />
+        <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-primary/30">
+          <User className="w-10 h-10 text-primary" />
         </div>
         <h1 className="text-xl font-bold text-white">{authUser?.first_name && authUser?.last_name ? authUser.first_name + ' ' + authUser.last_name : (authUser as any)?.name || 'Agent'}</h1>
         <p className="text-sm text-gray-400 capitalize">{(authUser?.role || 'agent').replace('_', ' ')}</p>
@@ -87,9 +87,9 @@ export default function AgentProfile() {
       <div className="px-5 pt-4 space-y-3">
         {/* Info Cards */}
         <div className="bg-white/5 border border-white/10 rounded-xl divide-y divide-white/5">
-          <InfoRow icon={<Phone className="w-4 h-4 text-[#00E87B]" />} label="Phone" value={authUser?.phone || 'Not set'} />
-          <InfoRow icon={<Shield className="w-4 h-4 text-[#00E87B]" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
-          <InfoRow icon={<Building2 className="w-4 h-4 text-[#00E87B]" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
+          <InfoRow icon={<Phone className="w-4 h-4 text-primary" />} label="Phone" value={authUser?.phone || 'Not set'} />
+          <InfoRow icon={<Shield className="w-4 h-4 text-primary" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
+          <InfoRow icon={<Building2 className="w-4 h-4 text-primary" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
         </div>
 
         {/* Change PIN */}
@@ -124,7 +124,7 @@ export default function AgentProfile() {
             <button
               onClick={handleChangePin}
               disabled={pinLoading}
-              className="w-full min-h-[44px] py-2.5 bg-[#00E87B] text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
+              className="w-full min-h-[44px] py-2.5 bg-primary text-[#0A1628] font-semibold rounded-xl text-sm disabled:opacity-50"
             >
               {pinLoading ? 'Updating...' : 'Update PIN'}
             </button>
@@ -176,7 +176,7 @@ function PinInput({ label, value, onChange, show, toggle }: { label: string; val
           maxLength={6}
           value={value}
           onChange={(e) => onChange(e.target.value.replace(/\D/g, '').substring(0, 6))}
-          className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm tracking-[0.3em] focus:outline-none focus:border-[#00E87B]/50"
+          className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white text-sm tracking-[0.3em] focus:outline-none focus:border-primary/50"
         />
         <button type="button" onClick={toggle} className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500">
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

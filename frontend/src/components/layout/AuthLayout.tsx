@@ -10,9 +10,9 @@ export default function AuthLayout() {
         <div className="absolute inset-0 bg-gradient-to-br from-[#06090F] via-[#0A1628] to-[#0F1D35]"></div>
         
         {/* Animated gradient orbs */}
-        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-[#00E87B] rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse"></div>
+        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse"></div>
         <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-[#4BFFB5] rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/3 w-72 h-72 bg-[#00E87B] rounded-full mix-blend-multiply filter blur-3xl opacity-5 animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/3 w-72 h-72 bg-primary rounded-full mix-blend-multiply filter blur-3xl opacity-5 animate-pulse" style={{ animationDelay: '2s' }}></div>
         
         {/* Grid pattern overlay */}
         <div className="absolute inset-0 opacity-10" style={{ 
@@ -24,8 +24,8 @@ export default function AuthLayout() {
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div>
             <Link to="/" className="inline-flex items-center space-x-3 group">
-              <div className="w-12 h-12 bg-[#00E87B]/20 backdrop-blur-sm rounded-xl flex items-center justify-center group-hover:bg-[#00E87B]/30 transition-colors">
-                <Zap className="w-7 h-7 text-[#00E87B]" />
+              <div className="w-12 h-12 bg-primary/20 backdrop-blur-sm rounded-xl flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+                <Zap className="w-7 h-7 text-primary" />
               </div>
               <div>
                 <span className="text-2xl font-bold text-white">FieldVibe</span>
@@ -38,7 +38,7 @@ export default function AuthLayout() {
             <div>
               <h1 className="text-5xl font-bold text-white leading-tight mb-4">
                 Power Your
-                <span className="block bg-gradient-to-r from-[#00E87B] to-[#4BFFB5] bg-clip-text text-transparent">
+                <span className="block bg-gradient-to-r from-primary to-[#4BFFB5] bg-clip-text text-transparent">
                   Field Operations
                 </span>
               </h1>
@@ -50,7 +50,7 @@ export default function AuthLayout() {
             {/* Feature highlights */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 hover:bg-white/15 transition-colors">
-                <BarChart3 className="w-8 h-8 text-[#00E87B] mb-3" />
+                <BarChart3 className="w-8 h-8 text-primary mb-3" />
                 <div className="text-white font-semibold mb-1">Real-Time Analytics</div>
                 <div className="text-slate-400 text-sm">Live dashboards & insights</div>
               </div>
@@ -60,7 +60,7 @@ export default function AuthLayout() {
                 <div className="text-slate-400 text-sm">GPS tracking & routes</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 hover:bg-white/15 transition-colors">
-                <Smartphone className="w-8 h-8 text-[#00E87B] mb-3" />
+                <Smartphone className="w-8 h-8 text-primary mb-3" />
                 <div className="text-white font-semibold mb-1">Mobile First</div>
                 <div className="text-slate-400 text-sm">iOS & Android apps</div>
               </div>
@@ -91,7 +91,7 @@ export default function AuthLayout() {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Globe className="w-5 h-5 text-[#00E87B]" />
+            <Globe className="w-5 h-5 text-primary" />
             <span className="text-slate-400 text-sm">Trusted by enterprises in 25+ countries</span>
           </div>
         </div>
@@ -103,8 +103,8 @@ export default function AuthLayout() {
           {/* Mobile logo */}
           <div className="lg:hidden mb-10 text-center">
             <Link to="/" className="inline-flex items-center justify-center space-x-3">
-              <div className="w-12 h-12 bg-[#00E87B]/20 rounded-xl flex items-center justify-center">
-                <Zap className="w-7 h-7 text-[#00E87B]" />
+              <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
+                <Zap className="w-7 h-7 text-primary" />
               </div>
               <span className="text-2xl font-bold text-white">FieldVibe</span>
             </Link>
@@ -119,7 +119,7 @@ export default function AuthLayout() {
           {/* GONXT branding */}
           <div className="mt-8 text-center flex items-center justify-center space-x-2">
             <span className="text-slate-500 text-sm">A Product of</span>
-            <a href="https://www.gonxt.tech" target="_blank" rel="noopener noreferrer" className="text-slate-300 font-semibold hover:text-[#00E87B] transition-colors">GONXT</a>
+            <a href="https://www.gonxt.tech" target="_blank" rel="noopener noreferrer" className="text-slate-300 font-semibold hover:text-primary transition-colors">GONXT</a>
           </div>
         </div>
       </div>

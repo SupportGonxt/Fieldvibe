@@ -94,7 +94,7 @@ export default function BOPhotoReview() {
             onClick={() => { setStatus(f.key); setPage(1) }}
             className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
               status === f.key
-                ? 'bg-[#00E87B]/15 text-[#00E87B] border-[#00E87B]/30'
+                ? 'bg-primary/15 text-primary border-primary/30'
                 : 'bg-white/[0.03] text-gray-400 border-white/10'
             }`}
           >
@@ -104,11 +104,11 @@ export default function BOPhotoReview() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       ) : photos.length === 0 ? (
-        <div className="mx-5 flex items-center gap-3 bg-[#00E87B]/[0.06] border border-[#00E87B]/20 rounded-2xl px-4 py-4">
+        <div className="mx-5 flex items-center gap-3 bg-primary/[0.06] border border-primary/20 rounded-2xl px-4 py-4">
           {status === 'pending'
-            ? <><CheckCircle2 className="w-5 h-5 text-[#00E87B] shrink-0" /><span className="text-sm text-white">Nothing waiting for review.</span></>
+            ? <><CheckCircle2 className="w-5 h-5 text-primary shrink-0" /><span className="text-sm text-white">Nothing waiting for review.</span></>
             : <><Camera className="w-5 h-5 text-gray-500 shrink-0" /><span className="text-sm text-gray-400">No {status} photos.</span></>}
         </div>
       ) : (
@@ -157,7 +157,7 @@ export default function BOPhotoReview() {
                       <button
                         onClick={() => approve.mutate(p.id)}
                         disabled={approve.isPending}
-                        className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#00E87B] text-[#06090F] text-sm font-semibold active:scale-[0.99]"
+                        className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-[#06090F] text-sm font-semibold active:scale-[0.99]"
                       >
                         <Check className="w-4 h-4" /> Approve
                       </button>

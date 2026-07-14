@@ -53,7 +53,7 @@ export default function GmStats() {
   if (loading && !data) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+        <Loader2 className="w-6 h-6 text-primary animate-spin" />
       </div>
     )
   }
@@ -136,7 +136,7 @@ export default function GmStats() {
         {/* Capacity: numbers can only move if agents are in the field and leads are being called. */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl divide-y divide-white/[0.06]">
           <Row
-            icon={<Users className="w-4 h-4 text-[#00E87B]" />}
+            icon={<Users className="w-4 h-4 text-primary" />}
             label="Agents in the field"
             value={`${field.activeAgents}/${field.totalAgents}`}
             note={`${coverage}% coverage`}
@@ -152,7 +152,7 @@ export default function GmStats() {
             />
           )}
           <Row
-            icon={<Phone className="w-4 h-4 text-[#00E87B]" />}
+            icon={<Phone className="w-4 h-4 text-primary" />}
             label="Leads contacted"
             value={`${calls.contacted.toLocaleString()}${calls.target ? `/${calls.target.toLocaleString()}` : ''}`}
             note={calls.target ? `${Math.round((calls.contacted / calls.target) * 100)}% of target` : 'no call target set'}
@@ -171,7 +171,7 @@ export default function GmStats() {
 
           {!groups.length ? (
             <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 text-center">
-              <CheckCircle2 className="w-10 h-10 text-[#00E87B]/60 mx-auto mb-3" />
+              <CheckCircle2 className="w-10 h-10 text-primary/60 mx-auto mb-3" />
               <p className="text-sm text-gray-400">No signals firing</p>
               <p className="text-xs text-gray-600 mt-1">Every active agent is inside their thresholds</p>
             </div>
@@ -246,7 +246,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       onClick={onClick}
       className={`min-h-[44px] whitespace-nowrap px-4 rounded-xl text-sm font-medium border ${
-        active ? 'bg-[#00E87B] text-[#0A1628] border-transparent' : 'bg-white/[0.06] text-gray-300 border-white/10'
+        active ? 'bg-primary text-[#0A1628] border-transparent' : 'bg-white/[0.06] text-gray-300 border-white/10'
       }`}
     >
       {children}
@@ -265,7 +265,7 @@ function Kpi({ label, value, delta, unit = '%', hint }: {
       <p className="text-xs text-gray-500">{label}</p>
       <p className="text-2xl font-bold text-white tabular-nums mt-1">{value}</p>
       {delta != null ? (
-        <p className={`text-xs mt-1 flex items-center gap-0.5 ${up ? 'text-[#00E87B]' : down ? 'text-red-400' : 'text-gray-500'}`}>
+        <p className={`text-xs mt-1 flex items-center gap-0.5 ${up ? 'text-primary' : down ? 'text-red-400' : 'text-gray-500'}`}>
           <Icon className="w-3 h-3" />
           {Math.abs(delta) < 0.05 ? '0' : Math.abs(delta).toFixed(unit === 'pts' ? 1 : 0)}{unit === 'pts' ? ' pts' : '%'}
           <span className="text-gray-600">vs prev</span>

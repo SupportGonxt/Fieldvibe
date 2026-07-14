@@ -436,7 +436,7 @@ export default function VisitDetail() {
                     <button
                       onClick={handleSaveGoldrushId}
                       disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9}
-                      className="px-3 py-2 bg-[#00E87B] text-[#0A1628] text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1"
+                      className="px-3 py-2 bg-primary text-[#0A1628] text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1"
                     >
                       <Save className="w-3.5 h-3.5" />
                       {savingGoldrushId ? 'Saving...' : 'Submit'}
@@ -456,12 +456,12 @@ export default function VisitDetail() {
                         value={goldrushIdValue}
                         onChange={e => setGoldrushIdValue(e.target.value.replace(/[^0-9]/g, ''))}
                         maxLength={9}
-                        className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-[#00E87B]"
+                        className="w-28 px-2 py-1 text-sm bg-white/10 border border-white/20 rounded text-white placeholder-gray-500 focus:ring-1 focus:ring-primary"
                         placeholder="9 digits"
                         autoFocus
                         onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(); if (e.key === 'Escape') setEditingGoldrushId(false); }}
                       />
-                      <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9} className="p-1 text-[#00E87B] disabled:opacity-50">
+                      <button onClick={handleSaveGoldrushId} disabled={savingGoldrushId || goldrushIdValue.trim().length !== 9} className="p-1 text-primary disabled:opacity-50">
                         <Save className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => setEditingGoldrushId(false)} className="p-1 text-gray-500">
@@ -473,7 +473,7 @@ export default function VisitDetail() {
                       <span className={`text-sm ${getGoldrushId(visit) ? 'text-blue-400' : 'text-gray-600'}`}>
                         {getGoldrushId(visit) || '—'}
                       </span>
-                      <button onClick={() => { setGoldrushIdValue(getGoldrushId(visit)); setEditingGoldrushId(true); }} className="p-1 text-gray-500 hover:text-[#00E87B]">
+                      <button onClick={() => { setGoldrushIdValue(getGoldrushId(visit)); setEditingGoldrushId(true); }} className="p-1 text-gray-500 hover:text-primary">
                         <Edit2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -518,7 +518,7 @@ export default function VisitDetail() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-[#00E87B]/10 text-[#00E87B] hover:bg-[#00E87B]/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
                 >
                   {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                   {uploading ? 'Uploading...' : 'Upload'}
@@ -565,7 +565,7 @@ export default function VisitDetail() {
                           <button
                             onClick={() => photoFileRefs.current[photo.id]?.click()}
                             disabled={uploading}
-                            className="mt-1 flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md bg-[#00E87B] text-[#0A1628] disabled:opacity-50"
+                            className="mt-1 flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md bg-primary text-[#0A1628] disabled:opacity-50"
                           >
                             <Upload className="w-3 h-3" /> Tap to Replace
                           </button>
@@ -889,7 +889,7 @@ export default function VisitDetail() {
                       <button
                         onClick={() => photoFileRefs.current[photo.id]?.click()}
                         disabled={uploading}
-                        className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-[#00E87B] text-[#0A1628] hover:bg-[#00E87B]/90 disabled:opacity-50 transition-colors"
+                        className="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-primary text-[#0A1628] hover:bg-primary/90 disabled:opacity-50 transition-colors"
                       >
                         <Upload className="w-3.5 h-3.5" /> Click to Replace
                       </button>

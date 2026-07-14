@@ -38,8 +38,8 @@ export default function ForgotPasswordPage() {
     return (
       <div className="space-y-6 text-center">
         <div>
-          <div className="mx-auto h-12 w-12 bg-[#00E87B]/20 rounded-full flex items-center justify-center">
-            <Mail className="h-6 w-6 text-[#00E87B]" />
+          <div className="mx-auto h-12 w-12 bg-primary/20 rounded-full flex items-center justify-center">
+            <Mail className="h-6 w-6 text-primary" />
           </div>
           <h2 className="mt-4 text-2xl font-bold text-white">
             Check your email
@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
           
           <Link
             to="/auth/login"
-            className="flex items-center justify-center text-sm text-[#00E87B] hover:text-[#4BFFB5] transition-colors"
+            className="flex items-center justify-center text-sm text-primary hover:text-[#4BFFB5] transition-colors"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to sign in
@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
       <div>
         <Link
           to="/auth/login"
-          className="flex items-center text-sm text-[#00E87B] hover:text-[#4BFFB5] transition-colors mb-4"
+          className="flex items-center text-sm text-primary hover:text-[#4BFFB5] transition-colors mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to sign in
@@ -111,7 +111,7 @@ export default function ForgotPasswordPage() {
                 },
               })}
               type="email"
-              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#00E87B] focus:border-[#00E87B] transition-all"
+              className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="Enter your email"
               autoComplete="email"
             />
@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#00E87B] hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#00E87B]/25"
+            className="w-full bg-primary hover:bg-[#1DFFB2] text-[#06090F] font-semibold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
           >
             {isLoading ? (
               <>

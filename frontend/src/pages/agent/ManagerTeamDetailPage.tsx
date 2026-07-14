@@ -21,13 +21,13 @@ interface AgentStat {
 }
 
 function pctClass(pct: number): string {
-  if (pct >= 100) return 'text-[#00E87B]'
+  if (pct >= 100) return 'text-primary'
   if (pct >= 75) return 'text-amber-400'
   return 'text-red-400'
 }
 
 function progressColor(pct: number): string {
-  if (pct >= 100) return '#00E87B'
+  if (pct >= 100) return 'var(--color-primary)'
   if (pct >= 75) return '#F59E0B'
   return '#EF4444'
 }
@@ -67,7 +67,7 @@ export default function ManagerTeamDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#06090F] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#00E87B] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -79,7 +79,7 @@ export default function ManagerTeamDetailPage() {
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Couldn't load this team.</p>
           <div className="mt-3 flex items-center justify-center gap-3">
-            <button onClick={() => fetchData()} className="text-[#00E87B] text-sm font-medium">Retry</button>
+            <button onClick={() => fetchData()} className="text-primary text-sm font-medium">Retry</button>
             <button onClick={() => navigate(-1)} className="text-gray-500 text-sm font-medium">Go back</button>
           </div>
         </div>
@@ -93,7 +93,7 @@ export default function ManagerTeamDetailPage() {
         <div className="text-center">
           <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Team not found</p>
-          <button onClick={() => navigate(-1)} className="mt-3 text-[#00E87B] text-sm font-medium">Go back</button>
+          <button onClick={() => navigate(-1)} className="mt-3 text-primary text-sm font-medium">Go back</button>
         </div>
       </div>
     )
@@ -117,8 +117,8 @@ export default function ManagerTeamDetailPage() {
           <span className="text-xs">Back to Teams</span>
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-[#00E87B]/10 flex items-center justify-center">
-            <Users className="w-6 h-6 text-[#00E87B]" />
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Users className="w-6 h-6 text-primary" />
           </div>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-white">{teamLead.first_name} {teamLead.last_name}</h1>
@@ -167,7 +167,7 @@ export default function ManagerTeamDetailPage() {
                     onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
                     className="w-full p-3 flex items-center gap-3"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-[#00E87B]/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <span className="text-xs font-bold text-white">{(agent.first_name?.[0] || '') + (agent.last_name?.[0] || '')}</span>
                     </div>
                     <div className="flex-1 text-left min-w-0">
@@ -216,7 +216,7 @@ export default function ManagerTeamDetailPage() {
                       {/* View Details button */}
                       <button
                         onClick={() => navigate(`/agent/agent-detail/${agent.id}`)}
-                        className="w-full mt-3 py-2 bg-[#00E87B]/10 border border-[#00E87B]/20 rounded-lg text-xs font-semibold text-[#00E87B] flex items-center justify-center gap-1.5"
+                        className="w-full mt-3 py-2 bg-primary/10 border border-primary/20 rounded-lg text-xs font-semibold text-primary flex items-center justify-center gap-1.5"
                       >
                         <MapPin className="w-3.5 h-3.5" /> View Visit History
                         <ChevronRight className="w-3 h-3" />

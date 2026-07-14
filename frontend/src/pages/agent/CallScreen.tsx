@@ -108,7 +108,7 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
           </span>
         </div>
         <h1 className="text-2xl font-semibold text-white text-center">{peerName}</h1>
-        <div className="mt-3 flex items-center gap-2 text-[#00E87B] tabular-nums">
+        <div className="mt-3 flex items-center gap-2 text-primary tabular-nums">
           {(state === 'connecting' || state === 'ringing' || state === 'reconnecting') && (
             <Loader2 className="w-4 h-4 animate-spin" />
           )}
@@ -130,7 +130,7 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             </button>
             <button
               onClick={accept}
-              className="w-16 h-16 rounded-full bg-[#00E87B] flex items-center justify-center active:scale-95 transition-transform shadow-lg shadow-[#00E87B]/30"
+              className="w-16 h-16 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform shadow-lg shadow-primary/30"
             >
               <Phone className="w-7 h-7 text-[#0A1628]" />
             </button>

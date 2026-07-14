@@ -181,10 +181,10 @@ export default function AgentLayout() {
                     onClick={() => navigate(tab.path)}
                     className="flex flex-col items-center -mt-5"
                   >
-                    <div className="w-14 h-14 bg-gradient-to-br from-[#00E87B] to-[#00D06E] rounded-2xl flex items-center justify-center shadow-lg shadow-[#00E87B]/30 active:scale-95 transition-transform">
+                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-[#00D06E] rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30 active:scale-95 transition-transform">
                       <Icon className="w-6 h-6 text-[#0A1628]" />
                     </div>
-                    <span className="text-[10px] text-[#00E87B] mt-1 font-medium">{tab.label}</span>
+                    <span className="text-[10px] text-primary mt-1 font-medium">{tab.label}</span>
                   </button>
                 )
               }
@@ -196,11 +196,11 @@ export default function AgentLayout() {
                   data-tour-label={tab.label}
                   onClick={() => navigate(tab.path)}
                   className={`flex flex-col items-center py-2 px-3 transition-colors ${
-                    isActive ? 'text-[#00E87B]' : 'text-gray-600'
+                    isActive ? 'text-primary' : 'text-gray-600'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-[#00E87B]' : 'text-gray-600'}`} />
-                  <span className={`text-[10px] mt-1 ${isActive ? 'font-semibold text-[#00E87B]' : 'text-gray-600'}`}>{tab.label}</span>
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-gray-600'}`} />
+                  <span className={`text-[10px] mt-1 ${isActive ? 'font-semibold text-primary' : 'text-gray-600'}`}>{tab.label}</span>
                 </button>
               )
             })}

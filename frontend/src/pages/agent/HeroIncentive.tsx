@@ -67,12 +67,12 @@ export default function HeroIncentive({ companyId, team }: { companyId?: string;
     )
   }
 
-  const paceColor = hero.provisionalPace > 0 ? 'text-[#00E87B]' : 'text-gray-400'
+  const paceColor = hero.provisionalPace > 0 ? 'text-primary' : 'text-gray-400'
   const c = coach(hero)
 
   return (
     <div className="px-5 mb-4">
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-[#00E87B]/20 rounded-2xl p-4">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0A1628] to-[#0E1D35] border border-primary/20 rounded-2xl p-4">
         {/* rank badge */}
         {hero.rank != null && (
           <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1">
@@ -93,10 +93,10 @@ export default function HeroIncentive({ companyId, team }: { companyId?: string;
         </p>
 
         {/* coaching push — always prompts the agent to do better */}
-        <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 border ${c.hot ? 'bg-orange-500/10 border-orange-500/30' : 'bg-[#00E87B]/10 border-[#00E87B]/20'}`}>
-          {c.hot ? <Flame className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" /> : <TrendingUp className="w-4 h-4 text-[#00E87B] flex-shrink-0 mt-0.5" />}
+        <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 border ${c.hot ? 'bg-orange-500/10 border-orange-500/30' : 'bg-primary/10 border-primary/20'}`}>
+          {c.hot ? <Flame className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" /> : <TrendingUp className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />}
           <div>
-            <p className={`text-sm font-bold ${c.hot ? 'text-orange-300' : 'text-[#00E87B]'}`}>{c.push}</p>
+            <p className={`text-sm font-bold ${c.hot ? 'text-orange-300' : 'text-primary'}`}>{c.push}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">{c.sub}</p>
           </div>
         </div>
@@ -124,7 +124,7 @@ export default function HeroIncentive({ companyId, team }: { companyId?: string;
                     key={t.amount}
                     className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 border text-xs ${
                       hit
-                        ? 'bg-[#00E87B]/10 border-[#00E87B]/30 text-[#00E87B]'
+                        ? 'bg-primary/10 border-primary/30 text-primary'
                         : next
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
                           : 'bg-white/[0.03] border-white/10 text-gray-500'

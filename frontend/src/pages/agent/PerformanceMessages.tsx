@@ -97,14 +97,14 @@ function formatTime(dateStr: string): string {
 }
 
 function getAchColor(ach: number): string {
-  if (ach >= 100) return 'text-[#00E87B]'
+  if (ach >= 100) return 'text-primary'
   if (ach >= 75) return 'text-amber-400'
   if (ach >= 50) return 'text-orange-400'
   return 'text-red-400'
 }
 
 function getAchBg(ach: number): string {
-  if (ach >= 100) return 'bg-[#00E87B]'
+  if (ach >= 100) return 'bg-primary'
   if (ach >= 75) return 'bg-amber-500'
   if (ach >= 50) return 'bg-orange-500'
   return 'bg-red-500'
@@ -179,15 +179,15 @@ export default function PerformanceMessages() {
 
   return (
     <div className="px-5 mb-4">
-      <div className="bg-gradient-to-br from-[#00E87B]/10 via-[#0A1628] to-[#00D06E]/10 border border-[#00E87B]/20 rounded-2xl overflow-hidden">
+      <div className="bg-gradient-to-br from-primary/10 via-[#0A1628] to-[#00D06E]/10 border border-primary/20 rounded-2xl overflow-hidden">
         {/* Header */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full px-4 py-3 flex items-center justify-between"
         >
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#00E87B]/10 flex items-center justify-center">
-              <Bell className="w-4 h-4 text-[#00E87B]" />
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Bell className="w-4 h-4 text-primary" />
             </div>
             <div className="text-left">
               <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
@@ -205,7 +205,7 @@ export default function PerformanceMessages() {
             <button
               onClick={(e) => { e.stopPropagation(); handleGenerate() }}
               disabled={generating}
-              className="text-[10px] text-[#00E87B] hover:text-[#00D06E] px-2 min-h-[44px] inline-flex items-center rounded bg-[#00E87B]/10 disabled:opacity-50"
+              className="text-[10px] text-primary hover:text-[#00D06E] px-2 min-h-[44px] inline-flex items-center rounded bg-primary/10 disabled:opacity-50"
             >
               {generating ? 'Generating...' : 'Refresh'}
             </button>
@@ -222,11 +222,11 @@ export default function PerformanceMessages() {
             {/* Latest summary card */}
             {latestMetrics && latest && (
               <div 
-                className={`rounded-xl p-3 mb-3 border ${!latest.is_read ? 'bg-[#00E87B]/10 border-[#00E87B]/20' : 'bg-white/5 border-white/10'}`}
+                className={`rounded-xl p-3 mb-3 border ${!latest.is_read ? 'bg-primary/10 border-primary/20' : 'bg-white/5 border-white/10'}`}
                 onClick={() => { if (!latest.is_read) markAsRead(latest.id) }}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-[#00E87B] flex items-center gap-1">
+                  <span className="text-xs font-semibold text-primary flex items-center gap-1">
                     <Zap className="w-3 h-3" /> {latest.title}
                   </span>
                   <span className="text-[10px] text-gray-500 flex items-center gap-1">
@@ -238,21 +238,21 @@ export default function PerformanceMessages() {
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <TrendingUp className="w-3 h-3 text-[#00E87B]" />
+                      <TrendingUp className="w-3 h-3 text-primary" />
                     </div>
                     <p className="text-lg font-bold text-white">{latestMetrics.todayTotal}</p>
                     <p className="text-[9px] text-gray-500 uppercase">Today</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <User className="w-3 h-3 text-[#00E87B]" />
+                      <User className="w-3 h-3 text-primary" />
                     </div>
                     <p className="text-lg font-bold text-white">{latestMetrics.todayIndividual}</p>
                     <p className="text-[9px] text-gray-500 uppercase">Individual</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-2 text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <Store className="w-3 h-3 text-[#00E87B]" />
+                      <Store className="w-3 h-3 text-primary" />
                     </div>
                     <p className="text-lg font-bold text-white">{latestMetrics.todayStore}</p>
                     <p className="text-[9px] text-gray-500 uppercase">Store</p>
@@ -319,7 +319,7 @@ export default function PerformanceMessages() {
                     <div
                       key={msg.id}
                       onClick={() => { if (!msg.is_read) markAsRead(msg.id) }}
-                      className={`rounded-lg p-2.5 flex items-center gap-2 cursor-pointer transition-colors ${!msg.is_read ? 'bg-[#00E87B]/10 border border-[#00E87B]/15' : 'bg-white/3 border border-white/5 hover:bg-white/5'}`}
+                      className={`rounded-lg p-2.5 flex items-center gap-2 cursor-pointer transition-colors ${!msg.is_read ? 'bg-primary/10 border border-primary/15' : 'bg-white/3 border border-white/5 hover:bg-white/5'}`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -341,7 +341,7 @@ export default function PerformanceMessages() {
                         </div>
                       </div>
                       {!msg.is_read && (
-                        <div className="w-2 h-2 bg-[#00E87B] rounded-full flex-shrink-0" />
+                        <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
                       )}
                     </div>
                   )
@@ -357,7 +357,7 @@ export default function PerformanceMessages() {
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="mt-2 text-xs text-[#00E87B] hover:text-[#00D06E] px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg bg-[#00E87B]/10 disabled:opacity-50"
+                  className="mt-2 text-xs text-primary hover:text-[#00D06E] px-3 min-h-[44px] inline-flex items-center justify-center rounded-lg bg-primary/10 disabled:opacity-50"
                 >
                   {generating ? 'Generating...' : 'Generate Now'}
                 </button>

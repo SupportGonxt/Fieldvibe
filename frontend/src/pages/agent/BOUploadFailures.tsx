@@ -74,10 +74,10 @@ export default function BOUploadFailures() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
       ) : rows.length === 0 ? (
-        <div className="mx-5 flex items-center gap-3 bg-[#00E87B]/[0.06] border border-[#00E87B]/20 rounded-2xl px-4 py-4">
-          <CheckCircle2 className="w-5 h-5 text-[#00E87B] shrink-0" />
+        <div className="mx-5 flex items-center gap-3 bg-primary/[0.06] border border-primary/20 rounded-2xl px-4 py-4">
+          <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
           <span className="text-sm text-white">Everything loaded this week.</span>
         </div>
       ) : (

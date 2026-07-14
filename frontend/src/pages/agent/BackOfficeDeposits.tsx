@@ -138,7 +138,7 @@ export default function BackOfficeDeposits() {
     <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-2 mb-1">
-          <Banknote className="w-6 h-6 text-[#00E87B]" />
+          <Banknote className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold text-white">Deposits</h1>
         </div>
         <p className="text-sm text-gray-500 mb-5">
@@ -146,7 +146,7 @@ export default function BackOfficeDeposits() {
         </p>
 
         <label className="flex items-center justify-center gap-2 w-full mb-3 bg-white/[0.04] border border-dashed border-white/15 rounded-2xl py-3 text-sm text-gray-300 cursor-pointer active:scale-[0.99] transition-transform">
-          <Upload className="w-4 h-4 text-[#00E87B]" />
+          <Upload className="w-4 h-4 text-primary" />
           Upload Excel / CSV file
           <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
         </label>
@@ -156,14 +156,14 @@ export default function BackOfficeDeposits() {
           onChange={(e) => { setText(e.target.value); reset() }}
           rows={7}
           placeholder={'123456789\n987654321\n… or paste a CSV export'}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3.5 text-white text-base placeholder-gray-600 focus:outline-none focus:border-[#00E87B]/50 font-mono resize-none"
+          className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3.5 text-white text-base placeholder-gray-600 focus:outline-none focus:border-primary/50 font-mono resize-none"
         />
 
         <input
           value={batch}
           onChange={(e) => setBatch(e.target.value)}
           placeholder="Batch label (optional)"
-          className="w-full mt-3 bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3 text-white text-base placeholder-gray-600 focus:outline-none focus:border-[#00E87B]/50"
+          className="w-full mt-3 bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3 text-white text-base placeholder-gray-600 focus:outline-none focus:border-primary/50"
         />
 
         <div className="flex gap-3 mt-4">
@@ -177,7 +177,7 @@ export default function BackOfficeDeposits() {
           <button
             onClick={() => run(false)}
             disabled={busy || !preview}
-            className="flex-1 bg-gradient-to-br from-[#00E87B] to-[#00D06E] text-[#0A1628] rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
+            className="flex-1 bg-gradient-to-br from-primary to-[#00D06E] text-[#0A1628] rounded-2xl py-3.5 font-semibold active:scale-[0.99] transition-transform disabled:opacity-40"
           >
             Upload deposits
           </button>
@@ -191,7 +191,7 @@ export default function BackOfficeDeposits() {
                 <div className="text-xs text-gray-500 mt-0.5">IDs uploaded</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-[#00E87B] tabular-nums">{preview.matched}</div>
+                <div className="text-2xl font-bold text-primary tabular-nums">{preview.matched}</div>
                 <div className="text-xs text-gray-500 mt-0.5">match a signup</div>
               </div>
             </div>
@@ -200,8 +200,8 @@ export default function BackOfficeDeposits() {
         )}
 
         {uploaded && (
-          <div className="mt-6 bg-[#00E87B]/[0.06] border border-[#00E87B]/20 rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-[#00E87B] font-semibold mb-3">
+          <div className="mt-6 bg-primary/[0.06] border border-primary/20 rounded-2xl p-4">
+            <div className="flex items-center gap-2 text-primary font-semibold mb-3">
               <CheckCircle2 className="w-5 h-5" />
               {uploaded.inserted} deposit{uploaded.inserted === 1 ? '' : 's'} uploaded
             </div>
@@ -220,7 +220,7 @@ export default function BackOfficeDeposits() {
             <button
               onClick={reconcile}
               disabled={reconciling}
-              className="flex items-center gap-1.5 text-xs text-[#00E87B] bg-[#00E87B]/10 border border-[#00E87B]/25 rounded-xl px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 border border-primary/25 rounded-xl px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
             >
               {reconciling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardCheckIcon />}
               Qualify
@@ -244,7 +244,7 @@ export default function BackOfficeDeposits() {
 
         {loadingList ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : rows.length === 0 ? (
           <p className="text-center text-gray-600 py-12">No deposits uploaded yet.</p>
@@ -255,7 +255,7 @@ export default function BackOfficeDeposits() {
                 key={r.id}
                 className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3"
               >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.matched ? 'bg-[#00E87B]/15 text-[#00E87B]' : 'bg-amber-500/15 text-amber-400'}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.matched ? 'bg-primary/15 text-primary' : 'bg-amber-500/15 text-amber-400'}`}>
                   {r.matched ? <Link2 className="w-4 h-4" /> : <Unlink className="w-4 h-4" />}
                 </div>
                 <div className="flex-1 min-w-0">

@@ -49,7 +49,7 @@ export default function Leaderboard({ meId }: { meId?: string }) {
             return (
               <div
                 key={r.id}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2 ${isMe ? 'bg-[#00E87B]/10 border border-[#00E87B]/30' : 'bg-white/[0.03]'}`}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2 ${isMe ? 'bg-primary/10 border border-primary/30' : 'bg-white/[0.03]'}`}
               >
                 <span className={`w-6 text-sm font-bold tabular-nums ${medal(r.rank) || 'text-gray-500'}`}>
                   {r.rank}

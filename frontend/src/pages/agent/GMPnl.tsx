@@ -66,7 +66,7 @@ export default function GMPnl() {
     <div className="min-h-screen bg-[#06090F] px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-2 mb-1">
-          <Wallet className="w-6 h-6 text-[#00E87B]" />
+          <Wallet className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold text-white">P&amp;L</h1>
         </div>
         <p className="text-sm text-gray-500 mb-5">{pnl?.period ?? ' '}</p>
@@ -83,7 +83,7 @@ export default function GMPnl() {
 
         {loading ? (
           <div className="flex justify-center py-24">
-            <Loader2 className="w-6 h-6 text-[#00E87B] animate-spin" />
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
         ) : !pnl ? (
           <p className="text-gray-500 text-center mt-20">No P&amp;L data available.</p>
@@ -99,7 +99,7 @@ export default function GMPnl() {
               key={String(t.key)}
               onClick={() => setProjected(t.key)}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                projected === t.key ? 'bg-[#00E87B] text-[#0A1628]' : 'text-gray-400'
+                projected === t.key ? 'bg-primary text-[#0A1628]' : 'text-gray-400'
               }`}
             >
               {t.label}
@@ -111,13 +111,13 @@ export default function GMPnl() {
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 mb-4">
           <div className="flex items-center gap-2 mb-1">
             {positive ? (
-              <TrendingUp className="w-5 h-5 text-[#00E87B]" />
+              <TrendingUp className="w-5 h-5 text-primary" />
             ) : (
               <TrendingDown className="w-5 h-5 text-red-400" />
             )}
             <span className="text-xs text-gray-500 uppercase tracking-wide">Net</span>
           </div>
-          <div className={`text-4xl font-bold tabular-nums ${positive ? 'text-[#00E87B]' : 'text-red-400'}`}>
+          <div className={`text-4xl font-bold tabular-nums ${positive ? 'text-primary' : 'text-red-400'}`}>
             {rand(net)}
           </div>
         </div>
@@ -152,7 +152,7 @@ function CompanyChip({ label, active, onClick }: { label: string; active: boolea
     <button
       onClick={onClick}
       className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        active ? 'bg-[#00E87B] text-[#0A1628] border-[#00E87B]' : 'bg-white/[0.04] text-gray-400 border-white/10'
+        active ? 'bg-primary text-[#0A1628] border-primary' : 'bg-white/[0.04] text-gray-400 border-white/10'
       }`}
     >
       {label}

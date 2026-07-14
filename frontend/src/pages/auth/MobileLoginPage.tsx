@@ -202,7 +202,7 @@ const MobileLoginPage: React.FC = () => {
   if (mustChangePin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0A1628] via-[#0F2140] to-[#162D50] flex flex-col">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#00E87B]/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full translate-y-1/3 -translate-x-1/4 blur-2xl" />
 
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative z-10">
@@ -240,7 +240,7 @@ const MobileLoginPage: React.FC = () => {
                       onChange={(e) => { setNewPin(e.target.value.replace(/\D/g, '').substring(0, 6)); setPinChangeError('') }}
                       placeholder="Enter new PIN"
                       autoFocus
-                      className="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base tracking-[0.3em]"
+                      className="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all text-base tracking-[0.3em]"
                     />
                     <button
                       type="button"
@@ -266,14 +266,14 @@ const MobileLoginPage: React.FC = () => {
                       value={confirmPin}
                       onChange={(e) => { setConfirmPin(e.target.value.replace(/\D/g, '').substring(0, 6)); setPinChangeError('') }}
                       placeholder="Confirm new PIN"
-                      className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base tracking-[0.3em]"
+                      className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all text-base tracking-[0.3em]"
                     />
                   </div>
                 </div>
 
                 {/* PIN match indicator */}
                 {newPin.length >= 4 && confirmPin.length >= 4 && (
-                  <div className={`text-xs font-medium ${newPin === confirmPin ? 'text-[#00E87B]' : 'text-red-400'}`}>
+                  <div className={`text-xs font-medium ${newPin === confirmPin ? 'text-primary' : 'text-red-400'}`}>
                     {newPin === confirmPin ? 'PINs match' : 'PINs do not match'}
                   </div>
                 )}
@@ -282,7 +282,7 @@ const MobileLoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={pinChangeLoading || newPin.length < 4 || confirmPin.length < 4 || newPin !== confirmPin}
-                  className="w-full py-3.5 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-semibold rounded-xl shadow-lg shadow-[#00E87B]/20 hover:shadow-[#00E87B]/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-[0.98] text-base"
+                  className="w-full py-3.5 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-semibold rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-[0.98] text-base"
                 >
                   {pinChangeLoading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -316,13 +316,13 @@ const MobileLoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A1628] via-[#0F2140] to-[#162D50] flex flex-col">
       {/* Decorative blurs */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-[#00E87B]/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full translate-y-1/3 -translate-x-1/4 blur-2xl" />
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative z-10">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-[#00E87B] to-[#00B86B] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#00E87B]/20">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary to-[#00B86B] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
             <span className="text-2xl font-black text-[#0A1628]">FV</span>
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">FieldVibe</h1>
@@ -352,7 +352,7 @@ const MobileLoginPage: React.FC = () => {
                     placeholder="+27 82 000 0001"
                     autoFocus
                     autoComplete="tel"
-                    className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base"
+                    className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all text-base"
                   />
                 </div>
               </div>
@@ -372,7 +372,7 @@ const MobileLoginPage: React.FC = () => {
                     onChange={handlePinChange}
                     placeholder="Enter PIN"
                     autoComplete="one-time-code"
-                    className="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00E87B]/50 focus:ring-1 focus:ring-[#00E87B]/30 transition-all text-base tracking-[0.3em]"
+                    className="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all text-base tracking-[0.3em]"
                   />
                   <button
                     type="button"
@@ -389,7 +389,7 @@ const MobileLoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading || !phone || pin.length < 4}
-                className="w-full py-3.5 bg-gradient-to-r from-[#00E87B] to-[#00D06E] text-[#0A1628] font-semibold rounded-xl shadow-lg shadow-[#00E87B]/20 hover:shadow-[#00E87B]/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-[0.98] text-base"
+                className="w-full py-3.5 bg-gradient-to-r from-primary to-[#00D06E] text-[#0A1628] font-semibold rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-[0.98] text-base"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -407,7 +407,7 @@ const MobileLoginPage: React.FC = () => {
           <div className="mt-6 text-center">
             <button
               onClick={() => navigate('/login')}
-              className="text-sm text-gray-500 hover:text-[#00E87B] transition-colors"
+              className="text-sm text-gray-500 hover:text-primary transition-colors"
             >
               Admin / Manager Login
             </button>
