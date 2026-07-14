@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Store, User, Users, Target, Calendar, ChevronRight } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, CheckCircle, XCircle, Store, User, Users, Target, Calendar, ChevronRight, MessageSquare, Link2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 
@@ -41,6 +41,27 @@ interface Visit {
   rejected_photo_count?: number
 }
 
+interface CoachingNote {
+  id: string
+  action: string
+  note: string | null
+  author_name: string | null
+  signal_type: string | null
+  follow_up_date: string | null
+  resource_link: string | null
+  created_at: string
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  note: 'Note',
+  nudge: 'Nudge',
+  checkin: 'Check-in',
+  resource: 'Resource',
+  recognition: 'Recognition',
+  commit: 'Commitment',
+  tier_flag: 'Escalated',
+}
+
 function pctClass(pct: number): string {
   if (pct >= 100) return 'text-primary'
   if (pct >= 75) return 'text-amber-400'
@@ -70,6 +91,7 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<AgentInfo | null>(null)
   const [stats, setStats] = useState<AgentStats | null>(null)
   const [visits, setVisits] = useState<Visit[]>([])
+  const [notes, setNotes] = useState<CoachingNote[]>([])
   const [loading, setLoading] = useState(true)
   const filterParam = searchParams.get('filter')
   const visibleVisits = useMemo(() => {
@@ -83,9 +105,10 @@ export default function AgentDetailPage() {
         const endpoint = user?.role === 'team_lead'
           ? `/team-lead/agent/${agentId}`
           : `/manager/agent/${agentId}`
-        const [infoRes, visitsRes] = await Promise.allSettled([
+        const [infoRes, visitsRes, notesRes] = await Promise.allSettled([
           apiClient.get(endpoint),
           apiClient.get(`/field-operations/visits?agent_id=${agentId}&limit=50`),
+          apiClient.get(`/field-ops/issues/coaching-notes?agentId=${agentId}`),
         ])
         if (infoRes.status === 'fulfilled' && infoRes.value.data?.success && infoRes.value.data?.data) {
           setAgent(infoRes.value.data.data.agent)
@@ -95,6 +118,9 @@ export default function AgentDetailPage() {
           const vData = visitsRes.value.data
           const list = vData?.data || vData?.results || vData || []
           setVisits(Array.isArray(list) ? list : [])
+        }
+        if (notesRes.status === 'fulfilled' && Array.isArray(notesRes.value.data?.notes)) {
+          setNotes(notesRes.value.data.notes)
         }
       } catch (err) {
         console.error('Agent detail fetch error:', err)
@@ -213,6 +239,39 @@ export default function AgentDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Coaching log — read surface for the 1:1 notes written via issue actions */}
+        {notes.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> Coaching Log ({notes.length})
+            </h3>
+            <div className="space-y-2">
+              {notes.map((n) => (
+                <div key={n.id} className="bg-white/5 border border-token rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-primary">{ACTION_LABEL[n.action] || n.action}</span>
+                    <span className="text-[10px] text-token-faint">{n.created_at?.split('T')[0]?.split(' ')[0]}</span>
+                  </div>
+                  {n.note && <p className="text-sm text-token mt-1">{n.note}</p>}
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {n.author_name && <span className="text-[10px] text-token-faint">by {n.author_name}</span>}
+                    {n.follow_up_date && (
+                      <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
+                        <Calendar className="w-2.5 h-2.5" /> follow up {n.follow_up_date}
+                      </span>
+                    )}
+                    {n.resource_link && (
+                      <a href={n.resource_link} target="_blank" rel="noreferrer" className="text-[10px] text-primary flex items-center gap-0.5 underline">
+                        <Link2 className="w-2.5 h-2.5" /> resource
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Recent Visits */}
         <div>

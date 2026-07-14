@@ -332,6 +332,29 @@ app.post('/issues/:id/action', async (c) => {
   return c.json(rest, httpStatus);
 });
 
+// Coaching log read surface — notes were write-only until now. Field agent roles read
+// their own log only (any agentId param ignored); every other role (team_lead, manager,
+// GM, admin-equivalents) passes ?agentId= for any agent in the tenant.
+const AGENT_ROLES = ['agent', 'field_agent', 'sales_rep'];
+// Pure: which agent's log may this caller read? Field agents are pinned to their own.
+export function coachingNotesTarget(role, userId, requestedAgentId) {
+  return AGENT_ROLES.includes(role) ? userId : (requestedAgentId || userId);
+}
+app.get('/issues/coaching-notes', async (c) => {
+  const db = c.env.DB;
+  await ensureCoachingNotes(db);
+  const tenantId = c.get('tenantId');
+  const userId = c.get('userId');
+  const agentId = coachingNotesTarget(c.get('role'), userId, c.req.query('agentId'));
+  const { results } = await db.prepare(
+    `SELECT cn.*, ${fullName('cn.manager_id')} author_name
+     FROM coaching_notes cn
+     WHERE cn.tenant_id = ? AND cn.agent_id = ?
+     ORDER BY cn.created_at DESC LIMIT 50`
+  ).bind(tenantId, agentId).all();
+  return c.json({ success: true, notes: results || [] });
+});
+
 // Thin wrapper over doAct, kept at its original URL/body shape for existing callers
 // (TeamCockpit.tsx, IssueQueue.tsx). action='resolve' closes the issue outright; any
 // other value (or none) just clears the SLA breach as 'acted'.

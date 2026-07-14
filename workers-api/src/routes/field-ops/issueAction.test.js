@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAction, ensureIssues } from './issues.js';
+import { resolveAction, ensureIssues, coachingNotesTarget } from './issues.js';
 
 // resolveAction(type, callerRole, callerId, issue) -> { allowed, reason?, handler? }
 const deficit = { polarity: 'deficit', owner_id: 'owner1', subject_id: 'subj1' };
@@ -61,5 +61,21 @@ describe('ensureIssues schema', () => {
     expect(all).toContain('polarity');
     expect(all).toContain('idx_issues_live');
     expect(all).toContain("issues(tenant_id, subject_id, COALESCE(company_id,''), polarity)");
+  });
+});
+
+describe('coachingNotesTarget', () => {
+  it('pins field agent roles to their own log, ignoring the param', () => {
+    for (const role of ['agent', 'field_agent', 'sales_rep']) {
+      expect(coachingNotesTarget(role, 'me', 'someone-else')).toBe('me');
+    }
+  });
+  it('lets supervising roles target any agent', () => {
+    for (const role of ['team_lead', 'manager', 'general_manager', 'admin', 'backoffice_admin', 'super_admin']) {
+      expect(coachingNotesTarget(role, 'me', 'someone-else')).toBe('someone-else');
+    }
+  });
+  it('defaults to self when no agentId given', () => {
+    expect(coachingNotesTarget('manager', 'me', undefined)).toBe('me');
   });
 });
