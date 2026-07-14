@@ -157,7 +157,7 @@ const FIELDVIBE_LOGO_SVG = `<svg viewBox="0 0 280 64" width="170" height="39" fi
   <defs>
     <linearGradient id="fvl-grad" x1="10" y1="10" x2="54" y2="54">
       <stop offset="0%" stop-color="#00C968"/>
-      <stop offset="100%" stop-color="var(--color-primary)"/>
+      <stop offset="100%" stop-color="#00E87B"/>
     </linearGradient>
   </defs>
 </svg>`

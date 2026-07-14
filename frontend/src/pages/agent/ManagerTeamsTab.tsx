@@ -273,7 +273,7 @@ export default function ManagerTeamsTab() {
             <div className="relative w-16 h-16 flex-shrink-0">
               <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
                 <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
-                <circle cx="32" cy="32" r="26" fill="none" stroke="#00E87B" strokeWidth="5" strokeLinecap="round"
+                <circle cx="32" cy="32" r="26" fill="none" stroke="var(--color-primary)" strokeWidth="5" strokeLinecap="round"
                   strokeDasharray={`${Math.min(achievement, 100) * 1.634} 163.4`} />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">

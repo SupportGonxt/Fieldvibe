@@ -149,7 +149,7 @@ interface PerformanceData {
 
 function getBarBg(isToday: boolean, count: number): string {
   if (isToday) return 'linear-gradient(to top, var(--color-primary), #00D06E)'
-  if (count > 0) return 'rgba(var(--color-primary-rgb), 0.3)'
+  if (count > 0) return 'rgb(var(--color-primary-rgb) / 0.3)'
   return 'rgba(255,255,255,0.05)'
 }
 
@@ -316,7 +316,7 @@ function OverviewTab({
           <div className="relative w-14 h-14 mx-auto mb-2">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
               <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke="#00E87B" strokeWidth="5" strokeLinecap="round"
+              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--color-primary)" strokeWidth="5" strokeLinecap="round"
                 strokeDasharray={Math.min(overallPct, 100) * 1.382 + ' 138.2'} />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
