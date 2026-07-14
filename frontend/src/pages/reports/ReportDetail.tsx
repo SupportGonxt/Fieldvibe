@@ -127,7 +127,7 @@ export default function ReportDetail() {
                 </div>
               ))}
             </div>
-            <button onClick={() => toast.success('Add recipient')} className="mt-4 text-sm text-primary-600 hover:text-primary-800">
+            <button onClick={() => toast.success('Add recipient')} className="mt-4 text-sm text-info-600 hover:text-info-800">
               + Add Recipient
             </button>
           </div>
@@ -136,7 +136,7 @@ export default function ReportDetail() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Run History</h3>
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="border-l-2 border-primary-500 pl-3">
+                <div key={i} className="border-l-2 border-info-500 pl-3">
                   <p className="text-sm font-medium text-gray-900">
                     Run #{i}
                   </p>
@@ -146,7 +146,7 @@ export default function ReportDetail() {
                 </div>
               ))}
             </div>
-            <button onClick={() => toast.success('Viewing all history')} className="mt-4 text-sm text-primary-600 hover:text-primary-800">
+            <button onClick={() => toast.success('Viewing all history')} className="mt-4 text-sm text-info-600 hover:text-info-800">
               View All History
             </button>
           </div>

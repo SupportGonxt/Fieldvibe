@@ -26,7 +26,7 @@ const MobileInput = forwardRef<HTMLInputElement, MobileInputProps>(
             ref={ref}
             className={`
               w-full px-4 py-3 text-base border rounded-lg
-              focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+              focus:outline-none focus:ring-2 focus:ring-info-500 focus:border-transparent
               disabled:bg-gray-100 disabled:cursor-not-allowed
               touch-manipulation
               ${icon ? 'pl-10' : ''}

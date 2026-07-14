@@ -92,7 +92,7 @@ export default function PriceListManagementPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
           />
         </div>
         <SearchableSelect
@@ -189,7 +189,7 @@ export default function PriceListManagementPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => navigate(`/admin/price-lists/${priceList.id}`)}
-                      className="text-primary-600 hover:text-primary-900 mr-4"
+                      className="text-info-600 hover:text-info-900 mr-4"
                       title="View/Edit"
                     >
                       <Edit className="h-5 w-5" />

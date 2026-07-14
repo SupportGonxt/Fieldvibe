@@ -53,12 +53,12 @@ export default function RouteCreate() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Route Name *</label>
-              <input type="text" {...register('route_name', { required: 'Route name is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input type="text" {...register('route_name', { required: 'Route name is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500" />
               {errors.route_name && <p className="mt-1 text-sm text-red-600">{errors.route_name.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Agent *</label>
-              <select {...register('agent_id', { required: 'Agent is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <select {...register('agent_id', { required: 'Agent is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500">
                 <option value="">Select agent</option>
                 <option value="agent-1">John Doe</option>
               </select>
@@ -66,7 +66,7 @@ export default function RouteCreate() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Van *</label>
-              <select {...register('van_id', { required: 'Van is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <select {...register('van_id', { required: 'Van is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500">
                 <option value="">Select van</option>
                 <option value="van-1">VAN-001</option>
               </select>
@@ -74,18 +74,18 @@ export default function RouteCreate() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Coverage Area *</label>
-              <input type="text" {...register('coverage_area', { required: 'Coverage area is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input type="text" {...register('coverage_area', { required: 'Coverage area is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500" />
               {errors.coverage_area && <p className="mt-1 text-sm text-red-600">{errors.coverage_area.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Location *</label>
-              <input type="text" {...register('start_location', { required: 'Start location is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input type="text" {...register('start_location', { required: 'Start location is required' })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500" />
               {errors.start_location && <p className="mt-1 text-sm text-red-600">{errors.start_location.message}</p>}
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-            <textarea {...register('notes')} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            <textarea {...register('notes')} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500" />
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => navigate('/van-sales/routes')} className="btn-secondary">Cancel</button>

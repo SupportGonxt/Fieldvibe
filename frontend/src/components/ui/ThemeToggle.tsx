@@ -18,7 +18,7 @@ export default function ThemeToggle() {
           onClick={() => setTheme(value)}
           className={`p-1.5 rounded-md transition-all ${
             theme === value
-              ? 'bg-white dark:bg-night-50 shadow-sm text-primary-600 dark:text-pulse'
+              ? 'bg-white dark:bg-night-50 shadow-sm text-info-600 dark:text-pulse'
               : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
           title={label}

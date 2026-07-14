@@ -91,7 +91,7 @@ export default function PaymentAllocationDetail() {
             <dd className="mt-1 text-sm text-gray-900">
               <button
                 onClick={() => navigate(`/finance/invoices/${allocation.invoice_id}`)}
-                className="text-primary-600 hover:text-primary-900"
+                className="text-info-600 hover:text-info-900"
               >
                 {allocation.invoice_number}
               </button>

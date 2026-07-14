@@ -27,7 +27,7 @@ export default function MobileButton({
   const baseClasses = 'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors touch-manipulation active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed'
   
   const variantClasses = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800',
+    primary: 'bg-info-600 text-white hover:bg-info-700 active:bg-info-800',
     secondary: 'bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800',
     outline: 'border-2 border-gray-300 text-gray-700 hover:bg-surface-secondary active:bg-gray-100',
     danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800',

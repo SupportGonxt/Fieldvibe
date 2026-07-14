@@ -89,8 +89,8 @@ export default function GPSCapture({
     <MobileCard>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-primary-100 rounded-full">
-            <MapPin className="h-6 w-6 text-primary-600" />
+          <div className="p-3 bg-info-100 rounded-full">
+            <MapPin className="h-6 w-6 text-info-600" />
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">GPS Location</h3>

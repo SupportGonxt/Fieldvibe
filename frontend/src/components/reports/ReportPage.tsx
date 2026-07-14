@@ -147,7 +147,7 @@ export default function ReportPage({
             <div className="relative">
               <button
                 onClick={() => onExport('excel')}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-info-600 rounded-lg hover:bg-info-700 flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 Export
@@ -167,7 +167,7 @@ export default function ReportPage({
                   onClick={() => handlePeriodChange(option.value)}
                   className={`px-3 py-1 text-sm font-medium rounded-lg ${
                     selectedPeriod === option.value
-                      ? 'bg-primary-600 text-white'
+                      ? 'bg-info-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -189,7 +189,7 @@ export default function ReportPage({
                   <select
                     value={filterValues[filter.key] || ''}
                     onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
                   >
                     <option value="">All</option>
                     {filter.options?.map(option => (
@@ -203,7 +203,7 @@ export default function ReportPage({
                     type="date"
                     value={filterValues[filter.key] || ''}
                     onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
                   />
                 ) : (
                   <input
@@ -211,7 +211,7 @@ export default function ReportPage({
                     value={filterValues[filter.key] || ''}
                     onChange={(e) => handleFilterChange(filter.key, e.target.value)}
                     placeholder={`Filter by ${filter.label.toLowerCase()}`}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
                   />
                 )}
               </div>
@@ -236,7 +236,7 @@ export default function ReportPage({
                     <div className="flex items-center gap-2">
                       {column.label}
                       {column.sortable !== false && sortColumn === column.key && (
-                        <span className="text-primary-600">
+                        <span className="text-info-600">
                           {sortDirection === 'asc' ? '↑' : '↓'}
                         </span>
                       )}

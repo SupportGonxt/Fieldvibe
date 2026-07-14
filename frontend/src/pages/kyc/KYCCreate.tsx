@@ -65,7 +65,7 @@ export default function KYCCreate() {
             </label>
             <select
               {...register('customer_id', { required: 'Customer is required' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
             >
               <option value="">Select customer</option>
               <option value="cust-1">ABC Store</option>
@@ -86,7 +86,7 @@ export default function KYCCreate() {
                 <input
                   type="text"
                   {...register('business_name', { required: 'Business name is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.business_name && (
                   <p className="mt-1 text-sm text-red-600">{errors.business_name.message}</p>
@@ -100,7 +100,7 @@ export default function KYCCreate() {
                 <input
                   type="text"
                   {...register('registration_number', { required: 'Registration number is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.registration_number && (
                   <p className="mt-1 text-sm text-red-600">{errors.registration_number.message}</p>
@@ -114,7 +114,7 @@ export default function KYCCreate() {
                 <input
                   type="text"
                   {...register('tax_number', { required: 'Tax number is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.tax_number && (
                   <p className="mt-1 text-sm text-red-600">{errors.tax_number.message}</p>
@@ -128,7 +128,7 @@ export default function KYCCreate() {
                 <input
                   type="text"
                   {...register('address', { required: 'Address is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.address && (
                   <p className="mt-1 text-sm text-red-600">{errors.address.message}</p>
@@ -147,7 +147,7 @@ export default function KYCCreate() {
                 <input
                   type="text"
                   {...register('owner_name', { required: 'Owner name is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.owner_name && (
                   <p className="mt-1 text-sm text-red-600">{errors.owner_name.message}</p>
@@ -161,7 +161,7 @@ export default function KYCCreate() {
                 <input
                   type="text"
                   {...register('owner_id', { required: 'ID number is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.owner_id && (
                   <p className="mt-1 text-sm text-red-600">{errors.owner_id.message}</p>
@@ -175,7 +175,7 @@ export default function KYCCreate() {
                 <input
                   type="tel"
                   {...register('phone', { required: 'Phone is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.phone && (
                   <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
@@ -189,7 +189,7 @@ export default function KYCCreate() {
                 <input
                   type="email"
                   {...register('email', { required: 'Email is required' })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
                 />
                 {errors.email && (
                   <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
@@ -205,7 +205,7 @@ export default function KYCCreate() {
             <textarea
               {...register('notes')}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               placeholder="Enter any notes"
             />
           </div>

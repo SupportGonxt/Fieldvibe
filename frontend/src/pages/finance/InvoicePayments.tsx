@@ -101,7 +101,7 @@ export default function InvoicePayments() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <button
                     onClick={() => navigate(`/finance/payments/${payment.id}`)}
-                    className="text-primary-600 hover:text-primary-900 flex items-center gap-1"
+                    className="text-info-600 hover:text-info-900 flex items-center gap-1"
                   >
                     <Eye className="h-4 w-4" />
                     View

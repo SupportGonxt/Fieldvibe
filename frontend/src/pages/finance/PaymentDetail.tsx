@@ -110,7 +110,7 @@ export default function PaymentDetail() {
               {payment.invoice_id ? (
                 <button
                   onClick={() => navigate(`/finance/invoices/${payment.invoice_id}`)}
-                  className="text-primary-600 hover:text-primary-900"
+                  className="text-info-600 hover:text-info-900"
                 >
                   {payment.invoice_id}
                 </button>

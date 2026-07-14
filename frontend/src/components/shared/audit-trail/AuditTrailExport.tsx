@@ -33,7 +33,7 @@ export default function AuditTrailExport({ entityType, entityId }: AuditTrailExp
         <button
           onClick={() => handleExport('csv')}
           disabled={isExporting}
-          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-info-500 hover:bg-info-50 transition-colors disabled:opacity-50"
         >
           <Table className="h-5 w-5 text-gray-600" />
           <div className="text-left">
@@ -45,7 +45,7 @@ export default function AuditTrailExport({ entityType, entityId }: AuditTrailExp
         <button
           onClick={() => handleExport('pdf')}
           disabled={isExporting}
-          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-info-500 hover:bg-info-50 transition-colors disabled:opacity-50"
         >
           <FileText className="h-5 w-5 text-gray-600" />
           <div className="text-left">
@@ -57,7 +57,7 @@ export default function AuditTrailExport({ entityType, entityId }: AuditTrailExp
         <button
           onClick={() => handleExport('json')}
           disabled={isExporting}
-          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-info-500 hover:bg-info-50 transition-colors disabled:opacity-50"
         >
           <Download className="h-5 w-5 text-gray-600" />
           <div className="text-left">

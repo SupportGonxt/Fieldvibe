@@ -34,7 +34,7 @@ export function EntityRefLink({ entity, className = '', showIcon = false }: Enti
   return (
     <Link
       to={route}
-      className={`text-primary-600 hover:text-primary-800 hover:underline inline-flex items-center gap-1 ${className}`}
+      className={`text-info-600 hover:text-info-800 hover:underline inline-flex items-center gap-1 ${className}`}
     >
       {entity.name}
       {entity.code && <span className="text-gray-500 text-xs">({entity.code})</span>}

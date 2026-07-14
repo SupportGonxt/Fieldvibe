@@ -65,7 +65,7 @@ export default function RelatedDocumentsPanel({ entityType, entityId }: RelatedD
         </h2>
         <button
           onClick={() => navigate(`/related-documents/${entityType}/${entityId}`)}
-          className="text-sm text-primary-600 hover:text-primary-900"
+          className="text-sm text-info-600 hover:text-info-900"
         >
           View All
         </button>

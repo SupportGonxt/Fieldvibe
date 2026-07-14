@@ -21,7 +21,7 @@ export default function AuditTrailComponent({ entityType, entityId }: AuditTrail
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Audit Trail</h2>
-        <button className="text-sm text-primary-600 hover:text-primary-900 flex items-center gap-1">
+        <button className="text-sm text-info-600 hover:text-info-900 flex items-center gap-1">
           <Filter className="h-4 w-4" />
           Filter
         </button>

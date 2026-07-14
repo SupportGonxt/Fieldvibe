@@ -84,7 +84,7 @@ export default function StockLedgerByWarehouse() {
           Back to Stock Ledger
         </button>
         <div className="flex items-center gap-3">
-          <Warehouse className="h-8 w-8 text-primary-600" />
+          <Warehouse className="h-8 w-8 text-info-600" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Stock Ledger by Warehouse</h1>
             <p className="text-gray-600">{warehouse?.name}</p>
@@ -137,7 +137,7 @@ export default function StockLedgerByWarehouse() {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => navigate(`/inventory/stock-ledger/${entry.id}`)}
-                      className="text-primary-600 hover:text-primary-900"
+                      className="text-info-600 hover:text-info-900"
                     >
                       <Eye className="h-4 w-4" />
                     </button>

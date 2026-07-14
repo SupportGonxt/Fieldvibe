@@ -105,7 +105,7 @@ export default function ReturnItemList() {
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={() => navigate(`/orders/returns/${returnId}/items/${item.id}`)}
-                      className="text-primary-600 hover:text-primary-900"
+                      className="text-info-600 hover:text-info-900"
                     >
                       <Eye className="h-4 w-4" />
                     </button>

@@ -165,7 +165,7 @@ function ActivationsTable({ rows, onOpen }: { rows: Activation[]; onOpen: (id: s
         <tbody className="bg-white divide-y divide-gray-100">
           {rows.map((a) => (
             <tr key={a.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => onOpen(a.id)}>
-              <Td className="font-medium text-primary-600">{a.name}</Td>
+              <Td className="font-medium text-info-600">{a.name}</Td>
               <Td>{a.campaign_name || '—'}</Td>
               <Td>
                 <span className="inline-flex items-center gap-1 text-gray-700">

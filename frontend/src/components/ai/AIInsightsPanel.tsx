@@ -113,12 +113,12 @@ export default function AIInsightsPanel({ module, entityId, className = '' }: AI
       <div className={`card ${className}`}>
         <div className="card-header">
           <div className="flex items-center">
-            <Brain className="h-5 w-5 text-primary-600 mr-2" />
+            <Brain className="h-5 w-5 text-info-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">AI Insights</h3>
           </div>
         </div>
         <div className="flex items-center justify-center py-8">
-          <RefreshCw className="h-6 w-6 animate-spin text-primary-600" />
+          <RefreshCw className="h-6 w-6 animate-spin text-info-600" />
           <span className="ml-2 text-gray-600">Analyzing data...</span>
         </div>
       </div>
@@ -130,7 +130,7 @@ export default function AIInsightsPanel({ module, entityId, className = '' }: AI
       <div className="card-header">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <Brain className="h-5 w-5 text-primary-600 mr-2" />
+            <Brain className="h-5 w-5 text-info-600 mr-2" />
             <h3 className="text-lg font-medium text-gray-900">AI Insights</h3>
           </div>
           <button
@@ -248,7 +248,7 @@ export default function AIInsightsPanel({ module, entityId, className = '' }: AI
                     <div className="flex items-center">
                       <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
                         <div
-                          className="bg-primary-600 h-2 rounded-full"
+                          className="bg-info-600 h-2 rounded-full"
                           style={{ width: `${selectedInsight.confidence * 100}%` }}
                         />
                       </div>

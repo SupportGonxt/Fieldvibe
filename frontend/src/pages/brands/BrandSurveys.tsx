@@ -103,7 +103,7 @@ export default function BrandSurveys() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => navigate(`/surveys/${survey.id}`)}
-                        className="text-primary-600 hover:text-primary-900 mr-4"
+                        className="text-info-600 hover:text-info-900 mr-4"
                       >
                         View
                       </button>

@@ -162,7 +162,7 @@ export default function BatchAllocation() {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
                     onClick={() => navigate(`/orders/${allocation.id}`)}
-                    className="text-primary-600 hover:text-primary-900"
+                    className="text-info-600 hover:text-info-900"
                   >
                     <Eye className="h-4 w-4" />
                   </button>

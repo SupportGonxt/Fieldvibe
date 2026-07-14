@@ -88,7 +88,7 @@ export default function SurveyAnalytics() {
                 <span className="text-sm font-medium text-gray-700 w-12">{item.score} stars</span>
                 <div className="flex-1 bg-gray-200 rounded-full h-6">
                   <div
-                    className="bg-primary-600 h-6 rounded-full flex items-center justify-end px-2"
+                    className="bg-info-600 h-6 rounded-full flex items-center justify-end px-2"
                     style={{ width: `${item.percentage}%` }}
                   >
                     <span className="text-xs text-white font-medium">{item.count}</span>
@@ -109,7 +109,7 @@ export default function SurveyAnalytics() {
                   <span className="text-lg font-bold text-gray-400">#{idx + 1}</span>
                   <span className="text-sm font-medium text-gray-900">{item.location}</span>
                 </div>
-                <span className="text-sm font-bold text-primary-600">{item.count} responses</span>
+                <span className="text-sm font-bold text-info-600">{item.count} responses</span>
               </div>
             ))}
           </div>
@@ -120,7 +120,7 @@ export default function SurveyAnalytics() {
           <div className="flex items-end gap-2 h-48">
             {analytics?.response_trend.map((item) => (
               <div key={item.date} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full bg-primary-600 rounded-t" style={{ height: `${(item.count / 12) * 100}%` }}></div>
+                <div className="w-full bg-info-600 rounded-t" style={{ height: `${(item.count / 12) * 100}%` }}></div>
                 <span className="text-xs text-gray-600">{new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                 <span className="text-xs font-bold text-gray-900">{item.count}</span>
               </div>

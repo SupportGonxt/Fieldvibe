@@ -247,7 +247,7 @@ export default function BoardPlacementFormPage() {
                       </div>
                     </div>
                     {selectedBoard?.id === board.id && (
-                      <CheckCircle className="h-5 w-5 text-primary-600" />
+                      <CheckCircle className="h-5 w-5 text-info-600" />
                     )}
                   </div>
                 </MobileCard>
@@ -369,7 +369,7 @@ export default function BoardPlacementFormPage() {
           <button
             onClick={handleNext}
             disabled={loading}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            className="px-4 py-2 bg-info-600 text-white rounded-lg hover:bg-info-700 disabled:opacity-50"
           >
             {activeStep === 3 ? 'Finish' : 'Next'}
           </button>

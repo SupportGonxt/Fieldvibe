@@ -125,8 +125,8 @@ export default function TransactionDetail({
             {auditTrail.map((entry, index) => (
               <div key={index} className="flex gap-4 pb-4 border-b border-gray-100 last:border-0">
                 <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-primary-600" />
+                  <div className="w-8 h-8 bg-info-100 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-info-600" />
                   </div>
                 </div>
                 <div className="flex-1">

@@ -188,7 +188,7 @@ export default function PriceListEditPage() {
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
 
@@ -201,7 +201,7 @@ export default function PriceListEditPage() {
                 required
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
                 placeholder="e.g., PL-2024-001"
               />
             </div>
@@ -214,7 +214,7 @@ export default function PriceListEditPage() {
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
 
@@ -279,7 +279,7 @@ export default function PriceListEditPage() {
                 min="1"
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
 
@@ -292,7 +292,7 @@ export default function PriceListEditPage() {
                 required
                 value={formData.effective_start}
                 onChange={(e) => setFormData({ ...formData, effective_start: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
 
@@ -304,7 +304,7 @@ export default function PriceListEditPage() {
                 type="date"
                 value={formData.effective_end}
                 onChange={(e) => setFormData({ ...formData, effective_end: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
               />
             </div>
 
@@ -314,7 +314,7 @@ export default function PriceListEditPage() {
                   type="checkbox"
                   checked={formData.is_active}
                   onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-info-600 focus:ring-info-500 border-gray-300 rounded"
                 />
                 <span className="ml-2 text-sm text-gray-900">Active</span>
               </label>
@@ -358,7 +358,7 @@ export default function PriceListEditPage() {
                       min="0"
                       value={item.price}
                       onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value))}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-info-500 focus:border-transparent"
                     />
                   </div>
 
@@ -369,7 +369,7 @@ export default function PriceListEditPage() {
                       min="0"
                       value={item.min_quantity || ''}
                       onChange={(e) => updateItem(index, 'min_quantity', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-info-500 focus:border-transparent"
                     />
                   </div>
 
@@ -380,7 +380,7 @@ export default function PriceListEditPage() {
                       min="0"
                       value={item.max_quantity || ''}
                       onChange={(e) => updateItem(index, 'max_quantity', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-info-500 focus:border-transparent"
                     />
                   </div>
 
@@ -393,7 +393,7 @@ export default function PriceListEditPage() {
                       max="100"
                       value={item.discount_percentage || ''}
                       onChange={(e) => updateItem(index, 'discount_percentage', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-info-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -428,7 +428,7 @@ export default function PriceListEditPage() {
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-white bg-info-600 rounded-lg hover:bg-info-700 disabled:opacity-50 flex items-center gap-2"
           >
             <Save className="h-4 w-4" />
             {saving ? 'Saving...' : isNew ? 'Create Price List' : 'Update Price List'}

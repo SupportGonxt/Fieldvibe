@@ -60,13 +60,13 @@ export default function DocumentFlowVisualization({ entityType, entityId }: Docu
                       onClick={() => navigate(`/${stage.stage}s/${doc.id}`)}
                       className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
                         doc.is_current
-                          ? 'border-primary-500 bg-primary-50'
+                          ? 'border-info-500 bg-info-50'
                           : 'border-gray-100 hover:border-gray-300 bg-white'
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <FileText className={`h-4 w-4 ${doc.is_current ? 'text-primary-600' : 'text-gray-400'}`} />
-                        <p className={`text-sm font-medium ${doc.is_current ? 'text-primary-900' : 'text-gray-900'}`}>
+                        <FileText className={`h-4 w-4 ${doc.is_current ? 'text-info-600' : 'text-gray-400'}`} />
+                        <p className={`text-sm font-medium ${doc.is_current ? 'text-info-900' : 'text-gray-900'}`}>
                           {doc.number}
                         </p>
                       </div>

@@ -66,7 +66,7 @@ export default function ReportCreate() {
             <input
               type="text"
               {...register('name', { required: 'Report name is required' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               placeholder="Enter report name"
             />
             {errors.name && (
@@ -81,7 +81,7 @@ export default function ReportCreate() {
             <textarea
               {...register('description')}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               placeholder="Enter report description"
             />
           </div>
@@ -93,7 +93,7 @@ export default function ReportCreate() {
               </label>
               <select
                 {...register('type', { required: 'Report type is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="">Select type</option>
                 <option value="sales">Sales</option>
@@ -113,7 +113,7 @@ export default function ReportCreate() {
               </label>
               <select
                 {...register('schedule', { required: 'Schedule is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -132,7 +132,7 @@ export default function ReportCreate() {
               </label>
               <select
                 {...register('format', { required: 'Format is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               >
                 <option value="pdf">PDF</option>
                 <option value="excel">Excel</option>
@@ -152,7 +152,7 @@ export default function ReportCreate() {
                 type="text"
                 {...register('recipients')}
                 placeholder="email1@example.com, email2@example.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-info-500"
               />
             </div>
           </div>

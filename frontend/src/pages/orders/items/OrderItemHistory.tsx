@@ -65,8 +65,8 @@ export default function OrderItemHistory() {
                     )}
                     <div className="relative flex space-x-3">
                       <div>
-                        <span className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center ring-8 ring-white">
-                          <Clock className="h-4 w-4 text-primary-600" />
+                        <span className="h-8 w-8 rounded-full bg-info-100 flex items-center justify-center ring-8 ring-white">
+                          <Clock className="h-4 w-4 text-info-600" />
                         </span>
                       </div>
                       <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">

@@ -36,7 +36,7 @@ export default function CampaignsList() {
       render: (value: string, row: any) => (
         <button
           onClick={() => navigate(`/marketing/campaigns/${row.id}`)}
-          className="text-primary-600 hover:text-primary-800 font-medium"
+          className="text-info-600 hover:text-info-800 font-medium"
         >
           {value}
         </button>
@@ -97,7 +97,7 @@ export default function CampaignsList() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(`/marketing/campaigns/${row.id}`)}
-            className="p-1 text-gray-600 hover:text-primary-600"
+            className="p-1 text-gray-600 hover:text-info-600"
             title="View"
           >
             <Eye className="w-4 h-4" />
@@ -105,7 +105,7 @@ export default function CampaignsList() {
           {(row.status === 'draft' || row.status === 'planned') && (
             <button
               onClick={() => navigate(`/marketing/campaigns/${row.id}/edit`)}
-              className="p-1 text-gray-600 hover:text-primary-600"
+              className="p-1 text-gray-600 hover:text-info-600"
               title="Edit"
             >
               <Edit className="w-4 h-4" />

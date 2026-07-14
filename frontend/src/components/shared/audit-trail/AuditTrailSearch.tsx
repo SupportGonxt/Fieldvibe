@@ -47,7 +47,7 @@ export default function AuditTrailSearch({ entityType, entityId }: AuditTrailSea
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search audit trail..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-info-500 focus:border-transparent"
         />
       </div>
 
