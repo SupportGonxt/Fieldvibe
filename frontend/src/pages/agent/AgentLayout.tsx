@@ -93,6 +93,7 @@ function isSubPage(pathname: string): boolean {
   if (/^\/agent\/visits\/[^/]+\/edit$/.test(pathname)) return true
   if (pathname === '/agent/onboarding') return true
   if (pathname === '/agent/training') return true
+  if (pathname === '/agent/pin-management') return true
   if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return true
   if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return true
   return false
@@ -104,6 +105,8 @@ function getBackPath(pathname: string): string | null {
   if (/^\/agent\/visits\/[^/]+/.test(pathname)) return '/agent/visits'
   if (pathname === '/agent/onboarding') return '/agent/dashboard'
   if (pathname === '/agent/training') return '/agent/dashboard'
+  // BO PWA tool, entered from the Agents tab
+  if (pathname === '/agent/pin-management') return '/agent/call-list'
   // Drill-down pages: use browser history so managers go back to team-detail
   // and team leads go back to team tab correctly
   if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return null
@@ -117,6 +120,7 @@ function getSubPageTitle(pathname: string): string {
   if (/^\/agent\/visits\/[^/]+$/.test(pathname)) return 'Visit Details'
   if (pathname === '/agent/onboarding') return 'Getting Started'
   if (pathname === '/agent/training') return 'Training Guide'
+  if (pathname === '/agent/pin-management') return 'Agent PINs'
   if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return 'Agent Details'
   if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return 'Team Details'
   return ''

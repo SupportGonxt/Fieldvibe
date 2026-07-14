@@ -1117,7 +1117,6 @@ function App() {
             <Route path="field-operations/product-distributions/:id" element={<PageLoader><ProductDistributionDetail /></PageLoader>} />
             <Route path="field-operations/commission" element={<PageLoader><CommissionLedgerList /></PageLoader>} />
             <Route path="field-operations/commission/:id" element={<PageLoader><CommissionLedgerDetail /></PageLoader>} />
-            <Route path="agent/pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="analytics-dashboard/*" element={<PageLoader><AnalyticsDashboardPage /></PageLoader>} />
             <Route path="van-sales/route-management" element={<PageLoader><RouteManagementPage /></PageLoader>} />
             <Route path="van-sales/orders-list" element={<PageLoader><VanOrdersListPage /></PageLoader>} />
@@ -1169,6 +1168,7 @@ function App() {
             <Route path="reconcile" element={<PageLoader><BackOfficeReconcile /></PageLoader>} />
             <Route path="deposits" element={<PageLoader><BackOfficeDeposits /></PageLoader>} />
             <Route path="call-list" element={<PageLoader><BackOfficeCallList /></PageLoader>} />
+            <Route path="pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="photo-review" element={<PageLoader><BOPhotoReview /></PageLoader>} />
             <Route path="upload-failures" element={<PageLoader><BOUploadFailures /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
