@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Banknote, Bell, Camera, CloudOff, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
+import { Banknote, Bell, Camera, CloudOff, ChevronRight, CheckCircle2, Loader2, Wallet } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
 
@@ -35,6 +35,7 @@ export default function BOActionQueue() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [pendingPhotos, setPendingPhotos] = useState(0)
   const [uploadFails, setUploadFails] = useState(0)
+  const [pendingCommissions, setPendingCommissions] = useState(0)
 
   useEffect(() => {
     let live = true
@@ -45,13 +46,15 @@ export default function BOActionQueue() {
       apiClient.get('/field-ops/issues/stats').catch(() => null),
       photoReviewService.getAdminReview({ page: '1', limit: '1', review_status: 'pending' }).catch(() => null),
       apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).catch(() => null),
-    ]).then(([dep, st, rev, uf]) => {
+      apiClient.get('/commission-earnings?status=pending&limit=1').catch(() => null),
+    ]).then(([dep, st, rev, uf, ce]) => {
       if (!live) return
       const rows: DepositRow[] = dep?.data?.deposits || []
       setUnmatched(rows.filter((r) => !r.matched).length)
       if (st?.data?.success) setStats({ received: st.data.received, acted: st.data.acted })
       setPendingPhotos(rev?.pagination?.total || 0)
       setUploadFails(uf?.data?.total || uf?.data?.data?.length || 0)
+      setPendingCommissions(ce?.data?.data?.pagination?.total || 0)
       setLoading(false)
     })
     return () => { live = false }
@@ -77,6 +80,12 @@ export default function BOActionQueue() {
       key: 'photos', tone: 'warn', icon: Camera, count: pendingPhotos,
       label: `${pendingPhotos} photo${pendingPhotos === 1 ? '' : 's'} to review`,
       hint: 'Approve or reject for reshoot', to: '/agent/photo-review',
+    })
+  if (pendingCommissions > 0)
+    actions.push({
+      key: 'commissions', tone: 'warn', icon: Wallet, count: pendingCommissions,
+      label: `${pendingCommissions} commission${pendingCommissions === 1 ? '' : 's'} to approve`,
+      hint: 'Approve or reject with a reason', to: '/agent/commissions',
     })
   if (outstanding > 0)
     actions.push({
