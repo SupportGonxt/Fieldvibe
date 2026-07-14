@@ -500,8 +500,6 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       weeklyVisits,
       weeklyIndividualVisits,
       streakData,
-      commissionRules,
-      commissionTiers,
       perfAgentCompanies,
     ] = await Promise.all([
       db.prepare("SELECT team_lead_id FROM users WHERE id = ? AND tenant_id = ?").bind(userId, tenantId).first().catch(() => null),
@@ -514,8 +512,6 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       // Weekly store visits (visits with visit_type='store')
       db.prepare(`SELECT visit_date, COUNT(*) as count FROM visits WHERE tenant_id = ? AND ${perfAgentFilter} AND LOWER(visit_type) = 'store' AND visit_date >= date(?, '-6 days') GROUP BY visit_date ORDER BY visit_date`).bind(tenantId, ...perfAgentIdsForCounts, today).all(),
       db.prepare(`SELECT DISTINCT visit_date FROM visits WHERE tenant_id = ? AND ${perfAgentFilter} AND visit_date <= ? AND strftime('%w', visit_date) NOT IN ('0', '6') ORDER BY visit_date DESC LIMIT 30`).bind(tenantId, ...perfAgentIdsForCounts, today).all(),
-      cachedD1Query(`comm-rules:${tenantId}`, 300, () => db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all()),
-      cachedD1Query(`comm-tiers:${tenantId}`, 300, () => db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all()),
       // Pre-fetch agent companies for dailyIndividualTarget (avoid duplicate query later)
       db.prepare("SELECT fc.id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(userId, tenantId).all().catch(() => ({ results: [] })),
     ]);
@@ -737,14 +733,11 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       }
     } catch { /* keep 0 */ }
 
-    // Determine current commission tier based on achievement
-    const tiers = commissionTiers.results || [];
-    let currentTier = null;
-    for (const tier of tiers) {
-      if (overallAchievement >= tier.min_achievement_pct && (tier.max_achievement_pct === null || overallAchievement <= tier.max_achievement_pct)) {
-        currentTier = tier;
-      }
-    }
+    // Real incentive tiers (incentive_scales via getScale) for the caller's role —
+    // replaces the old commission_rules/target_commission_tiers demo tables
+    const perfCompanyIdsForScale = (perfAgentCompanies.results || []).map(co => co.id);
+    const perfScaleCompanyId = perfCompanyIdsForScale.length === 1 ? perfCompanyIdsForScale[0] : null;
+    const perfScale = await cachedD1Query(`inc-scale:${tenantId}:${perfScaleCompanyId}:${perfRoleType}`, 300, () => getScale(db, tenantId, perfScaleCompanyId, perfRoleType));
 
     return c.json({
       success: true,
@@ -772,16 +765,14 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
         weekly_individual_visits: weeklyIndividualVisits.results || [],
         daily_individual_target: dailyIndividualTarget,
         streak: streak,
-        commission_rules: commissionRules.results || [],
-        commission_tiers: tiers,
-        current_tier: currentTier,
+        incentive_tiers: perfScale?.tiers || [],
         team_performance: teamPerformance,
         manager_performance: managerPerformance,
       }
     });
   } catch (error) {
     console.error('Agent performance error:', error);
-    return c.json({ success: true, data: { month: '', overall_achievement: 0, total_target_visits: 0, total_actual_visits: 0, total_target_registrations: 0, total_actual_registrations: 0, total_target_conversions: 0, total_actual_conversions: 0, monthly_targets: [], commission_summary: { pending: 0, pending_count: 0, approved: 0, approved_count: 0, paid: 0, paid_count: 0, target_commission: 0 }, recent_earnings: [], weekly_visits: [], streak: 0, commission_rules: [], commission_tiers: [], current_tier: null, team_performance: null, manager_performance: null } });
+    return c.json({ success: true, data: { month: '', overall_achievement: 0, total_target_visits: 0, total_actual_visits: 0, total_target_registrations: 0, total_actual_registrations: 0, total_target_conversions: 0, total_actual_conversions: 0, monthly_targets: [], commission_summary: { pending: 0, pending_count: 0, approved: 0, approved_count: 0, paid: 0, paid_count: 0, target_commission: 0 }, recent_earnings: [], weekly_visits: [], streak: 0, incentive_tiers: [], team_performance: null, manager_performance: null } });
   }
 });
 
@@ -811,15 +802,16 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
 
     if (memberIds.length === 0) {
       // Still fetch team lead's own targets, commissions, and manager performance
-      const [tlOwnTargets, tlOwnLiveVisits, tlOwnLiveRegs, ownPendingE, ownApprovedE, ownPaidE, tlCommRules, tlCommTiers] = await Promise.all([
+      const tlScaleCompanyId0 = companyIds.length === 1 ? companyIds[0] : null;
+      const [tlOwnTargets, tlOwnLiveVisits, tlOwnLiveRegs, ownPendingE, ownApprovedE, ownPaidE, earlyAgentScale, earlyTlScale] = await Promise.all([
         db.prepare("SELECT COALESCE(SUM(target_visits),0) as target_visits, COALESCE(SUM(target_registrations),0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, userId, currentMonth).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ?${cFilter} AND visit_date >= ?`).bind(tenantId, userId, ...companyIds, currentMonth + '-01').first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ? AND LOWER(visit_type) = 'store'${cFilter} AND visit_date >= ?`).bind(tenantId, userId, ...companyIds, currentMonth + '-01').first(),
         db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'pending'").bind(tenantId, userId).first(),
         db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'approved'").bind(tenantId, userId).first(),
         db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id = ? AND status = 'paid'").bind(tenantId, userId).first(),
-        db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all(),
-        db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all(),
+        cachedD1Query(`inc-scale:${tenantId}:${tlScaleCompanyId0}:agent`, 300, () => getScale(db, tenantId, tlScaleCompanyId0, 'agent')),
+        cachedD1Query(`inc-scale:${tenantId}:${tlScaleCompanyId0}:team_lead`, 300, () => getScale(db, tenantId, tlScaleCompanyId0, 'team_lead')),
       ]);
       let tlTV = tlOwnTargets?.target_visits || 0;
       let tlTR = tlOwnTargets?.target_registrations || 0;
@@ -839,11 +831,6 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
       }
 
       const tlAch = tlTV > 0 ? Math.round((tlAV / tlTV) * 100) : 0;
-      const earlyTiers = tlCommTiers.results || [];
-      let earlyTier = null;
-      for (const tier of earlyTiers) {
-        if (tlAch >= tier.min_achievement_pct && (tier.max_achievement_pct === null || tlAch <= tier.max_achievement_pct)) earlyTier = tier;
-      }
       // Fetch manager performance
       let earlyMgrPerf = null;
       const earlyMgrId = caller.manager_id || null;
@@ -890,9 +877,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
           team_targets: { target_visits: tlTV, actual_visits: tlAV, target_stores: tlTR, actual_stores: tlAR, achievement: tlAch },
           team_commission: { pending: ownPendingE?.total || 0, approved: ownApprovedE?.total || 0, paid: ownPaidE?.total || 0 },
           team_lead_own: { target_visits: tlTV, actual_visits: tlAV, target_stores: tlTR, actual_stores: tlAR, achievement: tlAch },
-          commission_rules: tlCommRules.results || [],
-          commission_tiers: earlyTiers,
-          current_team_tier: earlyTier,
+          incentive_scales: { agent: earlyAgentScale?.tiers || [], team_lead: earlyTlScale?.tiers || [] },
           manager_performance: earlyMgrPerf,
         }
       });
@@ -1032,25 +1017,13 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
     const teamTargetRegs = agentTargetRegs + tlOwnTR;
     const teamActualRegs = agentActualRegs + tlOwnAR;
 
-    // P2: Fetch commission rules and tiers with 5-min cache (changes rarely)
-    const [commissionRules, commissionTiers] = await Promise.all([
-      cachedD1Query(`comm-rules:${tenantId}`, 300, () =>
-        db.prepare("SELECT id, name, source_type, rate, min_threshold, max_cap, effective_from, effective_to FROM commission_rules WHERE tenant_id = ? AND is_active = 1 ORDER BY name").bind(tenantId).all()
-      ),
-      cachedD1Query(`comm-tiers:${tenantId}`, 300, () =>
-        db.prepare("SELECT id, tier_name, min_achievement_pct, max_achievement_pct, commission_rate, bonus_amount, metric_type FROM target_commission_tiers WHERE tenant_id = ? AND is_active = 1 ORDER BY min_achievement_pct").bind(tenantId).all()
-      ),
+    // Real incentive tiers (incentive_scales via getScale, 5-min cache) — same source
+    // as hero/incentive screens, replacing the old commission demo tables
+    const tlScaleCompanyId = companyIds.length === 1 ? companyIds[0] : null;
+    const [tlAgentScale, tlOwnScale] = await Promise.all([
+      cachedD1Query(`inc-scale:${tenantId}:${tlScaleCompanyId}:agent`, 300, () => getScale(db, tenantId, tlScaleCompanyId, 'agent')),
+      cachedD1Query(`inc-scale:${tenantId}:${tlScaleCompanyId}:team_lead`, 300, () => getScale(db, tenantId, tlScaleCompanyId, 'team_lead')),
     ]);
-
-    // Determine current team tier based on achievement
-    const teamAch = teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0;
-    const tiers = commissionTiers.results || [];
-    let currentTeamTier = null;
-    for (const tier of tiers) {
-      if (teamAch >= tier.min_achievement_pct && (tier.max_achievement_pct === null || teamAch <= tier.max_achievement_pct)) {
-        currentTeamTier = tier;
-      }
-    }
 
     // P4a: Team + own commission totals in 1 query (was 6 queries)
     const allCommissionIds = [...memberIds, userId];
@@ -1130,16 +1103,14 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
           approved: (teamCommTotals?.approved || 0),
           paid: (teamCommTotals?.paid || 0),
         },
-        commission_rules: commissionRules.results || [],
-        commission_tiers: tiers,
-        current_team_tier: currentTeamTier,
+        incentive_scales: { agent: tlAgentScale?.tiers || [], team_lead: tlOwnScale?.tiers || [] },
         team_lead_own: { target_visits: tlOwnTV, actual_visits: tlOwnAV, target_stores: tlOwnTR, actual_stores: tlOwnAR, achievement: tlOwnTV > 0 ? Math.round((tlOwnAV / tlOwnTV) * 100) : 0 },
         manager_performance: tlManagerPerf,
       }
     });
   } catch (error) {
     console.error('Team lead dashboard error:', error);
-    return c.json({ success: true, data: { team_size: 0, agents: [], team_totals: { today_visits: 0, month_visits: 0, today_stores: 0, month_stores: 0 }, team_targets: { target_visits: 0, actual_visits: 0, target_stores: 0, actual_stores: 0, achievement: 0 }, team_commission: { pending: 0, approved: 0, paid: 0 }, commission_rules: [], commission_tiers: [], current_team_tier: null, team_lead_own: null, manager_performance: null } });
+    return c.json({ success: true, data: { team_size: 0, agents: [], team_totals: { today_visits: 0, month_visits: 0, today_stores: 0, month_stores: 0 }, team_targets: { target_visits: 0, actual_visits: 0, target_stores: 0, actual_stores: 0, achievement: 0 }, team_commission: { pending: 0, approved: 0, paid: 0 }, incentive_scales: { agent: [], team_lead: [] }, team_lead_own: null, manager_performance: null } });
   }
 });
 
