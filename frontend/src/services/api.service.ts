@@ -158,12 +158,13 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest)
         }
       } catch (refreshError) {
-        // Refresh failed, logout user
+        // The store logs out only when /auth/refresh definitively rejected
+        // the token (401/403). A 429 (shared CGNAT IP rate limit), network
+        // blip or 5xx keeps the session — hard-redirecting on those flashed
+        // whole field teams to the login screen mid-shift.
         const { useAuthStore } = await import('../store/auth.store')
-        useAuthStore.getState().logout()
-        
-        // Redirect to login
-        if (typeof window !== 'undefined') {
+        if (!useAuthStore.getState().isAuthenticated && typeof window !== 'undefined'
+            && !window.location.pathname.startsWith('/auth/')) {
           window.location.href = '/auth/login'
         }
       }

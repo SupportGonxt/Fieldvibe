@@ -4,32 +4,19 @@ import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, Phone
 import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
 import OfflineIndicator from '../../components/OfflineIndicator'
-import { apiClient } from '../../services/api.service'
 import { ensurePushSubscription } from '../../services/push'
 import FirstLoginTour from './FirstLoginTour'
 import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat'
 import PresenceConsentNotice from '../../components/PresenceConsentNotice'
 
-// Poll for a ringing call aimed at this user. Call screens render outside this
-// layout, so AgentLayout unmounts during a call and polling pauses on its own.
-// Web Push (Phase C) will make ring delivery instant; this is the fallback.
-function useIncomingCallPoll() {
+// Ring delivery is Web Push only (push-sw.js notification + SW message below).
+// The old 5s /calls/incoming poll is gone: a ringing row stays live for up to
+// 60s, so backing out of the call screen remounted this layout and the next
+// tick force-navigated straight back — a visible flash loop on every field
+// device, plus a constant network drain the field teams don't need.
+function useIncomingCallPush() {
   const navigate = useNavigate()
   React.useEffect(() => {
-    let active = true
-    const tick = async () => {
-      try {
-        const res = await apiClient.get('/field-ops/calls/incoming')
-        const call = res?.data?.call
-        if (active && call) {
-          navigate('/agent/call/incoming', {
-            state: { callId: call.callId, peerName: call.callerName, iceServers: res.data.iceServers },
-          })
-        }
-      } catch { /* offline / transient — try again next tick */ }
-    }
-    const id = setInterval(tick, 5000)
-
     // Web Push: subscribe once (best-effort) and route SW notificationclick
     // messages straight to the call screen when the PWA is already open.
     ensurePushSubscription()
@@ -42,12 +29,7 @@ function useIncomingCallPoll() {
       }
     }
     navigator.serviceWorker?.addEventListener('message', onSwMessage)
-
-    return () => {
-      active = false
-      clearInterval(id)
-      navigator.serviceWorker?.removeEventListener('message', onSwMessage)
-    }
+    return () => navigator.serviceWorker?.removeEventListener('message', onSwMessage)
   }, [navigate])
 }
 
@@ -146,7 +128,7 @@ export default function AgentLayout() {
   const user = useAuthStore((s) => s.user)
   const tabs = getTabsForRole(user?.role)
   const onSubPage = isSubPage(location.pathname)
-  useIncomingCallPoll()
+  useIncomingCallPush()
   usePresenceHeartbeat(user?.role)
 
   return (
