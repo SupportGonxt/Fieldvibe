@@ -251,7 +251,6 @@ const LotDetail = lazyWithRetry(() => import('./pages/inventory/batch-tracking/L
 const LotTracking = lazyWithRetry(() => import('./pages/inventory/batch-tracking/LotTracking'))
 const MerchandisingCompliancePage = lazyWithRetry(() => import('./pages/trade-marketing/MerchandisingCompliancePage'))
 const MobileLoginPage = lazyWithRetry(() => import('./pages/auth/MobileLoginPage'))
-const MobileDashboard = lazyWithRetry(() => import('./pages/mobile/MobileDashboard'))
 const MoreMenuPage = lazyWithRetry(() => import('./pages/mobile/MoreMenuPage'))
 const MovementDetail = lazyWithRetry(() => import('./pages/inventory/stock-ledger/MovementDetail'))
 const OrderCreatePage = lazyWithRetry(() => import('./pages/orders/OrderCreatePage'))
@@ -1148,7 +1147,6 @@ function App() {
             <Route path="field-operations/reports/stellr" element={<Navigate to="/field-operations/reports/goldrush-stores" replace />} />
 
             {/* Mobile More Menu */}
-            <Route path="mobile-dashboard" element={<PageLoader><MobileDashboard /></PageLoader>} />
             <Route path="more" element={<PageLoader><MoreMenuPage /></PageLoader>} />
 
             {/* ponytail: no index route — pathless-parent index outranks the explicit path="/" route
