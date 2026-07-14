@@ -1,6 +1,29 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Download, Filter, Save, Calendar, RefreshCw } from 'lucide-react'
 
+// datetime-local gives YYYY-MM-DDTHH:MM; D1 stores datetimes with a space separator
+export function toApiDateTime(v: string): string {
+  return v.replace('T', ' ')
+}
+
+// Pure so it's testable: sets period, and only includes start_date/end_date
+// when the period is custom and the value is non-empty.
+export function applyPeriodParams(
+  filters: Record<string, any>,
+  period: string,
+  start: string,
+  end: string
+): Record<string, any> {
+  const next: Record<string, any> = { ...filters, period }
+  delete next.start_date
+  delete next.end_date
+  if (period === 'custom') {
+    if (start) next.start_date = toApiDateTime(start)
+    if (end) next.end_date = toApiDateTime(end)
+  }
+  return next
+}
+
 interface ReportColumn {
   key: string
   label: string
@@ -54,6 +77,8 @@ export default function ReportPage({
   const [filterValues, setFilterValues] = useState<Record<string, any>>({})
   const [showFilters, setShowFilters] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState('mtd')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -73,9 +98,23 @@ export default function ReportPage({
     onFilterChange(newFilters)
   }
 
+  const updatePeriodFilters = (period: string, start: string, end: string) => {
+    const newFilters = applyPeriodParams(filterValues, period, start, end)
+    setFilterValues(newFilters)
+    onFilterChange(newFilters)
+  }
+
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period)
-    handleFilterChange('period', period)
+    updatePeriodFilters(period, customStart, customEnd)
+  }
+
+  const handleCustomRangeChange = (which: 'start' | 'end', value: string) => {
+    const start = which === 'start' ? value : customStart
+    const end = which === 'end' ? value : customEnd
+    setCustomStart(start)
+    setCustomEnd(end)
+    updatePeriodFilters('custom', start, end)
   }
 
   const handleSort = (columnKey: string) => {
@@ -175,6 +214,30 @@ export default function ReportPage({
                 </button>
               ))}
             </div>
+            {selectedPeriod === 'custom' && (
+              <div className="flex items-center gap-2 ml-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="report-custom-start">
+                  Start
+                </label>
+                <input
+                  id="report-custom-start"
+                  type="datetime-local"
+                  value={customStart}
+                  onChange={(e) => handleCustomRangeChange('start', e.target.value)}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+                <label className="text-sm font-medium text-gray-700" htmlFor="report-custom-end">
+                  End
+                </label>
+                <input
+                  id="report-custom-end"
+                  type="datetime-local"
+                  value={customEnd}
+                  onChange={(e) => handleCustomRangeChange('end', e.target.value)}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+            )}
           </div>
         )}
 
