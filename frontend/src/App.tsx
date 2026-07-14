@@ -75,6 +75,7 @@ const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOffice
 const BackOfficeDeposits = lazyWithRetry(() => import('./pages/agent/BackOfficeDeposits'))
 const BOPhotoReview = lazyWithRetry(() => import('./pages/agent/BOPhotoReview'))
 const BOUploadFailures = lazyWithRetry(() => import('./pages/agent/BOUploadFailures'))
+const BOCommissions = lazyWithRetry(() => import('./pages/agent/BOCommissions'))
 const GMPnl = lazyWithRetry(() => import('./pages/agent/GMPnl'))
 const GmOverview = lazyWithRetry(() => import('./pages/agent/GmOverview'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
@@ -1169,6 +1170,7 @@ function App() {
             <Route path="pin-management" element={<PageLoader><AgentPinManagement /></PageLoader>} />
             <Route path="photo-review" element={<PageLoader><BOPhotoReview /></PageLoader>} />
             <Route path="upload-failures" element={<PageLoader><BOUploadFailures /></PageLoader>} />
+            <Route path="commissions" element={<PageLoader><BOCommissions /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
             <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
