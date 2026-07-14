@@ -5,8 +5,9 @@
 // (bg-bg, forced regardless of `.dark`) rather than `.dark`-classed, so `dark:` variants
 // never fire there and the two surfaces need real skins, not one set of classes.
 // surface="pwa" picks the dark one.
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShieldAlert, Check } from 'lucide-react'
+import { ShieldAlert, Check, CalendarClock, Link2, Award } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { apiClient } from '../../services/api.service'
 import { signalText, type Polarity, type Signal } from '../../lib/signalRegistry'
@@ -85,6 +86,8 @@ const SKIN = {
     muted: 'text-sm text-gray-600 dark:text-gray-400',
     ghost:
       'min-h-[44px] inline-flex items-center gap-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 px-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200',
+    input:
+      'w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400',
   },
   pwa: {
     // Solid dark-red card (not translucent) so the white/white-opacity text below stays
@@ -101,10 +104,13 @@ const SKIN = {
     muted: 'text-sm text-white/60',
     ghost:
       'min-h-[44px] inline-flex items-center gap-1.5 text-sm rounded-xl border border-white/10 px-3 bg-white/5 text-white',
+    input:
+      'w-full text-sm rounded-xl border border-white/10 px-3 py-2 bg-white/5 text-white placeholder-white/40',
   },
 } satisfies Record<Surface, Record<string, string>>
 
 const DANGER = 'min-h-[44px] inline-flex items-center text-sm rounded-lg px-3 bg-red-600 text-white hover:bg-red-700'
+const SUBMIT = 'min-h-[44px] inline-flex items-center text-sm rounded-lg px-3 bg-primary text-on-primary'
 
 function EscalatedTag({ n }: { n: number }) {
   if (n <= 0) return null
@@ -121,9 +127,21 @@ function EscalatedTag({ n }: { n: number }) {
  * Renders nothing for anyone who owns none — agents are an issue's subject, never its owner,
  * so this is safe to mount on a shared dashboard without a role gate.
  */
+type CoachType = 'checkin' | 'resource' | 'recognition'
+
+// Mirrors backend ACTION_REGISTRY roles for checkin/resource/recognition
+// (workers-api/src/routes/field-ops/issues.js) — plain includes, no admin
+// expansion: backoffice_admin/admin would 403 on these coaching actions.
+export const canCoach = (role?: string) => !!role && ['manager', 'team_lead', 'general_manager'].includes(role)
+
 export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
   const s = SKIN[surface]
   const qc = useQueryClient()
+  const role = useAuthStore((st) => st.user?.role)
+  const [coach, setCoach] = useState<{ id: string; type: CoachType } | null>(null)
+  const [note, setNote] = useState('')
+  const [extra, setExtra] = useState('')
+  const [sending, setSending] = useState(false)
   const { data } = useQuery({
     queryKey: ['issues-mine'],
     queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
@@ -142,6 +160,39 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
     }
   }
 
+  const openCoach = (id: string, type: CoachType) => {
+    setCoach(coach?.id === id && coach.type === type ? null : { id, type })
+    setNote('')
+    setExtra('')
+  }
+
+  const submitCoach = async () => {
+    if (!coach || sending) return
+    setSending(true)
+    try {
+      const body: Record<string, string> = { type: coach.type }
+      if (note) body.note = note
+      if (coach.type === 'checkin' && extra) body.followUpDate = extra
+      if (coach.type === 'resource' && extra) body.resourceLink = extra
+      await apiClient.post(`/field-ops/issues/${coach.id}/action`, body)
+      toast.success(coach.type === 'recognition' ? 'Recognition sent' : 'Coaching note logged')
+      setCoach(null)
+      setNote('')
+      setExtra('')
+      qc.invalidateQueries({ queryKey: ['issues-mine'] })
+    } catch {
+      toast.error('Could not send')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const COACH_LABEL: Record<CoachType, string> = {
+    checkin: 'Schedule check-in',
+    resource: 'Share resource',
+    recognition: 'Send recognition',
+  }
+
   const renderIssue = (i: Issue) => (
     <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
       <div className="flex-1 min-w-[12rem]">
@@ -156,14 +207,67 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
           {issueText(i)} · held {hoursHeld(i.owner_since)}h
         </p>
       </div>
-      {i.polarity !== 'recognition' && (
-        <div className="flex gap-2">
+      {i.polarity !== 'recognition' ? (
+        <div className="flex flex-wrap gap-2">
+          {canCoach(role) && (
+            <>
+              <button onClick={() => openCoach(i.id, 'checkin')} className={s.ghost}>
+                <CalendarClock className="w-4 h-4" /> Check-in
+              </button>
+              <button onClick={() => openCoach(i.id, 'resource')} className={s.ghost}>
+                <Link2 className="w-4 h-4" /> Resource
+              </button>
+            </>
+          )}
           <button onClick={() => act(i.id, 'acknowledged')} className={s.ghost}>
             <Check className="w-4 h-4" /> I actioned this
           </button>
           <button onClick={() => act(i.id, 'resolve')} className={DANGER}>
             Resolve
           </button>
+        </div>
+      ) : (
+        canCoach(role) && (
+          <button onClick={() => openCoach(i.id, 'recognition')} className={s.ghost}>
+            <Award className="w-4 h-4" /> Recognise
+          </button>
+        )
+      )}
+      {coach?.id === i.id && (
+        <div className="w-full space-y-2">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder={
+              coach.type === 'recognition'
+                ? 'What did they do well? They get this as a push.'
+                : coach.type === 'checkin'
+                  ? 'What will you cover in the check-in?'
+                  : 'Why this resource helps'
+            }
+            className={s.input}
+          />
+          {coach.type === 'checkin' && (
+            <input type="date" value={extra} onChange={(e) => setExtra(e.target.value)} className={s.input} />
+          )}
+          {coach.type === 'resource' && (
+            <input
+              type="url"
+              value={extra}
+              onChange={(e) => setExtra(e.target.value)}
+              placeholder="https:// link to the doc/video"
+              className={s.input}
+            />
+          )}
+          <div className="flex gap-2">
+            <button onClick={submitCoach} disabled={sending} className={`${SUBMIT} disabled:opacity-50`}>
+              {COACH_LABEL[coach.type]}
+            </button>
+            <button onClick={() => setCoach(null)} className={s.ghost}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </li>

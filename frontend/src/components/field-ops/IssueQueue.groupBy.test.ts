@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canSeeUnmanaged, groupByCompany } from './IssueQueue'
+import { canCoach, canSeeUnmanaged, groupByCompany } from './IssueQueue'
 
 describe('canSeeUnmanaged', () => {
   // Mirrors backend requireRole('admin','general_manager') — backoffice_admin
@@ -13,6 +13,20 @@ describe('canSeeUnmanaged', () => {
     expect(canSeeUnmanaged('manager')).toBe(false)
     expect(canSeeUnmanaged('team_lead')).toBe(false)
     expect(canSeeUnmanaged(undefined)).toBe(false)
+  })
+})
+
+describe('canCoach', () => {
+  // Mirrors backend ACTION_REGISTRY checkin/resource/recognition roles exactly —
+  // no admin expansion: admin/backoffice_admin would 403 on these actions.
+  it('admits supervising field roles and GM only', () => {
+    expect(canCoach('team_lead')).toBe(true)
+    expect(canCoach('manager')).toBe(true)
+    expect(canCoach('general_manager')).toBe(true)
+    expect(canCoach('admin')).toBe(false)
+    expect(canCoach('backoffice_admin')).toBe(false)
+    expect(canCoach('agent')).toBe(false)
+    expect(canCoach(undefined)).toBe(false)
   })
 })
 
