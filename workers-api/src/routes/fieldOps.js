@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
+import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { extractGoldrushId, goldrushIdExists } from '../lib/goldrush.js';
@@ -923,12 +924,21 @@ app.get('/field-ops/monthly-targets', authMiddleware, async (c) => {
   try {
     let where = 'WHERE mt.tenant_id = ?';
     const params = [tenantId];
-    if (role === 'agent' || role === 'field_agent') { where += ' AND mt.agent_id = ?'; params.push(userId); }
+    if (role === 'agent' || role === 'field_agent' || role === 'sales_rep') { where += ' AND mt.agent_id = ?'; params.push(userId); }
     else if (agent_id) { where += ' AND mt.agent_id = ?'; params.push(agent_id); }
     if (company_id) { where += ' AND mt.company_id = ?'; params.push(company_id); }
     if (target_month) { where += ' AND mt.target_month = ?'; params.push(target_month); }
     const targets = await db.prepare("SELECT mt.*, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM monthly_targets mt LEFT JOIN users u ON mt.agent_id = u.id LEFT JOIN field_companies fc ON mt.company_id = fc.id " + where + " ORDER BY mt.target_month DESC, u.first_name LIMIT 200").bind(...params).all();
-    return c.json({ data: targets.results || [] });
+    let rows = targets.results || [];
+    // Field roles: other agents' rows are counts only (own row keeps own pay)
+    if (!canSeeMoney(role)) {
+      rows = rows.map(t => {
+        if (t.agent_id === userId) return t;
+        const { commission_amount, commission_rate, ...rest } = t;
+        return rest;
+      });
+    }
+    return c.json({ data: rows });
   } catch { return c.json({ data: [] }); }
 });
 
@@ -968,7 +978,7 @@ app.delete('/field-ops/monthly-targets/:id', authMiddleware, async (c) => {
 });
 
 // Recalculate actuals for a monthly target (counts visits/regs/conversions for the month)
-app.post('/field-ops/monthly-targets/:id/recalculate', authMiddleware, async (c) => {
+app.post('/field-ops/monthly-targets/:id/recalculate', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -2035,7 +2045,10 @@ app.get('/field-ops/agent-performance', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.role, (SELECT COUNT(*) FROM visits WHERE agent_id = u.id AND created_at >= datetime('now', '-30 days')) as visits, (SELECT COUNT(*) FROM visits WHERE agent_id = u.id AND status = 'completed' AND created_at >= datetime('now', '-30 days')) as completed_visits, (SELECT COUNT(*) FROM sales_orders WHERE agent_id = u.id AND created_at >= datetime('now', '-30 days')) as orders, (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders WHERE agent_id = u.id AND status != 'CANCELLED' AND created_at >= datetime('now', '-30 days')) as revenue FROM users u WHERE u.tenant_id = ? AND u.role = 'agent' ORDER BY revenue DESC").bind(tenantId).all();
-  return c.json({ success: true, data: agents.results || [] });
+  let rows = agents.results || [];
+  // Field roles see counts only — per-agent rand revenue is admin/GM data
+  if (!canSeeMoney(c.get('role'))) rows = rows.map(({ revenue, ...rest }) => rest);
+  return c.json({ success: true, data: rows });
 });
 app.get('/agents', authMiddleware, async (c) => {
   const db = c.env.DB;

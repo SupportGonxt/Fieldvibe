@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../lib/middleware.js';
+import { authMiddleware, requireRole } from '../lib/middleware.js';
 
 const app = new Hono();
 
@@ -62,7 +62,7 @@ app.get('/van-sales/reconciliations', authMiddleware, async (c) => {
   return c.json({ data: recons.results || [] });
 });
 
-app.get('/van-sales/dashboard', authMiddleware, async (c) => {
+app.get('/van-sales/dashboard', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [activeLoads, pendingRecons, todayOrders, todayRevenue] = await Promise.all([

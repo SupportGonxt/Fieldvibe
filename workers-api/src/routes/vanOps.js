@@ -168,7 +168,7 @@ app.get('/beat-routes/:id', authMiddleware, async (c) => {
   return c.json(route);
 });
 // ==================== VAN SALES ADDITIONAL ROUTES ====================
-app.get('/van-sales/stats', authMiddleware, async (c) => {
+app.get('/van-sales/stats', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [activeVans, totalLoads, totalOrders, totalRevenue] = await Promise.all([

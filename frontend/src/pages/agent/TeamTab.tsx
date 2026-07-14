@@ -246,7 +246,7 @@ export default function TeamTab() {
             <div className="text-right">
               <DollarSign className="w-5 h-5 text-amber-400 ml-auto mb-0.5" />
               <p className="text-lg font-bold text-white">R{totalEarnings.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-500">Total Earnings</p>
+              <p className="text-[10px] text-gray-500">My Earnings</p>
             </div>
           </div>
 

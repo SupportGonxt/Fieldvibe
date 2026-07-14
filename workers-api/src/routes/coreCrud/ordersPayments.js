@@ -64,7 +64,7 @@ app.get('/sales-orders', async (c) => {
   return c.json({ success: true, data: { orders: orders.results || [], pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } } });
 });
 
-app.get('/sales-orders/stats', async (c) => {
+app.get('/sales-orders/stats', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { start_date, end_date } = c.req.query();
@@ -81,7 +81,7 @@ app.get('/sales-orders/stats', async (c) => {
   return c.json({ success: true, data: { totalOrders: totalOrders ? totalOrders.count : 0, totalRevenue: totalRevenue ? totalRevenue.total : 0, byStatus: byStatus.results || [], byPayment: byPayment.results || [] } });
 });
 
-app.get('/sales-orders/dashboard', authMiddleware, async (c) => {
+app.get('/sales-orders/dashboard', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [total, revenue, byStatus, recent] = await Promise.all([

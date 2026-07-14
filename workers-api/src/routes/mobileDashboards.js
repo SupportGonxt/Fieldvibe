@@ -4,6 +4,7 @@ import { cachedD1Query } from '../lib/cache.js';
 import { DEFAULT_WD_CONFIG, resolveWorkingDaysConfigBatch, countWorkingDaysInMonth, buildFallbackMonthlyTargets, getUserMonthlyTargetFromRules, generateTargetsFromRules, computeTargetTotalsFromRules } from '../lib/calendar.js';
 import { getCommissionTotals, getBulkAgentVisitCounts } from '../lib/aggregates.js';
 import { authMiddleware, requireSuperAdmin } from '../lib/middleware.js';
+import { canSeeMoney } from '../lib/capabilities.js';
 import { getScale } from './field-ops/config.js';
 
 const app = new Hono();
@@ -691,6 +692,16 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       }));
     }
 
+    // Field-role callers (team_lead/manager widened scope) see other agents' target
+    // rows as counts only — commission fields survive on own rows (own pay exempt).
+    if (!canSeeMoney(perfUserRole)) {
+      targets = targets.map(t => {
+        if ((t.agent_id || userId) === userId) return t;
+        const { commission_amount, commission_rate, ...rest } = t;
+        return rest;
+      });
+    }
+
     // Aggregate monthly targets
     const totalTargetVisits = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
     const totalActualVisits = targets.reduce((s, t) => s + (t.actual_visits || 0), 0);
@@ -1025,9 +1036,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
       cachedD1Query(`inc-scale:${tenantId}:${tlScaleCompanyId}:team_lead`, 300, () => getScale(db, tenantId, tlScaleCompanyId, 'team_lead')),
     ]);
 
-    // P4a: Team + own commission totals in 1 query (was 6 queries)
-    const allCommissionIds = [...memberIds, userId];
-    const teamCommTotals = await getCommissionTotals(db, tenantId, allCommissionIds);
+    // Own pay only — field roles never see team-wide rand totals (counts-only rule)
     const ownCommTotals = await getCommissionTotals(db, tenantId, [userId]);
 
     // Fetch manager performance (team lead's manager)
@@ -1098,10 +1107,11 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
           actual_stores: teamActualRegs,
           achievement: teamTargetVisits > 0 ? Math.round((teamActualVisits / teamTargetVisits) * 100) : 0,
         },
+        // Own earnings only (team-wide rand totals removed — counts-only rule for field roles)
         team_commission: {
-          pending: (teamCommTotals?.pending || 0),
-          approved: (teamCommTotals?.approved || 0),
-          paid: (teamCommTotals?.paid || 0),
+          pending: (ownCommTotals?.pending || 0),
+          approved: (ownCommTotals?.approved || 0),
+          paid: (ownCommTotals?.paid || 0),
         },
         incentive_scales: { agent: tlAgentScale?.tiers || [], team_lead: tlOwnScale?.tiers || [] },
         team_lead_own: { target_visits: tlOwnTV, actual_visits: tlOwnAV, target_stores: tlOwnTR, actual_stores: tlOwnAR, achievement: tlOwnTV > 0 ? Math.round((tlOwnAV / tlOwnTV) * 100) : 0 },
@@ -1371,7 +1381,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     }
 
     // Include team lead commission earnings in org totals
-    if (teamLeadIds.length > 0) {
+    if (isAdmin && teamLeadIds.length > 0) {
       const tlPh3 = teamLeadIds.map(() => '?').join(',');
       const [tlPendingC, tlApprovedC, tlPaidC] = await Promise.all([
         db.prepare(`SELECT COALESCE(SUM(amount),0) as total FROM commission_earnings WHERE tenant_id = ? AND earner_id IN (${tlPh3}) AND status = 'pending'`).bind(tenantId, ...teamLeadIds).first(),
@@ -1393,6 +1403,15 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
     ]);
 
     const op = sumBulk(allAgentIds, bulkPeriodCounts);
+
+    // Manager is a field role: own pay only in org_commission (counts-only rule).
+    // Admin/GM keep the org-wide totals.
+    if (!isAdmin) {
+      const mgrOwnComm = await getCommissionTotals(db, tenantId, [userId]);
+      orgPending = mgrOwnComm?.pending || 0;
+      orgApproved = mgrOwnComm?.approved || 0;
+      orgPaid = mgrOwnComm?.paid || 0;
+    }
 
     return c.json({
       success: true,
