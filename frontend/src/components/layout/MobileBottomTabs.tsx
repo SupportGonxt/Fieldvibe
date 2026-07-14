@@ -19,7 +19,7 @@ const allTabs: TabDef[] = [
   { path: '/customers', icon: Users, label: 'Customers' },
   { path: '/inventory', icon: Package, label: 'Stock', roles: [...MGMT] },
   { path: '/finance', icon: DollarSign, label: 'Finance', roles: [...MGMT, 'backoffice_admin'] },
-  { path: '/marketing', icon: Megaphone, label: 'Marketing', roles: ['admin', 'super_admin', 'manager'] },
+  { path: '/marketing', icon: Megaphone, label: 'Marketing', roles: [...MGMT] },
   { path: '/more', icon: MoreHorizontal, label: 'More' },
 ]
 
