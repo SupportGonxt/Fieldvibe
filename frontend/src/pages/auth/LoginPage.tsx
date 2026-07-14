@@ -80,6 +80,7 @@ export default function LoginPage() {
                   message: 'Invalid email address',
                 },
               })}
+              id="email"
               type="email"
               className="w-full pl-10 pr-4 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="you@company.com"
@@ -108,6 +109,7 @@ export default function LoginPage() {
                   message: 'Password must be at least 6 characters',
                 },
               })}
+              id="password"
               type={showPassword ? 'text' : 'password'}
               className="w-full pl-10 pr-12 py-3.5 bg-white/5 border border-token rounded-xl text-token placeholder-slate-500 focus:ring-2 focus:ring-primary focus:border-primary transition-all"
               placeholder="••••••••"
