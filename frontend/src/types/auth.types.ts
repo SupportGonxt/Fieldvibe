@@ -34,6 +34,9 @@ export interface LoginResponse {
 
 export interface RefreshTokenResponse {
   access_token: string
+  // Backend rotates the refresh token on every /auth/refresh; optional so an
+  // older backend response without it degrades to keeping the current one.
+  refresh_token?: string
   expires_in: number
 }
 

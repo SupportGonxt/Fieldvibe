@@ -86,30 +86,51 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       refreshToken: async () => {
-        const { tokens } = get()
-        
-        if (!tokens?.refresh_token) {
-          get().logout()
-          return
-        }
+        // Single in-flight refresh shared by every caller. Without this, a
+        // page of parallel queries all 401ing at once fired N simultaneous
+        // /auth/refresh calls — tripping the per-IP 10/min rate limit (field
+        // phones share carrier CGNAT IPs) and logging whole teams out.
+        if (refreshInFlight) return refreshInFlight
 
-        try {
-          const response = await authService.refreshToken(tokens.refresh_token)
-          
-          set({
-            tokens: {
-              ...tokens,
-              access_token: response.access_token,
-              expires_in: response.expires_in,
-            },
-          })
+        refreshInFlight = (async () => {
+          const { tokens } = get()
 
-          // Schedule next refresh
-          scheduleTokenRefresh(response.expires_in)
-        } catch (error) {
-          console.error('Token refresh failed:', error)
-          get().logout()
-        }
+          if (!tokens?.refresh_token) {
+            get().logout()
+            return
+          }
+
+          try {
+            const response = await authService.refreshToken(tokens.refresh_token)
+
+            set({
+              tokens: {
+                ...tokens,
+                access_token: response.access_token,
+                // Backend rotates the refresh token; discarding the new one
+                // hard-logged everyone out 7 days after their original login.
+                refresh_token: response.refresh_token || tokens.refresh_token,
+                expires_in: response.expires_in,
+              },
+            })
+
+            // Schedule next refresh
+            scheduleTokenRefresh(response.expires_in)
+          } catch (error: any) {
+            console.error('Token refresh failed:', error)
+            // Only a definitive rejection of the refresh token ends the
+            // session. 429 (shared-IP rate limit), network blips and 5xx are
+            // transient — keep the session and let the next request retry.
+            if (error?.response?.status === 401 || error?.response?.status === 403) {
+              get().logout()
+            }
+            throw error
+          }
+        })().finally(() => {
+          refreshInFlight = null
+        })
+
+        return refreshInFlight
       },
 
       clearError: () => {
@@ -127,8 +148,9 @@ export const useAuthStore = create<AuthStore>()(
           const tokenExp = parseJWT(tokens.access_token)?.exp
           
           if (tokenExp && tokenExp < now) {
-            // Token expired, try to refresh
-            get().refreshToken()
+            // Token expired, try to refresh (errors surface via the axios
+            // interceptor on the next request — nothing to do here)
+            get().refreshToken().catch(() => {})
           } else {
             // Schedule refresh for valid token
             const expiresIn = tokenExp ? (tokenExp - now) * 1000 : tokens.expires_in * 1000
@@ -168,6 +190,9 @@ export const useAuthStore = create<AuthStore>()(
 // Token refresh timer
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
+// Shared in-flight refresh promise (see refreshToken above).
+let refreshInFlight: Promise<void> | null = null
+
 function scheduleTokenRefresh(expiresIn: number) {
   clearTokenRefreshTimer()
   
@@ -175,7 +200,7 @@ function scheduleTokenRefresh(expiresIn: number) {
   const refreshTime = Math.max((expiresIn - 300) * 1000, 60000) // At least 1 minute
   
   refreshTimer = setTimeout(() => {
-    useAuthStore.getState().refreshToken()
+    useAuthStore.getState().refreshToken().catch(() => {})
   }, refreshTime)
 }
 
