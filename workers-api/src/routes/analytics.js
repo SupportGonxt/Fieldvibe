@@ -282,8 +282,12 @@ app.get('/analytics/dashboard', authMiddleware, async (c) => {
   const dailyRevenue = await db.prepare(dailyRevenueQuery).bind(...dailyParams).all();
 
   // Top performers
-  let topPerformersQuery = "SELECT u.id as agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue, 0 as success_rate FROM users u LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? " + (start_date && end_date ? "AND so.created_at >= ? AND so.created_at <= ? || ' 23:59:59' " : '') + "WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY total_revenue DESC LIMIT 10";
-  let topParams = start_date && end_date ? [tenantId, start_date, end_date, tenantId] : [tenantId, tenantId];
+  // success_rate = completed visits / total visits per agent (same definition as stats.visit_success_rate)
+  const visitSubFilter = start_date && end_date ? " AND v.visit_date >= ? AND v.visit_date <= ?" : '';
+  let topPerformersQuery = "SELECT u.id as agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue, COALESCE(CAST(ROUND((SELECT COUNT(*) FROM visits v WHERE v.tenant_id = ? AND v.agent_id = u.id AND v.status = 'completed'" + visitSubFilter + ") * 100.0 / NULLIF((SELECT COUNT(*) FROM visits v WHERE v.tenant_id = ? AND v.agent_id = u.id" + visitSubFilter + "), 0)) AS INTEGER), 0) as success_rate FROM users u LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? " + (start_date && end_date ? "AND so.created_at >= ? AND so.created_at <= ? || ' 23:59:59' " : '') + "WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY total_revenue DESC LIMIT 10";
+  let topParams = start_date && end_date
+    ? [tenantId, start_date, end_date, tenantId, start_date, end_date, tenantId, start_date, end_date, tenantId]
+    : [tenantId, tenantId, tenantId, tenantId];
   const topPerformers = await db.prepare(topPerformersQuery).bind(...topParams).all();
 
   return c.json({ success: true, data: {
