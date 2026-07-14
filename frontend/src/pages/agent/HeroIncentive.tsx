@@ -111,8 +111,8 @@ export default function HeroIncentive({ companyId, team }: { companyId?: string;
           </div>
         )}
 
-        {/* criteria ladder — managers see every gate, achieved rows lit */}
-        {team && hero.tiers && hero.tiers.length > 0 && (
+        {/* criteria ladder — every role sees every gate, achieved rows lit */}
+        {hero.tiers && hero.tiers.length > 0 && (
           <div className="mt-3">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Incentive Criteria (avg/day)</p>
             <div className="space-y-1">
