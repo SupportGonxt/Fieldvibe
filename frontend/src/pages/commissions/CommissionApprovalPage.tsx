@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { commissionsService } from '../../services/commissions.service'
 import { useToast } from '../../components/ui/Toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import toast from 'react-hot-toast'
 
 interface PendingCommission {
   id: string
@@ -271,13 +270,17 @@ export const CommissionApprovalPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button onClick={() => toast.success('Viewing commission details')} className="text-blue-600 hover:text-blue-900 mr-4">
-                        View
-                      </button>
-                      <button onClick={() => toast.success('Commission approved')} className="text-green-600 hover:text-green-900 mr-4">
+                      <button
+                        onClick={() => approveMutation.mutate([commission.id])}
+                        disabled={approveMutation.isPending}
+                        className="text-green-600 hover:text-green-900 mr-4 disabled:opacity-50"
+                      >
                         Approve
                       </button>
-                      <button onClick={() => toast.success('Commission rejected')} className="text-red-600 hover:text-red-900">
+                      <button
+                        onClick={() => { setSelectedCommissions(new Set([commission.id])); setShowRejectModal(true) }}
+                        className="text-red-600 hover:text-red-900"
+                      >
                         Reject
                       </button>
                     </td>
