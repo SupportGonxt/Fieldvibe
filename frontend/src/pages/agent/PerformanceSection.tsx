@@ -37,7 +37,7 @@ const PerformanceSection = memo(({ perfSummary }: PerformanceSectionProps) => {
             <div className="relative w-10 h-10 mx-auto mb-1">
               <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
                 <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                <circle cx="20" cy="20" r="16" fill="none" stroke="var(--color-primary)" strokeWidth="3" strokeLinecap="round"
+                <circle cx="20" cy="20" r="16" fill="none" style={{ stroke: 'var(--color-primary)' }} strokeWidth="3" strokeLinecap="round"
                   strokeDasharray={Math.min(perfSummary.overall_achievement, 100) * 1.005 + ' 100.5'} />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">

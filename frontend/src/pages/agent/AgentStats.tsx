@@ -316,7 +316,7 @@ function OverviewTab({
           <div className="relative w-14 h-14 mx-auto mb-2">
             <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
               <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke="var(--color-primary)" strokeWidth="5" strokeLinecap="round"
+              <circle cx="28" cy="28" r="22" fill="none" style={{ stroke: 'var(--color-primary)' }} strokeWidth="5" strokeLinecap="round"
                 strokeDasharray={Math.min(overallPct, 100) * 1.382 + ' 138.2'} />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
