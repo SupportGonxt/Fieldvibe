@@ -246,6 +246,37 @@ export function resolveAction(type, callerRole, callerId, issue) {
   return { allowed: true, handler: entry.handler };
 }
 
+// Pure: dedupe a worst-first issue list by (subject_id, kind) — the cron can leave near-
+// duplicate rows for one subject across companies/polarities — then collapse it for the feed.
+// First occurrence wins, so the worst instance survives.
+// Returns:
+//   issues/more — flat worst-10 list + overflow count (back-compat for older cached clients)
+//   groups      — per signal kind: { kind, polarity, count, breached, worst: [worst 3] }, in
+//                 first-seen (i.e. worst-first) order. 125 open issues render as ~a dozen rows.
+// Unit-tested in issueAction.test.js.
+export function dedupCap(rows, cap = 10) {
+  const seen = new Set();
+  const out = [];
+  for (const r of rows || []) {
+    const key = `${r.subject_id}|${r.kind}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  const byKind = new Map();
+  for (const r of out) {
+    let g = byKind.get(r.kind);
+    if (!g) {
+      g = { kind: r.kind, polarity: r.polarity || 'deficit', count: 0, breached: 0, worst: [] };
+      byKind.set(r.kind, g);
+    }
+    g.count += 1;
+    if (r.breached) g.breached += 1;
+    if (g.worst.length < 3) g.worst.push(r);
+  }
+  return { issues: out.slice(0, cap), more: Math.max(0, out.length - cap), groups: [...byKind.values()] };
+}
+
 // TRIM/COALESCE: several live users have an empty last_name, which would render as a trailing space.
 const fullName = (idCol) =>
   `(SELECT TRIM(COALESCE(first_name,'')||' '||COALESCE(last_name,'')) FROM users WHERE id = ${idCol})`;
@@ -267,7 +298,7 @@ app.get('/issues/mine', async (c) => {
      WHERE i.tenant_id = ? AND i.owner_id = ? AND i.status != 'resolved'
      ORDER BY (i.status='acted') ASC, i.severity DESC, i.owner_since ASC`
   ).bind(tenantId, userId).all();
-  return c.json({ issues: results || [] });
+  return c.json(dedupCap(results));
 });
 
 // Owner's accountability KPI: notifications received vs acted on, trailing 7 days.
@@ -311,7 +342,7 @@ app.get('/issues/unmanaged', requireRole('admin', 'general_manager'), async (c) 
     ...i,
     breached: isBreached(i.owner_role, Date.parse((i.owner_since || '').replace(' ', 'T') + 'Z') || now, now),
   }));
-  return c.json({ issues });
+  return c.json(dedupCap(issues));
 });
 
 // Generic action dispatch. body: { type, ...action-specific fields }. Loads the issue,

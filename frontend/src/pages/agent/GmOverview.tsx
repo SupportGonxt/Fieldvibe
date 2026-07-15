@@ -7,7 +7,7 @@ import {
   Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
-import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-ops/IssueQueue'
+import { MyIssues, UnmanagedIssues, toGroups, groupTotal, type Issue, type IssueGroup } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 import { PulseBar, type Chip } from '../../components/field-ops/PulseBar'
 import RevenueSparkline, { type TrendPoint } from '../../components/field-ops/RevenueSparkline'
@@ -43,7 +43,7 @@ export type Overview = {
   companies: Company[]
   window: { start: string; end: string; prevStart: string; prevEnd: string; today: string; isCurrent: boolean }
   money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean; prevRevenue: number }
-  funnel: { signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number; prev: { signups: number; converted: number; conversionRate: number } }
+  funnel: { signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number; prev: { signups: number; converted: number; qualified?: number; conversionRate: number } }
   field: { activeAgents: number; totalAgents: number; leastActive: FieldAgent[]; unassignedAgents: number }
   leaders: Leader[]
   calls: { contacted: number; target: number }
@@ -110,11 +110,11 @@ export default function GmOverview() {
   // feed the pulse counts without a second network round-trip.
   const { data: mineData } = useQuery({
     queryKey: ['issues-mine'],
-    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
+    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as IssuesPayload),
   })
   const { data: unmanagedData } = useQuery({
     queryKey: ['gm-unmanaged'],
-    queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[] }),
+    queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as IssuesPayload),
   })
 
   if (loading && !data) {
@@ -138,11 +138,8 @@ export default function GmOverview() {
   // Carry the company scope into P&L so it opens on the same company the GM is viewing.
   const goPnl = () => navigate(`/agent/pnl${company ? `?company_id=${company}` : ''}`)
 
-  const mine = mineData?.issues ?? []
-  const unmanaged = unmanagedData?.issues ?? []
-  const pulse = buildPulse(data, mine, unmanaged)
-  const mineOpen = mine.filter((i) => i.polarity !== 'recognition').length
-  const hasExceptions = mineOpen > 0 || unmanaged.length > 0 || risks.length > 0
+  const pulse = buildPulse(data, mineData, unmanagedData)
+  const hasExceptions = (mineData?.issues?.length ?? 0) > 0 || (unmanagedData?.issues?.length ?? 0) > 0
 
   return (
     <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
@@ -200,15 +197,6 @@ export default function GmOverview() {
             they read in both app themes. */}
         <PulseBar chips={pulse} />
 
-        {/* Exceptions first — what the GM must action, ahead of any read-only reporting.
-            PresenceAlerts/MyIssues/UnmanagedIssues self-hide when empty. */}
-        {hasExceptions && (
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-token-faint mb-2">Needs action</p>
-        )}
-        <div className="mb-4 empty:hidden"><PresenceAlerts /></div>
-        <div className="mb-4 empty:hidden"><MyIssues surface="pwa" /></div>
-        <div className="mb-4 empty:hidden"><UnmanagedIssues surface="pwa" /></div>
-
         {/* Risks */}
         {risks.length > 0 && (
           <div className="bg-white/[0.03] border border-red-500/20 rounded-2xl p-4 mb-4">
@@ -230,7 +218,8 @@ export default function GmOverview() {
           </div>
         )}
 
-        {/* The numbers — read-only reporting, below the exceptions. */}
+        {/* The numbers — metrics lead so a long issue backlog can't push them off-screen;
+            the pulse bar above already carries the exception counts at a glance. */}
         <p className="text-[11px] font-semibold uppercase tracking-wider text-token-faint mb-2 mt-1">The numbers</p>
 
         {/* Revenue hero */}
@@ -408,7 +397,7 @@ export default function GmOverview() {
         </div>
 
         {/* Needs attention */}
-        <div className="bg-white/[0.03] border border-token rounded-2xl p-4">
+        <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3"><UserX className="w-4 h-4 text-amber-400" /><h2 className="text-sm font-semibold text-token">Needs attention</h2></div>
           {field.leastActive.length === 0 ? (
             <p className="text-xs text-token-faint">{field.totalAgents === 0 ? 'No agents on roster.' : 'Everyone has activity today.'}</p>
@@ -425,21 +414,38 @@ export default function GmOverview() {
             </div>
           )}
         </div>
+
+        {/* Needs action — collapsed per-signal groups (server-grouped), after the metrics so a
+            125-issue backlog can't bury them. PresenceAlerts/MyIssues/UnmanagedIssues self-hide
+            when empty. */}
+        {hasExceptions && (
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-token-faint mb-2">Needs action</p>
+        )}
+        <div className="mb-4 empty:hidden"><PresenceAlerts /></div>
+        <div className="mb-4 empty:hidden"><MyIssues surface="pwa" /></div>
+        <div className="empty:hidden"><UnmanagedIssues surface="pwa" /></div>
       </div>
     </div>
   )
 }
 
+// Both issue endpoints return the flat worst-10 (`issues`) plus per-kind `groups`; groups carry
+// the *full* counts, so pulse chips read them (falling back to regrouping the flat list for
+// stale cached responses that predate the grouped shape).
+export type IssuesPayload = { issues?: Issue[]; groups?: IssueGroup[] }
+
 // Pulse chip tones. Solid fixed colors (not semantic bg-tokens or white-opacity), so
 // nothing theme-remaps them and contrast holds in both themes.
 // Everything good and bad the GM should see at a glance, worst-first. Pure over the payload
 // plus the two issue lists (already cached) — no fetch, no I/O. Test: buildPulse.selfcheck below.
-export function buildPulse(d: Overview, mine: Issue[], unmanaged: Issue[]): Chip[] {
+export function buildPulse(d: Overview, mineData?: IssuesPayload, unmanagedData?: IssuesPayload): Chip[] {
   const c: Chip[] = []
-  const mineOpen = mine.filter((i) => i.polarity !== 'recognition').length
+  const mine = mineData?.groups ?? toGroups(mineData?.issues ?? [])
+  const unmanaged = unmanagedData?.groups ?? toGroups(unmanagedData?.issues ?? [])
+  const mineOpen = groupTotal(mine, 'deficit')
   if (mineOpen > 0) c.push({ tone: 'bad', label: `${mineOpen} on you` })
-  const breached = unmanaged.filter((i) => i.breached).length
-  const unmanagedOpen = unmanaged.filter((i) => i.polarity !== 'recognition').length
+  const breached = unmanaged.reduce((n, g) => n + (g.breached || 0), 0)
+  const unmanagedOpen = groupTotal(unmanaged, 'deficit')
   if (breached > 0) c.push({ tone: 'bad', label: `${breached} past SLA` })
   else if (unmanagedOpen > 0) c.push({ tone: 'warn', label: `${unmanagedOpen} unmanaged` })
   const highRisks = d.risks.filter((r) => r.severity === 'high').length
@@ -456,7 +462,7 @@ export function buildPulse(d: Overview, mine: Issue[], unmanaged: Issue[]): Chip
     c.push({ tone: d.funnel.conversionRate >= d.funnel.prev.conversionRate ? 'good' : 'warn', label: `conv ${d.funnel.conversionRate}%` })
   const top = d.leaders[0]
   if (top && top.signups > 0) c.push({ tone: 'good', label: `top ${top.name.split(' ')[0]} ${top.signups}` })
-  const highlights = mine.filter((i) => i.polarity === 'recognition').length
+  const highlights = groupTotal(mine, 'recognition')
   if (highlights > 0) c.push({ tone: 'good', label: `${highlights} highlight${highlights > 1 ? 's' : ''}` })
   return c
 }

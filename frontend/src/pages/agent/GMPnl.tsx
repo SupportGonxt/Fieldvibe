@@ -32,11 +32,24 @@ type Pnl = {
 const rand = (n: number) =>
   'R' + Math.round(n).toLocaleString('en-ZA')
 
+// Range chips are whole months: costs (tiered incentives + salaries) are month-keyed in the
+// incentive engine, so sub-month windows (7d/30d) would pair partial revenue with full-month cost.
+export function prevPeriod(p: string): string {
+  const [y, m] = p.split('-').map(Number)
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
+}
+function lastDayOf(p: string): string {
+  const [y, m] = p.split('-').map(Number)
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+}
+
 export default function GMPnl() {
   const [pnl, setPnl] = useState<Pnl | null>(null)
   const [loading, setLoading] = useState(true)
   const [projected, setProjected] = useState(false)
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const thisMonth = new Date().toISOString().slice(0, 7)
+  const [month, setMonth] = useState(thisMonth)
   // Open scoped to whatever company the GM was viewing when they tapped through (?company_id=…).
   const [searchParams] = useSearchParams()
   const [company, setCompany] = useState<string | null>(searchParams.get('company_id'))
@@ -50,12 +63,16 @@ export default function GMPnl() {
 
   useEffect(() => {
     setLoading(true)
+    const qs = new URLSearchParams({ period: month })
+    if (company) qs.set('company_id', company)
+    // Closed month: pace/payable as of its last day, not today.
+    if (month !== thisMonth) qs.set('as_of', lastDayOf(month))
     apiClient
-      .get(`/field-ops/incentives/pnl${company ? `?company_id=${company}` : ''}`)
+      .get(`/field-ops/incentives/pnl?${qs}`)
       .then((res) => setPnl(res?.data?.pnl ?? null))
       .catch(() => setPnl(null))
       .finally(() => setLoading(false))
-  }, [company])
+  }, [company, month, thisMonth])
 
   const revenue = pnl ? (projected ? pnl.projectedRevenue : pnl.revenue) : 0
   const incentive = pnl ? (projected ? pnl.projectedIncentiveCost : pnl.incentiveCost) : 0
@@ -80,6 +97,12 @@ export default function GMPnl() {
             ))}
           </div>
         )}
+
+        {/* Month range — drives ?period= on the pnl endpoint */}
+        <div className="flex gap-2 mb-4">
+          <CompanyChip label="This month" active={month === thisMonth} onClick={() => setMonth(thisMonth)} />
+          <CompanyChip label="Last month" active={month === prevPeriod(thisMonth)} onClick={() => setMonth(prevPeriod(thisMonth))} />
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-24">

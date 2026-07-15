@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canCoach, canSeeUnmanaged, groupByCompany } from './IssueQueue'
+import { canCoach, canSeeUnmanaged, toGroups, kindLabel } from './IssueQueue'
 
 describe('canSeeUnmanaged', () => {
   // Mirrors backend requireRole('admin','general_manager') — backoffice_admin
@@ -30,20 +30,33 @@ describe('canCoach', () => {
   })
 })
 
-describe('groupByCompany', () => {
-  it('groups rows by company_name preserving first-seen order, nulls under "Unassigned"', () => {
+describe('toGroups', () => {
+  // Client fallback for cached responses that predate the server's grouped shape —
+  // must mirror workers-api issues.js dedupCap grouping: worst-first order kept,
+  // worst 3 per kind, breached tallied.
+  it('groups by kind preserving worst-first order, capping worst at 3', () => {
     const rows: any[] = [
-      { id: '1', company_name: 'Goldrush' },
-      { id: '2', company_name: 'Stellr' },
-      { id: '3', company_name: 'Goldrush' },
-      { id: '4', company_name: null },
+      { id: '1', kind: 'gone_quiet', breached: true },
+      { id: '2', kind: 'below_gate' },
+      { id: '3', kind: 'gone_quiet' },
+      { id: '4', kind: 'gone_quiet' },
+      { id: '5', kind: 'gone_quiet' },
     ]
-    const g = groupByCompany(rows)
-    expect(g.map((x) => x.company)).toEqual(['Goldrush', 'Stellr', 'Unassigned'])
-    expect(g[0].items.map((i) => i.id)).toEqual(['1', '3'])
+    const g = toGroups(rows)
+    expect(g.map((x) => x.kind)).toEqual(['gone_quiet', 'below_gate'])
+    expect(g[0]).toMatchObject({ count: 4, breached: 1, polarity: 'deficit' })
+    expect(g[0].worst.map((i) => i.id)).toEqual(['1', '3', '4'])
   })
 
-  it('single-company list returns one group', () => {
-    expect(groupByCompany([{ id: '1', company_name: 'Stellr' }] as any)).toHaveLength(1)
+  it('carries recognition polarity through', () => {
+    const g = toGroups([{ id: '1', kind: 'hit_gate_early', polarity: 'recognition' } as any])
+    expect(g[0].polarity).toBe('recognition')
+  })
+})
+
+describe('kindLabel', () => {
+  it('uses the registry label, humanising unknown kinds', () => {
+    expect(kindLabel('gone_quiet')).toBe('Gone quiet')
+    expect(kindLabel('mystery_signal')).toBe('mystery signal')
   })
 })

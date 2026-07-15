@@ -422,7 +422,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       signups, converted, qualified, commissionPerDeposit: rate,
       conversionRate: signups ? round1((converted / signups) * 100) : 0,
       prev: {
-        signups: prevSignups, converted: prevConverted,
+        signups: prevSignups, converted: prevConverted, qualified: prevQualified,
         conversionRate: prevSignups ? round1((prevConverted / prevSignups) * 100) : 0,
       },
     },
