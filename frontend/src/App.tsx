@@ -79,6 +79,7 @@ const BOPhotoReview = lazyWithRetry(() => import('./pages/agent/BOPhotoReview'))
 const BOUploadFailures = lazyWithRetry(() => import('./pages/agent/BOUploadFailures'))
 const BOKyc = lazyWithRetry(() => import('./pages/agent/BOKyc'))
 const BOCommissions = lazyWithRetry(() => import('./pages/agent/BOCommissions'))
+const MyEarnings = lazyWithRetry(() => import('./pages/agent/MyEarnings'))
 const GMPnl = lazyWithRetry(() => import('./pages/agent/GMPnl'))
 const GmOverview = lazyWithRetry(() => import('./pages/agent/GmOverview'))
 const GmTargetsPage = lazyWithRetry(() => import('./pages/agent/GmTargetsPage'))
@@ -855,7 +856,8 @@ function App() {
             
             {/* Commission Routes */}
             <Route path="commissions" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDashboardPage /></PageLoader></ProtectedRoute>} />
-            <Route path="commissions/my" element={<ProtectedRoute requiredRole="admin"><PageLoader><MyCommissionEarningsPage /></PageLoader></ProtectedRoute>} />
+            {/* Own earnings — self-scoped endpoint, any authenticated role may view its own pay */}
+            <Route path="commissions/my" element={<ProtectedRoute><PageLoader><MyCommissionEarningsPage /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/disputes" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDisputesPage /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/create" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionCreate /></PageLoader></ProtectedRoute>} />
             <Route path="commissions/:id" element={<ProtectedRoute requiredRole="admin"><PageLoader><CommissionDetail /></PageLoader></ProtectedRoute>} />
@@ -1179,6 +1181,7 @@ function App() {
             <Route path="kyc" element={<PageLoader><BOKyc /></PageLoader>} />
             <Route path="customer-edit/:id" element={<PageLoader><CustomerEditPage /></PageLoader>} />
             <Route path="commissions" element={<PageLoader><BOCommissions /></PageLoader>} />
+            <Route path="earnings" element={<PageLoader><MyEarnings /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
             <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
             <Route path="gm-targets" element={<PageLoader><GmTargetsPage /></PageLoader>} />

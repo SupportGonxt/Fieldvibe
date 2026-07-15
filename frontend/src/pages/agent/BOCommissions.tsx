@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import { ArrowLeft, Check, X, Loader2, CheckCircle2, Wallet } from 'lucide-react'
+import { Navigate } from 'react-router-dom'
 import { apiClient } from '../../services/api.service'
+import { hasRole } from '../../store/auth.store'
 
 // Mobile adaptation of commissions/CommissionApprovalPage — same
 // commission-earnings endpoints, pending-first queue, dark PWA skin. The BO
@@ -36,6 +38,12 @@ const FILTERS = [
 const rand = (n: number) => `R${Number(n || 0).toLocaleString('en-ZA', { maximumFractionDigits: 2 })}`
 
 export default function BOCommissions() {
+  // Approval is admin-equivalent only; field roles landing here get their own-pay view instead.
+  if (!hasRole('admin')) return <Navigate to="/agent/earnings" replace />
+  return <BOCommissionsInner />
+}
+
+function BOCommissionsInner() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [status, setStatus] = useState<string>('pending')

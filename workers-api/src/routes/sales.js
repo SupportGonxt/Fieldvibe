@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
+import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, createSalesOrderSchema, createPaymentSchema } from '../validate.js';
 import { writePaymentLedgerEntries } from '../lib/paymentLedger.js';
@@ -40,7 +41,9 @@ app.get('/commission-earnings', async (c) => {
   const { earner_id, status, source_type, period_start, period_end, limit = 50, page = 1 } = c.req.query();
   let where = 'WHERE ce.tenant_id = ?';
   const params = [tenantId];
-  if (role === 'agent') { where += ' AND ce.earner_id = ?'; params.push(userId); }
+  // Money rule: every field role (agent, field_agent, sales_rep, team_lead, manager)
+  // sees only its OWN earnings in rand — not just role === 'agent'.
+  if (!canSeeMoney(role)) { where += ' AND ce.earner_id = ?'; params.push(userId); }
   if (earner_id) { where += ' AND ce.earner_id = ?'; params.push(earner_id); }
   if (status) { where += ' AND ce.status = ?'; params.push(status); }
   if (source_type) { where += ' AND ce.source_type = ?'; params.push(source_type); }
@@ -58,7 +61,7 @@ app.get('/commission-earnings', async (c) => {
   return c.json({ success: true, data: { earnings: earnings.results || [], totalAmount: totals ? totals.total_amount : 0, pagination: { total: totals ? totals.total : 0, page: pageNum, limit: limitNum, totalPages: Math.ceil((totals ? totals.total : 0) / limitNum) } } });
 });
 
-app.get('/commission-earnings/summary', async (c) => {
+app.get('/commission-earnings/summary', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { period_start, period_end } = c.req.query();
