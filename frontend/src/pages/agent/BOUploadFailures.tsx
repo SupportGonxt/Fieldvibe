@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, AlertTriangle, Loader2, CheckCircle2, Pencil } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, Loader2, CheckCircle2, Pencil, Download } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canSeeMoney } from '../../lib/capabilities'
+import { saveRowsAsCsv } from '../../lib/downloadCsv'
 
 // Mobile adaptation of field-operations/reports/CaptureFailuresReport — same
 // endpoint, grouped team lead → agent, dark PWA skin. Reached from the
@@ -34,6 +37,7 @@ const mondayOfWeek = () => {
 export default function BOUploadFailures() {
   const navigate = useNavigate()
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const role = useAuthStore((s) => s.user?.role)
   const start = mondayOfWeek()
   const end = new Date().toISOString().split('T')[0]
 
@@ -68,10 +72,26 @@ export default function BOUploadFailures() {
         <button onClick={() => navigate('/agent/dashboard')} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-white">Upload failures</h1>
           <p className="text-xs text-gray-500">{rows.length} not loaded · {start} → {end}</p>
         </div>
+        {canSeeMoney(role) && rows.length > 0 && (
+          <button
+            onClick={() =>
+              // Same rows the screen already fetched — CSV built client-side, no extra endpoint.
+              saveRowsAsCsv(
+                ['Date', 'Team lead', 'Agent', 'First name', 'Last name', 'ID number', 'Goldrush ID', 'Error'],
+                rows.map((r) => [r.visit_date, r.team_lead_name, r.agent_name, r.first_name, r.last_name, r.id_number, r.goldrush_id, r.error_summary]),
+                `upload-failures-${start}-to-${end}.csv`,
+              )
+            }
+            className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"
+            aria-label="Export CSV"
+          >
+            <Download className="w-5 h-5 text-white" />
+          </button>
+        )}
       </div>
 
       {isLoading ? (
