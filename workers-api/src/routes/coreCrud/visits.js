@@ -551,6 +551,8 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
         if (grId) {
           const grCheck = validateGoldrushId(grId);
           if (!grCheck.valid) validationErrors.goldrush_id = grCheck.error;
+        } else if (body.goldrush_id_unreadable) {
+          validationErrors.goldrush_id = 'Could not read a Goldrush ID from the photo';
         }
         if (body.goldrush_photo_mismatch) {
           validationErrors.photo_mismatch = 'Goldrush ID in photo does not match the ID entered by the agent';
