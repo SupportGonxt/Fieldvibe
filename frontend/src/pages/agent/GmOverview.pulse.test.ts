@@ -16,7 +16,7 @@ const issue = (o: Partial<Issue>): Issue => ({ id: 'i', kind: 'k', subject_id: '
 
 describe('buildPulse', () => {
   it('surfaces good and bad, worst-first', () => {
-    const chips = buildPulse(base, [issue({ polarity: 'deficit' })], [issue({ breached: true, polarity: 'deficit' })])
+    const chips = buildPulse(base, { issues: [issue({ polarity: 'deficit' })] }, { issues: [issue({ breached: true, polarity: 'deficit' })] })
     // deficit/breach/rev-up/top all present; bad tones sort ahead of good.
     const first = chips[0].tone
     expect(first).toBe('bad')
@@ -27,9 +27,19 @@ describe('buildPulse', () => {
   })
 
   it('drops revenue-down to a bad chip, skips clean signals', () => {
-    const chips = buildPulse({ ...base, money: { ...base.money, revenue: 80 }, field: { ...base.field, unassignedAgents: 0, leastActive: [] }, calls: { contacted: 10, target: 10 } }, [], [])
+    const chips = buildPulse({ ...base, money: { ...base.money, revenue: 80 }, field: { ...base.field, unassignedAgents: 0, leastActive: [] }, calls: { contacted: 10, target: 10 } })
     expect(chips.some((c) => c.label === 'rev -20%' && c.tone === 'bad')).toBe(true)
     expect(chips.some((c) => c.label.includes('no lead'))).toBe(false)
     expect(chips.some((c) => c.label.startsWith('calls'))).toBe(false)
+  })
+
+  it('reads full counts from groups, not the capped worst-10 list', () => {
+    const chips = buildPulse(
+      base,
+      { issues: [issue({ polarity: 'deficit' })], groups: [{ kind: 'gone_quiet', polarity: 'deficit', count: 125, worst: [] }] },
+      { issues: [], groups: [{ kind: 'stale_queue', polarity: 'deficit', count: 9, breached: 4, worst: [] }] },
+    )
+    expect(chips.some((c) => c.label === '125 on you' && c.tone === 'bad')).toBe(true)
+    expect(chips.some((c) => c.label === '4 past SLA' && c.tone === 'bad')).toBe(true)
   })
 })

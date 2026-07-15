@@ -7,10 +7,10 @@
 // surface="pwa" picks the dark one.
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShieldAlert, Check, CalendarClock, Link2, Award } from 'lucide-react'
+import { ShieldAlert, Check, CalendarClock, Link2, Award, ChevronRight } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { apiClient } from '../../services/api.service'
-import { signalText, type Polarity, type Signal } from '../../lib/signalRegistry'
+import { SIGNAL_REGISTRY, signalText, type Polarity, type Signal } from '../../lib/signalRegistry'
 import { roleAllows } from '../../lib/capabilities'
 import { useAuthStore } from '../../store/auth.store'
 
@@ -52,19 +52,29 @@ function issueText(i: Issue): string {
   return signalText({ type: i.kind, detail: parseDetail(i.detail) })
 }
 
-// Bucket issues by company so a multi-company subject's rows sit under their own company
-// heading instead of one conflated pile. First-seen order; NULL company (tenant-level, e.g.
-// BO admin) collects under "Unassigned". Callers show the heading only when >1 group exists.
-export function groupByCompany(items: Issue[]): { company: string; items: Issue[] }[] {
-  const order: string[] = []
-  const byCompany = new Map<string, Issue[]>()
-  for (const i of items) {
-    const key = i.company_name || 'Unassigned'
-    if (!byCompany.has(key)) { byCompany.set(key, []); order.push(key) }
-    byCompany.get(key)!.push(i)
+// Server-collapsed feed: one row per signal kind, count + the worst 3 items. The backend
+// (issues.js dedupCap) dedupes by (subject, kind) then groups, so a 125-issue tenant renders
+// as ~a dozen collapsed rows instead of an endless scroll.
+export type IssueGroup = { kind: string; polarity?: Polarity; count: number; breached?: number; worst: Issue[] }
+
+// Fallback for stale cached/offline responses that predate the grouped shape: rebuild groups
+// from the flat (already deduped, capped) list so the UI never regresses to the long scroll.
+export function toGroups(issues: Issue[]): IssueGroup[] {
+  const byKind = new Map<string, IssueGroup>()
+  for (const i of issues) {
+    let g = byKind.get(i.kind)
+    if (!g) { g = { kind: i.kind, polarity: i.polarity || 'deficit', count: 0, breached: 0, worst: [] }; byKind.set(i.kind, g) }
+    g.count += 1
+    if (i.breached) g.breached! += 1
+    if (g.worst.length < 3) g.worst.push(i)
   }
-  return order.map((company) => ({ company, items: byCompany.get(company)! }))
+  return [...byKind.values()]
 }
+
+export const kindLabel = (kind: string) => SIGNAL_REGISTRY[kind]?.label ?? kind.replace(/_/g, ' ')
+
+export const groupTotal = (groups: IssueGroup[], polarity: 'deficit' | 'recognition') =>
+  groups.filter((g) => (g.polarity === 'recognition') === (polarity === 'recognition')).reduce((n, g) => n + g.count, 0)
 
 // D1 hands back `YYYY-MM-DD HH:MM:SS` in UTC with no zone marker; Date.parse would read it as local.
 export function hoursHeld(ownerSince: string): number {
@@ -121,6 +131,62 @@ function EscalatedTag({ n }: { n: number }) {
   )
 }
 
+// Collapsed group rows — "Gone quiet · 42", tap to expand the worst 3 + "+N more". Compact by
+// default so the section can't push the metrics below it off-screen. Same tap-to-expand idiom
+// as the managers accordion on GmOverview (ChevronRight rotate-90).
+function GroupList({ groups, s, renderIssue }: {
+  groups: IssueGroup[]
+  s: (typeof SKIN)[Surface]
+  renderIssue: (i: Issue) => React.ReactNode
+}) {
+  const [open, setOpen] = useState<string | null>(null)
+  const deficit = groups.filter((g) => g.polarity !== 'recognition')
+  const highlights = groups.filter((g) => g.polarity === 'recognition')
+
+  const row = (g: IssueGroup) => {
+    const isOpen = open === g.kind
+    return (
+      <div key={g.kind}>
+        <button
+          onClick={() => setOpen(isOpen ? null : g.kind)}
+          className="w-full min-h-[44px] flex items-center gap-2 px-4 py-2.5 text-left"
+        >
+          <ChevronRight className={`w-4 h-4 flex-shrink-0 ${s.icon} transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+          <span className={`${s.name} flex-1 min-w-0 truncate`}>{kindLabel(g.kind)}</span>
+          {(g.breached || 0) > 0 && (
+            <span className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 bg-red-600 text-white">
+              {g.breached} past SLA
+            </span>
+          )}
+          <span className={`${s.sub} tabular-nums font-semibold`}>{g.count}</span>
+        </button>
+        {isOpen && (
+          <>
+            <ul className={s.divide}>{g.worst.map(renderIssue)}</ul>
+            {g.count > g.worst.length && (
+              <p className={`${s.sub} px-4 pb-2`}>+{g.count - g.worst.length} more — worst {g.worst.length} shown</p>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {deficit.length > 0 && highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
+      {deficit.length > 0 && <div className={s.divide}>{deficit.map(row)}</div>}
+      {highlights.length > 0 && (
+        <>
+          <p className={`${s.sub} px-4 pt-1`}>Highlights</p>
+          <div className={s.divide}>{highlights.map(row)}</div>
+        </>
+      )}
+      <div className="pb-2" />
+    </>
+  )
+}
+
 /**
  * Issues the cron has assigned to *this* person, worst-first. Sitting on one escalates it
  * up the org chain, so it leads whatever page it's on: it is the work, the rest is context.
@@ -144,10 +210,12 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
   const [sending, setSending] = useState(false)
   const { data } = useQuery({
     queryKey: ['issues-mine'],
-    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[] }),
+    queryFn: () => apiClient.get('/field-ops/issues/mine').then((r) => r.data as { issues: Issue[]; more?: number; groups?: IssueGroup[] }),
   })
   const issues = data?.issues || []
-  if (!issues.length) return null
+  const groups = data?.groups ?? toGroups(issues)
+  if (!groups.length) return null
+  const total = groups.reduce((n, g) => n + g.count, 0)
 
   const act = async (id: string, action: 'acknowledged' | 'resolve') => {
     try {
@@ -273,33 +341,14 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
     </li>
   )
 
-  const deficit = issues.filter((i) => i.polarity !== 'recognition')
-  const highlights = issues.filter((i) => i.polarity === 'recognition')
-
   return (
     <section className={s.section}>
       <header className="flex items-center gap-2 px-4 pt-4 pb-2">
         <ShieldAlert className={`w-5 h-5 ${s.icon}`} />
         <h2 className={s.title}>Assigned to you</h2>
-        <span className={s.sub}>{issues.length} open · escalates to your manager if untouched</span>
+        <span className={s.sub}>{total} open · escalates to your manager if untouched</span>
       </header>
-      {deficit.length > 0 && (
-        <>
-          {highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
-          {groupByCompany(deficit).map((g, _gi, arr) => (
-            <div key={g.company}>
-              {arr.length > 1 && <p className={`${s.sub} px-4 pt-2 uppercase tracking-wide`}>{g.company}</p>}
-              <ul className={s.divide}>{g.items.map(renderIssue)}</ul>
-            </div>
-          ))}
-        </>
-      )}
-      {highlights.length > 0 && (
-        <>
-          <p className={`${s.sub} px-4 pt-1`}>Highlights</p>
-          <ul className={s.divide}>{highlights.map(renderIssue)}</ul>
-        </>
-      )}
+      <GroupList groups={groups} s={s} renderIssue={renderIssue} />
     </section>
   )
 }
@@ -307,19 +356,21 @@ export function MyIssues({ surface = 'web' }: { surface?: Surface }) {
 /**
  * GM/admin view of open issues nobody has actioned, breaching-first, owner named. This is the
  * "who isn't managing" surface — team leads, managers and BO admins who sit on their queue.
- * ponytail: caps at 8 rows. The full ledger belongs behind a screen of its own if it ever runs long.
+ * The backend dedupes by (subject, kind) and collapses to per-kind groups (worst 3 each).
  */
 export function UnmanagedIssues({ surface = 'web' }: { surface?: Surface }) {
   const s = SKIN[surface]
   const role = useAuthStore((st) => st.user?.role)
   const { data } = useQuery({
     queryKey: ['gm-unmanaged'],
-    queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[] }),
+    queryFn: () => apiClient.get('/field-ops/issues/unmanaged').then((r) => r.data as { issues: Issue[]; more?: number; groups?: IssueGroup[] }),
     enabled: canSeeUnmanaged(role),
   })
   const issues = data?.issues || []
-  if (!issues.length) return null
-  const breached = issues.filter((i) => i.breached).length
+  const groups = data?.groups ?? toGroups(issues)
+  if (!groups.length) return null
+  const total = groups.reduce((n, g) => n + g.count, 0)
+  const breached = groups.reduce((n, g) => n + (g.breached || 0), 0)
 
   const renderIssue = (i: Issue) => (
     <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
@@ -334,36 +385,16 @@ export function UnmanagedIssues({ surface = 'web' }: { surface?: Surface }) {
     </li>
   )
 
-  const capped = issues.slice(0, 8)
-  const deficit = capped.filter((i) => i.polarity !== 'recognition')
-  const highlights = capped.filter((i) => i.polarity === 'recognition')
-
   return (
     <section className={s.section}>
       <header className="flex items-center gap-2 px-4 pt-4 pb-2">
         <ShieldAlert className={`w-5 h-5 ${s.icon}`} />
         <h2 className={s.title}>Not being managed</h2>
         <span className={s.sub}>
-          {breached} past SLA of {issues.length} open
+          {breached} past SLA of {total} open
         </span>
       </header>
-      {deficit.length > 0 && (
-        <>
-          {highlights.length > 0 && <p className={`${s.sub} px-4 pt-1`}>Issues</p>}
-          {groupByCompany(deficit).map((g, _gi, arr) => (
-            <div key={g.company}>
-              {arr.length > 1 && <p className={`${s.sub} px-4 pt-2 uppercase tracking-wide`}>{g.company}</p>}
-              <ul className={s.divide}>{g.items.map(renderIssue)}</ul>
-            </div>
-          ))}
-        </>
-      )}
-      {highlights.length > 0 && (
-        <>
-          <p className={`${s.sub} px-4 pt-1`}>Highlights</p>
-          <ul className={s.divide}>{highlights.map(renderIssue)}</ul>
-        </>
-      )}
+      <GroupList groups={groups} s={s} renderIssue={renderIssue} />
     </section>
   )
 }

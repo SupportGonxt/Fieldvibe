@@ -36,7 +36,7 @@ interface Overview {
   money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean; prevRevenue: number }
   funnel: {
     signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number
-    prev: { signups: number; converted: number; conversionRate: number }
+    prev: { signups: number; converted: number; qualified?: number; conversionRate: number }
   }
   field: { activeAgents: number; totalAgents: number; leastActive: Agent[]; unassignedAgents: number }
   leaders: Leader[]
@@ -296,7 +296,8 @@ export default function GmOverviewPage() {
         <Kpi icon={Target} tone="green" label="Converted" value={formatNumber(funnel.converted)}
           sub={`${funnel.conversionRate}% conversion`}
           delta={<Delta now={funnel.converted} prev={funnel.prev.converted} suffix={PREV_LABEL[period]} />} />
-        <Kpi icon={Award} label="Qualified" value={formatNumber(funnel.qualified)} />
+        <Kpi icon={Award} label="Qualified" value={formatNumber(funnel.qualified)}
+          delta={<Delta now={funnel.qualified} prev={funnel.prev.qualified ?? 0} suffix={PREV_LABEL[period]} />} />
         <Kpi icon={Users} tone={field.activeAgents ? 'green' : 'red'} label="Agents active"
           value={`${field.activeAgents}/${field.totalAgents}`} sub="active today" />
       </div>

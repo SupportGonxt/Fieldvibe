@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAction, ensureIssues, coachingNotesTarget } from './issues.js';
+import { resolveAction, ensureIssues, coachingNotesTarget, dedupCap } from './issues.js';
 
 // resolveAction(type, callerRole, callerId, issue) -> { allowed, reason?, handler? }
 const deficit = { polarity: 'deficit', owner_id: 'owner1', subject_id: 'subj1' };
@@ -77,5 +77,41 @@ describe('coachingNotesTarget', () => {
   });
   it('defaults to self when no agentId given', () => {
     expect(coachingNotesTarget('manager', 'me', undefined)).toBe('me');
+  });
+});
+
+describe('dedupCap', () => {
+  const row = (subject_id, kind, id, extra = {}) => ({ id, subject_id, kind, ...extra });
+  it('keeps the first (worst) row per (subject_id, kind)', () => {
+    const { issues, more } = dedupCap([row('a', 'gone_quiet', 1), row('a', 'gone_quiet', 2), row('a', 'low_conversion', 3)]);
+    expect(issues.map((i) => i.id)).toEqual([1, 3]);
+    expect(more).toBe(0);
+  });
+  it('caps at 10 and reports the overflow after dedup', () => {
+    const rows = Array.from({ length: 14 }, (_, i) => row(`s${i}`, 'gone_quiet', i));
+    const { issues, more } = dedupCap(rows);
+    expect(issues).toHaveLength(10);
+    expect(issues[0].id).toBe(0);
+    expect(more).toBe(4);
+  });
+  it('groups the full deduped set by kind, worst-first, with the worst 3 per group', () => {
+    const rows = [
+      ...Array.from({ length: 5 }, (_, i) => row(`g${i}`, 'gone_quiet', `g${i}`, { breached: i < 2 })),
+      row('h0', 'hit_gate_early', 'h0', { polarity: 'recognition' }),
+      ...Array.from({ length: 8 }, (_, i) => row(`l${i}`, 'low_conversion', `l${i}`)),
+    ];
+    const { groups, more } = dedupCap(rows);
+    expect(more).toBe(4); // grouping spans the overflow, not just the capped 10
+    expect(groups.map((g) => g.kind)).toEqual(['gone_quiet', 'hit_gate_early', 'low_conversion']);
+    const [gq, gate, lc] = groups;
+    expect(gq).toMatchObject({ count: 5, breached: 2, polarity: 'deficit' });
+    expect(gq.worst.map((i) => i.id)).toEqual(['g0', 'g1', 'g2']);
+    expect(gate).toMatchObject({ count: 1, polarity: 'recognition' });
+    expect(lc.count).toBe(8);
+    expect(lc.worst).toHaveLength(3);
+  });
+  it('handles null/empty input', () => {
+    expect(dedupCap(null)).toEqual({ issues: [], more: 0, groups: [] });
+    expect(dedupCap([])).toEqual({ issues: [], more: 0, groups: [] });
   });
 });
