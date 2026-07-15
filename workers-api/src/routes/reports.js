@@ -540,8 +540,9 @@ app.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
       SELECT guf.id, guf.visit_id, guf.visit_date, guf.first_name, guf.last_name, guf.id_number, guf.goldrush_id, guf.phone,
         guf.agent_id, guf.agent_name, guf.team_lead_id, guf.team_lead_name,
         guf.error_id_number, guf.error_goldrush_id, guf.error_photo_mismatch, guf.error_no_btag, guf.created_at,
-        vp.r2_url as photo_url
+        vp.r2_url as photo_url, v.customer_id
       FROM goldrush_upload_failures guf
+      LEFT JOIN visits v ON v.id = guf.visit_id AND v.tenant_id = guf.tenant_id
       LEFT JOIN visit_photos vp ON vp.id = (
         SELECT vp2.id FROM visit_photos vp2
         WHERE vp2.visit_id = guf.visit_id
@@ -568,6 +569,7 @@ app.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
       team_lead_id: row.team_lead_id || null,
       team_lead_name: row.team_lead_name || null,
       photo_url: row.photo_url || null,
+      customer_id: row.customer_id || null, // corrective-edit loop: PWA links to /agent/customer-edit/:id
       errors: {
         ...(row.error_id_number ? { id_number: row.error_id_number } : {}),
         ...(row.error_goldrush_id ? { goldrush_id: row.error_goldrush_id } : {}),

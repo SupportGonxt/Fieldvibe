@@ -75,6 +75,7 @@ function getTabsForRole(role: string | undefined) {
       { path: '/agent/reconcile', label: 'Reconcile', icon: ClipboardCheck },
       { path: '/agent/deposits', label: 'Deposits', icon: Banknote },
       { path: '/agent/call-list', label: 'Agents', icon: PhoneCall },
+      { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
       { path: '/agent/profile', label: 'Profile', icon: User },
     ]
   }
@@ -98,6 +99,7 @@ function isSubPage(pathname: string): boolean {
   if (pathname === '/agent/pin-management') return true
   if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return true
   if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return true
+  if (/^\/agent\/customer-edit\/[^/]+$/.test(pathname)) return true
   return false
 }
 
@@ -113,6 +115,8 @@ function getBackPath(pathname: string): string | null {
   // and team leads go back to team tab correctly
   if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return null
   if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return null
+  // Corrective-edit loop: entered from upload-failures rows — history back returns there
+  if (/^\/agent\/customer-edit\/[^/]+$/.test(pathname)) return null
   return '/agent/dashboard'
 }
 
@@ -125,6 +129,7 @@ function getSubPageTitle(pathname: string): string {
   if (pathname === '/agent/pin-management') return 'Agent PINs'
   if (/^\/agent\/agent-detail\/[^/]+$/.test(pathname)) return 'Agent Details'
   if (/^\/agent\/team-detail\/[^/]+$/.test(pathname)) return 'Team Details'
+  if (/^\/agent\/customer-edit\/[^/]+$/.test(pathname)) return 'Edit Customer'
   return ''
 }
 

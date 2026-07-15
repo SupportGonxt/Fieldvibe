@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import TransactionForm from '../../components/transactions/TransactionForm'
 import { customersService } from '../../services/customers.service'
 import ErrorState from '../../components/ui/ErrorState'
@@ -8,6 +8,10 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 export default function CustomerEditPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Also mounted at /agent/customer-edit/:id inside the PWA shell (BO corrective-edit
+  // loop) — go back to the queue that sent us here instead of the desktop detail page.
+  const done = () => location.pathname.startsWith('/agent/') ? navigate(-1) : navigate(`/customers/${id}`)
   const [customer, setCustomer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
@@ -111,7 +115,7 @@ export default function CustomerEditPage() {
   const handleSubmit = async (data: any) => {
     try {
       await customersService.updateCustomer(id!, data)
-      navigate(`/customers/${id}`)
+      done()
     } catch (error: any) {
       throw new Error(error.message || 'Failed to update customer')
     }
@@ -135,7 +139,7 @@ export default function CustomerEditPage() {
       fields={fields}
       initialData={customer}
       onSubmit={handleSubmit}
-      onCancel={() => navigate(`/customers/${id}`)}
+      onCancel={done}
       submitLabel="Update Customer"
     />
   )
