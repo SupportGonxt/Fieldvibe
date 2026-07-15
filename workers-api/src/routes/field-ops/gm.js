@@ -435,6 +435,122 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   };
 }
 
+// Whole days since a D1 timestamp ('YYYY-MM-DD HH:MM:SS' UTC, no zone marker). null-safe.
+export function ageDays(iso, nowMs = Date.now()) {
+  if (!iso) return null;
+  const t = Date.parse(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+  return isNaN(t) ? null : Math.max(0, Math.floor((nowMs - t) / 86400000));
+}
+
+// Merge grouped 7d/30d metric rows (each keyed by uid) onto the BO-admin roster.
+// Pure — unit-tested in gm.test.js. Rows carry *7/*30 columns from the SQL below.
+export function shapeBoPerformance(admins, { photos = [], calls = [], issues = [] } = {}) {
+  const by = (rows) => new Map((rows || []).map((r) => [r.uid, r]));
+  const p = by(photos), c = by(calls), i = by(issues);
+  return (admins || []).map((a) => {
+    const ph = p.get(a.id) || {}, ca = c.get(a.id) || {}, is = i.get(a.id) || {};
+    const win = (k) => {
+      const photosApproved = ph[`approved${k}`] || 0, photosRejected = ph[`rejected${k}`] || 0;
+      const boCalls = ca[`calls${k}`] || 0, answered = ca[`answered${k}`] || 0;
+      const issuesActed = is[`acted${k}`] || 0;
+      return {
+        photosApproved, photosRejected, calls: boCalls, answered, issuesActed,
+        total: photosApproved + photosRejected + boCalls + issuesActed,
+      };
+    };
+    return { id: a.id, name: a.name, lastSeen: a.last_activity_at || a.last_login || null, d7: win(7), d30: win(30) };
+  }).sort((x, y) => y.d30.total - x.d30.total || x.name.localeCompare(y.name));
+}
+
+// GET /gm/bo-performance — per-BO-admin operational throughput, last 7 + 30 days.
+// Only actor-attributable actions: photo reviews (visit_photos.reviewed_by), calls
+// (bo_calls.caller_id), issue actions (issues.acted_by). Deposit ingest, reconcile
+// promotions and commission approvals carry no actor column in D1, so they surface
+// only as shared queue depth (unmatched deposits), never per admin.
+app.get('/gm/bo-performance', requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const nowMs = Date.now();
+  const d7 = new Date(nowMs - 7 * 86400000).toISOString().slice(0, 10);
+  const d30 = new Date(nowMs - 30 * 86400000).toISOString().slice(0, 10);
+  try {
+    // Roster: same population as buildGmOverview's boAdmins block (active manager_company_link
+    // required — drops test/orphan users without a name heuristic).
+    const { results: admins } = await db.prepare(
+      `SELECT u.id, TRIM(u.first_name||' '||COALESCE(u.last_name,'')) name, u.last_activity_at, u.last_login
+       FROM users u
+       WHERE u.tenant_id = ? AND u.is_active = 1
+         AND u.role IN ('admin','backoffice_admin')
+         AND (u.agent_type IS NULL OR u.agent_type IN ('back_office','both'))
+         AND EXISTS (SELECT 1 FROM manager_company_links mcl
+           WHERE mcl.manager_id = u.id AND mcl.tenant_id = u.tenant_id AND mcl.is_active = 1)
+       ORDER BY name`
+    ).bind(tenantId).all().catch(() => ({ results: [] }));
+
+    // Each block guarded like buildGmOverview: a missing table/column degrades to zeros.
+    // Photo review decisions (reviewed_at is datetime('now'); >= 'YYYY-MM-DD' compares fine).
+    const { results: photos } = await db.prepare(
+      `SELECT reviewed_by uid,
+         SUM(CASE WHEN review_status='approved' THEN 1 ELSE 0 END) approved30,
+         SUM(CASE WHEN review_status='rejected' THEN 1 ELSE 0 END) rejected30,
+         SUM(CASE WHEN review_status='approved' AND reviewed_at >= ? THEN 1 ELSE 0 END) approved7,
+         SUM(CASE WHEN review_status='rejected' AND reviewed_at >= ? THEN 1 ELSE 0 END) rejected7
+       FROM visit_photos
+       WHERE tenant_id = ? AND reviewed_by IS NOT NULL AND reviewed_at >= ?
+       GROUP BY reviewed_by`
+    ).bind(d7, d7, tenantId, d30).all().catch(() => ({ results: [] }));
+
+    const { results: boCalls } = await db.prepare(
+      `SELECT caller_id uid, COUNT(*) calls30,
+         SUM(CASE WHEN status='answered' THEN 1 ELSE 0 END) answered30,
+         SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) calls7,
+         SUM(CASE WHEN status='answered' AND started_at >= ? THEN 1 ELSE 0 END) answered7
+       FROM bo_calls WHERE tenant_id = ? AND started_at >= ?
+       GROUP BY caller_id`
+    ).bind(d7, d7, tenantId, d30).all().catch(() => ({ results: [] }));
+
+    let issueRows = [];
+    try {
+      await ensureIssues(db);
+      const { results } = await db.prepare(
+        `SELECT acted_by uid, COUNT(*) acted30,
+           SUM(CASE WHEN acted_at >= ? THEN 1 ELSE 0 END) acted7
+         FROM issues WHERE tenant_id = ? AND acted_by IS NOT NULL AND acted_at >= ?
+         GROUP BY acted_by`
+      ).bind(d7, tenantId, d30).all();
+      issueRows = results || [];
+    } catch { /* issues ledger unavailable */ }
+
+    // Shared queues (no per-admin assignment exists) — depth + oldest-item age.
+    const photoQ = await db.prepare(
+      `SELECT COUNT(*) depth, MIN(created_at) oldest FROM visit_photos
+       WHERE tenant_id = ? AND review_status = 'pending'`
+    ).bind(tenantId).first().catch(() => null);
+    // Unmatched deposit facts = the BO "chase" queue (same GID expression as deposits.js).
+    const GID_VI = `COALESCE(json_extract(vi.custom_field_values,'$.goldrush_id_entry'),
+                             json_extract(vi.custom_field_values,'$.goldrush_id'))`;
+    const depositQ = await db.prepare(
+      `SELECT COUNT(*) depth, MIN(mf.created_at) oldest FROM metric_facts mf
+       WHERE mf.tenant_id = ? AND mf.metric_key = 'deposits'
+         AND NOT EXISTS (SELECT 1 FROM visit_individuals vi
+           WHERE vi.tenant_id = mf.tenant_id AND ${GID_VI} = mf.subject_key)`
+    ).bind(tenantId).first().catch(() => null);
+
+    return c.json({
+      success: true,
+      since: { d7, d30 },
+      admins: shapeBoPerformance(admins, { photos, calls: boCalls, issues: issueRows }),
+      queues: {
+        photoReview: { depth: photoQ?.depth || 0, oldestDays: ageDays(photoQ?.oldest, nowMs) },
+        unmatchedDeposits: { depth: depositQ?.depth || 0, oldestDays: ageDays(depositQ?.oldest, nowMs) },
+      },
+    });
+  } catch (error) {
+    console.error(`Error building BO performance tenant=${tenantId}:`, error);
+    return c.json({ success: false, error: 'Could not build BO performance' }, 500);
+  }
+});
+
 // GET /gm/overview?period=day|week|month&anchor=YYYY-MM-DD&company_id=
 app.get('/gm/overview', requireRole('admin', 'general_manager'), async (c) => {
   const tenantId = c.get('tenantId');
