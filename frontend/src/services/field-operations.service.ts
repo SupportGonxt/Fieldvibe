@@ -1013,7 +1013,7 @@ class FieldOperationsService extends ApiService {
   async createMonthlyTarget(data: {
     agent_id: string; company_id?: string; target_month: string;
     target_visits?: number; target_conversions?: number; target_stores?: number;
-    working_days?: number; commission_rate?: number
+    target_registrations?: number; working_days?: number; commission_rate?: number
   }) {
     const response = await this.post('/field-ops/monthly-targets', data)
     return response.data || response
