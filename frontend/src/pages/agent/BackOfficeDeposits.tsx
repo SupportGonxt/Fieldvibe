@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Loader2, CheckCircle2, AlertTriangle, Banknote, Trash2, RefreshCw, Link2, Unlink, Upload } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertTriangle, Banknote, Trash2, RefreshCw, Link2, Unlink, Upload, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canSeeMoney } from '../../lib/capabilities'
+import { saveRowsAsCsv } from '../../lib/downloadCsv'
 import { useToast } from '../../components/ui/Toast'
 
 // Back Office deposit ingest (deposit gate). Paste (or CSV-dump) the Goldrush-confirmed
@@ -133,6 +136,7 @@ export default function BackOfficeDeposits() {
   }
 
   const unmatchedCount = rows.filter((r) => !r.matched).length
+  const role = useAuthStore((s) => s.user?.role)
 
   return (
     <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
@@ -232,6 +236,22 @@ export default function BackOfficeDeposits() {
             >
               <RefreshCw className={`w-4 h-4 text-token-muted ${loadingList ? 'animate-spin' : ''}`} />
             </button>
+            {canSeeMoney(role) && rows.length > 0 && (
+              <button
+                onClick={() =>
+                  // Rows already loaded from /field-ops/deposits — CSV built client-side.
+                  saveRowsAsCsv(
+                    ['Goldrush ID', 'Deposit date', 'Amount', 'Batch', 'Matched'],
+                    rows.map((r) => [r.goldrush_id, r.deposit_date, r.amount, r.source_batch, r.matched ? 'yes' : 'no']),
+                    `deposits-${new Date().toISOString().slice(0, 10)}.csv`,
+                  )
+                }
+                className="p-2 rounded-xl bg-white/[0.04] border border-token active:scale-95 transition-transform"
+                aria-label="Export CSV"
+              >
+                <Download className="w-4 h-4 text-token-muted" />
+              </button>
+            )}
           </div>
         </div>
 

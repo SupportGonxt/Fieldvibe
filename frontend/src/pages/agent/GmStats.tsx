@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Loader2, ArrowUpRight, ArrowDownRight, Minus, ChevronDown, ChevronLeft, ChevronRight,
-  Users, Phone, UserX, ShieldAlert, CheckCircle2, Crosshair,
+  Users, Phone, UserX, ShieldAlert, CheckCircle2, Crosshair, Download,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canSeeMoney } from '../../lib/capabilities'
+import { downloadCsv } from '../../lib/downloadCsv'
 import { SIGNAL_REGISTRY, signalText, type Signal } from '../../lib/signalRegistry'
 import { rand, PERIODS, shiftAnchor, windowLabel, type Overview, type Period } from './GmOverview'
 
@@ -36,7 +39,24 @@ export default function GmStats() {
   const [sig, setSig] = useState<TenantSignals | null>(null)
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const navigate = useNavigate()
+  const role = useAuthStore((s) => s.user?.role)
+
+  // Existing desktop CSV endpoint, reused verbatim; admin-equivalents only (CSV includes rand figures).
+  const exportCsv = async (w: Overview['window']) => {
+    setExporting(true)
+    try {
+      await downloadCsv(
+        `/field-ops/performance/export?start_date=${w.start}&end_date=${w.end}`,
+        `performance-${w.start}-to-${w.end}.csv`,
+      )
+    } catch {
+      /* endpoint down — button stays, user can retry */
+    } finally {
+      setExporting(false)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -76,9 +96,21 @@ export default function GmStats() {
   return (
     <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
       <div className="max-w-md mx-auto space-y-5">
-        <div>
-          <h1 className="text-2xl font-bold text-token">Performance</h1>
-          <p className="text-sm text-token-faint">{windowLabel(data.window, period)}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-token">Performance</h1>
+            <p className="text-sm text-token-faint">{windowLabel(data.window, period)}</p>
+          </div>
+          {canSeeMoney(role) && (
+            <button
+              onClick={() => exportCsv(data.window)}
+              disabled={exporting}
+              className="w-11 h-11 flex items-center justify-center rounded-xl bg-white/[0.06] border border-token text-token disabled:opacity-40 flex-shrink-0"
+              aria-label="Export CSV"
+            >
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            </button>
+          )}
         </div>
 
         {data.companies.length > 1 && (
