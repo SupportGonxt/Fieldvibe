@@ -171,6 +171,12 @@ export default function TeamTab() {
   }
   const periodLabel = (p: Period) => p === 'day' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'Month to Date' : 'Prior Month'
   const teamPeriod = getTeamTotals(period)
+  // Worst-first: agents with rejected photos surface on top, then lowest today/week counts.
+  const agents = [...(data?.agents || [])].sort((a, b) =>
+    (b.rejected_photos || 0) - (a.rejected_photos || 0) ||
+    (a.today_visits || 0) - (b.today_visits || 0) ||
+    (a.week_visits || 0) - (b.week_visits || 0)
+  )
 
   return (
     <div className="min-h-screen bg-bg pb-24">
@@ -404,15 +410,18 @@ export default function TeamTab() {
 
       {/* Agent List */}
       <div className="px-5 pt-2 pb-4">
-        <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider mb-3">Agent Performance</h2>
-        {(data?.agents || []).length === 0 ? (
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-xs font-semibold text-token-faint uppercase tracking-wider">Agent Performance</h2>
+          <span className="text-[10px] text-gray-600">Needs attention first</span>
+        </div>
+        {agents.length === 0 ? (
           <div className="bg-white/5 border border-token rounded-xl p-6 text-center">
             <Users className="w-8 h-8 text-gray-600 mx-auto mb-2" />
             <p className="text-sm text-token-faint">No agents assigned to your team</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {(data?.agents || []).map((agent) => {
+            {agents.map((agent) => {
               const isExpanded = expandedAgent === agent.id
               const agentVPct = (agent.target_visits || 0) > 0 ? Math.min(100, Math.round((agent.actual_visits / agent.target_visits) * 100)) : 0
               const agentRPct = (agent.target_stores || 0) > 0 ? Math.min(100, Math.round((agent.actual_stores / agent.target_stores) * 100)) : 0
