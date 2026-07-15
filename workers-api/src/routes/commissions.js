@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
+import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const app = new Hono();
@@ -14,7 +15,8 @@ app.get('/commissions', authMiddleware, async (c) => {
   const offset = (parseInt(page) - 1) * parseInt(limit);
   let where = 'WHERE ce.tenant_id = ?';
   const params = [tenantId];
-  if (role === 'agent') { where += ' AND ce.earner_id = ?'; params.push(userId); }
+  // Money rule: all field roles see only their OWN earnings, not just role === 'agent'.
+  if (!canSeeMoney(role)) { where += ' AND ce.earner_id = ?'; params.push(userId); }
   if (status) { where += ' AND ce.status = ?'; params.push(status); }
   const total = await db.prepare('SELECT COUNT(*) as count FROM commission_earnings ce ' + where).bind(...params).first();
   const commissions = await db.prepare("SELECT ce.*, u.first_name || ' ' || u.last_name as earner_name, cr.name as rule_name FROM commission_earnings ce LEFT JOIN users u ON ce.earner_id = u.id LEFT JOIN commission_rules cr ON ce.rule_id = cr.id " + where + " ORDER BY ce.created_at DESC LIMIT ? OFFSET ?").bind(...params, parseInt(limit), offset).all();
@@ -83,7 +85,8 @@ app.get('/commissions/user/:userId', authMiddleware, async (c) => {
   const requesterId = c.get('userId');
   const role = c.get('role');
   const targetUserId = c.req.param('userId');
-  const managerial = ['admin', 'super_admin', 'backoffice_admin', 'general_manager', 'manager'].includes(role);
+  // Money rule: manager is a field role — own pay only. Admin-equivalents see anyone's.
+  const managerial = ['admin', 'super_admin', 'backoffice_admin', 'general_manager'].includes(role);
   if (targetUserId !== requesterId && !managerial) {
     return c.json({ success: false, message: 'Insufficient permissions' }, 403);
   }
@@ -93,7 +96,7 @@ app.get('/commissions/user/:userId', authMiddleware, async (c) => {
   return c.json(commissions.results || []);
 });
 
-app.get('/commissions/dashboard', authMiddleware, async (c) => {
+app.get('/commissions/dashboard', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [total, pending, approved, paid, topEarners] = await Promise.all([
@@ -109,7 +112,11 @@ app.get('/commissions/dashboard', authMiddleware, async (c) => {
 app.get('/commissions/payouts', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const payouts = await db.prepare('SELECT * FROM commission_payouts WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100').bind(tenantId).all();
+  // Money rule: field roles get only their OWN payout history.
+  let where = 'WHERE tenant_id = ?';
+  const params = [tenantId];
+  if (!canSeeMoney(c.get('role'))) { where += ' AND earner_id = ?'; params.push(c.get('userId')); }
+  const payouts = await db.prepare('SELECT * FROM commission_payouts ' + where + ' ORDER BY created_at DESC LIMIT 100').bind(...params).all();
   return c.json({ success: true, data: payouts.results || [] });
 });
 
@@ -119,10 +126,14 @@ app.get('/commissions/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const commission = await db.prepare("SELECT ce.*, u.first_name || ' ' || u.last_name as earner_name, cr.name as rule_name FROM commission_earnings ce LEFT JOIN users u ON ce.earner_id = u.id LEFT JOIN commission_rules cr ON ce.rule_id = cr.id WHERE ce.id = ? AND ce.tenant_id = ?").bind(id, tenantId).first();
   if (!commission) return c.json({ success: false, message: 'Commission not found' }, 404);
+  // Money rule: field roles may only read their own earning rows.
+  if (!canSeeMoney(c.get('role')) && commission.earner_id !== c.get('userId')) {
+    return c.json({ success: false, message: 'Insufficient permissions' }, 403);
+  }
   return c.json(commission);
 });
 
-app.post('/commissions/calculate', authMiddleware, async (c) => {
+app.post('/commissions/calculate', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { order_id } = await c.req.json();

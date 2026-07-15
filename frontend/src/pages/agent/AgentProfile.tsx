@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff, LayoutGrid } from 'lucide-react'
+import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff, LayoutGrid, Wallet } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore, hasRole } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
@@ -91,6 +91,21 @@ export default function AgentProfile() {
           <InfoRow icon={<Shield className="w-4 h-4 text-primary" />} label="Role" value={(authUser?.role || 'agent').replace('_', ' ')} />
           <InfoRow icon={<Building2 className="w-4 h-4 text-primary" />} label="Companies" value={companies.length > 0 ? companies.map(c => c.name).join(', ') : 'None assigned'} />
         </div>
+
+        {/* My Earnings — own commission/incentive pay, the one rand view every role gets */}
+        <button
+          onClick={() => navigate('/agent/earnings')}
+          className="w-full bg-white/5 border border-token rounded-xl p-4 flex items-center justify-between active:bg-white/10 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Wallet className="w-5 h-5 text-primary" />
+            <div className="text-left">
+              <span className="block text-sm text-token font-medium">My Earnings</span>
+              <span className="block text-[11px] text-token-faint">Commission &amp; incentive pay history</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-token-faint" />
+        </button>
 
         {/* Change PIN */}
         <button
