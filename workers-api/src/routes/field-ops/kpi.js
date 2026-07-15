@@ -97,7 +97,8 @@ export async function agentSignals(db, tenantId, id, thresholds, since) {
   const signals = evaluateSignals({ actual, baseline, daysSinceLastVisit, thresholds });
   if (actual.days > 0)
     signals.push(...rootCauseSignals(await visitDetailRows(db, tenantId, id, since), thresholds));
-  return { actual, signals };
+  // baseline returned for the cron's v2 trend signals — same pair evaluateSignals reads.
+  return { actual, baseline, signals };
 }
 
 const app = new Hono();

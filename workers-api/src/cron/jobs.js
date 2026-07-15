@@ -1,13 +1,16 @@
 import { sendEmailViaMailChannels, htmlEscape, tableHtml, kpiHtml } from './email.js';
 import { analyzePhotoWithAI } from '../lib/photoAi.js';
 import { buildGmOverview, digestSlot } from '../routes/field-ops/gm.js';
-import { agentSignals, boAdminSignals } from '../routes/field-ops/kpi.js';
+import { agentSignals, boAdminSignals, rankRoster } from '../routes/field-ops/kpi.js';
 import { ensureIssues } from '../routes/field-ops/issues.js';
 import { getConfig, getScale } from '../routes/field-ops/config.js';
 import { severityOf, isBreached, nextOwnerRole, slaClockOf, slaAppliesTo } from '../services/issueEngine.js';
 import { sendPush } from '../lib/web-push.js';
-import { dueEscalation, agentCount, nextGate, workingDaysElapsed } from '../services/incentiveService.js';
-import { signalBelowGate, signalLabel, SIGNAL_REGISTRY } from '../services/kpiSignals.js';
+import { dueEscalation, agentCount, nextGate, readTargets, workingDaysElapsed } from '../services/incentiveService.js';
+import {
+  signalBelowGate, signalLabel, SIGNAL_REGISTRY,
+  trendSignals, peerSignals, signalAtRiskGate, signalHitGateEarly,
+} from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { isConverted } from '../services/funnelService.js';
 
@@ -407,6 +410,26 @@ async function reactToIssues(db, env) {
           return boCfgCache.get(key);
         };
 
+        // v2 rollout gate: the NEW signal families (trend, peer, gate-pace) only fire for a
+        // tenant/company that opted in via config key cron.issue_signals_v2 = true. Default
+        // off — on a pipeline with no staging, a config toggle beats a revert-and-redeploy.
+        // The existing 6 signal types (and BO-admin queue-health, gated by kpi.backoffice_admin
+        // seeding) are never gated by this.
+        const v2Cache = new Map();
+        const v2For = async (companyId) => {
+          const key = companyId || '';
+          if (!v2Cache.has(key)) v2Cache.set(key, (await getConfig(db, tenantId, companyId, 'cron.issue_signals_v2')) === true);
+          return v2Cache.get(key);
+        };
+        // Working days elapsed as of the baseline snapshot date, for at_risk_gate's
+        // prior-pace denominator. Cached per (company, date) — same for every agent there.
+        const baseWdCache = new Map();
+        const baselineWdFor = async (companyId, asOf) => {
+          const key = `${companyId || ''}|${asOf}`;
+          if (!baseWdCache.has(key)) baseWdCache.set(key, await workingDaysElapsed(db, tenantId, companyId, today.slice(0, 7), asOf));
+          return baseWdCache.get(key);
+        };
+
         // Registry gate-metric keys (visibility:'all'), same filter kpi.js's /kpi/self applies —
         // keeps an admin-configured tier target on a gm-only metric out of agent-facing signals.
         const gateKeysCache = new Map();
@@ -454,6 +477,10 @@ async function reactToIssues(db, env) {
         ).bind(tenantId).first())?.id || null;
         const gmFor = (companyId) => gmByCompany.get(companyId) || tenantGmId;
 
+        // --- Phase 1: compute signals per subject, no writes. Split from the persist loop
+        // below because peer signals need every roster member's results before anything
+        // persists (and computing signals twice would burn the subrequest budget).
+        const computed = [];
         for (const agent of agents) {
           try {
             const isBoAdmin = agent.role === 'backoffice_admin';
@@ -464,7 +491,7 @@ async function reactToIssues(db, env) {
                 : await leadThresholdsFor(agent.company_id);
             if (!Object.keys(thresholds).length) continue; // this customer hasn't opted in
 
-            let actual, signals;
+            let actual, baseline, signals;
             if (isBoAdmin) {
               // No field-activity window for queue-health signals, so there is no thin-window
               // to gate on — actual.days is a sentinel that trivially satisfies the M-1 resolve
@@ -474,7 +501,16 @@ async function reactToIssues(db, env) {
             } else {
               const windowDays = thresholds.baseline_window_days || 14;
               const since = new Date(nowMs - windowDays * 86400000).toISOString().slice(0, 10);
-              ({ actual, signals } = await agentSignals(db, tenantId, agent.id, thresholds, since));
+              ({ actual, baseline, signals } = await agentSignals(db, tenantId, agent.id, thresholds, since));
+
+              // v2 signal families (trend, peer, gate-pace) are min_days-gated — both
+              // polarities — for the identical thin-window-noise reason as the existing
+              // rate signals. gone_quiet stays the sole min_days-exempt signal, untouched.
+              const v2 = await v2For(agent.company_id);
+              const enoughDays = actual.days >= (thresholds.min_days ?? 3);
+              // Trend: same actual/baseline pair evaluateSignals already reads; one signal
+              // per thresholds-targeted metric moving >= improve_pct in either direction.
+              if (v2 && enoughDays) signals.push(...trendSignals(actual, baseline, thresholds));
 
               // Pace signal: is this agent trailing the per-working-day gate targets for their next tier?
               // actual.days>0 guard mirrors kpi.js's /kpi/self — without it a brand-new agent with zero
@@ -488,7 +524,8 @@ async function reactToIssues(db, env) {
                   ? await agentCount(db, tenantId, agent.id, today.slice(0, 7))
                   : { count: 0, deposits: 0 };
                 const allowedKeys = await gateKeysFor(agent.company_id);
-                const ng = tiers.length ? nextGate(tiers, { signups: count / wd, deposits: deposits / wd }) : null;
+                const metricNow = { signups: count / wd, deposits: deposits / wd };
+                const ng = tiers.length ? nextGate(tiers, metricNow) : null;
                 const gatedNg = ng
                   ? {
                       ...ng,
@@ -497,9 +534,62 @@ async function reactToIssues(db, env) {
                     }
                   : null;
                 signals.push(...signalBelowGate({ nextGate: gatedNg }));
+
+                // v2 gate-pace pair. hit_gate_early: every tier cleared AND comfortably
+                // (110%) over the top tier's gate metrics. at_risk_gate: still clearing a
+                // gate metric today but month-pace slid >=10% vs the snapshot from
+                // baseline_window_days ago — only comparable once that date falls inside
+                // the current month (early-month has no in-month baseline; skip, don't guess).
+                if (v2 && enoughDays && tiers.length) {
+                  if (!ng) {
+                    const top = [...tiers].sort((a, b) => (b.amount || 0) - (a.amount || 0))[0];
+                    const topTargets = Object.fromEntries(
+                      Object.entries(readTargets(top)).filter(([k]) => allowedKeys.has(k)));
+                    signals.push(...signalHitGateEarly(metricNow, topTargets, thresholds));
+                  } else if (gatedNg && since >= `${today.slice(0, 7)}-01`) {
+                    const bWd = await baselineWdFor(agent.company_id, since);
+                    const b = await agentCount(db, tenantId, agent.id, today.slice(0, 7), undefined, since);
+                    signals.push(...signalAtRiskGate(
+                      metricNow,
+                      { signups: b.count / bWd, deposits: b.deposits / bWd },
+                      gatedNg.targets, thresholds));
+                  }
+                }
               }
             }
 
+            computed.push({ agent, thresholds, actual, signals, isBoAdmin });
+          } catch (agentErr) {
+            console.error(`reactToIssues compute error for ${agent.id}:`, agentErr);
+          }
+        }
+
+        // --- Phase 1.5 (v2): peer signals. Roster = one team lead's field agents within one
+        // company, ranked worst-first by the same rankRoster the cockpit roster uses; bottom
+        // quartile flags team_bottom, top quartile team_top (peerSignals skips rosters < 4).
+        const teams = new Map();
+        for (const e of computed) {
+          if (e.isBoAdmin || !AGENT_SUBJECT.has(e.agent.role) || !e.agent.team_lead_id) continue;
+          if (!(await v2For(e.agent.company_id))) continue;
+          const key = `${e.agent.company_id || ''}|${e.agent.team_lead_id}`;
+          if (!teams.has(key)) teams.set(key, []);
+          teams.get(key).push(e);
+        }
+        for (const members of teams.values()) {
+          const byId = new Map(members.map((e) => [e.agent.id, e]));
+          for (const p of peerSignals(rankRoster(members).map((e) => e.agent.id))) {
+            const e = byId.get(p.id);
+            // Same min_days gate as every other v2 signal: a thin-window member still
+            // counts toward the ranking, but their thin data can't flag or crown them.
+            if (e && e.actual.days >= (e.thresholds.min_days ?? 3))
+              e.signals.push({ type: p.type, detail: p.detail });
+          }
+        }
+
+        // --- Phase 2: persist. The deficit breach/escalation spine and recognition
+        // highlights below are unchanged — now fed by the phase-1 results.
+        for (const { agent, thresholds, actual, signals, isBoAdmin } of computed) {
+          try {
             // Split by polarity (SIGNAL_REGISTRY is the one source of truth for this — see
             // kpiSignals.js). An unrecognized type can't be filed under either bucket safely,
             // so warn and drop just that one signal rather than throwing the whole agent out.
