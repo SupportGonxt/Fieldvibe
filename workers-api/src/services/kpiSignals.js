@@ -141,7 +141,7 @@ export function aggregateKpis(rows) {
 // kpi.<role> config sets a threshold for it AND actual is under it, so Goldrush
 // (sign-ups/visits) and Stellr (boards/surveys/quality/coverage) share one code path
 // and differ only by config. conversion has its own signal (low_conversion), not here.
-const TARGET_KEYS = ['visits_per_day', 'signups_per_day', 'boards_per_day', 'surveys_per_day', 'board_quality'];
+export const TARGET_KEYS = ['visits_per_day', 'signups_per_day', 'boards_per_day', 'surveys_per_day', 'board_quality'];
 
 export function signalBelowTarget(actual, th) {
   const metrics = TARGET_KEYS.filter(
@@ -211,6 +211,19 @@ export function signalTrend(recentVal, priorVal, metric, th) {
   if (pct <= -improve) return { type: 'declining_trend', detail: { metric, pct } };
   if (pct >= improve) return { type: 'improving_trend', detail: { metric, pct } };
   return null;
+}
+
+// signalTrend across every metric the tenant's kpi.<role> config actually targets —
+// same key-selection convention as signalBelowTarget, so Goldrush and Stellr differ
+// only by config. Uses the actual/baseline pair the caller already computed.
+export function trendSignals(actual, baseline, th) {
+  const out = [];
+  for (const m of TARGET_KEYS) {
+    if (th?.[m] == null) continue;
+    const t = signalTrend(actual?.[m] || 0, baseline?.[m] || 0, m, th);
+    if (t) out.push(t);
+  }
+  return out;
 }
 
 // Bottom quartile of a worst-first ranked roster (by signal count, see kpi.js

@@ -116,8 +116,11 @@ async function trainingDayCount(db, tenantId, companyId, period) {
 }
 
 // Count of an agent's signups in the period. status: 'qualified' | 'provisional' | undefined(all non-rejected).
-export async function agentCount(db, tenantId, agentId, period, status) {
-  const { start, end } = monthBounds(period);
+// endCap ('YYYY-MM-DD', optional): count only up to that date — a month-to-date snapshot
+// as of an earlier day, used by the cron's at_risk_gate pace comparison. Default unchanged.
+export async function agentCount(db, tenantId, agentId, period, status, endCap) {
+  let { start, end } = monthBounds(period);
+  if (endCap && endCap < end) end = endCap;
   let statusClause = "AND COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'";
   if (status === 'qualified') statusClause = "AND json_extract(vi.custom_field_values,'$.verification_status') = 'qualified'";
   // deposits = period signups whose canonical goldrush id has a BackOffice-confirmed

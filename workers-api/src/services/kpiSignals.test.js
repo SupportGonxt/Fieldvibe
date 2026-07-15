@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   aggregateKpis, evaluateSignals, signalBelowGate, signalBelowTarget, SIGNAL_REGISTRY,
-  signalTrend, peerSignals, signalAtRiskGate, signalHitGateEarly, evaluateBoSignals,
+  signalTrend, trendSignals, peerSignals, signalAtRiskGate, signalHitGateEarly, evaluateBoSignals,
 } from './kpiSignals.js';
 
 // Pins the invariants reactToIssues' resolve-gate relies on: a dark or thin window
@@ -79,6 +79,23 @@ describe('signalTrend', () => {
   it('priorVal<=0 guard (no prior period, no false trigger)', () => {
     expect(signalTrend(10, 0, 'visits_per_day', th)).toBeNull();
     expect(signalTrend(10, -5, 'visits_per_day', th)).toBeNull();
+  });
+});
+
+describe('trendSignals', () => {
+  const th = { visits_per_day: 5, signups_per_day: 2, improve_pct: 20 };
+  it('one signal per thresholds-targeted metric, skips untargeted keys', () => {
+    const actual = { visits_per_day: 8, signups_per_day: 2.6, boards_per_day: 0 };
+    const baseline = { visits_per_day: 10, signups_per_day: 2, boards_per_day: 5 };
+    const out = trendSignals(actual, baseline, th);
+    expect(out).toEqual([
+      { type: 'declining_trend', detail: { metric: 'visits_per_day', pct: -20 } },
+      { type: 'improving_trend', detail: { metric: 'signups_per_day', pct: 30 } },
+    ]);
+  });
+  it('silent when nothing moves past improve_pct or baseline empty', () => {
+    expect(trendSignals({ visits_per_day: 10 }, { visits_per_day: 10 }, th)).toEqual([]);
+    expect(trendSignals({ visits_per_day: 10 }, {}, th)).toEqual([]);
   });
 });
 
