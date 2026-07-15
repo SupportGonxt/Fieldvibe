@@ -587,7 +587,9 @@ export default function AgentDashboard() {
       {/* Goldrush hero incentive — exception branch of the standard PWA */}
       {goldrushCompany && (isAgentRole || isTeamRole) && (
         <>
-          {isAgentRole && (
+          {/* Team leads sell in the field too — Fast Signup for them as well.
+              Local condition (not isAgentRole) so PerformanceCard/Leaderboard stay agent-only. */}
+          {(isAgentRole || authUser?.role === 'team_lead') && (
             <div className="px-5 mb-4">
               <button
                 onClick={() => navigate('/agent/visits/create?type=individual')}

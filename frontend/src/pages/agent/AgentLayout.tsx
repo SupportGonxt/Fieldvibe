@@ -44,6 +44,8 @@ function getTabsForRole(role: string | undefined) {
       { path: '/agent/visits', label: 'Visits', icon: MapPin },
       { path: '/agent/visits/create', label: 'New', icon: Plus, isCta: true },
       { path: '/agent/team', label: 'Team', icon: Users },
+      // Team leads sell too — own targets/earnings via StatsForRole → AgentStats
+      { path: '/agent/stats', label: 'Stats', icon: BarChart3 },
       { path: '/agent/profile', label: 'Profile', icon: User },
     ]
   }
