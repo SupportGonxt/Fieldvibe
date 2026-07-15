@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, Loader2, CheckCircle2, Pencil } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 
 // Mobile adaptation of field-operations/reports/CaptureFailuresReport — same
@@ -21,6 +21,7 @@ type UploadFailure = {
   team_lead_name: string | null
   photo_url: string | null
   error_summary: string
+  customer_id: string | null
 }
 
 const mondayOfWeek = () => {
@@ -109,6 +110,15 @@ export default function BOUploadFailures() {
                             <div className="text-xs text-red-300/80 truncate">{f.error_summary}</div>
                           </div>
                           <span className="text-[11px] text-gray-600 shrink-0">{f.visit_date?.slice(5)}</span>
+                          {f.customer_id && (
+                            <button
+                              onClick={() => navigate(`/agent/customer-edit/${f.customer_id}`)}
+                              className="shrink-0 min-h-[44px] min-w-[44px] -my-2 flex items-center justify-center text-gray-500 active:text-primary"
+                              title="Fix customer record"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react'
+import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff, LayoutGrid } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useAuthStore } from '../../store/auth.store'
+import { useAuthStore, hasRole } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
 import { APP_VERSION, checkForUpdate } from '../../lib/appUpdate'
 
@@ -129,6 +129,24 @@ export default function AgentProfile() {
               {pinLoading ? 'Updating...' : 'Update PIN'}
             </button>
           </div>
+        )}
+
+        {/* Admin bridge: tenant-admin functions (users, settings, audit) live in the
+            desktop console — hasRole covers all admin-equivalent roles, not just 'admin' */}
+        {hasRole('admin') && (
+          <button
+            onClick={() => navigate('/more')}
+            className="w-full bg-white/5 border border-token rounded-xl p-4 flex items-center justify-between active:bg-white/10 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <LayoutGrid className="w-5 h-5 text-primary" />
+              <div className="text-left">
+                <span className="block text-sm text-token font-medium">More</span>
+                <span className="block text-[11px] text-token-faint">Admin console — users, settings, audit</span>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-token-faint" />
+          </button>
         )}
 
         {/* Logout */}

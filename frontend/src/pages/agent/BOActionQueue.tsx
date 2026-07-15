@@ -140,6 +140,7 @@ export default function BOActionQueue() {
           { label: 'Photos', to: '/agent/photo-review' },
           { label: 'Uploads', to: '/agent/upload-failures' },
           { label: 'Commissions', to: '/agent/commissions' },
+          { label: 'KYC', to: '/agent/kyc' },
         ].map((b) => (
           <button
             key={b.to}
