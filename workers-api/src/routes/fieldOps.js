@@ -409,17 +409,18 @@ app.get('/field-ops/daily-targets', authMiddleware, async (c) => {
   }
 });
 
-app.post('/field-ops/daily-targets', authMiddleware, async (c) => {
+// Targets are set by GM/admin only (admin-equivalents via roleAllows); field roles read-only.
+app.post('/field-ops/daily-targets', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
   const id = uuidv4();
-  await db.prepare('INSERT INTO daily_targets (id, tenant_id, agent_id, company_id, target_visits, target_conversions, target_registrations, target_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.agent_id, body.company_id || null, body.target_visits || 20, body.target_conversions || 5, body.target_registrations || 10, body.target_date, userId).run();
+  await db.prepare('INSERT INTO daily_targets (id, tenant_id, agent_id, company_id, target_visits, target_conversions, target_registrations, target_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.agent_id, body.company_id || null, body.target_visits || 20, body.target_conversions || 5, body.target_registrations || body.target_stores || 10, body.target_date, userId).run();
   return c.json({ id, message: 'Daily target created' }, 201);
 });
 
-app.put('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
+app.put('/field-ops/daily-targets/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -435,7 +436,7 @@ app.put('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Target updated' });
 });
 
-app.delete('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/daily-targets/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -444,7 +445,7 @@ app.delete('/field-ops/daily-targets/:id', authMiddleware, async (c) => {
 });
 
 // Bulk create daily targets for multiple agents
-app.post('/field-ops/daily-targets/bulk', authMiddleware, async (c) => {
+app.post('/field-ops/daily-targets/bulk', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -487,7 +488,7 @@ app.get('/field-ops/company-target-rules/:companyId', authMiddleware, async (c) 
   }
 });
 
-app.post('/field-ops/company-target-rules', authMiddleware, async (c) => {
+app.post('/field-ops/company-target-rules', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -541,7 +542,7 @@ app.post('/field-ops/company-target-rules', authMiddleware, async (c) => {
   return c.json({ success: true, data: { id }, message: 'Target rules created' }, 201);
 });
 
-app.delete('/field-ops/company-target-rules/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/company-target-rules/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -942,18 +943,18 @@ app.get('/field-ops/monthly-targets', authMiddleware, async (c) => {
   } catch { return c.json({ data: [] }); }
 });
 
-app.post('/field-ops/monthly-targets', authMiddleware, async (c) => {
+app.post('/field-ops/monthly-targets', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
   if (!body.agent_id || !body.target_month) return c.json({ success: false, message: 'agent_id and target_month required' }, 400);
   const id = uuidv4();
-  await db.prepare('INSERT INTO monthly_targets (id, tenant_id, agent_id, company_id, target_month, target_visits, target_conversions, target_registrations, working_days, commission_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.agent_id, body.company_id || null, body.target_month, body.target_visits || 0, body.target_conversions || 0, body.target_registrations || 0, body.working_days || 22, body.commission_rate || 0, userId).run();
+  await db.prepare('INSERT INTO monthly_targets (id, tenant_id, agent_id, company_id, target_month, target_visits, target_conversions, target_registrations, working_days, commission_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.agent_id, body.company_id || null, body.target_month, body.target_visits || 0, body.target_conversions || 0, body.target_registrations || body.target_stores || 0, body.working_days || 22, body.commission_rate || 0, userId).run();
   return c.json({ id, message: 'Monthly target created' }, 201);
 });
 
-app.put('/field-ops/monthly-targets/:id', authMiddleware, async (c) => {
+app.put('/field-ops/monthly-targets/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -969,7 +970,7 @@ app.put('/field-ops/monthly-targets/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Monthly target updated' });
 });
 
-app.delete('/field-ops/monthly-targets/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/monthly-targets/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');

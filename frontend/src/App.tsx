@@ -80,6 +80,7 @@ const BOUploadFailures = lazyWithRetry(() => import('./pages/agent/BOUploadFailu
 const BOCommissions = lazyWithRetry(() => import('./pages/agent/BOCommissions'))
 const GMPnl = lazyWithRetry(() => import('./pages/agent/GMPnl'))
 const GmOverview = lazyWithRetry(() => import('./pages/agent/GmOverview'))
+const GmTargetsPage = lazyWithRetry(() => import('./pages/agent/GmTargetsPage'))
 const TeamTab = lazyWithRetry(() => import('./pages/agent/TeamTab'))
 const ManagerTeamsTab = lazyWithRetry(() => import('./pages/agent/ManagerTeamsTab'))
 const AgentDetailPage = lazyWithRetry(() => import('./pages/agent/AgentDetailPage'))
@@ -1177,6 +1178,7 @@ function App() {
             <Route path="commissions" element={<PageLoader><BOCommissions /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
             <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
+            <Route path="gm-targets" element={<PageLoader><GmTargetsPage /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />
             <Route path="stats" element={<PageLoader><StatsForRole /></PageLoader>} />

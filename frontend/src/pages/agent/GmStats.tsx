@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Loader2, ArrowUpRight, ArrowDownRight, Minus, ChevronDown, ChevronLeft, ChevronRight,
-  Users, Phone, UserX, ShieldAlert, CheckCircle2,
+  Users, Phone, UserX, ShieldAlert, CheckCircle2, Crosshair,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { SIGNAL_REGISTRY, signalText, type Signal } from '../../lib/signalRegistry'
@@ -159,6 +159,16 @@ export default function GmStats() {
             bad={calls.target > 0 && calls.contacted < calls.target * 0.7}
           />
         </div>
+
+        {/* GM is the only role allowed to set targets — entry point to the editor. */}
+        <button
+          onClick={() => navigate('/agent/gm-targets')}
+          className="w-full min-h-[56px] flex items-center gap-3 px-4 py-3 bg-white/[0.03] border border-token rounded-2xl text-left"
+        >
+          <Crosshair className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="flex-1 text-sm font-medium text-token">Set agent targets</span>
+          <ChevronRight className="w-4 h-4 text-token-faint" />
+        </button>
 
         {/* Why the numbers look like they do. Tap a signal to see who is triggering it. */}
         <div>
