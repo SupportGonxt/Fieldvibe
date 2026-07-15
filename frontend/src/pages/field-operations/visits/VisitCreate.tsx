@@ -146,15 +146,16 @@ const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
-// Goldrush individuals: Details is filled in first; the photo of the person being
-// registered is captured LAST (before review). The Goldrush ID question is hidden
-// from the agent — it is extracted from the photo in the background at capture time.
+// Goldrush individuals: Details is filled in first; the Goldrush system photo is
+// CAPTURED with the camera LAST (before review) — never uploaded as a screenshot.
+// The Goldrush ID question is hidden from the agent — it is extracted from the
+// photo in the background at capture time.
 const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
   { id: 'i1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
   { id: 'i2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
   { id: 'i3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
   { id: 'i4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
-  { id: 'i4b', step_key: 'photo', step_label: 'Individual Photo', step_order: 5, is_required: 1, config: '{}' },
+  { id: 'i4b', step_key: 'photo', step_label: 'System Photo', step_order: 5, is_required: 1, config: '{}' },
   { id: 'i5', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
@@ -411,8 +412,8 @@ export default function VisitCreate() {
     let filtered = steps.filter(step => {
       // Form Type chooser is no longer used — always hidden
       if (step.step_key === 'form_choice') return false
-      // Individual visits: photo required for Goldrush (agent takes a picture of the
-      // person being registered). Non-Goldrush individual visits skip the photo step.
+      // Individual visits: photo required for Goldrush (agent captures the Goldrush
+      // system screen with the camera). Non-Goldrush individual visits skip the photo step.
       if (step.step_key === 'photo' && visitTargetType === 'individual' && !isGoldrush) return false
       if (step.step_key === 'survey') {
         // Always show for dedicated survey visits
@@ -911,6 +912,14 @@ export default function VisitCreate() {
     })
   }
 
+  // The individual-visit photo step is the Goldrush system capture. Gate on the
+  // configured goldrush_id question as well as the company name: matching the
+  // name alone silently skipped extraction (and the B-Tag flag) when the company
+  // record didn't literally contain "goldrush".
+  const isGoldrushIndividualCapture = () =>
+    visitTargetType === 'individual' &&
+    (isGoldrushCompany(companies.find(c => c.id === selectedCompany)) || customQuestions.some(q => isGoldrushIdKey(q.question_key)))
+
   // Capture photo
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -976,8 +985,7 @@ export default function VisitCreate() {
       }
 
       // Goldrush individuals: fill the hidden Goldrush ID from the photo
-      const currentCompany = companies.find(c => c.id === selectedCompany)
-      if (isGoldrushCompany(currentCompany) && visitTargetType === 'individual') {
+      if (isGoldrushIndividualCapture()) {
         extractGoldrushIdFromPhoto(dataUrl)
       }
     }
@@ -1085,13 +1093,12 @@ export default function VisitCreate() {
       }
       case 'photo': {
         if (photos.length === 0) return false
-        const currentCompany = companies.find(c => c.id === selectedCompany)
-        if (isGoldrushCompany(currentCompany) && visitTargetType === 'individual') {
+        if (isGoldrushIndividualCapture()) {
+          // 'idle' means extraction never started for the captured photo — treat it
+          // like a failed read rather than letting the photo through unchecked.
           if (photoExtraction.status === 'checking') return false
-          if (photoExtraction.status === 'done') {
-            if (!photoExtraction.extractedId && !photoNoIdAcknowledged) return false
-            if (photoExtraction.hasBtag !== true && !photoNoBtagAcknowledged) return false
-          }
+          if (!photoExtraction.extractedId && !photoNoIdAcknowledged) return false
+          if (photoExtraction.hasBtag !== true && !photoNoBtagAcknowledged) return false
         }
         return true
       }
@@ -2359,14 +2366,14 @@ export default function VisitCreate() {
       <CardContent>
         <Typography variant="h6" gutterBottom>
           {visitTargetType === 'individual'
-            ? 'Individual Photo'
+            ? 'Goldrush System Photo'
             : visitTargetType === 'survey'
             ? 'Shop Picture'
             : 'Board Photo Capture'}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {visitTargetType === 'individual' ? (
-            <>Take a photo of the person you are registering — the Goldrush ID is read from the photo automatically. <strong>A photo is required to complete this capture.</strong></>
+            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen, with the B-Tag URL (<em>goldrush.co.za/?btag=...</em>) visible — do not upload a saved screenshot. The Goldrush ID is read from the photo automatically. <strong>A photo is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -2445,7 +2452,7 @@ export default function VisitCreate() {
             startIcon={<CameraIcon />}
             size="large"
           >
-            {visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
+            {visitTargetType === 'individual' ? 'Capture System Photo' : visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
             <input
               type="file"
               hidden
@@ -2509,9 +2516,8 @@ export default function VisitCreate() {
 
         {/* Goldrush ID / B-Tag extraction feedback — warn so the agent can retake
             the photo while the person is still there; never hard-block submission */}
-        {visitTargetType === 'individual' && (() => {
-          const currentCompany = companies.find(c => c.id === selectedCompany)
-          if (!isGoldrushCompany(currentCompany) || photos.length === 0) return null
+        {(() => {
+          if (!isGoldrushIndividualCapture() || photos.length === 0) return null
           if (photoExtraction.status === 'checking') {
             return (
               <Alert severity="info" sx={{ mt: 2 }}>
@@ -2519,7 +2525,10 @@ export default function VisitCreate() {
               </Alert>
             )
           }
-          if (photoExtraction.status !== 'done') return null
+          // 'idle' with a photo present means extraction never ran — same warnings
+          // as a failed read, so a system photo is never accepted unchecked.
+          const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
+          const hasBtag = photoExtraction.status === 'done' && photoExtraction.hasBtag === true
           const retakeAction = (onAcknowledge: () => void, acknowledged: boolean) => (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 160 }}>
               <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)}>
@@ -2532,9 +2541,9 @@ export default function VisitCreate() {
           )
           return (
             <>
-              {photoExtraction.extractedId ? (
+              {extractedId ? (
                 <Alert severity="success" sx={{ mt: 2 }}>
-                  Goldrush ID {photoExtraction.extractedId} read from the photo — it will be included in this capture.
+                  Goldrush ID {extractedId} read from the photo — it will be included in this capture.
                 </Alert>
               ) : (
                 <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoIdAcknowledged(true), photoNoIdAcknowledged)}>
@@ -2542,7 +2551,7 @@ export default function VisitCreate() {
                   submit anyway — this will be flagged in the team lead report.
                 </Alert>
               )}
-              {photoExtraction.hasBtag !== true && (
+              {!hasBtag && (
                 <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoBtagAcknowledged(true), photoNoBtagAcknowledged)}>
                   <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
                   Retake it, or submit anyway — this will be flagged in the team lead report.

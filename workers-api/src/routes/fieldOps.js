@@ -2158,11 +2158,11 @@ app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
     if (imageBytes.length > 4_000_000) {
       return c.json({ success: true, extracted_id: null, extracted_btag: null, confidence: 'unreadable', reason: 'Image too large' });
     }
-    const prompt = `This is a screenshot from the Goldrush gaming/betting system opened in a browser.
+    const prompt = `This is a photo taken with a phone camera of a screen showing the Goldrush gaming/betting system opened in a browser.
 
 Task 1 — Player ID: Find the 9-digit Goldrush player ID number visible in the image (printed on a card or shown on screen).
 
-Task 2 — B-Tag URL: Look at the browser address bar at the very top of the screenshot. Check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
+Task 2 — B-Tag URL: Look at the browser address bar in the photographed screen. Check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
 
 Return ONLY a JSON object, no prose, no markdown:
 {"extracted_id": "123456789", "extracted_btag": "123456789", "confidence": "high"}
@@ -2170,6 +2170,7 @@ Return ONLY a JSON object, no prose, no markdown:
 Rules:
 - extracted_id: the 9-digit player ID, or null if not found
 - extracted_btag: the btag number string from the URL bar, or null if not present/visible
+- NEVER guess: if a value is not clearly readable in the image, return null for it
 - confidence: "high", "medium", or "low"
 
 Output JSON only.`;
@@ -2191,7 +2192,10 @@ Output JSON only.`;
         const rawId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : '';
         extractedId = rawId.length === 9 ? rawId : null;
         confidence = parsed.confidence || 'low';
-        extractedBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : null;
+        // B-Tags are long numeric strings; a short digit run is an OCR misread or a
+        // hallucinated value — reject it so a missing B-Tag is flagged, not masked.
+        const rawBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : '';
+        extractedBtag = rawBtag.length >= 6 ? rawBtag : null;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
