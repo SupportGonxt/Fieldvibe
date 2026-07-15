@@ -11,6 +11,7 @@ import { MyIssues, UnmanagedIssues, type Issue } from '../../components/field-op
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 import { PulseBar, type Chip } from '../../components/field-ops/PulseBar'
 import RevenueSparkline, { type TrendPoint } from '../../components/field-ops/RevenueSparkline'
+import BoPerformanceCard from '../../components/field-ops/BoPerformanceCard'
 
 // GM mobile cockpit. Same payload as the web /dashboard/gm page.
 // Journey: pick company/period -> pulse (revenue, funnel) -> risks ->
@@ -384,6 +385,9 @@ export default function GmOverview() {
             </div>
           )}
         </div>
+
+        {/* BO-admin throughput detail (7d/30d actions + queue health) */}
+        <BoPerformanceCard surface="pwa" />
 
         {/* Top performers */}
         <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">

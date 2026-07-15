@@ -13,6 +13,7 @@ import { formatCurrency, formatNumber } from '../../utils/format'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import RevenueSparkline, { type TrendPoint } from '../../components/field-ops/RevenueSparkline'
+import BoPerformanceCard from '../../components/field-ops/BoPerformanceCard'
 
 type Period = 'day' | 'week' | 'month'
 
@@ -445,6 +446,9 @@ export default function GmOverviewPage() {
           </div>
         </div>
       )}
+
+      {/* BO-admin throughput detail (7d/30d actions + queue health) */}
+      <BoPerformanceCard />
 
       {/* Leaders + least active */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
