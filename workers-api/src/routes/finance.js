@@ -2,9 +2,17 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 
 const app = new Hono();
-// Finance is office-console only: admin-equivalents + manager. Field roles
-// (agents/team leads) must never read tenant-wide monetary data.
-app.use('*', authMiddleware, requireRole('admin'));
+// Finance is office-console only: admin-equivalents. Field roles (agents/team
+// leads/managers) must never read tenant-wide monetary data.
+// Gate ONLY this module's paths. A use('*') here leaks past this module when
+// mounted via api.route('/', ...): Hono merges it into the parent router, where
+// it 403'd every sibling route registered after finance (notifications,
+// field-ops kpi/issues/incentives, reports) for non-admin roles.
+const financeGate = [authMiddleware, requireRole('admin')];
+app.use('/payment-ledger', ...financeGate);
+app.use('/finance', ...financeGate);
+app.use('/finance/*', ...financeGate);
+app.use('/currency-system/*', ...financeGate);
 
 app.get('/payment-ledger', async (c) => {
   const db = c.env.DB;
