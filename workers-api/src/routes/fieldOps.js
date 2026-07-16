@@ -2231,7 +2231,11 @@ Output JSON only.`;
         max_tokens: 400,
         temperature: 0,
       });
-      const text = (aiResponse?.response || aiResponse?.result?.response || '').trim();
+      // With the messages input format the model's reply can come back either as
+      // a string or as an already-parsed JSON object in `response` (observed in
+      // production: `.trim is not a function`). Normalise to a string first.
+      const raw = aiResponse?.response ?? aiResponse?.result?.response ?? aiResponse?.choices?.[0]?.message?.content ?? '';
+      const text = (typeof raw === 'string' ? raw : JSON.stringify(raw)).trim();
       const clean = text.replace(/```json|```/gi, '').trim();
       const jsonStart = clean.indexOf('{');
       const jsonEnd = clean.lastIndexOf('}');
