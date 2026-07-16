@@ -8,6 +8,7 @@ import { ensurePushSubscription } from '../../services/push'
 import FirstLoginTour from './FirstLoginTour'
 import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat'
 import PresenceConsentNotice from '../../components/PresenceConsentNotice'
+import PageErrorBoundary from '../../components/ui/PageErrorBoundary'
 
 // Ring delivery is Web Push only (push-sw.js notification + SW message below).
 // The old 5s /calls/incoming poll is gone: a ringing row stays live for up to
@@ -172,7 +173,13 @@ export default function AgentLayout() {
       )}
 
       <div className="flex-1 overflow-y-auto">
-        <Outlet />
+        {/* Contain a crashing page to this pane so the nav chrome survives and
+            the user can move to another tab. Keyed by path: boundary state
+            doesn't reset on navigation, so without the key one crashed page
+            would keep every tab stuck on the error card. */}
+        <PageErrorBoundary key={location.pathname} pageName="this screen">
+          <Outlet />
+        </PageErrorBoundary>
       </div>
 
       {/* Bottom Navigation - hidden on sub-pages */}
