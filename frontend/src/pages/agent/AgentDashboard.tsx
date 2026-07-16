@@ -5,7 +5,7 @@ import {
   MapPin, Plus, Clock, CheckCircle, TrendingUp, Users,
   Calendar, ChevronRight, RefreshCw, Target, Building2,
   Wifi, WifiOff, LogOut, Store, User, BookOpen, GraduationCap, Download, X,
-  DollarSign, Flame, BarChart3, Ban, AlertTriangle, Zap
+  DollarSign, Flame, BarChart3, Ban, AlertTriangle
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import BOActionQueue from './BOActionQueue'
@@ -587,20 +587,8 @@ export default function AgentDashboard() {
       {/* Goldrush hero incentive — exception branch of the standard PWA */}
       {goldrushCompany && (isAgentRole || isTeamRole) && (
         <>
-          {/* Team leads sell in the field too — Fast Signup for them as well.
-              Local condition (not isAgentRole) so PerformanceCard/Leaderboard stay agent-only. */}
-          {(isAgentRole || authUser?.role === 'team_lead') && (
-            <div className="px-5 mb-4">
-              <button
-                onClick={() => navigate('/agent/visits/create?type=individual')}
-                className="w-full flex items-center gap-3 bg-primary text-on-primary rounded-2xl px-5 py-4 font-bold text-base active:scale-[0.99] transition-transform"
-              >
-                <Zap className="w-6 h-6 flex-shrink-0" />
-                <span className="flex-1 text-left leading-tight">Fast Signup<span className="block text-xs font-medium opacity-70">Snap the photo — one tap</span></span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          )}
+          {/* Fast Signup CTA intentionally hidden (2026-07-16) — signups go through
+              the standard visit flow instead. Restore from git history if needed. */}
           <Suspense fallback={<div className="px-5 mb-4"><div className="bg-gradient-to-br from-surface to-[#0E1D35] border border-token rounded-2xl p-4 h-40 animate-pulse" /></div>}>
             <HeroIncentive companyId={goldrushCompany.id} team={isTeamRole} />
             {isAgentRole && <Leaderboard meId={authUser?.id} />}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { photoReviewService } from '../../services/insights.service'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw, Ban } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, Store, User, Plus, RefreshCw, Ban, Hash } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { toast } from 'react-hot-toast'
@@ -22,6 +22,7 @@ interface Visit {
   rejected_photo_count?: number
   has_rejected_photos?: boolean
   has_rejected_goldrush_id?: boolean
+  goldrush_id?: string
 }
 
 export default function AgentVisits() {
@@ -348,6 +349,14 @@ export default function AgentVisits() {
                     <span className="text-xs text-token-faint flex items-center gap-1">
                       <Calendar className="w-3 h-3" />{visit.visit_date}
                     </span>
+                    {visit.goldrush_id && (
+                      <>
+                        <span className="text-[8px] text-gray-600">&bull;</span>
+                        <span className="text-xs text-token-faint flex items-center gap-1">
+                          <Hash className="w-3 h-3" />{visit.goldrush_id}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-600 flex-shrink-0" />

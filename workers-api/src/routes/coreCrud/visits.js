@@ -551,12 +551,16 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
         if (grId) {
           const grCheck = validateGoldrushId(grId);
           if (!grCheck.valid) validationErrors.goldrush_id = grCheck.error;
+        } else if (body.goldrush_id_unreadable) {
+          validationErrors.goldrush_id = 'Could not read a Goldrush ID from the photo';
         }
         if (body.goldrush_photo_mismatch) {
           validationErrors.photo_mismatch = 'Goldrush ID in photo does not match the ID entered by the agent';
         }
         if (body.goldrush_no_btag) {
-          validationErrors.no_btag = 'No B-Tag number found in the photo URL (goldrush.co.za/?btag=...)';
+          validationErrors.no_btag = body.goldrush_url_not_visible
+            ? 'URL bar not visible or too blurry in the photo to confirm the B-Tag'
+            : 'No B-Tag number found in the photo URL (goldrush.co.za/?btag=...)';
         }
         if (Object.keys(validationErrors).length > 0) {
           goldrushValidationWarnings = validationErrors;
