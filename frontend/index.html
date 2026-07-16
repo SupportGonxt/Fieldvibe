@@ -124,9 +124,25 @@
             if (!root || root.childElementCount !== 0) return
             if (!sessionStorage.getItem('fv-shell-recovered')) {
               sessionStorage.setItem('fv-shell-recovered', '1')
-              var reload = function () { window.location.reload() }
-              if (window.caches) caches.delete('navigation-cache').then(reload, reload)
-              else reload()
+              var done = false
+              var reload = function () { if (done) return; done = true; window.location.reload() }
+              if (!window.caches) return reload()
+              setTimeout(reload, 3000) // force reload even if cache promises hang
+              // Purge SPA-fallback HTML pinned under chunk URLs (CacheFirst never
+              // revalidates, so a poisoned entry outlives every deploy). Surgical
+              // content-type sweep, not a full delete: innocent slow boots that
+              // trip this path keep their validly cached assets.
+              var purgePoison = caches.open('static-assets-cache').then(function (cache) {
+                return cache.keys().then(function (reqs) {
+                  return Promise.all(reqs.map(function (req) {
+                    return cache.match(req).then(function (res) {
+                      var ct = (res && res.headers.get('content-type')) || ''
+                      if (ct.indexOf('text/html') !== -1) return cache.delete(req)
+                    })
+                  }))
+                })
+              })
+              Promise.all([caches.delete('navigation-cache'), purgePoison]).then(reload, reload)
             } else {
               showRecovery()
             }
