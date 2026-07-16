@@ -237,7 +237,6 @@ export default function VisitCreate() {
     blurry?: boolean | null
   }>({ status: 'idle' })
   const [photoNoIdAcknowledged, setPhotoNoIdAcknowledged] = useState(false)
-  const [photoNoBtagAcknowledged, setPhotoNoBtagAcknowledged] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -893,7 +892,6 @@ export default function VisitCreate() {
   const extractGoldrushIdFromPhoto = async (photoDataUrl: string) => {
     setPhotoExtraction({ status: 'checking' })
     setPhotoNoIdAcknowledged(false)
-    setPhotoNoBtagAcknowledged(false)
     try {
       const res = await apiClient.post('/field-ops/verify-goldrush-photo', {
         photo_data: photoDataUrl,
@@ -1039,7 +1037,6 @@ export default function VisitCreate() {
     setPhotos(prev => prev.filter((_, i) => i !== index))
     setPhotoExtraction({ status: 'idle' })
     setPhotoNoIdAcknowledged(false)
-    setPhotoNoBtagAcknowledged(false)
   }
 
   // Step validation based on dynamic step key
@@ -1145,7 +1142,8 @@ export default function VisitCreate() {
           if (photoExtraction.blurry === true) return false
           if (photoExtraction.urlVisible === false) return false
           if (!photoExtraction.extractedId && !photoNoIdAcknowledged) return false
-          if (photoExtraction.hasBtag !== true && !photoNoBtagAcknowledged) return false
+          // A missing B-Tag alone never blocks — it's flagged to the team lead
+          // report on submission instead.
         }
         return true
       }
@@ -1303,15 +1301,15 @@ export default function VisitCreate() {
         }))
       }
 
-      // Flag acknowledged photo issues so the backend logs them to the
-      // team-lead capture failures report
+      // Flag photo issues so the backend logs them to the team-lead capture
+      // failures report. An unread ID must be acknowledged on the photo step;
+      // a missing B-Tag never blocks, so it's flagged straight from extraction.
       if (photoNoIdAcknowledged) {
         payload.goldrush_id_unreadable = true
       }
-      if (photoNoBtagAcknowledged) {
+      if (isGoldrushIndividualCapture() && photos.length > 0 &&
+        photoExtraction.status === 'done' && photoExtraction.hasBtag !== true) {
         payload.goldrush_no_btag = true
-        // Distinguish "URL bar unreadable" from "URL readable but no btag" in the log
-        if (photoExtraction.urlVisible === false) payload.goldrush_url_not_visible = true
       }
 
       const result = await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
@@ -2659,9 +2657,9 @@ export default function VisitCreate() {
                 </Alert>
               )}
               {!hasBtag && !urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoBtagAcknowledged(true), photoNoBtagAcknowledged)}>
+                <Alert severity="warning" sx={{ mt: 2 }} action={retakeOnlyAction}>
                   <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
-                  Retake it, or submit anyway — this will be flagged in the team lead report.
+                  You can retake the photo or continue anyway — this will be flagged in the team lead report.
                 </Alert>
               )}
             </>
