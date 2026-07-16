@@ -146,22 +146,23 @@ const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
-// Goldrush individuals: Details is filled in first; the Goldrush system photo is
-// CAPTURED with the camera LAST (before review) — never uploaded as a screenshot.
-// The Goldrush ID question is hidden from the agent — it is extracted from the
-// photo in the background at capture time.
+// Goldrush individuals: the Goldrush system photo is CAPTURED with the camera
+// FIRST (right after visit type) — never uploaded as a screenshot. The customer's
+// name, surname and Goldrush ID are extracted from the photo in the background
+// and pre-filled on the Details step that follows. A blurry photo or an unreadable
+// B-Tag URL bar is a hard error — the agent must retake the photo.
 const DEFAULT_INDIVIDUAL_STEPS: ProcessFlowStep[] = [
   { id: 'i1', step_key: 'gps', step_label: 'GPS Check-in', step_order: 1, is_required: 1, config: '{}' },
   { id: 'i2', step_key: 'visit_type', step_label: 'Visit Type', step_order: 2, is_required: 1, config: '{}' },
-  { id: 'i3', step_key: 'details', step_label: 'Details', step_order: 3, is_required: 1, config: '{}' },
-  { id: 'i4', step_key: 'survey', step_label: 'Survey', step_order: 4, is_required: 0, config: '{}' },
-  { id: 'i4b', step_key: 'photo', step_label: 'System Photo', step_order: 5, is_required: 1, config: '{}' },
-  { id: 'i5', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
+  { id: 'i3', step_key: 'photo', step_label: 'System Photo', step_order: 3, is_required: 1, config: '{}' },
+  { id: 'i4', step_key: 'details', step_label: 'Details', step_order: 4, is_required: 1, config: '{}' },
+  { id: 'i5', step_key: 'survey', step_label: 'Survey', step_order: 5, is_required: 0, config: '{}' },
+  { id: 'i6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
-// The Goldrush ID is never typed by the agent: its question is hidden from the
-// Details/Questionnaire steps and the value is filled from the photo at capture
-// time so reports stay consistent.
+// The Goldrush ID is never typed by the agent: it is extracted from the system
+// photo at capture time and shown read-only (never hidden) on the
+// Details/Questionnaire steps so reports stay consistent.
 const isGoldrushIdKey = (key: string) => key.toLowerCase().includes('goldrush_id') && !key.toLowerCase().includes('rejected')
 
 const DEFAULT_SURVEY_STEPS: ProcessFlowStep[] = [
@@ -223,13 +224,17 @@ export default function VisitCreate() {
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
-  // Result of the background Goldrush ID/B-Tag extraction from the captured photo.
-  // Warns (without hard-blocking) when the ID or B-Tag couldn't be read, so the
-  // agent can retake the photo while the person is still there.
+  // Result of the background extraction from the captured photo (Goldrush ID,
+  // customer name, B-Tag, quality signals). A blurry photo or an unreadable URL
+  // bar is a hard error (retake only); an unread ID/B-Tag on an otherwise good
+  // photo warns and can be acknowledged. Quality signals are tri-state: null
+  // means the check itself failed, which degrades to a warning, not a block.
   const [photoExtraction, setPhotoExtraction] = useState<{
     status: 'idle' | 'checking' | 'done'
     extractedId?: string | null
     hasBtag?: boolean | null
+    urlVisible?: boolean | null
+    blurry?: boolean | null
   }>({ status: 'idle' })
   const [photoNoIdAcknowledged, setPhotoNoIdAcknowledged] = useState(false)
   const [photoNoBtagAcknowledged, setPhotoNoBtagAcknowledged] = useState(false)
@@ -445,6 +450,19 @@ export default function VisitCreate() {
       filtered = reviewIdx === -1
         ? [...filtered, surveyStep]
         : [...filtered.slice(0, reviewIdx), surveyStep, ...filtered.slice(reviewIdx)]
+    }
+
+    // Goldrush individual visits: the system photo must be captured BEFORE the
+    // details step — the customer name and Goldrush ID are extracted from it and
+    // pre-filled. Backend-configured flows may still order photo after details,
+    // so move it in front of details here.
+    if (visitTargetType === 'individual' && isGoldrush) {
+      const photoIdx = filtered.findIndex(s => s.step_key === 'photo')
+      const detailsIdx = filtered.findIndex(s => s.step_key === 'details')
+      if (photoIdx !== -1 && detailsIdx !== -1 && photoIdx > detailsIdx) {
+        const [photoStep] = filtered.splice(photoIdx, 1)
+        filtered.splice(detailsIdx, 0, photoStep)
+      }
     }
 
     return filtered
@@ -845,7 +863,7 @@ export default function VisitCreate() {
   }
 
   // Write the Goldrush ID read off the photo into whichever custom field/question
-  // is configured to hold it. The question itself is hidden from the agent, so
+  // is configured to hold it. The question is shown read-only to the agent, so
   // this background fill is the only way the value gets set.
   const applyExtractedGoldrushId = (value: string) => {
     const q = customQuestions.find(q => isGoldrushIdKey(q.question_key))
@@ -857,9 +875,21 @@ export default function VisitCreate() {
     if (f) setCustomFieldValues(prev => ({ ...prev, [f.field_name]: value }))
   }
 
-  // Extract the Goldrush ID from the captured photo in the background. If the ID
-  // or B-Tag can't be read, the photo step warns the agent (retake or submit
-  // anyway); "submit anyway" is flagged to the team-lead report on submission.
+  // The photo step now precedes details, so the custom questions/fields that hold
+  // the Goldrush ID may not be loaded yet when extraction finishes. Re-apply the
+  // extracted ID once they arrive (idempotent — sets the same value).
+  useEffect(() => {
+    if (photoExtraction.status === 'done' && photoExtraction.extractedId) {
+      applyExtractedGoldrushId(photoExtraction.extractedId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customQuestions, customFields, photoExtraction])
+
+  // Extract the customer name and Goldrush ID from the captured photo in the
+  // background and pre-fill the Details step. A blurry photo or unreadable URL
+  // bar hard-blocks the step (retake only). An unread ID/B-Tag on a good photo
+  // warns (retake or submit anyway); "submit anyway" is flagged to the
+  // team-lead report on submission.
   const extractGoldrushIdFromPhoto = async (photoDataUrl: string) => {
     setPhotoExtraction({ status: 'checking' })
     setPhotoNoIdAcknowledged(false)
@@ -870,10 +900,22 @@ export default function VisitCreate() {
       })
       const extracted = res.data?.extracted_id ? String(res.data.extracted_id) : null
       if (extracted) applyExtractedGoldrushId(extracted)
-      setPhotoExtraction({ status: 'done', extractedId: extracted, hasBtag: !!res.data?.extracted_btag })
+      // Pre-fill the customer's name on the Details step (still editable there,
+      // unlike the Goldrush ID)
+      const firstName = res.data?.extracted_first_name ? String(res.data.extracted_first_name).trim() : ''
+      const lastName = res.data?.extracted_last_name ? String(res.data.extracted_last_name).trim() : ''
+      if (firstName) setIndividualFirstName(firstName)
+      if (lastName) setIndividualLastName(lastName)
+      setPhotoExtraction({
+        status: 'done',
+        extractedId: extracted,
+        hasBtag: !!res.data?.extracted_btag,
+        urlVisible: res.data?.url_visible === true ? true : res.data?.url_visible === false ? false : null,
+        blurry: res.data?.photo_blurry === true ? true : res.data?.photo_blurry === false ? false : null,
+      })
     } catch {
       // Extraction failure reads as "nothing found" — warn, never hard-block.
-      setPhotoExtraction({ status: 'done', extractedId: null, hasBtag: null })
+      setPhotoExtraction({ status: 'done', extractedId: null, hasBtag: null, urlVisible: null, blurry: null })
     }
   }
 
@@ -984,7 +1026,8 @@ export default function VisitCreate() {
         )
       }
 
-      // Goldrush individuals: fill the hidden Goldrush ID from the photo
+      // Goldrush individuals: extract the customer name + Goldrush ID from the
+      // photo to pre-fill the Details step that follows
       if (isGoldrushIndividualCapture()) {
         extractGoldrushIdFromPhoto(dataUrl)
       }
@@ -1019,7 +1062,8 @@ export default function VisitCreate() {
           }
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
-              // Hidden — filled from the photo on the (later) photo step
+              // Read-only — filled from the system photo captured earlier; may be
+              // legitimately empty when the ID was unreadable and acknowledged
               if (isGoldrushIdKey(q.question_key)) continue
               if (q.is_required && !customQuestionValues[q.question_key]) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
@@ -1097,6 +1141,9 @@ export default function VisitCreate() {
           // 'idle' means extraction never started for the captured photo — treat it
           // like a failed read rather than letting the photo through unchecked.
           if (photoExtraction.status === 'checking') return false
+          // Hard errors — no acknowledgement path, the photo must be retaken.
+          if (photoExtraction.blurry === true) return false
+          if (photoExtraction.urlVisible === false) return false
           if (!photoExtraction.extractedId && !photoNoIdAcknowledged) return false
           if (photoExtraction.hasBtag !== true && !photoNoBtagAcknowledged) return false
         }
@@ -1263,6 +1310,8 @@ export default function VisitCreate() {
       }
       if (photoNoBtagAcknowledged) {
         payload.goldrush_no_btag = true
+        // Distinguish "URL bar unreadable" from "URL readable but no btag" in the log
+        if (photoExtraction.urlVisible === false) payload.goldrush_url_not_visible = true
       }
 
       const result = await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
@@ -1748,6 +1797,15 @@ export default function VisitCreate() {
                       </Select>
                       {showValidation && !!field.is_required && !fieldVal && <FormHelperText>This field is required</FormHelperText>}
                     </FormControl>
+                  ) : isGoldrushIdKey(field.field_name) ? (
+                    // Filled from the system photo on the photo step — visible but never editable
+                    <TextField
+                      fullWidth
+                      disabled
+                      label={field.field_label}
+                      value={fieldVal}
+                      helperText={fieldVal ? 'Read from the system photo — cannot be edited' : 'Could not be read from the system photo — flagged in the team lead report'}
+                    />
                   ) : (
                     <TextField
                       fullWidth
@@ -1777,7 +1835,7 @@ export default function VisitCreate() {
             </Typography>
             <Typography variant="caption" color="error" sx={{ mb: 2, display: 'block' }}>* Required fields</Typography>
             <Grid container spacing={2}>
-              {customQuestions.filter(q => !isGoldrushIdKey(q.question_key)).map(q => {
+              {customQuestions.map(q => {
                 const opts: string[] = q.field_options ? (() => { try { return JSON.parse(q.field_options!) as string[] } catch { return [] } })() : []
                 const val = customQuestionValues[q.question_key] || ''
                 const lenHelper = q.min_length || q.max_length ? `${q.min_length ? `Min ${q.min_length}` : ''}${q.min_length && q.max_length ? ' / ' : ''}${q.max_length ? `Max ${q.max_length}` : ''} characters` : undefined
@@ -1787,7 +1845,22 @@ export default function VisitCreate() {
                 const goldrushDuplicate = isGoldrushId && (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id') || false)
                 return (
                 <Grid item xs={12} sm={6} key={q.id}>
-                  {isNationalIdKey(q.question_key) ? (() => {
+                  {isGoldrushIdKey(q.question_key) ? (
+                    // Filled from the system photo on the photo step — visible but never editable
+                    <TextField
+                      fullWidth
+                      disabled
+                      label={q.question_label}
+                      value={val}
+                      error={goldrushDuplicate || goldrushLenError}
+                      helperText={
+                        goldrushDuplicate ? 'This Goldrush ID has already been used'
+                        : goldrushLenError ? `Goldrush ID must be exactly ${GOLDRUSH_ID_LENGTH} digits`
+                        : val ? 'Read from the system photo — cannot be edited'
+                        : 'Could not be read from the system photo — flagged in the team lead report'
+                      }
+                    />
+                  ) : isNationalIdKey(q.question_key) ? (() => {
                     const idType = companyIdTypes[q.question_key] || 'sa_id'
                     const isSaId = idType === 'sa_id'
                     const idErr = idError(idType, val)
@@ -2269,7 +2342,7 @@ export default function VisitCreate() {
         <CardContent>
           <Typography variant="h6" gutterBottom>Questionnaire</Typography>
           <Box>
-            {customQuestions.filter(q => !isGoldrushIdKey(q.question_key)).map((q, idx) => {
+            {customQuestions.map((q, idx) => {
               const qKey = q.question_key
               const qLabel = q.question_label
               const qType = q.field_type
@@ -2291,7 +2364,15 @@ export default function VisitCreate() {
                   {showValidation && isRequired && !hasValue && (
                     <Typography variant="caption" color="error" sx={{ mb: 0.5, display: 'block' }}>This field is required</Typography>
                   )}
-                  {qType === 'image' ? (
+                  {isGoldrushIdKey(qKey) ? (
+                    // Filled from the system photo on the photo step — visible but never editable
+                    <TextField
+                      fullWidth
+                      disabled
+                      value={customQuestionValues[qKey] || ''}
+                      helperText={customQuestionValues[qKey] ? 'Read from the system photo — cannot be edited' : 'Could not be read from the system photo — flagged in the team lead report'}
+                    />
+                  ) : qType === 'image' ? (
                     <Box>
                       {customQuestionValues[qKey] ? (
                         <Box sx={{ position: 'relative', display: 'inline-block' }}>
@@ -2373,7 +2454,7 @@ export default function VisitCreate() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {visitTargetType === 'individual' ? (
-            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen, with the B-Tag URL (<em>goldrush.co.za/?btag=...</em>) visible — do not upload a saved screenshot. The Goldrush ID is read from the photo automatically. <strong>A photo is required to complete this capture.</strong></>
+            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen, with the B-Tag URL (<em>goldrush.co.za/?btag=...</em>) visible — do not upload a saved screenshot. The customer&apos;s name and Goldrush ID are read from the photo and pre-filled on the Details step. A blurry photo or a hidden URL bar must be retaken. <strong>A photo is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -2514,14 +2595,15 @@ export default function VisitCreate() {
           </Grid>
         )}
 
-        {/* Goldrush ID / B-Tag extraction feedback — warn so the agent can retake
-            the photo while the person is still there; never hard-block submission */}
+        {/* Extraction feedback — a blurry photo or an unreadable URL bar is a hard
+            error (retake only). An unread ID/B-Tag on an otherwise good photo warns
+            so the agent can retake while the person is still there. */}
         {(() => {
           if (!isGoldrushIndividualCapture() || photos.length === 0) return null
           if (photoExtraction.status === 'checking') {
             return (
               <Alert severity="info" sx={{ mt: 2 }}>
-                Checking the photo for the Goldrush ID…
+                Checking the photo for the customer name and Goldrush ID…
               </Alert>
             )
           }
@@ -2529,6 +2611,13 @@ export default function VisitCreate() {
           // as a failed read, so a system photo is never accepted unchecked.
           const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
           const hasBtag = photoExtraction.status === 'done' && photoExtraction.hasBtag === true
+          const isBlurry = photoExtraction.status === 'done' && photoExtraction.blurry === true
+          const urlNotVisible = photoExtraction.status === 'done' && photoExtraction.urlVisible === false
+          const retakeOnlyAction = (
+            <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
+              Retake Photo
+            </Button>
+          )
           const retakeAction = (onAcknowledge: () => void, acknowledged: boolean) => (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 160 }}>
               <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)}>
@@ -2539,11 +2628,29 @@ export default function VisitCreate() {
               </Button>
             </Box>
           )
+          // A blurry photo makes every other read unreliable — show only the
+          // blur error and force a retake before anything else is assessed.
+          if (isBlurry) {
+            return (
+              <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
+                <strong>This photo is too blurry.</strong> The on-screen text can&apos;t be read.
+                Hold the phone steady and retake the photo — you cannot continue with a blurry photo.
+              </Alert>
+            )
+          }
           return (
             <>
+              {urlNotVisible && (
+                <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
+                  <strong>URL bar not visible.</strong> The browser address bar
+                  (<em>goldrush.co.za/?btag=...</em>) must be clearly readable in the photo.
+                  Retake the photo with the full address bar in frame — you cannot continue
+                  without it.
+                </Alert>
+              )}
               {extractedId ? (
                 <Alert severity="success" sx={{ mt: 2 }}>
-                  Goldrush ID {extractedId} read from the photo — it will be included in this capture.
+                  Goldrush ID {extractedId} read from the photo — it will be filled in on the Details step.
                 </Alert>
               ) : (
                 <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoIdAcknowledged(true), photoNoIdAcknowledged)}>
@@ -2551,7 +2658,7 @@ export default function VisitCreate() {
                   submit anyway — this will be flagged in the team lead report.
                 </Alert>
               )}
-              {!hasBtag && (
+              {!hasBtag && !urlNotVisible && (
                 <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoBtagAcknowledged(true), photoNoBtagAcknowledged)}>
                   <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
                   Retake it, or submit anyway — this will be flagged in the team lead report.

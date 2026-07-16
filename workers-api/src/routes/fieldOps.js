@@ -131,7 +131,26 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
       "SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, vp.r2_url as thumbnail_url, 0 as rejected_photo_count FROM (SELECT * FROM visits v " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?) v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL LIMIT 1) ORDER BY v.created_at DESC"
     ).bind(...params, parseInt(limit), offset).all();
   }
-  return c.json({ data: visits.results || [], total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
+  // Surface the Goldrush ID (stored in visit_individuals.custom_field_values JSON)
+  // so list views can show it without fetching every visit's details.
+  const rows = visits.results || [];
+  const individualVisitIds = rows.filter(v => String(v.visit_type || '').toLowerCase() === 'individual').map(v => v.id);
+  if (individualVisitIds.length > 0) {
+    try {
+      const ph = individualVisitIds.map(() => '?').join(',');
+      const viRes = await db.prepare(`SELECT visit_id, custom_field_values FROM visit_individuals WHERE tenant_id = ? AND visit_id IN (${ph})`).bind(tenantId, ...individualVisitIds).all();
+      const grByVisit = {};
+      for (const r of (viRes.results || [])) {
+        if (grByVisit[r.visit_id] !== undefined) continue;
+        try {
+          const cfv = typeof r.custom_field_values === 'string' ? JSON.parse(r.custom_field_values) : (r.custom_field_values || {});
+          if (cfv.goldrush_id) grByVisit[r.visit_id] = cfv.goldrush_id;
+        } catch { /* ignore malformed JSON */ }
+      }
+      for (const v of rows) { if (grByVisit[v.id]) v.goldrush_id = grByVisit[v.id]; }
+    } catch { /* list still renders without Goldrush IDs */ }
+  }
+  return c.json({ data: rows, total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 
 app.post('/field-operations/visits/:id/check-in', authMiddleware, async (c) => {
@@ -2146,9 +2165,12 @@ app.get('/field-ops/presence/anomalies', authMiddleware, async (c) => {
 app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
   try {
     const { photo_data } = await c.req.json();
-    // The OCR pass extracts only the 9-digit Goldrush ID + the btag from the URL bar.
-    // Name is captured manually on the Details step; the caller derives btag-present from
-    // extracted_btag and checks the ID match itself once the agent types the ID.
+    // The OCR pass extracts the 9-digit Goldrush ID, the customer's name and the btag
+    // from the URL bar, plus quality signals (photo_blurry, url_visible). The caller
+    // pre-fills the Details step from these and hard-blocks on blurry / URL-not-visible.
+    // Quality signals are tri-state: true/false only when the model actually judged the
+    // image — null when the AI call failed, so an outage degrades to a warning instead
+    // of hard-blocking every capture.
     if (!photo_data) {
       return c.json({ success: false, error: 'Missing photo_data' }, 400);
     }
@@ -2156,25 +2178,41 @@ app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
     if (!base64Match) return c.json({ success: false, error: 'Invalid photo format' }, 400);
     const imageBytes = Uint8Array.from(atob(base64Match[1]), ch => ch.charCodeAt(0));
     if (imageBytes.length > 4_000_000) {
-      return c.json({ success: true, extracted_id: null, extracted_btag: null, confidence: 'unreadable', reason: 'Image too large' });
+      return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Image too large' });
     }
     const prompt = `This is a photo taken with a phone camera of a screen showing the Goldrush gaming/betting system opened in a browser.
 
-Task 1 — Player ID: Find the 9-digit Goldrush player ID number visible in the image (printed on a card or shown on screen).
+Task 1 — Image quality: Is the photo sharp enough that the on-screen text can be read reliably? If the image is out of focus, motion-blurred, or the text is too blurry to read, set photo_blurry to true.
 
-Task 2 — B-Tag URL: Look at the browser address bar in the photographed screen. Check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
+Task 2 — Player ID: Find the 9-digit Goldrush player ID number visible in the image (printed on a card or shown on screen).
+
+Task 3 — Customer name: Find the customer's first name and surname shown on the Goldrush system screen (e.g. on the player profile or account details). Extract them only if clearly readable.
+
+Task 4 — URL bar visibility: Is the browser address bar clearly visible AND readable in the photographed screen? It must not be cropped out, obscured, or too blurry to read.
+
+Task 5 — B-Tag URL: Only if the address bar is clearly readable: check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
 
 Return ONLY a JSON object, no prose, no markdown:
-{"extracted_id": "123456789", "extracted_btag": "123456789", "confidence": "high"}
+{"photo_blurry": false, "extracted_id": "123456789", "extracted_first_name": "John", "extracted_last_name": "Smith", "url_visible": true, "extracted_btag": "123456789", "confidence": "high"}
 
 Rules:
+- photo_blurry: true when the image is too blurry or out of focus to read the on-screen text with certainty
 - extracted_id: the 9-digit player ID, or null if not found
-- extracted_btag: the btag number string from the URL bar, or null if not present/visible
+- extracted_first_name / extracted_last_name: the customer's name exactly as shown on screen, or null when not clearly readable
+- url_visible: false when the address bar is cropped out, obscured, or too blurry to read with certainty
+- extracted_btag: the btag number string from the URL bar; MUST be null when url_visible is false or no btag= parameter is readable
 - NEVER guess: if a value is not clearly readable in the image, return null for it
 - confidence: "high", "medium", or "low"
 
 Output JSON only.`;
-    let extractedId = null, confidence = 'low', extractedBtag = null;
+    let extractedId = null, confidence = 'low', extractedBtag = null, urlVisible = null;
+    let photoBlurry = null, extractedFirstName = null, extractedLastName = null;
+    // Names come from OCR of a photographed screen — accept only plausible name strings
+    // so a hallucinated sentence or JSON fragment never lands in the name fields.
+    const cleanName = (v) => {
+      const s = v ? String(v).trim() : '';
+      return s && s.toLowerCase() !== 'null' && /^[a-zA-ZÀ-ſ' -]{2,40}$/.test(s) ? s : null;
+    };
     try {
       const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
         prompt,
@@ -2192,18 +2230,25 @@ Output JSON only.`;
         const rawId = parsed.extracted_id ? String(parsed.extracted_id).replace(/\D/g, '') : '';
         extractedId = rawId.length === 9 ? rawId : null;
         confidence = parsed.confidence || 'low';
+        urlVisible = parsed.url_visible === true || parsed.url_visible === 'true' ? true
+          : parsed.url_visible === false || parsed.url_visible === 'false' ? false : null;
+        photoBlurry = parsed.photo_blurry === true || parsed.photo_blurry === 'true' ? true
+          : parsed.photo_blurry === false || parsed.photo_blurry === 'false' ? false : null;
+        extractedFirstName = cleanName(parsed.extracted_first_name);
+        extractedLastName = cleanName(parsed.extracted_last_name);
         // B-Tags are long numeric strings; a short digit run is an OCR misread or a
         // hallucinated value — reject it so a missing B-Tag is flagged, not masked.
+        // A B-Tag also can't be trusted off an unreadable URL bar.
         const rawBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : '';
-        extractedBtag = rawBtag.length >= 6 ? rawBtag : null;
+        extractedBtag = urlVisible === true && rawBtag.length >= 6 ? rawBtag : null;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
     }
-    return c.json({ success: true, extracted_id: extractedId, extracted_btag: extractedBtag, confidence });
+    return c.json({ success: true, extracted_id: extractedId, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, extracted_btag: extractedBtag, url_visible: urlVisible, photo_blurry: photoBlurry, confidence });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);
-    return c.json({ success: true, extracted_id: null, extracted_btag: null, confidence: 'unreadable', reason: 'Verification failed' });
+    return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Verification failed' });
   }
 });
 
