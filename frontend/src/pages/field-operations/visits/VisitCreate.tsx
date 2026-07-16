@@ -236,7 +236,7 @@ export default function VisitCreate() {
     urlVisible?: boolean | null
     blurry?: boolean | null
   }>({ status: 'idle' })
-  const [photoNoIdAcknowledged, setPhotoNoIdAcknowledged] = useState(false)
+  const [photoNoBtagAcknowledged, setPhotoNoBtagAcknowledged] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -885,13 +885,13 @@ export default function VisitCreate() {
   }, [customQuestions, customFields, photoExtraction])
 
   // Extract the customer name and Goldrush ID from the captured photo in the
-  // background and pre-fill the Details step. A blurry photo or unreadable URL
-  // bar hard-blocks the step (retake only). An unread ID/B-Tag on a good photo
-  // warns (retake or submit anyway); "submit anyway" is flagged to the
-  // team-lead report on submission.
+  // background and pre-fill the Details step. A blurry photo, an unreadable URL
+  // bar, or an unread Goldrush ID hard-blocks the step (retake only). A missing
+  // B-Tag on an otherwise good photo warns (retake or submit anyway); "submit
+  // anyway" is flagged to the team-lead report on submission.
   const extractGoldrushIdFromPhoto = async (photoDataUrl: string) => {
     setPhotoExtraction({ status: 'checking' })
-    setPhotoNoIdAcknowledged(false)
+    setPhotoNoBtagAcknowledged(false)
     try {
       const res = await apiClient.post('/field-ops/verify-goldrush-photo', {
         photo_data: photoDataUrl,
@@ -912,7 +912,8 @@ export default function VisitCreate() {
         blurry: res.data?.photo_blurry === true ? true : res.data?.photo_blurry === false ? false : null,
       })
     } catch {
-      // Extraction failure reads as "nothing found" — warn, never hard-block.
+      // Extraction failure reads as "nothing found" — the missing ID hard-blocks
+      // (retake only), same as a photo where no ID could be read.
       setPhotoExtraction({ status: 'done', extractedId: null, hasBtag: null, urlVisible: null, blurry: null })
     }
   }
@@ -1036,7 +1037,7 @@ export default function VisitCreate() {
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index))
     setPhotoExtraction({ status: 'idle' })
-    setPhotoNoIdAcknowledged(false)
+    setPhotoNoBtagAcknowledged(false)
   }
 
   // Step validation based on dynamic step key
@@ -1141,9 +1142,10 @@ export default function VisitCreate() {
           // Hard errors — no acknowledgement path, the photo must be retaken.
           if (photoExtraction.blurry === true) return false
           if (photoExtraction.urlVisible === false) return false
-          if (!photoExtraction.extractedId && !photoNoIdAcknowledged) return false
-          // A missing B-Tag alone never blocks — it's flagged to the team lead
-          // report on submission instead.
+          if (!photoExtraction.extractedId) return false
+          // A missing B-Tag warns: the agent can retake or explicitly submit
+          // anyway, which is flagged to the team-lead report on submission.
+          if (photoExtraction.hasBtag !== true && !photoNoBtagAcknowledged) return false
         }
         return true
       }
@@ -1302,11 +1304,8 @@ export default function VisitCreate() {
       }
 
       // Flag photo issues so the backend logs them to the team-lead capture
-      // failures report. An unread ID must be acknowledged on the photo step;
-      // a missing B-Tag never blocks, so it's flagged straight from extraction.
-      if (photoNoIdAcknowledged) {
-        payload.goldrush_id_unreadable = true
-      }
+      // failures report. An unread ID hard-blocks the photo step (retake only),
+      // so only the acknowledged missing B-Tag can reach submission — flag it.
       if (isGoldrushIndividualCapture() && photos.length > 0 &&
         photoExtraction.status === 'done' && photoExtraction.hasBtag !== true) {
         payload.goldrush_no_btag = true
@@ -2593,9 +2592,10 @@ export default function VisitCreate() {
           </Grid>
         )}
 
-        {/* Extraction feedback — a blurry photo or an unreadable URL bar is a hard
-            error (retake only). An unread ID/B-Tag on an otherwise good photo warns
-            so the agent can retake while the person is still there. */}
+        {/* Extraction feedback — a blurry photo, an unreadable URL bar, or an
+            unread Goldrush ID is a hard error (retake only). A missing B-Tag on an
+            otherwise good photo warns so the agent can retake while the person is
+            still there, or submit anyway (flagged to the team lead). */}
         {(() => {
           if (!isGoldrushIndividualCapture() || photos.length === 0) return null
           if (photoExtraction.status === 'checking') {
@@ -2651,15 +2651,15 @@ export default function VisitCreate() {
                   Goldrush ID {extractedId} read from the photo — it will be filled in on the Details step.
                 </Alert>
               ) : (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoIdAcknowledged(true), photoNoIdAcknowledged)}>
-                  <strong>Couldn&apos;t read a Goldrush ID from this photo.</strong> Retake it, or
-                  submit anyway — this will be flagged in the team lead report.
+                <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
+                  <strong>Couldn&apos;t read a Goldrush ID from this photo.</strong> Retake the photo
+                  with the 9-digit Goldrush ID clearly visible — you cannot continue without it.
                 </Alert>
               )}
               {!hasBtag && !urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeOnlyAction}>
+                <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoBtagAcknowledged(true), photoNoBtagAcknowledged)}>
                   <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
-                  You can retake the photo or continue anyway — this will be flagged in the team lead report.
+                  Retake it, or submit anyway — this will be flagged in the team lead report.
                 </Alert>
               )}
             </>
