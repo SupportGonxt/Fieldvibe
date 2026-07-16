@@ -34,6 +34,10 @@ function lazyWithRetry<T extends ComponentType<any>>(importFn: () => Promise<{ d
         // The 404ing chunk hash came from a stale SW-cached shell — bust it so
         // the reload fetches fresh HTML instead of the same broken one.
         try { await caches.delete('navigation-cache'); } catch { /* no-op */ }
+        // The SPA fallback's HTML may have been cached UNDER the chunk URL
+        // (CacheFirst caches any 200) — drop it too, or the retry after
+        // reload serves the same poisoned entry without touching the network.
+        try { await caches.delete('static-assets-cache'); } catch { /* no-op */ }
         window.location.reload();
         // Return a never-resolving promise to keep Suspense spinner visible until reload completes
         return new Promise(() => {});

@@ -108,6 +108,19 @@ export default defineConfig({
               cacheName: 'static-assets-cache',
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [200] },
+              plugins: [
+                {
+                  // The _redirects SPA catch-all answers a MISSING chunk with
+                  // index.html + 200, and cacheableResponse checks status only.
+                  // CacheFirst would then pin that HTML under the .js URL and
+                  // brick the route until the SW cache is wiped. Never cache
+                  // HTML under an asset URL.
+                  cacheWillUpdate: async ({ response }: { response: Response }) => {
+                    const ct = response.headers.get('content-type') || ''
+                    return ct.includes('text/html') ? null : response
+                  },
+                },
+              ],
             },
           },
           {
