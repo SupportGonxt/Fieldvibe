@@ -15,6 +15,20 @@ const pkgVersion = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json
 // and trigger the one auto-reload that pulls the fresh shell.
 const BUILD_ID = Date.now().toString(36)
 
+// Rotates the content hash of EVERY chunk (banner is part of chunk content).
+// Bump this date when devices hold a poisoned immutable HTTP-cache entry —
+// the SPA fallback once served index.html under an /assets/*.js URL with the
+// asset's own max-age=31536000,immutable header, and Chrome then pins that
+// HTML for a year with no revalidation. No app-level reset can clear the
+// browser HTTP cache; new URLs are the only remote heal. __FV_BUILD in
+// main.tsx only rotates the entry chunk — dependency chunks need this.
+// Deliberately a manual constant, NOT Date.now(): rotating every build would
+// defeat long-term caching for the whole fleet on every deploy.
+// Note: esbuild minify strips the comment from the emitted chunks, but rollup
+// folds it into the content hash first — verified: bumping this rotates every
+// /assets/*.js hash even though the banner text never appears in the output.
+const CACHE_EPOCH = '2026-07-16'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   // Note: Vite automatically loads .env.production during production builds
@@ -232,7 +246,11 @@ export default defineConfig({
     // a field-ops agent paid the bundle cost of admin-only deps. Letting Rollup
     // split naturally pushes those deps into the dynamic chunks of the routes
     // that actually import them.
-    rollupOptions: {},
+    rollupOptions: {
+      output: {
+        banner: `/* fv-cache-epoch ${CACHE_EPOCH} */`,
+      },
+    },
     chunkSizeWarningLimit: 1500,
   },
   esbuild: {
