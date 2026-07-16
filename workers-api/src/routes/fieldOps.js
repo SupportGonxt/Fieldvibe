@@ -2214,9 +2214,22 @@ Output JSON only.`;
       return s && s.toLowerCase() !== 'null' && /^[a-zA-ZÀ-ſ' -]{2,40}$/.test(s) ? s : null;
     };
     try {
+      // Send the image as a base64 data-URL message part. The legacy
+      // `{ prompt, image: [...bytes] }` form serialises the photo as a JSON
+      // number array that Workers AI tokenises as TEXT (~2 tokens/byte), so
+      // any photo over ~60KB blew the 128K context window and every call
+      // failed — leaving extracted_id/btag null and flagging every capture
+      // as "no B-Tag". Same root cause documented in lib/photoAi.js.
       const aiResponse = await c.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-        prompt,
-        image: [...imageBytes],
+        messages: [
+          { role: 'system', content: 'You are a strict OCR assistant. You always reply with ONLY a single JSON object that matches the schema given by the user. No prose, no markdown, no code fences, no explanations.' },
+          { role: 'user', content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: photo_data } },
+          ]},
+        ],
+        max_tokens: 400,
+        temperature: 0,
       });
       const text = (aiResponse?.response || aiResponse?.result?.response || '').trim();
       const clean = text.replace(/```json|```/gi, '').trim();
