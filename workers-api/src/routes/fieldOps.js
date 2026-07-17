@@ -45,7 +45,9 @@ app.get('/field-operations/agents', authMiddleware, async (c) => {
   const { status, search } = c.req.query();
   let where = "WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep')";
   const params = [tenantId];
-  if (status === 'active') { where += ' AND u.is_active = 1'; }
+  // Active-only by default; ?status=inactive shows deactivated agents, ?status=all shows everyone
+  if (status === 'inactive') { where += ' AND u.is_active = 0'; }
+  else if (status !== 'all') { where += ' AND u.is_active = 1'; }
   if (search) { where += " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)"; params.push('%' + search + '%', '%' + search + '%', '%' + search + '%'); }
   const agents = await db.prepare("SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.is_active, u.last_login, u.created_at FROM users u " + where + " ORDER BY u.first_name").bind(...params).all();
   return c.json(agents.results || []);
@@ -1197,7 +1199,7 @@ app.get('/field-ops/survey-insights', authMiddleware, async (c) => {
 app.get('/field-agents', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const agents = await db.prepare("SELECT id, first_name, last_name, email, phone, role, is_active FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') ORDER BY first_name").bind(tenantId).all();
+  const agents = await db.prepare("SELECT id, first_name, last_name, email, phone, role, is_active FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
   return c.json({ data: agents.results || [] });
 });
 app.get('/territories', async (c) => {
@@ -2057,14 +2059,14 @@ app.get('/field-ops/dashboard', authMiddleware, async (c) => {
 app.get('/field-ops/team-performance', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const teams = await db.prepare("SELECT m.id as manager_id, m.first_name || ' ' || m.last_name as manager_name, COUNT(DISTINCT u.id) as team_size, (SELECT COUNT(*) FROM visits WHERE agent_id IN (SELECT id FROM users WHERE manager_id = m.id AND tenant_id = ?) AND created_at >= datetime('now', '-30 days')) as total_visits, (SELECT COUNT(*) FROM sales_orders WHERE agent_id IN (SELECT id FROM users WHERE manager_id = m.id AND tenant_id = ?) AND created_at >= datetime('now', '-30 days')) as total_orders FROM users m JOIN users u ON u.manager_id = m.id WHERE m.tenant_id = ? AND m.role IN ('manager', 'team_lead') GROUP BY m.id ORDER BY total_visits DESC").bind(tenantId, tenantId, tenantId).all();
+  const teams = await db.prepare("SELECT m.id as manager_id, m.first_name || ' ' || m.last_name as manager_name, COUNT(DISTINCT u.id) as team_size, (SELECT COUNT(*) FROM visits WHERE agent_id IN (SELECT id FROM users WHERE manager_id = m.id AND tenant_id = ?) AND created_at >= datetime('now', '-30 days')) as total_visits, (SELECT COUNT(*) FROM sales_orders WHERE agent_id IN (SELECT id FROM users WHERE manager_id = m.id AND tenant_id = ?) AND created_at >= datetime('now', '-30 days')) as total_orders FROM users m JOIN users u ON u.manager_id = m.id AND u.is_active = 1 WHERE m.tenant_id = ? AND m.role IN ('manager', 'team_lead') AND m.is_active = 1 GROUP BY m.id ORDER BY total_visits DESC").bind(tenantId, tenantId, tenantId).all();
   return c.json({ success: true, data: teams.results || [] });
 });
 
 app.get('/field-ops/agent-performance', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.role, (SELECT COUNT(*) FROM visits WHERE agent_id = u.id AND created_at >= datetime('now', '-30 days')) as visits, (SELECT COUNT(*) FROM visits WHERE agent_id = u.id AND status = 'completed' AND created_at >= datetime('now', '-30 days')) as completed_visits, (SELECT COUNT(*) FROM sales_orders WHERE agent_id = u.id AND created_at >= datetime('now', '-30 days')) as orders, (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders WHERE agent_id = u.id AND status != 'CANCELLED' AND created_at >= datetime('now', '-30 days')) as revenue FROM users u WHERE u.tenant_id = ? AND u.role = 'agent' ORDER BY revenue DESC").bind(tenantId).all();
+  const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.role, (SELECT COUNT(*) FROM visits WHERE agent_id = u.id AND created_at >= datetime('now', '-30 days')) as visits, (SELECT COUNT(*) FROM visits WHERE agent_id = u.id AND status = 'completed' AND created_at >= datetime('now', '-30 days')) as completed_visits, (SELECT COUNT(*) FROM sales_orders WHERE agent_id = u.id AND created_at >= datetime('now', '-30 days')) as orders, (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders WHERE agent_id = u.id AND status != 'CANCELLED' AND created_at >= datetime('now', '-30 days')) as revenue FROM users u WHERE u.tenant_id = ? AND u.role = 'agent' AND u.is_active = 1 ORDER BY revenue DESC").bind(tenantId).all();
   let rows = agents.results || [];
   // Field roles see counts only — per-agent rand revenue is admin/GM data
   if (!canSeeMoney(c.get('role'))) rows = rows.map(({ revenue, ...rest }) => rest);
@@ -2073,7 +2075,7 @@ app.get('/field-ops/agent-performance', authMiddleware, async (c) => {
 app.get('/agents', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const agents = await db.prepare("SELECT id, first_name, last_name, email, phone, role, status, created_at FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') ORDER BY first_name").bind(tenantId).all();
+  const agents = await db.prepare("SELECT id, first_name, last_name, email, phone, role, status, created_at FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all();
   return c.json({ success: true, data: agents.results || [] });
 });
 
@@ -2082,9 +2084,9 @@ app.get('/team-hierarchy', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const [managers, teamLeads, agents] = await Promise.all([
-    db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' ORDER BY first_name").bind(tenantId).all(),
-    db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' ORDER BY first_name").bind(tenantId).all(),
-    db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') ORDER BY first_name").bind(tenantId).all(),
+    db.prepare("SELECT id, first_name, last_name, email, role FROM users WHERE tenant_id = ? AND role = 'manager' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+    db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
+    db.prepare("SELECT id, first_name, last_name, email, role, manager_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name").bind(tenantId).all(),
   ]);
   return c.json({ success: true, data: { managers: managers.results || [], team_leads: teamLeads.results || [], agents: agents.results || [] } });
 });
@@ -2125,7 +2127,7 @@ app.get('/field-ops/presence/anomalies', authMiddleware, async (c) => {
   const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(dayMs).getUTCDay()];
 
   const [agentsRes, custRes, wdRes] = await Promise.all([
-    db.prepare("SELECT id, first_name, last_name, role FROM users WHERE tenant_id = ? AND role IN ('field_agent','sales_rep','agent','team_lead')").bind(tenantId).all(),
+    db.prepare("SELECT id, first_name, last_name, role FROM users WHERE tenant_id = ? AND role IN ('field_agent','sales_rep','agent','team_lead') AND is_active = 1").bind(tenantId).all(),
     db.prepare('SELECT latitude, longitude FROM customers WHERE tenant_id = ? AND latitude IS NOT NULL AND longitude IS NOT NULL').bind(tenantId).all(),
     db.prepare('SELECT agent_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, effective_from, effective_to FROM working_days_config WHERE tenant_id = ?').bind(tenantId).all(),
   ]);

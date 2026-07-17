@@ -191,12 +191,12 @@ async function kpiScopeIds(db, tenantId, userId, role) {
 async function teamMemberIds(db, tenantId, me, role) {
   if (role === 'team_lead') {
     return (await db.prepare(
-      `SELECT id FROM users WHERE tenant_id=? AND team_lead_id=?`).bind(tenantId, me).all()
+      `SELECT id FROM users WHERE tenant_id=? AND team_lead_id=? AND is_active = 1`).bind(tenantId, me).all()
     ).results.map(r => r.id);
   }
   // manager: direct reports (manager_id); company links resolved via manager_id chain
   return (await db.prepare(
-    `SELECT DISTINCT u.id FROM users u WHERE u.tenant_id=? AND u.manager_id=?`
+    `SELECT DISTINCT u.id FROM users u WHERE u.tenant_id=? AND u.manager_id=? AND u.is_active = 1`
   ).bind(tenantId, me).all()).results.map(r => r.id);
 }
 
@@ -206,21 +206,69 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
   const userId = c.get('userId');
   const role = c.get('role');
   const companyId = c.req.query('company_id') || null;
-  const memberIds = await teamMemberIds(db, tenantId, userId, role);
   const thresholds = (await getConfig(db, tenantId, companyId, 'kpi.agent')) || {};
   const windowDays = thresholds.baseline_window_days || 14;
   const since = new Date(Date.now() - windowDays * 86400000).toISOString().slice(0, 10);
 
-  const agents = [];
-  for (const id of memberIds) {
-    // manager roster rows = team leads, each scored by their whole team's output
-    const scope = role === 'manager' ? await kpiScopeIds(db, tenantId, id, 'team_lead') : id;
-    const { actual, signals } = await agentSignals(db, tenantId, scope, thresholds, since);
-    const u = await db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first();
+  // One roster row: KPIs + signals over `scope` (own visits, or a whole team's
+  // for a lead row), live-issue link attached.
+  const buildRow = async (id, name, scope) => {
+    const { actual, signals } = await agentSignals(db, tenantId, scope ?? id, thresholds, since);
     const liveIssue = await db.prepare(
       `SELECT id FROM issues WHERE tenant_id=? AND subject_id=? AND status != 'resolved' ORDER BY severity DESC LIMIT 1`
     ).bind(tenantId, id).first();
-    agents.push({ agentId: id, name: u?.name || id, actual, signals, issueId: liveIssue?.id ?? null });
+    return { agentId: id, name, actual, signals, issueId: liveIssue?.id ?? null };
+  };
+
+  // Admin-equivalents (admin / backoffice_admin / general_manager / super_admin)
+  // have no direct reports, so the reports-to-me roster is always empty for them.
+  // Show the whole tenant instead: every team lead (scored by their team's
+  // output, like the manager view) with their agents grouped beneath, plus an
+  // Unassigned group so agents without a team lead still surface.
+  if (role !== 'team_lead' && role !== 'manager') {
+    const nameSql = `TRIM(COALESCE(first_name,'')||' '||COALESCE(last_name,''))`;
+    const leads = (await db.prepare(
+      `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND role='team_lead' AND is_active=1 ORDER BY first_name`
+    ).bind(tenantId).all()).results ?? [];
+    const teams = [];
+    const flat = [];
+    for (const tl of leads) {
+      const members = (await db.prepare(
+        `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id=? AND is_active=1 ORDER BY first_name`
+      ).bind(tenantId, tl.id).all()).results ?? [];
+      const agents = [];
+      for (const m of members) agents.push(await buildRow(m.id, m.name || m.id));
+      const lead = await buildRow(tl.id, tl.name || tl.id, members.length ? members.map((m) => m.id) : tl.id);
+      teams.push({ leadId: tl.id, leadName: tl.name || tl.id, lead, agents: rankRoster(agents) });
+      flat.push(...agents);
+    }
+    const unassigned = (await db.prepare(
+      `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id IS NULL AND is_active=1
+         AND role IN (${AGENT_ROLES.map(() => '?').join(',')}) ORDER BY first_name`
+    ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
+    if (unassigned.length) {
+      const agents = [];
+      for (const m of unassigned) agents.push(await buildRow(m.id, m.name || m.id));
+      teams.push({ leadId: null, leadName: 'Unassigned', lead: null, agents: rankRoster(agents) });
+      flat.push(...agents);
+    }
+    // Teams worst-first: lead signals (team-aggregate) first, flagged agents as tiebreak.
+    const flaggedIn = (t) => t.agents.filter((a) => a.signals.length > 0).length;
+    teams.sort((a, b) => {
+      const bySignals = (b.lead?.signals?.length || 0) - (a.lead?.signals?.length || 0);
+      return bySignals !== 0 ? bySignals : flaggedIn(b) - flaggedIn(a);
+    });
+    return c.json({ roster: rankRoster(flat), teams });
+  }
+
+  // team_lead / manager: direct team, unchanged shape.
+  const memberIds = await teamMemberIds(db, tenantId, userId, role);
+  const agents = [];
+  for (const id of memberIds) {
+    // manager roster rows = team leads, each scored by their whole team's output
+    const scope = role === 'manager' ? await kpiScopeIds(db, tenantId, id, 'team_lead') : null;
+    const u = await db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first();
+    agents.push(await buildRow(id, u?.name || id, scope));
   }
   return c.json({ roster: rankRoster(agents) });
 });

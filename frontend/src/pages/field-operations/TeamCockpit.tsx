@@ -25,6 +25,9 @@ type Actual = {
   days: number
 }
 type RosterAgent = { agentId: string; name: string; actual: Actual; signals: Signal[] }
+// Admin-equivalents get the whole tenant grouped by team lead (lead row is
+// scored by the team's aggregate output); leadId null = agents with no team lead.
+type Team = { leadId: string | null; leadName: string; lead: RosterAgent | null; agents: RosterAgent[] }
 
 const LEADER_ROLES = ['team_lead', 'manager']
 
@@ -79,7 +82,7 @@ function NoteBox({ agentId, signalType, onDone }: { agentId: string; signalType?
   )
 }
 
-function AgentRow({ a }: { a: RosterAgent }) {
+function AgentRow({ a, badge }: { a: RosterAgent; badge?: string }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
@@ -113,7 +116,14 @@ function AgentRow({ a }: { a: RosterAgent }) {
         className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left"
       >
         {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-        <span className="font-medium text-gray-900 dark:text-white flex-1 min-w-[8rem]">{a.name}</span>
+        <span className="font-medium text-gray-900 dark:text-white flex-1 min-w-[8rem]">
+          {a.name}
+          {badge && (
+            <span className="ml-2 text-[10px] uppercase tracking-wide font-semibold text-indigo-600 dark:text-indigo-400">
+              {badge}
+            </span>
+          )}
+        </span>
         <div className="flex items-center gap-4 sm:gap-6">
           <Stat label="Visits/d" value={a.actual.visits_per_day.toFixed(1)} />
           <Stat label="Signups/d" value={a.actual.signups_per_day.toFixed(1)} />
@@ -175,7 +185,7 @@ export default function TeamCockpit() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['kpi-roster'],
-    queryFn: () => apiClient.get('/field-ops/kpi/roster').then((r) => r.data as { roster: RosterAgent[] }),
+    queryFn: () => apiClient.get('/field-ops/kpi/roster').then((r) => r.data as { roster: RosterAgent[]; teams?: Team[] }),
     enabled: allowed,
   })
 
@@ -198,7 +208,9 @@ export default function TeamCockpit() {
   }
 
   const roster = data?.roster || []
+  const teams = data?.teams
   const flagged = roster.filter((a) => a.signals.length > 0).length
+  const leadCount = teams ? teams.filter((t) => t.lead).length : 0
 
   return (
     <div className="space-y-6 p-6">
@@ -208,14 +220,40 @@ export default function TeamCockpit() {
             <Users className="w-6 h-6" /> Team Cockpit
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            {roster.length} team member{roster.length === 1 ? '' : 's'} · {flagged} flagged · worst performers first
+            {teams
+              ? `${leadCount} team lead${leadCount === 1 ? '' : 's'} · ${roster.length} agent${roster.length === 1 ? '' : 's'} · ${flagged} flagged · worst performers first`
+              : `${roster.length} team member${roster.length === 1 ? '' : 's'} · ${flagged} flagged · worst performers first`}
           </p>
         </div>
       </div>
 
       <MyIssues />
 
-      {roster.length === 0 ? (
+      {teams ? (
+        // Admin view: whole tenant, grouped per team lead (lead row = team aggregate)
+        teams.length === 0 ? (
+          <p className="text-gray-500">No team leads found.</p>
+        ) : (
+          <div className="space-y-6">
+            {teams.map((t) => (
+              <div key={t.leadId ?? 'unassigned'} className="space-y-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                  <span>{t.lead ? `Team · ${t.leadName}` : 'No team lead assigned'}</span>
+                  <span className="font-normal normal-case">{t.agents.length} agent{t.agents.length === 1 ? '' : 's'}</span>
+                </h2>
+                {t.lead && <AgentRow a={t.lead} badge="Team Lead" />}
+                <div className="space-y-2 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                  {t.agents.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-1">No agents in this team.</p>
+                  ) : (
+                    t.agents.map((a) => <AgentRow key={a.agentId} a={a} />)
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : roster.length === 0 ? (
         <p className="text-gray-500">No team members report to you yet.</p>
       ) : (
         <div className="space-y-2">
