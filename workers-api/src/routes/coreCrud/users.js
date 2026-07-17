@@ -76,8 +76,14 @@ app.put('/users/:id', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json();
   const agentType = body.agent_type !== undefined ? body.agent_type : (body.agentType !== undefined ? body.agentType : undefined);
+  // Keep is_active in sync with status: the admin UI edits status only, while
+  // most list/roster queries filter on is_active = 1 — letting them drift left
+  // "inactive" users visible in dashboards and pickers everywhere.
+  const isActive = body.is_active !== undefined
+    ? (body.is_active ? 1 : 0)
+    : (body.status ? (body.status === 'active' ? 1 : 0) : null);
   let sql = 'UPDATE users SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), role = COALESCE(?, role), phone = COALESCE(?, phone), email = COALESCE(?, email), manager_id = ?, team_lead_id = ?, gm_id = ?, status = COALESCE(?, status), is_active = COALESCE(?, is_active)';
-  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, normalizePhone(body.phone), body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.gmId || body.gm_id || null, body.status || null, body.is_active !== undefined ? (body.is_active ? 1 : 0) : null];
+  const binds = [body.firstName || body.first_name || null, body.lastName || body.last_name || null, body.role || null, normalizePhone(body.phone), body.email || null, body.managerId || body.manager_id || null, body.teamLeadId || body.team_lead_id || null, body.gmId || body.gm_id || null, body.status || null, isActive];
   if (agentType !== undefined) {
     sql += ', agent_type = ?';
     binds.push(agentType);
@@ -161,7 +167,8 @@ app.patch('/users/:id/archive', requireRole('admin'), async (c) => {
   const user = await db.prepare('SELECT status FROM users WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!user) return c.json({ success: false, message: 'User not found' }, 404);
   const newStatus = user.status === 'archived' ? 'active' : 'archived';
-  await db.prepare('UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(newStatus, id, tenantId).run();
+  // is_active follows status so archived users drop out of roster queries
+  await db.prepare('UPDATE users SET status = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(newStatus, newStatus === 'active' ? 1 : 0, id, tenantId).run();
   return c.json({ success: true, message: newStatus === 'archived' ? 'User archived' : 'User unarchived', status: newStatus });
 });
 

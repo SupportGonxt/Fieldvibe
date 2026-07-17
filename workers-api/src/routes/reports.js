@@ -1503,7 +1503,7 @@ app.get('/field-ops/reports/agents', authMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
-    const agents = await db.prepare("SELECT id as agent_id, first_name || ' ' || last_name as agent_name FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') ORDER BY first_name LIMIT 500").bind(tenantId).all();
+    const agents = await db.prepare("SELECT id as agent_id, first_name || ' ' || last_name as agent_name FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1 ORDER BY first_name LIMIT 500").bind(tenantId).all();
     return c.json({ success: true, agents: agents.results || [] });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });

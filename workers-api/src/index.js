@@ -40,7 +40,7 @@ import tradePromotionRoutes from './routes/tradePromotions.js';
 import activationsPosmRoutes from './routes/activationsPosm.js';
 import adminOpsRoutes from './routes/adminOps.js';
 // Cron jobs (invoked by the scheduled handler)
-import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
+import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, syncUserActiveFlags, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -286,6 +286,9 @@ export default {
     // South Africa has no DST, so UTC+2 is a constant and this needs no tz database.
     const sastHour = (hour + 2) % 24;
     if (hour === 4) await checkOverdueInvoices(env.DB);
+    // Converge users.status / users.is_active so status-only edits reliably
+    // hide inactive users from every roster and dashboard query.
+    if (hour === 4) await syncUserActiveFlags(env.DB);
     if (hour === 6) await checkLowStock(env.DB);
     if (hour === 16) await checkStaleVanLoads(env.DB);
     if (date === 1 && hour === 22) await closeCommissionPeriod(env.DB);

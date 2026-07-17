@@ -235,7 +235,7 @@ app.get('/dashboard/recent-activity', authMiddleware, async (c) => {
 app.get('/dashboard/sales-performance', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const data = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, COUNT(so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'sales_rep') GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId).all();
+  const data = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, COUNT(so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'sales_rep') AND u.is_active = 1 GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId).all();
   return c.json(data.results || []);
 });
 
@@ -284,7 +284,7 @@ app.get('/analytics/dashboard', authMiddleware, async (c) => {
   // Top performers
   // success_rate = completed visits / total visits per agent (same definition as stats.visit_success_rate)
   const visitSubFilter = start_date && end_date ? " AND v.visit_date >= ? AND v.visit_date <= ?" : '';
-  let topPerformersQuery = "SELECT u.id as agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue, COALESCE(CAST(ROUND((SELECT COUNT(*) FROM visits v WHERE v.tenant_id = ? AND v.agent_id = u.id AND v.status = 'completed'" + visitSubFilter + ") * 100.0 / NULLIF((SELECT COUNT(*) FROM visits v WHERE v.tenant_id = ? AND v.agent_id = u.id" + visitSubFilter + "), 0)) AS INTEGER), 0) as success_rate FROM users u LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? " + (start_date && end_date ? "AND so.created_at >= ? AND so.created_at <= ? || ' 23:59:59' " : '') + "WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY total_revenue DESC LIMIT 10";
+  let topPerformersQuery = "SELECT u.id as agent_id, u.first_name || ' ' || u.last_name as agent_name, COUNT(so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue, COALESCE(CAST(ROUND((SELECT COUNT(*) FROM visits v WHERE v.tenant_id = ? AND v.agent_id = u.id AND v.status = 'completed'" + visitSubFilter + ") * 100.0 / NULLIF((SELECT COUNT(*) FROM visits v WHERE v.tenant_id = ? AND v.agent_id = u.id" + visitSubFilter + "), 0)) AS INTEGER), 0) as success_rate FROM users u LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? " + (start_date && end_date ? "AND so.created_at >= ? AND so.created_at <= ? || ' 23:59:59' " : '') + "WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') AND u.is_active = 1 GROUP BY u.id ORDER BY total_revenue DESC LIMIT 10";
   let topParams = start_date && end_date
     ? [tenantId, start_date, end_date, tenantId, start_date, end_date, tenantId, start_date, end_date, tenantId]
     : [tenantId, tenantId, tenantId, tenantId];
@@ -352,7 +352,7 @@ app.get('/analytics/visits', authMiddleware, async (c) => {
 app.get('/analytics/agents', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, COUNT(DISTINCT v.id) as total_visits, COUNT(DISTINCT so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue FROM users u LEFT JOIN visits v ON u.id = v.agent_id AND v.tenant_id = ? LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY total_revenue DESC").bind(tenantId, tenantId, tenantId).all();
+  const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, COUNT(DISTINCT v.id) as total_visits, COUNT(DISTINCT so.id) as total_orders, COALESCE(SUM(so.total_amount), 0) as total_revenue FROM users u LEFT JOIN visits v ON u.id = v.agent_id AND v.tenant_id = ? LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') AND u.is_active = 1 GROUP BY u.id ORDER BY total_revenue DESC").bind(tenantId, tenantId, tenantId).all();
   return c.json({ success: true, data: agents.results || [] });
 });
 
@@ -401,7 +401,7 @@ app.get('/analytics/revenue', requireRole('admin'), async (c) => {
 app.get('/analytics/performance', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.role, COUNT(DISTINCT v.id) as visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed_visits, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON u.id = v.agent_id AND v.tenant_id = ? LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
+  const agents = await db.prepare("SELECT u.id, u.first_name || ' ' || u.last_name as name, u.role, COUNT(DISTINCT v.id) as visits, SUM(CASE WHEN v.status = 'completed' THEN 1 ELSE 0 END) as completed_visits, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON u.id = v.agent_id AND v.tenant_id = ? LEFT JOIN sales_orders so ON u.id = so.agent_id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') AND u.is_active = 1 GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
   return c.json({ success: true, data: agents.results || [] });
 });
 
@@ -956,7 +956,7 @@ app.post('/reports/generate', requireRole('admin'), async (c) => {
       break;
     }
     case 'AGENT_PERFORMANCE': {
-      const data = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent, COUNT(DISTINCT v.id) as visits, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = ? LEFT JOIN sales_orders so ON so.agent_id = u.id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role = 'agent' GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
+      const data = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent, COUNT(DISTINCT v.id) as visits, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = ? LEFT JOIN sales_orders so ON so.agent_id = u.id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role = 'agent' AND u.is_active = 1 GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
       reportData = { rows: data.results || [], type: 'AGENT_PERFORMANCE' };
       break;
     }
@@ -1149,7 +1149,7 @@ app.get('/reports/executive', requireRole('admin'), async (c) => {
 app.get('/reports/field-ops', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
-  const data = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent, COUNT(DISTINCT v.id) as visits, COUNT(CASE WHEN v.status = 'completed' THEN 1 END) as completed, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = ? LEFT JOIN sales_orders so ON so.agent_id = u.id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role = 'agent' GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
+  const data = await db.prepare("SELECT u.first_name || ' ' || u.last_name as agent, COUNT(DISTINCT v.id) as visits, COUNT(CASE WHEN v.status = 'completed' THEN 1 END) as completed, COUNT(DISTINCT so.id) as orders, COALESCE(SUM(so.total_amount), 0) as revenue FROM users u LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = ? LEFT JOIN sales_orders so ON so.agent_id = u.id AND so.tenant_id = ? WHERE u.tenant_id = ? AND u.role = 'agent' AND u.is_active = 1 GROUP BY u.id ORDER BY revenue DESC").bind(tenantId, tenantId, tenantId).all();
   return c.json({ success: true, data: data.results || [] });
 });
 

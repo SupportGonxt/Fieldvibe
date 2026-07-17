@@ -1280,6 +1280,28 @@ app.post('/error-logs', async (c) => {
 
 
 // ==================== MIGRATIONS ====================
+// One-shot converge of users.status / users.is_active for this tenant. The
+// admin UI edits status while roster queries filter is_active — rows that
+// drifted before the write paths were synced keep "inactive" users visible.
+// The nightly cron (syncUserActiveFlags) does the same globally; this endpoint
+// applies it immediately without waiting for the tick.
+app.post('/migrations/sync-user-active-flags', requireRole('admin'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  try {
+    const deactivated = await db.prepare("UPDATE users SET is_active = 0 WHERE tenant_id = ? AND status IS NOT NULL AND status != 'active' AND is_active = 1").bind(tenantId).run();
+    const reactivated = await db.prepare("UPDATE users SET is_active = 1 WHERE tenant_id = ? AND (status = 'active' OR status IS NULL) AND is_active = 0").bind(tenantId).run();
+    return c.json({
+      success: true,
+      deactivated: deactivated.meta?.changes ?? 0,
+      reactivated: reactivated.meta?.changes ?? 0,
+      message: 'users.is_active synced with users.status'
+    });
+  } catch (err) {
+    return c.json({ success: false, message: `Migration failed: ${err.message || err}` }, 500);
+  }
+});
+
 app.post('/migrations/add-agent-type', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   try {

@@ -38,10 +38,21 @@ function round1(n) { return Math.round(n * 10) / 10; }
 // anchor (optional YYYY-MM-DD) selects a past day/week/month; clamped to today.
 // prevStart/prevEnd is the equivalent window one period back, same elapsed length,
 // so "vs previous" compares like-for-like even mid-period.
-export function periodRange(period, nowIso, anchor) {
+// period 'custom': anchor = range start, rangeEnd = INCLUSIVE range end — both
+// clamped to today, swapped if reversed; prev window = same length immediately
+// before the range. Missing/invalid rangeEnd falls through to the month default.
+export function periodRange(period, nowIso, anchor, rangeEnd = null) {
   const today = nowIso.slice(0, 10);
   let a = (anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor)) ? anchor : today;
   if (a > today) a = today;
+  if (period === 'custom' && rangeEnd && /^\d{4}-\d{2}-\d{2}$/.test(rangeEnd)) {
+    let s = a;
+    let last = rangeEnd > today ? today : rangeEnd;
+    if (last < s) { const t = s; s = last; last = t; }
+    const end = addDay(last);
+    const len = daysBetween(s, end);
+    return { start: s, end, today, mode: 'custom', prevStart: addDays(s, -len), prevEnd: s };
+  }
   if (period === 'day') {
     return { start: a, end: addDay(a), today, mode: 'day', prevStart: addDays(a, -1), prevEnd: a };
   }
@@ -73,9 +84,9 @@ export function digestSlot(sastHour) {
 
 // Compose the GM overview. companyId scopes config (rate/salaries); null = tenant-wide.
 // Each metric block is independently guarded so one failing query degrades to 0/[] not a 500.
-export async function buildGmOverview(db, tenantId, companyId, period, anchor = null) {
+export async function buildGmOverview(db, tenantId, companyId, period, anchor = null, rangeEnd = null) {
   const now = new Date().toISOString();
-  const { start, end, today, mode, prevStart, prevEnd } = periodRange(period, now, anchor);
+  const { start, end, today, mode, prevStart, prevEnd } = periodRange(period, now, anchor, rangeEnd);
 
   // Optional company scoping. null companyId = all companies (digest relies on this path).
   // (? IS NULL OR col = ?) keeps one SQL string; both placeholders bind companyId.
@@ -552,13 +563,16 @@ app.get('/gm/bo-performance', requireRole('admin', 'general_manager'), async (c)
 });
 
 // GET /gm/overview?period=day|week|month&anchor=YYYY-MM-DD&company_id=
+// Custom range: ?period=custom&start=YYYY-MM-DD&end=YYYY-MM-DD (end inclusive)
 app.get('/gm/overview', requireRole('admin', 'general_manager'), async (c) => {
   const tenantId = c.get('tenantId');
   const period = c.req.query('period') || 'day';
-  const anchor = c.req.query('anchor') || null;
   const companyId = c.req.query('company_id') || null;
+  // For custom ranges the range start rides in periodRange's anchor slot.
+  const anchor = (period === 'custom' ? c.req.query('start') : c.req.query('anchor')) || null;
+  const rangeEnd = period === 'custom' ? (c.req.query('end') || null) : null;
   try {
-    const overview = await buildGmOverview(c.env.DB, tenantId, companyId, period, anchor);
+    const overview = await buildGmOverview(c.env.DB, tenantId, companyId, period, anchor, rangeEnd);
     return c.json({ success: true, ...overview });
   } catch (error) {
     // buildGmOverview runs many sequential D1 queries; a single one throwing (e.g. a

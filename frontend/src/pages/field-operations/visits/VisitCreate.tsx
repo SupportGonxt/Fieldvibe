@@ -182,6 +182,16 @@ const defaultStepsForType = (t: string): ProcessFlowStep[] =>
 const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
   !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
 
+// TEMPORARY (dead after this date — remove when convenient): one-day fallback
+// letting agents upload the Goldrush system photo from the gallery instead of
+// the camera. The upload still runs the full capture pipeline (duplicate check,
+// extraction, B-Tag validation); only the camera-only restriction is lifted.
+const SYSTEM_PHOTO_UPLOAD_ALLOWED_ON = '2026-07-17'
+const localToday = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // Parse the JSON config string stored on a ProcessFlowStep row
 function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
   if (!config) return {}
@@ -225,10 +235,10 @@ export default function VisitCreate() {
   const [error, setError] = useState<string | null>(null)
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
   // Result of the background extraction from the captured photo (Goldrush ID,
-  // customer name, B-Tag, quality signals). A blurry photo or an unreadable URL
-  // bar is a hard error (retake only); an unread ID/B-Tag on an otherwise good
-  // photo warns and can be acknowledged. Quality signals are tri-state: null
-  // means the check itself failed, which degrades to a warning, not a block.
+  // customer name, B-Tag, quality signals). A blurry photo, an unreadable URL
+  // bar, an unread ID, or a missing B-Tag are all hard errors (retake only) —
+  // there is no acknowledge-and-continue path. Quality signals are tri-state:
+  // null means the check itself failed, which degrades to a warning, not a block.
   const [photoExtraction, setPhotoExtraction] = useState<{
     status: 'idle' | 'checking' | 'done'
     extractedId?: string | null
@@ -236,7 +246,6 @@ export default function VisitCreate() {
     urlVisible?: boolean | null
     blurry?: boolean | null
   }>({ status: 'idle' })
-  const [photoNoBtagAcknowledged, setPhotoNoBtagAcknowledged] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -874,6 +883,16 @@ export default function VisitCreate() {
     if (f) setCustomFieldValues(prev => ({ ...prev, [f.field_name]: value }))
   }
 
+  // Blank out the extracted Goldrush ID when its photo is removed, so a stale
+  // (e.g. duplicate) ID can't linger into the Details step if the retake fails
+  // to read a new one.
+  const clearExtractedGoldrushId = () => {
+    const q = customQuestions.find(q => isGoldrushIdKey(q.question_key))
+    if (q) setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: '' }))
+    const f = customFields.find(f => isGoldrushIdKey(f.field_name))
+    if (f) setCustomFieldValues(prev => ({ ...prev, [f.field_name]: '' }))
+  }
+
   // The photo step now precedes details, so the custom questions/fields that hold
   // the Goldrush ID may not be loaded yet when extraction finishes. Re-apply the
   // extracted ID once they arrive (idempotent — sets the same value).
@@ -886,12 +905,12 @@ export default function VisitCreate() {
 
   // Extract the customer name and Goldrush ID from the captured photo in the
   // background and pre-fill the Details step. A blurry photo, an unreadable URL
-  // bar, or an unread Goldrush ID hard-blocks the step (retake only). A missing
-  // B-Tag on an otherwise good photo warns (retake or submit anyway); "submit
-  // anyway" is flagged to the team-lead report on submission.
+  // bar, an unread Goldrush ID, or a missing B-Tag hard-blocks the step
+  // (retake only) — the visit cannot proceed or be submitted without a B-Tag.
   const extractGoldrushIdFromPhoto = async (photoDataUrl: string) => {
     setPhotoExtraction({ status: 'checking' })
-    setPhotoNoBtagAcknowledged(false)
+    // Any duplicate flagged against the previous photo's ID is now stale
+    setDuplicateCheck(null)
     try {
       const res = await apiClient.post('/field-ops/verify-goldrush-photo', {
         photo_data: photoDataUrl,
@@ -1037,7 +1056,12 @@ export default function VisitCreate() {
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index))
     setPhotoExtraction({ status: 'idle' })
-    setPhotoNoBtagAcknowledged(false)
+    // The Goldrush ID (and any duplicate flagged on it) came from this photo —
+    // clear both so the retake starts clean.
+    if (isGoldrushIndividualCapture()) {
+      clearExtractedGoldrushId()
+      setDuplicateCheck(null)
+    }
   }
 
   // Step validation based on dynamic step key
@@ -1143,15 +1167,55 @@ export default function VisitCreate() {
           if (photoExtraction.blurry === true) return false
           if (photoExtraction.urlVisible === false) return false
           if (!photoExtraction.extractedId) return false
-          // A missing B-Tag warns: the agent can retake or explicitly submit
-          // anyway, which is flagged to the team-lead report on submission.
-          if (photoExtraction.hasBtag !== true && !photoNoBtagAcknowledged) return false
+          // A missing B-Tag is also a hard block: without a B-Tag in the system
+          // photo the visit can neither proceed nor be submitted.
+          if (photoExtraction.hasBtag !== true) return false
         }
         return true
       }
       case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
     }
+  }
+
+  // Human-readable reason the current step can't proceed — shown as an error
+  // when the agent taps Next with requirements missing.
+  const getMissingStepMessage = (): string => {
+    switch (currentStepKey) {
+      case 'gps': return 'GPS location has not been captured. Capture your location before continuing.'
+      case 'visit_type': return 'Please select a visit type before continuing.'
+      case 'details': return 'Please complete all required fields before continuing.'
+      case 'survey': return 'Please complete all required survey questions before continuing.'
+      case 'questionnaire': return 'Please answer all required questions before continuing.'
+      case 'photo': {
+        if (photos.length === 0) return 'A photo is required before continuing.'
+        if (!isGoldrushIndividualCapture()) return 'Please complete this step before continuing.'
+        if (photoExtraction.status === 'checking') return 'Please wait — the photo is still being checked.'
+        if (photoExtraction.blurry === true) return 'The photo is too blurry to read. Retake the photo before continuing.'
+        if (photoExtraction.urlVisible === false) return 'The URL bar (goldrush.co.za/?btag=...) is not visible in the photo. Retake it with the full address bar in frame.'
+        if (photoExtraction.status !== 'done' || !photoExtraction.extractedId) return 'No Goldrush ID could be read from the photo. Retake the photo before continuing.'
+        if (photoExtraction.hasBtag !== true) return 'No B-Tag found in the photo. You cannot continue or submit this visit without a B-Tag — retake the photo with the B-Tag URL (goldrush.co.za/?btag=...) clearly visible.'
+        return 'Please complete this step before continuing.'
+      }
+      default: return 'Please complete all required fields before continuing.'
+    }
+  }
+
+  // A Goldrush individual capture may only be submitted once the system photo
+  // has passed every extraction check, including the B-Tag. Guards the Review
+  // step directly so a restored draft (or any other path that lands past the
+  // Photo step) can never submit without a valid B-Tag photo.
+  const goldrushPhotoIncomplete = (): boolean => {
+    if (!isGoldrushIndividualCapture()) return false
+    if (!activeSteps.some(s => s.step_key === 'photo')) return false
+    return !(
+      photos.length > 0 &&
+      photoExtraction.status === 'done' &&
+      !!photoExtraction.extractedId &&
+      photoExtraction.hasBtag === true &&
+      photoExtraction.blurry !== true &&
+      photoExtraction.urlVisible !== false
+    )
   }
 
   const handleNext = async () => {
@@ -1166,9 +1230,13 @@ export default function VisitCreate() {
       if (currentStepKey === 'visit_type' && selectedCompany) {
         loadDetailsStepData(selectedCompany)
       }
-      // If the user can't proceed, show validation highlights on required fields
+      // If the user can't proceed, show validation highlights on required
+      // fields and an explicit error stating what's missing
       if (!canProceed()) {
         setShowValidation(true)
+        const missingMessage = getMissingStepMessage()
+        setError(missingMessage)
+        toast.error(missingMessage)
         return
       }
       setShowValidation(false)
@@ -1179,7 +1247,7 @@ export default function VisitCreate() {
           if (result?.has_duplicates) {
             const dupFields = (result.duplicates || []).map((d: any) => d.field)
             if (dupFields.includes('goldrush_id')) {
-              setError('This Goldrush ID has already been used. Goldrush IDs must be unique.')
+              setError('This Goldrush ID has already been used. Goldrush IDs must be unique. Tap Back to return to the Photo step and retake the system photo.')
               return
             }
             setError('Duplicate individual detected. ID number and phone must be unique.')
@@ -1222,6 +1290,16 @@ export default function VisitCreate() {
   const handleBack = () => {
     setError(null)
     setShowValidation(false)
+    // A duplicate Goldrush ID can only be fixed by retaking the system photo
+    // (the ID is read-only, extracted from the photo) — take the agent straight
+    // back to the Photo step, wherever it sits in the flow.
+    if (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id')) {
+      const photoIdx = activeSteps.findIndex(s => s.step_key === 'photo')
+      if (photoIdx !== -1 && photoIdx < activeStep) {
+        setActiveStep(photoIdx)
+        return
+      }
+    }
     setActiveStep(prev => prev - 1)
   }
 
@@ -1231,6 +1309,14 @@ export default function VisitCreate() {
     if (visitTargetType !== 'individual' && visitTargetType !== 'store' && visitTargetType !== 'survey') {
       setError('Please go back and select a visit type (Individual, Store/Business, or Survey).')
       toast.error('Visit type not selected.')
+      return
+    }
+    // Hard block: a Goldrush individual visit can never be submitted without a
+    // system photo that has a readable B-Tag. The Submit button is hidden in
+    // this state — this guard is defence in depth.
+    if (goldrushPhotoIncomplete()) {
+      setError('This visit cannot be submitted: the Goldrush system photo must have a visible B-Tag URL (goldrush.co.za/?btag=...). Go back to the Photo step and retake the photo.')
+      toast.error('Missing B-Tag — visit cannot be submitted.')
       return
     }
     setSubmitting(true)
@@ -1301,14 +1387,6 @@ export default function VisitCreate() {
           photo_type: visitTargetType === 'individual' ? 'goldrush_individual' : 'board',
           captured_at: p.timestamp
         }))
-      }
-
-      // Flag photo issues so the backend logs them to the team-lead capture
-      // failures report. An unread ID hard-blocks the photo step (retake only),
-      // so only the acknowledged missing B-Tag can reach submission — flag it.
-      if (isGoldrushIndividualCapture() && photos.length > 0 &&
-        photoExtraction.status === 'done' && photoExtraction.hasBtag !== true) {
-        payload.goldrush_no_btag = true
       }
 
       const result = await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
@@ -1609,9 +1687,15 @@ export default function VisitCreate() {
                 <Typography variant="body2" fontWeight="bold">Duplicate detected!</Typography>
                 {duplicateCheck.duplicates.map((d, i) => (
                   <Typography key={i} variant="body2">
-                    {d.field === 'id_number' ? 'ID Number' : 'Phone'}: {d.value} already exists
+                    {d.field === 'id_number' ? 'ID Number' : d.field === 'goldrush_id' ? 'Goldrush ID' : 'Phone'}: {d.value} already exists
                   </Typography>
                 ))}
+                {duplicateCheck.duplicates.some(d => d.field === 'goldrush_id') && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    The Goldrush ID is read from the system photo. Tap Back to return to the
+                    Photo step and retake the photo.
+                  </Typography>
+                )}
               </Alert>
             )}
 
@@ -2539,6 +2623,24 @@ export default function VisitCreate() {
               onChange={handlePhotoCapture}
             />
           </Button>
+          {visitTargetType === 'individual' && localToday() === SYSTEM_PHOTO_UPLOAD_ALLOWED_ON && (
+            <Box sx={{ mt: 1.5 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                startIcon={<UploadIcon />}
+              >
+                Upload System Photo
+                {/* No capture attr — opens the gallery/file picker. accept excludes
+                    HEIC so iPhones transcode to JPEG (canvas can't decode HEIC and
+                    the extraction model would see nothing → false "no B-Tag"). */}
+                <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                Temporarily available today only. Uploaded photos go through the same checks as camera captures.
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         {photoDuplicateWarning && (
@@ -2592,10 +2694,10 @@ export default function VisitCreate() {
           </Grid>
         )}
 
-        {/* Extraction feedback — a blurry photo, an unreadable URL bar, or an
-            unread Goldrush ID is a hard error (retake only). A missing B-Tag on an
-            otherwise good photo warns so the agent can retake while the person is
-            still there, or submit anyway (flagged to the team lead). */}
+        {/* Extraction feedback — a blurry photo, an unreadable URL bar, an
+            unread Goldrush ID, or a missing B-Tag is a hard error (retake only).
+            There is no acknowledge-and-continue path: without a B-Tag the visit
+            can neither proceed nor be submitted. */}
         {(() => {
           if (!isGoldrushIndividualCapture() || photos.length === 0) return null
           if (photoExtraction.status === 'checking') {
@@ -2615,16 +2717,6 @@ export default function VisitCreate() {
             <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
               Retake Photo
             </Button>
-          )
-          const retakeAction = (onAcknowledge: () => void, acknowledged: boolean) => (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 160 }}>
-              <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)}>
-                Retake Photo
-              </Button>
-              <Button size="small" color="inherit" variant="contained" onClick={onAcknowledge} disabled={acknowledged}>
-                {acknowledged ? 'Proceeding anyway' : 'Submit Anyway'}
-              </Button>
-            </Box>
           )
           // A blurry photo makes every other read unreliable — show only the
           // blur error and force a retake before anything else is assessed.
@@ -2657,9 +2749,10 @@ export default function VisitCreate() {
                 </Alert>
               )}
               {!hasBtag && !urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeAction(() => setPhotoNoBtagAcknowledged(true), photoNoBtagAcknowledged)}>
+                <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
                   <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
-                  Retake it, or submit anyway — this will be flagged in the team lead report.
+                  Retake the photo with the B-Tag URL clearly visible — you cannot continue
+                  or submit this visit without it.
                 </Alert>
               )}
             </>
@@ -2679,6 +2772,14 @@ export default function VisitCreate() {
     <Card>
       <CardContent>
         <Typography variant="h6" gutterBottom>Review & Submit</Typography>
+
+        {goldrushPhotoIncomplete() && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            <strong>This visit cannot be submitted.</strong> A Goldrush system photo with a
+            visible B-Tag URL (<em>goldrush.co.za/?btag=...</em>) is required. Go back to the
+            Photo step and retake the photo.
+          </Alert>
+        )}
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary">GPS Check-in</Typography>
@@ -2915,6 +3016,18 @@ export default function VisitCreate() {
             size={isMobileContext ? 'medium' : 'large'}
           >
             {(stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) ? 'Loading...' : 'Next'}
+          </Button>
+        ) : goldrushPhotoIncomplete() ? (
+          // No Submit button at all when the B-Tag photo requirement isn't met —
+          // the visit cannot be submitted without it.
+          <Button
+            variant="outlined"
+            color="error"
+            disabled
+            startIcon={<WarningIcon />}
+            size={isMobileContext ? 'medium' : 'large'}
+          >
+            B-Tag Required
           </Button>
         ) : (
           <Button

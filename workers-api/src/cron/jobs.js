@@ -747,6 +747,19 @@ async function checkOverdueInvoices(db) {
   } catch (e) { console.error('checkOverdueInvoices error:', e); }
 }
 
+// users.status (edited by the admin UI) and users.is_active (filtered on by
+// roster/dashboard/picker queries) are written by different code paths and can
+// drift, leaving "inactive" users visible everywhere. The write paths now keep
+// them in sync; this nightly pass converges any rows that drifted before the
+// fix or through direct DB edits. Safe to run bidirectionally: nothing sets
+// users.is_active without also setting status.
+async function syncUserActiveFlags(db) {
+  try {
+    await db.prepare("UPDATE users SET is_active = 0 WHERE status IS NOT NULL AND status != 'active' AND is_active = 1").run();
+    await db.prepare("UPDATE users SET is_active = 1 WHERE (status = 'active' OR status IS NULL) AND is_active = 0").run();
+  } catch (e) { console.error('syncUserActiveFlags error:', e); }
+}
+
 async function checkLowStock(db) {
   try {
     const lowStock = await db.prepare("SELECT s.product_id, s.warehouse_id, s.quantity, p.name, s.tenant_id FROM stock_levels s JOIN products p ON s.product_id = p.id WHERE s.quantity <= COALESCE(s.reorder_level, 10) AND s.quantity > 0").all();
@@ -1056,6 +1069,7 @@ export {
   reactToIssue,
   reactToIssues,
   checkOverdueInvoices,
+  syncUserActiveFlags,
   checkLowStock,
   checkStaleVanLoads,
   closeCommissionPeriod,
