@@ -63,7 +63,9 @@ export default function UserManagementPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  // Inactive/suspended users are hidden by default for every role — pick
+  // "Inactive" or "All Statuses" in the filter to see them.
+  const [statusFilter, setStatusFilter] = useState('active')
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -106,7 +108,7 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     fetchUsers()
-  }, [searchTerm, roleFilter, statusFilter])
+  }, [searchTerm, roleFilter])
 
   useEffect(() => {
     apiClient.get('/field-ops/companies').then(res => {
@@ -118,10 +120,11 @@ export default function UserManagementPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
+      // Status is filtered client-side (the backend /users endpoint ignores a
+      // status param) so the stats cards can still count inactive users.
       const params = new URLSearchParams()
       if (searchTerm) params.append('search', searchTerm)
       if (roleFilter) params.append('role', roleFilter)
-      if (statusFilter) params.append('status', statusFilter)
 
       const response = await apiClient.get(`/users?${params.toString()}`)
       const respData = response.data?.data || response.data || {}
@@ -293,6 +296,13 @@ export default function UserManagementPage() {
     return statusObj?.color || 'gray'
   }
 
+  // Table rows after the status filter; defaults to active-only so inactive
+  // users stay hidden for every role unless explicitly requested. A missing
+  // status counts as active (the schema default).
+  const visibleUsers = statusFilter
+    ? users.filter(u => (u.status || 'active') === statusFilter)
+    : users
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -398,7 +408,7 @@ export default function UserManagementPage() {
           <div className="text-center py-12">
             <LoadingSpinner size="lg" />
           </div>
-        ) : users.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-600">No users found</p>
           </div>
@@ -428,7 +438,7 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
+                {visibleUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-surface-secondary">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
