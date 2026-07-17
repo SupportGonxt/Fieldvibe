@@ -2631,8 +2631,10 @@ export default function VisitCreate() {
                 startIcon={<UploadIcon />}
               >
                 Upload System Photo
-                {/* no capture attr — opens the gallery/file picker */}
-                <input type="file" hidden accept="image/*" onChange={handlePhotoCapture} />
+                {/* No capture attr — opens the gallery/file picker. accept excludes
+                    HEIC so iPhones transcode to JPEG (canvas can't decode HEIC and
+                    the extraction model would see nothing → false "no B-Tag"). */}
+                <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
               </Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                 Temporary — available today only. Uploaded photos go through the same checks as camera captures.

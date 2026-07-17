@@ -2182,7 +2182,7 @@ app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
     if (imageBytes.length > 4_000_000) {
       return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Image too large' });
     }
-    const prompt = `This is a photo taken with a phone camera of a screen showing the Goldrush gaming/betting system opened in a browser.
+    const prompt = `This is an image of the Goldrush gaming/betting system opened in a browser — either a photo taken with a phone camera of a screen, or a screenshot taken on the device itself. Treat both the same: read what is shown in the browser.
 
 Task 1 — Image quality: Is the photo sharp enough that the on-screen text can be read reliably? If the image is out of focus, motion-blurred, or the text is too blurry to read, set photo_blurry to true.
 
@@ -2190,7 +2190,7 @@ Task 2 — Player ID: Find the 9-digit Goldrush player ID number visible in the 
 
 Task 3 — Customer name: Find the customer's first name and surname shown on the Goldrush system screen (e.g. on the player profile or account details). Extract them only if clearly readable.
 
-Task 4 — URL bar visibility: Is the browser address bar clearly visible AND readable in the photographed screen? It must not be cropped out, obscured, or too blurry to read.
+Task 4 — URL bar visibility: Is the browser address bar clearly visible AND readable in the image (photographed screen or screenshot)? It must not be cropped out, obscured, or too blurry to read.
 
 Task 5 — B-Tag URL: Only if the address bar is clearly readable: check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
 
@@ -2257,9 +2257,12 @@ Output JSON only.`;
         extractedLastName = cleanName(parsed.extracted_last_name);
         // B-Tags are long numeric strings; a short digit run is an OCR misread or a
         // hallucinated value — reject it so a missing B-Tag is flagged, not masked.
-        // A B-Tag also can't be trusted off an unreadable URL bar.
+        // Reject a B-Tag only when the model EXPLICITLY judged the URL bar unreadable
+        // (url_visible false). null means it didn't judge — common on screenshots —
+        // and discarding a cleanly extracted btag on null flagged valid captures
+        // as "no B-Tag" (the missing B-Tag is a hard block, so this locked agents out).
         const rawBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : '';
-        extractedBtag = urlVisible === true && rawBtag.length >= 6 ? rawBtag : null;
+        extractedBtag = urlVisible !== false && rawBtag.length >= 6 ? rawBtag : null;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
