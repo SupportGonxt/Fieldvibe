@@ -2192,7 +2192,7 @@ Task 3 — Customer name: Find the customer's first name and surname shown on th
 
 Task 4 — URL bar visibility: Is the browser address bar clearly visible AND readable in the image (photographed screen or screenshot)? It must not be cropped out, obscured, or too blurry to read.
 
-Task 5 — B-Tag URL: Only if the address bar is clearly readable: check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter (e.g. goldrush.co.za/?btag=123456789). Extract the btag number if present.
+Task 5 — B-Tag URL: Only if the address bar is clearly readable: check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter. The btag number can be ANY length — short tags are valid (e.g. goldrush.co.za/?btag=25 or goldrush.co.za/?btag=123456789). Extract the btag number if present.
 
 Return ONLY a JSON object, no prose, no markdown:
 {"photo_blurry": false, "extracted_id": "123456789", "extracted_first_name": "John", "extracted_last_name": "Smith", "url_visible": true, "extracted_btag": "123456789", "confidence": "high"}
@@ -2255,14 +2255,15 @@ Output JSON only.`;
           : parsed.photo_blurry === false || parsed.photo_blurry === 'false' ? false : null;
         extractedFirstName = cleanName(parsed.extracted_first_name);
         extractedLastName = cleanName(parsed.extracted_last_name);
-        // B-Tags are long numeric strings; a short digit run is an OCR misread or a
-        // hallucinated value — reject it so a missing B-Tag is flagged, not masked.
+        // B-Tags have no fixed length — real referral URLs as short as ?btag=25
+        // exist, so any non-empty digit run counts (a >=6 gate here rejected valid
+        // short tags and hard-blocked those captures as "no B-Tag").
         // Reject a B-Tag only when the model EXPLICITLY judged the URL bar unreadable
         // (url_visible false). null means it didn't judge — common on screenshots —
         // and discarding a cleanly extracted btag on null flagged valid captures
         // as "no B-Tag" (the missing B-Tag is a hard block, so this locked agents out).
         const rawBtag = parsed.extracted_btag ? String(parsed.extracted_btag).replace(/\D/g, '') : '';
-        extractedBtag = urlVisible !== false && rawBtag.length >= 6 ? rawBtag : null;
+        extractedBtag = urlVisible !== false && rawBtag.length >= 1 ? rawBtag : null;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
