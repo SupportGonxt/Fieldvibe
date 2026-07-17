@@ -15,7 +15,7 @@ import ErrorState from '../../components/ui/ErrorState'
 import RevenueSparkline, { type TrendPoint } from '../../components/field-ops/RevenueSparkline'
 import BoPerformanceCard from '../../components/field-ops/BoPerformanceCard'
 
-type Period = 'day' | 'week' | 'month'
+type Period = 'day' | 'week' | 'month' | 'custom'
 
 interface Leader { id: string; name: string; signups: number; converted: number }
 interface Agent { id: string; name: string; phone?: string; today?: number; last_activity?: string }
@@ -57,9 +57,10 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'day', label: 'Day' },
   { key: 'week', label: 'Week' },
   { key: 'month', label: 'Month' },
+  { key: 'custom', label: 'Custom' },
 ]
 
-const PREV_LABEL: Record<Period, string> = { day: 'vs prev day', week: 'vs prev week', month: 'vs prev month' }
+const PREV_LABEL: Record<Period, string> = { day: 'vs prev day', week: 'vs prev week', month: 'vs prev month', custom: 'vs prev period' }
 
 // Step an anchor date one period back/forward (UTC date math, backend clamps to today).
 function shiftAnchor(anchor: string, period: Period, dir: -1 | 1): string {
@@ -78,6 +79,10 @@ const fmtShort = (iso: string) =>
 // Human label for the displayed window (end is exclusive).
 function windowLabel(w: Overview['window'], period: Period): string {
   if (period === 'day') return w.start === w.today ? `Today · ${fmtDay(w.start)}` : fmtDay(w.start)
+  if (period === 'custom') {
+    const lastDay = shiftAnchor(w.end, 'day', -1)
+    return w.start === lastDay ? fmtDay(w.start) : `${fmtShort(w.start)} – ${fmtShort(lastDay)}`
+  }
   const last = shiftAnchor(w.end, 'day', -1)
   if (period === 'month') {
     const m = new Date(`${w.start}T00:00:00Z`).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -142,6 +147,9 @@ export default function GmOverviewPage() {
   const [expandedManager, setExpandedManager] = useState<string | null>(null)
 
   const today = new Date().toISOString().slice(0, 10)
+  // Custom range (inclusive both ends) — defaults to the last 7 days.
+  const [customStart, setCustomStart] = useState<string>(shiftAnchor(today, 'week', -1))
+  const [customEnd, setCustomEnd] = useState<string>(today)
   const atCurrent = !anchor || anchor >= today
 
   const pickPeriod = (p: Period) => { setPeriod(p); setAnchor(null) }
@@ -153,9 +161,11 @@ export default function GmOverviewPage() {
   }
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['gm-overview', period, anchor, company],
+    queryKey: ['gm-overview', period, anchor, company, period === 'custom' ? `${customStart}:${customEnd}` : ''],
     queryFn: async () => (await apiClient.get<Overview & { success: boolean }>(
-      `/field-ops/gm/overview?period=${period}${anchor ? `&anchor=${anchor}` : ''}${company ? `&company_id=${company}` : ''}`
+      period === 'custom'
+        ? `/field-ops/gm/overview?period=custom&start=${customStart}&end=${customEnd}${company ? `&company_id=${company}` : ''}`
+        : `/field-ops/gm/overview?period=${period}${anchor ? `&anchor=${anchor}` : ''}${company ? `&company_id=${company}` : ''}`
     )).data,
     staleTime: 1000 * 60 * 2,
   })
@@ -222,22 +232,46 @@ export default function GmOverviewPage() {
               </button>
             ))}
           </div>
-          <div className="inline-flex items-center rounded-xl bg-surface-secondary p-1">
-            <button onClick={stepBack} className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm" aria-label="Previous period">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="px-2 text-sm font-medium whitespace-nowrap min-w-[9rem] text-center">
-              {windowLabel(data.window, period)}
-            </span>
-            <button
-              onClick={stepForward}
-              disabled={atCurrent}
-              className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
-              aria-label="Next period"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {period === 'custom' ? (
+            // Custom range picker — end is inclusive; both clamped to today.
+            <div className="inline-flex items-center gap-1 rounded-xl bg-surface-secondary p-1">
+              <input
+                type="date"
+                value={customStart}
+                max={customEnd || today}
+                onChange={(e) => e.target.value && setCustomStart(e.target.value > (customEnd || today) ? customEnd : e.target.value)}
+                className="px-2 py-1 text-sm rounded-lg bg-white shadow-sm"
+                aria-label="Start date"
+              />
+              <span className="text-sm text-content-secondary px-0.5">–</span>
+              <input
+                type="date"
+                value={customEnd}
+                min={customStart}
+                max={today}
+                onChange={(e) => e.target.value && setCustomEnd(e.target.value < customStart ? customStart : e.target.value > today ? today : e.target.value)}
+                className="px-2 py-1 text-sm rounded-lg bg-white shadow-sm"
+                aria-label="End date"
+              />
+            </div>
+          ) : (
+            <div className="inline-flex items-center rounded-xl bg-surface-secondary p-1">
+              <button onClick={stepBack} className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm" aria-label="Previous period">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-2 text-sm font-medium whitespace-nowrap min-w-[9rem] text-center">
+                {windowLabel(data.window, period)}
+              </span>
+              <button
+                onClick={stepForward}
+                disabled={atCurrent}
+                className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none"
+                aria-label="Next period"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <button onClick={() => refetch()} className="p-2 rounded-lg hover:bg-surface-secondary" aria-label="Refresh">
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
