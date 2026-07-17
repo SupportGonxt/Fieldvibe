@@ -2637,7 +2637,7 @@ export default function VisitCreate() {
                 <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
               </Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Temporary — available today only. Uploaded photos go through the same checks as camera captures.
+                Temporarily available today only. Uploaded photos go through the same checks as camera captures.
               </Typography>
             </Box>
           )}
