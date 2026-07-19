@@ -15,6 +15,8 @@ ENVIRONMENT = "production"
 # VAPID_PRIVATE_KEY is a secret: `wrangler secret put VAPID_PRIVATE_KEY` (per env).
 VAPID_PUBLIC_KEY = "BJ4L8SDZ8swmv4P_NFWJv8azlow_piVQOjzcmMTETD75HniyQjUpvI2M7LRvzM-5Sq58FYNwWNYkk_8w126Ndb8"
 VAPID_SUBJECT = "mailto:reshigan@vantax.co.za"
+# Origin the public QR scan URL points at (the Worker itself, for server-side redirect).
+SCAN_BASE_URL = "https://fieldvibe-api.vantax.co.za"
 
 [[d1_databases]]
 binding = "DB"
@@ -54,7 +56,7 @@ crons = [
 # ─────────────────────────────────────────
 [env.preview]
 name = "fieldvibe-api-preview"
-vars = { ENVIRONMENT = "preview", VAPID_PUBLIC_KEY = "BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw", VAPID_SUBJECT = "mailto:reshigan@vantax.co.za" }
+vars = { ENVIRONMENT = "preview", VAPID_PUBLIC_KEY = "BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw", VAPID_SUBJECT = "mailto:reshigan@vantax.co.za", SCAN_BASE_URL = "https://fieldvibe-api-preview.vantax.co.za" }
 
 routes = [
   { pattern = "fieldvibe-api-preview.vantax.co.za/*", zone_name = "vantax.co.za" }

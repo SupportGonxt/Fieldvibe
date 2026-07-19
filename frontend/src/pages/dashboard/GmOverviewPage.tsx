@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
@@ -181,6 +181,17 @@ export default function GmOverviewPage() {
     staleTime: 1000 * 60 * 2,
   })
 
+  // QR scan engagement — same period/company scope as the overview.
+  const { data: qr } = useQuery({
+    queryKey: ['gm-qr-summary', period, anchor, company, period === 'custom' ? `${customStart}:${customEnd}` : ''],
+    queryFn: async () => (await apiClient.get<{ data: { people_reached: number; total_scans: number; codes_generated: number } }>(
+      period === 'custom'
+        ? `/field-ops/qr/summary?period=custom&anchor=${customStart}&range_end=${customEnd}${company ? `&company_id=${company}` : ''}`
+        : `/field-ops/qr/summary?period=${period}${anchor ? `&anchor=${anchor}` : ''}${company ? `&company_id=${company}` : ''}`
+    )).data?.data ?? null,
+    staleTime: 1000 * 60 * 2,
+  })
+
   if (isLoading) return <div className="p-8 flex justify-center"><LoadingSpinner /></div>
   if (error || !data) return <ErrorState message="Could not load the GM overview." onRetry={() => refetch()} />
 
@@ -302,6 +313,16 @@ export default function GmOverviewPage() {
           </div>
         )}
       </div>
+
+      {/* QR engagement */}
+      {qr && (qr.codes_generated > 0 || qr.total_scans > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Kpi icon={QrCode} tone="green" label="People reached (QR)" value={formatNumber(qr.people_reached)}
+            sub={`${formatNumber(qr.codes_generated)} codes shown`} />
+          <Kpi icon={Activity} tone="amber" label="Total QR scans" value={formatNumber(qr.total_scans)}
+            sub="all hits, including re-scans" />
+        </div>
+      )}
 
       {/* Risks */}
       {risks && risks.length > 0 && (

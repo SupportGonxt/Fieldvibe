@@ -12,6 +12,7 @@ import kpiRoutes from './routes/field-ops/kpi.js';
 import depositRoutes from './routes/field-ops/deposits.js';
 import metricFactsRoutes from './routes/field-ops/metricFacts.js';
 import issueRoutes from './routes/field-ops/issues.js';
+import qrRoutes, { handleScan } from './routes/field-ops/qr.js';
 import cashReconRoutes from './routes/cashRecon.js';
 import fieldOpsPerformanceRoutes from './routes/fieldOpsPerformance.js';
 import vanSalesRoutes from './routes/vanSales.js';
@@ -249,6 +250,11 @@ app.get('/api/uploads/:key{.+}', async (c) => {
   }
 });
 
+// ==================== PUBLIC QR SCAN REDIRECT (no auth — scanned by anonymous public) ====================
+// Records the scan and 302-redirects to the code's destination. Rate-limited to blunt
+// scan-flood abuse. Mounted on app (not api) so it skips authMiddleware, like /api/uploads/*.
+app.get('/s/:token', rateLimiter(60, 60000), handleScan);
+
 // ==================== FIELD-OPS ROUTE MODULES ====================
 api.route('/field-ops', configRoutes);
 api.route('/field-ops', hierarchyRoutes);
@@ -259,6 +265,7 @@ api.route('/field-ops', kpiRoutes);
 api.route('/field-ops', depositRoutes);
 api.route('/field-ops', metricFactsRoutes);
 api.route('/field-ops', issueRoutes);
+api.route('/field-ops', qrRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 // Mounted last so every api.get/post above (including routes declared late in
