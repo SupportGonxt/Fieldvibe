@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Loader2, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { Loader2, TrendingUp, TrendingDown, Wallet, QrCode } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
 
@@ -45,6 +45,7 @@ function lastDayOf(p: string): string {
 
 export default function GMPnl() {
   const [pnl, setPnl] = useState<Pnl | null>(null)
+  const [qr, setQr] = useState<{ people_reached: number; total_scans: number; codes_generated: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [projected, setProjected] = useState(false)
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
@@ -73,6 +74,15 @@ export default function GMPnl() {
       .catch(() => setPnl(null))
       .finally(() => setLoading(false))
   }, [company, month, thisMonth])
+
+  // QR scan engagement for the same scope — separate call keeps the pnl money-math untouched.
+  // `month` is a YYYY-MM string; the backend expects a period keyword + anchor day.
+  useEffect(() => {
+    fieldOperationsService
+      .getQrSummary({ period: 'month', anchor: `${month}-01`, company_id: company || undefined })
+      .then((data: any) => setQr(data ?? null))
+      .catch(() => setQr(null))
+  }, [company, month])
 
   const revenue = pnl ? (projected ? pnl.projectedRevenue : pnl.revenue) : 0
   const incentive = pnl ? (projected ? pnl.projectedIncentiveCost : pnl.incentiveCost) : 0
@@ -163,6 +173,20 @@ export default function GMPnl() {
           <Stat label="Signups" value={pnl.signups} sub={`${pnl.qualifiedSignups} qualified`} />
           <Stat label="Converted" value={pnl.converted} sub={`${pnl.qualifiedConverted} qualified`} />
         </div>
+
+        {/* QR engagement */}
+        {qr && (qr.codes_generated > 0 || qr.total_scans > 0) && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <QrCode className="w-4 h-4 text-primary" />
+              <span className="text-xs text-token-faint uppercase tracking-wide">QR engagement</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Stat label="People reached" value={qr.people_reached} sub={`${qr.codes_generated} codes shown`} />
+              <Stat label="Total scans" value={qr.total_scans} sub="all hits (incl. re-scans)" />
+            </div>
+          </div>
+        )}
           </>
         )}
       </div>

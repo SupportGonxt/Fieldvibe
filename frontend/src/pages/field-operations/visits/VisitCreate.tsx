@@ -21,10 +21,14 @@ import {
   ArrowForward as NextIcon,
   Send as SubmitIcon,
   AddBusiness as AddStoreIcon,
-  Poll as SurveyIcon
+  Poll as SurveyIcon,
+  QrCode2 as QrIcon,
+  Refresh as RefreshIcon,
+  CloudOff as OfflineIcon
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
+import { QrImage } from '../../../components/field-ops/QrImage'
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 
 // Haversine distance between two GPS coordinates in meters
@@ -277,7 +281,15 @@ export default function VisitCreate() {
 
   // Dynamic process flow steps from backend
   const [processFlowSteps, setProcessFlowSteps] = useState<ProcessFlowStep[]>([])
+  const [processFlowId, setProcessFlowId] = useState<string | null>(null)
   const [, setProcessFlowLoaded] = useState(false)
+
+  // Step: QR redirect — a single-use tracking code minted per visit for anonymous scanners.
+  const [qrCode, setQrCode] = useState<{ id: string; token: string; scan_url: string; destination_url: string } | null>(null)
+  const [qrIssuing, setQrIssuing] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
+  const [qrIssuedCount, setQrIssuedCount] = useState(0)
+  const [online, setOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine)
 
   // Step: GPS
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(draft?.gpsLocation ?? null)
@@ -408,6 +420,7 @@ export default function VisitCreate() {
         visitTargetType || undefined
       )
       const flowData = res?.data || res
+      setProcessFlowId(flowData?.id || null)
       if (flowData?.steps && Array.isArray(flowData.steps) && flowData.steps.length > 0) {
         setProcessFlowSteps(
           flowData.steps.sort((a: ProcessFlowStep, b: ProcessFlowStep) => a.step_order - b.step_order)
@@ -1125,6 +1138,58 @@ export default function VisitCreate() {
     }
   }
 
+  // ── QR redirect step ──
+  const qrConfig = currentStepKey === 'qr' ? parseStepConfig(activeSteps[activeStep]?.config) : {}
+
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  const issueQr = useCallback(async () => {
+    if (!processFlowId) { setQrError('This QR step is not linked to a saved process flow.'); return }
+    setQrIssuing(true)
+    setQrError(null)
+    try {
+      const data = await fieldOperationsService.issueQrCode({
+        process_flow_id: processFlowId,
+        step_key: 'qr',
+        company_id: selectedCompany || null,
+      })
+      setQrCode(data)
+      setQrIssuedCount(c => c + 1)
+    } catch (e: any) {
+      setQrError(e?.response?.data?.message || 'Could not generate a QR code. Check your connection and try again.')
+    } finally {
+      setQrIssuing(false)
+    }
+  }, [processFlowId, selectedCompany])
+
+  const rerollQr = useCallback(async () => {
+    if (!qrCode) { issueQr(); return }
+    setQrIssuing(true)
+    setQrError(null)
+    try {
+      const data = await fieldOperationsService.rerollQrCode(qrCode.id)
+      setQrCode(data)
+      setQrIssuedCount(c => c + 1)
+    } catch (e: any) {
+      setQrError(e?.response?.data?.message || 'Could not generate a new code.')
+    } finally {
+      setQrIssuing(false)
+    }
+  }, [qrCode, issueQr])
+
+  // Auto-issue the first code when the agent reaches the QR step (needs connectivity).
+  useEffect(() => {
+    if (currentStepKey === 'qr' && online && processFlowId && !qrCode && !qrIssuing && !qrError) {
+      issueQr()
+    }
+  }, [currentStepKey, online, processFlowId, qrCode, qrIssuing, qrError, issueQr])
+
   // Step validation based on dynamic step key
   const canProceed = (): boolean => {
     switch (currentStepKey) {
@@ -1232,6 +1297,12 @@ export default function VisitCreate() {
         }
         return true
       }
+      case 'qr': {
+        // Optional/informational by default; if the admin marked it required, the agent
+        // must have displayed at least one code (they can't force anyone to scan).
+        if (!activeSteps[activeStep]?.is_required) return true
+        return qrIssuedCount > 0
+      }
       case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
     }
@@ -1254,6 +1325,7 @@ export default function VisitCreate() {
         if (photoExtraction.status !== 'done' || !photoExtraction.extractedId) return 'No Goldrush ID could be read from the photo. Retake the photo before continuing.'
         return 'Please complete this step before continuing.'
       }
+      case 'qr': return 'Generate a QR code before continuing.'
       default: return 'Please complete all required fields before continuing.'
     }
   }
@@ -2966,6 +3038,69 @@ export default function VisitCreate() {
     </Card>
   )
 
+  const renderQrStep = () => (
+    <Card>
+      <CardContent>
+        <Box sx={{ textAlign: 'center', py: 2 }}>
+          <QrIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
+          <Typography variant="h6" gutterBottom>
+            {(qrConfig.label as string) || 'Scan to continue'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Ask the customer to scan this code with their phone camera. Each person gets a
+            unique code — tap "New code for next person" between scans.
+          </Typography>
+
+          {!online && !qrCode && (
+            <Alert severity="warning" icon={<OfflineIcon />} sx={{ mb: 2, textAlign: 'left' }}>
+              You're offline. Reconnect to generate a QR code. You can skip this step and continue.
+            </Alert>
+          )}
+
+          {qrError && (
+            <Alert severity="error" sx={{ mb: 2, textAlign: 'left' }}>{qrError}</Alert>
+          )}
+
+          {qrIssuing && !qrCode && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 2 }}>
+              <CircularProgress size={36} />
+              <Typography variant="body2">Generating code…</Typography>
+            </Box>
+          )}
+
+          {qrCode && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+              <QrImage value={qrCode.scan_url} size={220} />
+              <Chip
+                icon={<CheckIcon />}
+                label={`${qrIssuedCount} ${qrIssuedCount === 1 ? 'code' : 'codes'} shown this visit`}
+                color="success"
+                variant="outlined"
+              />
+              <Button
+                variant="contained"
+                onClick={rerollQr}
+                disabled={qrIssuing || !online}
+                startIcon={<RefreshIcon />}
+              >
+                New code for next person
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Redirects to: {qrCode.destination_url}
+              </Typography>
+            </Box>
+          )}
+
+          {!qrCode && !qrIssuing && (online || qrError) && (
+            <Button variant="contained" onClick={issueQr} disabled={qrIssuing} startIcon={<QrIcon />}>
+              Generate QR code
+            </Button>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  )
+
   // Render step content based on dynamic step key
   const renderStepContent = () => {
     switch (currentStepKey) {
@@ -2975,6 +3110,7 @@ export default function VisitCreate() {
       case 'survey': return renderSurveyStep()
       case 'questionnaire': return renderQuestionnaireStep()
       case 'photo': return renderPhotoStep()
+      case 'qr': return renderQrStep()
       case 'review': return renderReviewStep()
       default: return null
     }

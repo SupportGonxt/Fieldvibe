@@ -1358,6 +1358,38 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // --- QR tracking step --- (endpoints always wrap the payload in `data`; unwrap to it)
+  async issueQrCode(data: { process_flow_id: string; step_key?: string; visit_id?: string | null; company_id?: string | null }) {
+    const response = await this.post('/field-ops/qr/issue', data)
+    return response.data?.data ?? response.data
+  }
+
+  async rerollQrCode(id: string) {
+    const response = await this.post(`/field-ops/qr/${id}/reroll`, {})
+    return response.data?.data ?? response.data
+  }
+
+  async getQrStepStats(params: { process_flow_id?: string; company_id?: string; period?: string; anchor?: string; range_end?: string } = {}) {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => { if (v) qs.append(k, String(v)) })
+    const response = await this.get(`/field-ops/qr/step-stats?${qs.toString()}`)
+    return response.data?.data ?? response.data
+  }
+
+  async getQrByAgent(params: { process_flow_id?: string; company_id?: string; period?: string; anchor?: string; range_end?: string } = {}) {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => { if (v) qs.append(k, String(v)) })
+    const response = await this.get(`/field-ops/qr/by-agent?${qs.toString()}`)
+    return response.data?.data ?? response.data
+  }
+
+  async getQrSummary(params: { company_id?: string; period?: string; anchor?: string; range_end?: string } = {}) {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => { if (v) qs.append(k, String(v)) })
+    const response = await this.get(`/field-ops/qr/summary?${qs.toString()}`)
+    return response.data?.data ?? response.data
+  }
+
   // --- Visit Process Flow (get steps for a visit) ---
   async getVisitProcessFlow(companyId?: string, visitTargetType?: string) {
     const params = new URLSearchParams()

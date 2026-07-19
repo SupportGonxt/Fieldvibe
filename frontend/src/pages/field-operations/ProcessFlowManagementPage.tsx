@@ -17,6 +17,7 @@ import {
   Building2,
   Link2,
   Unlink,
+  QrCode,
   AlertCircle,
   MessageSquare,
   Database,
@@ -124,6 +125,7 @@ const AVAILABLE_STEPS = [
   { key: 'questionnaire', label: 'Questionnaire', description: 'Inline questions saved as visit data (visit stays as individual/store)' },
   { key: 'photo', label: 'Photo', description: 'Capture photos (store visits only)' },
   { key: 'board', label: 'Board Placement', description: 'Verify board placement' },
+  { key: 'qr', label: 'QR Redirect', description: 'Show a unique one-time QR that redirects scanners and tracks reach' },
   { key: 'review', label: 'Review & Submit', description: 'Review all data and submit visit' },
 ]
 
@@ -698,11 +700,69 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
                     Shows the company's custom questions as a dedicated step. Answers saved as visit data — visit type stays as individual/store.
                   </p>
                 )}
+                {step.step_key === 'qr' && (() => {
+                  const cfg = (step.config as Record<string, unknown>) || {}
+                  const dest = (cfg.destination_url as string) || ''
+                  const destInvalid = dest.length > 0 && !/^https?:\/\//i.test(dest.trim())
+                  const setCfg = (patch: Record<string, unknown>) => {
+                    const newSteps = [...steps]
+                    newSteps[index] = { ...newSteps[index], config: { ...cfg, ...patch } }
+                    setSteps(newSteps)
+                  }
+                  return (
+                    <div className="mt-2 ml-10 space-y-2">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                          Destination link <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          inputMode="url"
+                          className="input text-xs py-1 w-full"
+                          placeholder="https://promo.example.com/signup"
+                          value={dest}
+                          onChange={(e) => setCfg({ destination_url: e.target.value })}
+                        />
+                        {destInvalid && (
+                          <p className="text-xs text-red-500 mt-1">Must be a full http(s):// link.</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                          Label shown above the QR (optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="input text-xs py-1 w-full"
+                          placeholder="Scan to enter"
+                          value={(cfg.label as string) || ''}
+                          onChange={(e) => setCfg({ label: e.target.value })}
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!cfg.auto_advance}
+                          onChange={(e) => setCfg({ auto_advance: e.target.checked })}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Auto-issue a fresh code after each scan (for a queue of people)
+                        </span>
+                      </label>
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        Each visit generates a unique single-use code. Scans are counted; see reach in the QR analytics below.
+                      </p>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {flow?.id && usedKeys.has('qr') && <QrStepAnalytics flowId={flow.id} />}
 
       <div className="flex gap-3 mt-6">
         <button
@@ -717,6 +777,80 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
           <X className="w-4 h-4" /> Cancel
         </button>
       </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════
+// QR step analytics — reach for the flow's QR step (admins + managers)
+// ══════════════════════════════════════════════════════════
+
+function QrStepAnalytics({ flowId }: { flowId: string }) {
+  const { data: stats } = useQuery({
+    queryKey: ['qr-step-stats', flowId],
+    queryFn: () => fieldOperationsService.getQrStepStats({ process_flow_id: flowId }),
+  })
+  const { data: byAgent } = useQuery({
+    queryKey: ['qr-by-agent', flowId],
+    queryFn: () => fieldOperationsService.getQrByAgent({ process_flow_id: flowId }),
+  })
+
+  const s = stats as { codes_generated?: number; people_reached?: number; total_scans?: number; recent?: Array<{ id: string; status: string; created_at: string; redeemed_at?: string | null }> } | undefined
+  const agents = (byAgent as { agents?: Array<{ agent_id: string; agent_name: string; total_scans: number; people_reached: number }> } | undefined)?.agents || []
+
+  return (
+    <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <QrCode className="w-4 h-4 text-purple-500" />
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">QR reach (this month)</h4>
+      </div>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <StatBox label="Codes shown" value={s?.codes_generated ?? 0} />
+        <StatBox label="People reached" value={s?.people_reached ?? 0} accent />
+        <StatBox label="Total scans" value={s?.total_scans ?? 0} />
+      </div>
+
+      {agents.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">By agent</p>
+          <div className="space-y-1">
+            {agents.map((a) => (
+              <div key={a.agent_id} className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                <span className="text-gray-900 dark:text-white">{a.agent_name}</span>
+                <span className="text-gray-500 dark:text-gray-400 tabular-nums">
+                  {a.people_reached} reached · {a.total_scans} scans
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(s?.recent?.length ?? 0) > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Recent codes ({s?.recent?.length})</summary>
+          <div className="mt-2 space-y-1">
+            {s?.recent?.map((c) => (
+              <div key={c.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded px-3 py-1.5">
+                <span className="font-mono text-gray-400">{c.id.slice(0, 8)}</span>
+                <span className={
+                  c.status === 'redeemed' ? 'text-green-600 dark:text-green-400'
+                  : c.status === 'revoked' ? 'text-red-500' : 'text-gray-500'
+                }>{c.status}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
+function StatBox({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div className={`rounded-lg p-3 text-center ${accent ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
+      <div className={`text-xl font-bold tabular-nums ${accent ? 'text-purple-600 dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>{value}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{label}</div>
     </div>
   )
 }
