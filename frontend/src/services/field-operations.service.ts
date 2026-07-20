@@ -1369,6 +1369,11 @@ class FieldOperationsService extends ApiService {
     return response.data?.data ?? response.data
   }
 
+  async getQrCodeStatus(id: string) {
+    const response = await this.get(`/field-ops/qr/${id}/status`)
+    return response.data?.data ?? response.data
+  }
+
   async getQrStepStats(params: { process_flow_id?: string; company_id?: string; period?: string; anchor?: string; range_end?: string } = {}) {
     const qs = new URLSearchParams()
     Object.entries(params).forEach(([k, v]) => { if (v) qs.append(k, String(v)) })

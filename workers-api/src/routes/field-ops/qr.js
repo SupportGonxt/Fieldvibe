@@ -113,6 +113,21 @@ app.post('/qr/:id/reroll', async (c) => {
   return c.json({ success: true, data: { id, token, scan_url: buildScanUrl(token, scanBase(c)), destination_url: old.destination_url } });
 });
 
+// GET /field-ops/qr/:id/status — scan status for one code, polled by the issuing agent's
+// device so the QR step can gate on a real scan. Not analytics-gated: any authenticated
+// user may check a code in their own tenant.
+app.get('/qr/:id/status', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const code = await db.prepare(`SELECT status FROM qr_codes WHERE tenant_id = ? AND id = ?`).bind(tenantId, id).first();
+  if (!code) return c.json({ success: false, message: 'Code not found' }, 404);
+  const row = await db.prepare(
+    `SELECT COUNT(*) total, COALESCE(SUM(is_redemption), 0) redemptions FROM qr_scan_events WHERE tenant_id = ? AND qr_code_id = ?`,
+  ).bind(tenantId, id).first();
+  return c.json({ success: true, data: { status: code.status, total_scans: row?.total || 0, redemptions: row?.redemptions || 0 } });
+});
+
 // GET /field-ops/qr/step-stats?process_flow_id=&company_id=&period= — totals for a flow's QR step + recent codes.
 app.get('/qr/step-stats', analyticsRoles, async (c) => {
   const db = c.env.DB;

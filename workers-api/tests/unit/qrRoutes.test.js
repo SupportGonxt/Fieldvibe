@@ -248,3 +248,25 @@ describe('GET /qr/summary', () => {
     expect(data.series.length).toBe(1);
   });
 });
+
+describe('GET /qr/:id/status (agent poll)', () => {
+  it('reports status + scan counts before and after a scan', async () => {
+    seedStep(db);
+    const c1 = (await (await post(app, db, '/api/field-ops/qr/issue', { process_flow_id: 'pf1' })).json()).data;
+
+    let { data } = await (await get(app, db, `/api/field-ops/qr/${c1.id}/status`)).json();
+    expect(data.status).toBe('active');
+    expect(data.redemptions).toBe(0);
+
+    await get(app, db, `/s/${c1.token}`);
+    data = (await (await get(app, db, `/api/field-ops/qr/${c1.id}/status`)).json()).data;
+    expect(data.status).toBe('redeemed');
+    expect(data.redemptions).toBe(1);
+    expect(data.total_scans).toBe(1);
+  });
+
+  it('404s for an unknown code', async () => {
+    const res = await get(app, db, '/api/field-ops/qr/nope/status');
+    expect(res.status).toBe(404);
+  });
+});
