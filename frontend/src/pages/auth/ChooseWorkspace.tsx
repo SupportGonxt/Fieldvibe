@@ -1,7 +1,8 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Monitor, Smartphone, ArrowRight } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
-import { fieldHome, officeHome } from '../../utils/workspace'
+import { fieldHome, officeHome, isDualAccess } from '../../utils/workspace'
 
 // Landing screen for roles that can use both surfaces. Not remembered by
 // design: it's just the default landing — direct URLs (/dashboard, /agent/*)
@@ -10,6 +11,12 @@ export default function ChooseWorkspace() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const role = user?.role
+
+  // Non-dual roles (e.g. admin / super_admin — back-office only) never get a
+  // choice: if they land here via an old bookmark, send them to their dashboard.
+  useEffect(() => {
+    if (!isDualAccess(role)) navigate(officeHome(role), { replace: true })
+  }, [role, navigate])
 
   const options = [
     {
