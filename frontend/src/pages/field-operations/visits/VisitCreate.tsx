@@ -1431,12 +1431,8 @@ export default function VisitCreate() {
         payload.custom_question_values = customQuestionValues
       }
 
-      // A missing B-Tag / hidden URL bar no longer blocks submission — flag it so
-      // the backend logs the capture to the capture-failures report instead.
-      if (isGoldrushIndividualCapture() && photoExtraction.status === 'done') {
-        if (photoExtraction.hasBtag !== true) payload.goldrush_no_btag = true
-        if (photoExtraction.urlVisible === false) payload.goldrush_url_not_visible = true
-      }
+      // B-Tag / URL-bar checks removed for Goldrush captures — the photo is no longer
+      // assessed for the B-Tag URL, so nothing is flagged in the capture report.
 
       if (photos.length > 0) {
         payload.photos = photos.map(p => ({
@@ -2598,7 +2594,7 @@ export default function VisitCreate() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {visitTargetType === 'individual' ? (
-            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen, with the B-Tag URL (<em>goldrush.co.za/?btag=...</em>) visible — do not upload a saved screenshot. The customer&apos;s name and Goldrush ID are read from the photo and pre-filled on the Details step. A blurry photo or a hidden URL bar must be retaken. <strong>A photo is required to complete this capture.</strong></>
+            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — do not upload a saved screenshot. The customer&apos;s name and Goldrush ID are read from the photo and pre-filled on the Details step. A blurry photo, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>A photo is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -2773,9 +2769,7 @@ export default function VisitCreate() {
           // 'idle' with a photo present means extraction never ran — same warnings
           // as a failed read, so a system photo is never accepted unchecked.
           const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
-          const hasBtag = photoExtraction.status === 'done' && photoExtraction.hasBtag === true
           const isBlurry = photoExtraction.status === 'done' && photoExtraction.blurry === true
-          const urlNotVisible = photoExtraction.status === 'done' && photoExtraction.urlVisible === false
           const retakeOnlyAction = (
             <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
               Retake Photo
@@ -2793,14 +2787,6 @@ export default function VisitCreate() {
           }
           return (
             <>
-              {urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                  <strong>URL bar not visible.</strong> The browser address bar
-                  (<em>goldrush.co.za/?btag=...</em>) could not be read in the photo. You can
-                  still continue, but the visit will be flagged in the capture report —
-                  retake the photo with the full address bar in frame to avoid this.
-                </Alert>
-              )}
               {extractedId ? (
                 <Alert severity="success" sx={{ mt: 2 }}>
                   Goldrush ID {extractedId} read from the photo — it will be filled in on the Details step.
@@ -2809,13 +2795,6 @@ export default function VisitCreate() {
                 <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
                   <strong>Couldn&apos;t read a Goldrush ID from this photo.</strong> Retake the photo
                   with the 9-digit Goldrush ID clearly visible — you cannot continue without it.
-                </Alert>
-              )}
-              {!hasBtag && !urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                  <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
-                  You can still continue and submit, but the visit will be flagged in the
-                  capture report — retake the photo with the B-Tag URL clearly visible to avoid this.
                 </Alert>
               )}
             </>
