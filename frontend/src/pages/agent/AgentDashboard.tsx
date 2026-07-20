@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../../store/auth.store'
 import BOActionQueue from './BOActionQueue'
 import PerformanceCard from './PerformanceCard'
+import NewsWidget from '../../components/agent/NewsWidget'
 import { usePwaInstall } from '../../hooks/usePwaInstall'
 import { apiClient, invalidateApiCache } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
@@ -530,6 +531,13 @@ export default function AgentDashboard() {
           {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {/* Team news / announcements — agents, team leads and managers. */}
+      {(isAgentRole || authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+        <div className="px-5 mb-3">
+          <NewsWidget />
+        </div>
+      )}
 
       {/* At-a-glance good/bad summary (built off already-loaded state) before the
           exceptions detail below — same exceptions-first read as the GM Overview. */}
