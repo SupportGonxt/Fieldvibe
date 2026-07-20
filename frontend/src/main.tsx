@@ -12,7 +12,7 @@ import './index.css'
 // HTTP-cache entry for the old asset URL fetch a fresh one. Bump the
 // date if a stale-asset incident recurs with an unchanged bundle.
 // (window assignment, not console.info — esbuild drops console in prod)
-;(window as any).__FV_BUILD = '2026-07-08'
+;(window as any).__FV_BUILD = '2026-07-16'
 
 // Apply persisted theme from localStorage (instead of forcing dark)
 try {

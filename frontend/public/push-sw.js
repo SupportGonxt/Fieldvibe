@@ -2,6 +2,28 @@
  * Call payload (from backend ringCallee): { type: 'incoming_call', callId, callerName }.
  * Generic payload (e.g. KPI nudge): { title, body, url? }. */
 
+// Poisoned-cache purge. Before the cacheWillUpdate guard shipped (2026-07-16),
+// the Pages SPA fallback answered a missing chunk URL with index.html + 200 and
+// CacheFirst pinned that HTML under the .js URL. The guard blocks NEW poisoning
+// but never evicts existing entries — CacheFirst reads don't revalidate — and a
+// device whose EAGER chunk is poisoned runs no page JS at all, so only the SW
+// can heal it. This file is cache-busted per deploy (?v=BUILD_ID), so every
+// deploy installs a new SW and re-runs this sweep on activate.
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    for (const name of ['static-assets-cache', 'image-cache']) {
+      try {
+        const cache = await caches.open(name);
+        for (const req of await cache.keys()) {
+          const res = await cache.match(req);
+          const ct = (res && res.headers.get('content-type')) || '';
+          if (ct.includes('text/html')) await cache.delete(req);
+        }
+      } catch (_) { /* best-effort; never block activation */ }
+    }
+  })());
+});
+
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { /* non-JSON push */ }

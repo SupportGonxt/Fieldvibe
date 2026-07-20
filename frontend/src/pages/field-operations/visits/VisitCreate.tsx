@@ -150,8 +150,9 @@ const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
-// Goldrush individuals: the Goldrush system photo is CAPTURED with the camera
-// FIRST (right after visit type) — never uploaded as a screenshot. The customer's
+// Goldrush individuals: the Goldrush system image is provided FIRST (right after
+// visit type) — either captured with the camera or uploaded as a saved screenshot
+// from the gallery. The customer's
 // name, surname and Goldrush ID are extracted from the photo in the background
 // and pre-filled on the Details step that follows. A blurry photo or an unread
 // Goldrush ID is a hard error — the agent must retake the photo. A missing
@@ -203,16 +204,6 @@ const defaultStepsForType = (t: string): ProcessFlowStep[] =>
 const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
   !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
 
-// TEMPORARY (dead after this date — remove when convenient): one-day fallback
-// letting agents upload the Goldrush system photo from the gallery instead of
-// the camera. The upload still runs the full capture pipeline (duplicate check,
-// extraction, B-Tag validation); only the camera-only restriction is lifted.
-const SYSTEM_PHOTO_UPLOAD_ALLOWED_ON = '2026-07-17'
-const localToday = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 // Parse the JSON config string stored on a ProcessFlowStep row
 function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
   if (!config) return {}
@@ -252,6 +243,9 @@ export default function VisitCreate() {
   const isMobileContext = location.pathname.startsWith('/agent/')
   const [draft] = useState(loadVisitDraft)
   const [activeStep, setActiveStep] = useState<number>(draft?.activeStep ?? 0)
+  // Anchor the wizard to a stable step_key (see the remap effect below) — declared here so
+  // the draft-save effect can persist it. Seeded from the restored draft when present.
+  const intendedStepKeyRef = useRef<string>(draft?.activeStepKey ?? '')
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
@@ -382,7 +376,8 @@ export default function VisitCreate() {
     if (!visitTargetType && activeStep === 0) return
     const data = {
       savedAt: Date.now(),
-      activeStep, visitTargetType, gpsLocation,
+      activeStep, activeStepKey: intendedStepKeyRef.current,
+      visitTargetType, gpsLocation,
       selectedCompany, selectedCustomer, newStoreName,
       customFieldValues, customQuestionValues, companyIdTypes,
       individualFirstName, individualLastName, individualIdNumber, individualIdType, individualPhone, individualEmail,
@@ -514,6 +509,23 @@ export default function VisitCreate() {
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
+
+  // Anchor the wizard position to the step's stable step_key, not the numeric index.
+  // activeSteps recomputes as async data (process flow, companies, questionnaires) streams
+  // in — especially after a draft restore — which shifts what a fixed index points to and
+  // bounces the agent between steps ("keeps jumping back"). Re-point activeStep to the
+  // intended step_key whenever the step list changes so the position stays consistent.
+  useEffect(() => {
+    if (activeSteps.length === 0) return
+    const key = intendedStepKeyRef.current
+    if (!key) {
+      // No anchor yet (fresh visit) — adopt whatever step we're currently on.
+      intendedStepKeyRef.current = activeSteps[activeStep]?.step_key ?? ''
+      return
+    }
+    const idx = activeSteps.findIndex(s => s.step_key === key)
+    if (idx !== -1 && idx !== activeStep) setActiveStep(idx)
+  }, [activeSteps, activeStep])
 
   // For non-Goldrush companies, surveys are reached via step assignment rather than
   // a standalone Survey visit type. Hide the Survey option for all mobile agents —
@@ -944,6 +956,19 @@ export default function VisitCreate() {
     })
   }
 
+  // The Goldrush ID currently captured on the visit, read from the form values it
+  // was written into (customQuestionValues / customFieldValues). The field is
+  // read-only and only ever set by photo extraction, so a valid value here proves a
+  // system photo was successfully processed earlier — even after a draft restore
+  // that dropped the transient photoExtraction state.
+  const currentGoldrushId = (): string => {
+    const q = customQuestions.find(qq => isGoldrushIdKey(qq.question_key))
+    if (q && customQuestionValues[q.question_key]) return String(customQuestionValues[q.question_key]).trim()
+    const f = customFields.find(ff => isGoldrushIdKey(ff.field_name))
+    if (f && customFieldValues[f.field_name]) return String(customFieldValues[f.field_name]).trim()
+    return ''
+  }
+
   // Pre-fill the Consumer Name / Consumer Surname company questions (and custom
   // fields) from the name read off the photo. Unlike the Goldrush ID these stay
   // editable, so an OCR misread can be corrected by the agent.
@@ -1016,9 +1041,12 @@ export default function VisitCreate() {
 
   // Photo hash generation (simple hash for duplicate detection)
   const generatePhotoHash = async (dataUrl: string): Promise<string> => {
-    const data = dataUrl.substring(0, 5000)
+    // Hash the FULL image, not just the first 5000 chars. Screenshots from the same
+    // device compress to JPEGs with identical headers + top-of-image bytes, so a
+    // prefix-only hash collided across different screenshots — the server flagged the
+    // upload as a duplicate and the photo was silently dropped ("a photo is required").
     const encoder = new TextEncoder()
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data))
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(dataUrl))
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
@@ -1065,7 +1093,13 @@ export default function VisitCreate() {
     setPhotoDuplicateWarning(null)
 
     const reader = new FileReader()
+    // Without an error handler a failed read silently adds no photo, leaving the agent
+    // stuck on "a photo is required" with no idea why.
+    reader.onerror = () => {
+      toast.error('Could not read that image. Please try another photo.')
+    }
     reader.onload = async (e) => {
+     try {
       const rawDataUrl = e.target?.result as string
       // Compress image to reduce bandwidth and storage
       const dataUrl = await compressImage(rawDataUrl)
@@ -1126,6 +1160,10 @@ export default function VisitCreate() {
       if (isGoldrushIndividualCapture()) {
         extractGoldrushIdFromPhoto(dataUrl)
       }
+     } catch (err) {
+       console.error('Photo processing failed:', err)
+       toast.error('Could not process that image. Please try again or use a different photo.')
+     }
     }
     reader.readAsDataURL(file)
   }
@@ -1317,7 +1355,9 @@ export default function VisitCreate() {
           if (photoExtraction.status === 'checking') return false
           // Hard errors — no acknowledgement path, the photo must be retaken.
           if (photoExtraction.blurry === true) return false
-          if (!photoExtraction.extractedId) return false
+          // Accept a fresh extraction this session OR an already-captured Goldrush ID
+          // (a restored draft drops the transient photoExtraction state but keeps the ID).
+          if (!photoExtraction.extractedId && !/^\d{9}$/.test(currentGoldrushId())) return false
           // A missing B-Tag or hidden URL bar no longer blocks — the visit is
           // flagged in the capture-failures report instead.
         }
@@ -1365,12 +1405,21 @@ export default function VisitCreate() {
   const goldrushPhotoIncomplete = (): boolean => {
     if (!isGoldrushIndividualCapture()) return false
     if (!activeSteps.some(s => s.step_key === 'photo')) return false
-    return !(
+    // This session captured a sharp photo that yielded the ID.
+    if (
       photos.length > 0 &&
       photoExtraction.status === 'done' &&
       !!photoExtraction.extractedId &&
       photoExtraction.blurry !== true
-    )
+    ) return false
+    // Restored-draft path: an app reload mid-visit drops the transient
+    // photoExtraction state (and can drop the photo blob on a localStorage quota
+    // overflow), but the captured Goldrush ID is persisted in the visit's form
+    // values. The ID field is read-only and only set by extraction, so a valid
+    // 9-digit ID still proves a system photo was processed — accept it so a
+    // restored visit isn't permanently trapped at Review.
+    if (/^\d{9}$/.test(currentGoldrushId())) return false
+    return true
   }
 
   const handleNext = async () => {
@@ -1432,7 +1481,9 @@ export default function VisitCreate() {
           }
         }
       }
-      setActiveStep(prev => prev + 1)
+      const nextIndex = activeStep + 1
+      intendedStepKeyRef.current = activeSteps[nextIndex]?.step_key ?? intendedStepKeyRef.current
+      setActiveStep(nextIndex)
     } catch (err) {
       console.error('handleNext error:', err)
       setError('Something went wrong. Please try again.')
@@ -1451,11 +1502,14 @@ export default function VisitCreate() {
     if (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id')) {
       const photoIdx = activeSteps.findIndex(s => s.step_key === 'photo')
       if (photoIdx !== -1 && photoIdx < activeStep) {
+        intendedStepKeyRef.current = activeSteps[photoIdx]?.step_key ?? intendedStepKeyRef.current
         setActiveStep(photoIdx)
         return
       }
     }
-    setActiveStep(prev => prev - 1)
+    const prevIndex = activeStep - 1
+    intendedStepKeyRef.current = activeSteps[prevIndex]?.step_key ?? intendedStepKeyRef.current
+    setActiveStep(prevIndex)
   }
 
   // Final submit
@@ -1530,12 +1584,8 @@ export default function VisitCreate() {
         payload.custom_question_values = customQuestionValues
       }
 
-      // A missing B-Tag / hidden URL bar no longer blocks submission — flag it so
-      // the backend logs the capture to the capture-failures report instead.
-      if (isGoldrushIndividualCapture() && photoExtraction.status === 'done') {
-        if (photoExtraction.hasBtag !== true) payload.goldrush_no_btag = true
-        if (photoExtraction.urlVisible === false) payload.goldrush_url_not_visible = true
-      }
+      // B-Tag / URL-bar checks removed for Goldrush captures — the photo is no longer
+      // assessed for the B-Tag URL, so nothing is flagged in the capture report.
 
       if (photos.length > 0) {
         payload.photos = photos.map(p => ({
@@ -2697,7 +2747,7 @@ export default function VisitCreate() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {visitTargetType === 'individual' ? (
-            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen, with the B-Tag URL (<em>goldrush.co.za/?btag=...</em>) visible — do not upload a saved screenshot. The customer&apos;s name and Goldrush ID are read from the photo and pre-filled on the Details step. A blurry photo or a hidden URL bar must be retaken. <strong>A photo is required to complete this capture.</strong></>
+            <>Provide the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — either take a photo with your camera or upload a saved screenshot from your gallery. The customer&apos;s name and Goldrush ID are read from the image and pre-filled on the Details step. A blurry image, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>An image is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -2785,7 +2835,7 @@ export default function VisitCreate() {
               onChange={handlePhotoCapture}
             />
           </Button>
-          {visitTargetType === 'individual' && localToday() === SYSTEM_PHOTO_UPLOAD_ALLOWED_ON && (
+          {visitTargetType === 'individual' && (
             <Box sx={{ mt: 1.5 }}>
               <Button
                 variant="outlined"
@@ -2795,11 +2845,11 @@ export default function VisitCreate() {
                 Upload System Photo
                 {/* No capture attr — opens the gallery/file picker. accept excludes
                     HEIC so iPhones transcode to JPEG (canvas can't decode HEIC and
-                    the extraction model would see nothing → false "no B-Tag"). */}
+                    the extraction model would see nothing). */}
                 <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
               </Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Temporarily available today only. Uploaded photos go through the same checks as camera captures.
+                Or upload a saved screenshot or photo from your gallery. Uploaded images go through the same checks as camera captures.
               </Typography>
             </Box>
           )}
@@ -2872,9 +2922,7 @@ export default function VisitCreate() {
           // 'idle' with a photo present means extraction never ran — same warnings
           // as a failed read, so a system photo is never accepted unchecked.
           const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
-          const hasBtag = photoExtraction.status === 'done' && photoExtraction.hasBtag === true
           const isBlurry = photoExtraction.status === 'done' && photoExtraction.blurry === true
-          const urlNotVisible = photoExtraction.status === 'done' && photoExtraction.urlVisible === false
           const retakeOnlyAction = (
             <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
               Retake Photo
@@ -2892,14 +2940,6 @@ export default function VisitCreate() {
           }
           return (
             <>
-              {urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                  <strong>URL bar not visible.</strong> The browser address bar
-                  (<em>goldrush.co.za/?btag=...</em>) could not be read in the photo. You can
-                  still continue, but the visit will be flagged in the capture report —
-                  retake the photo with the full address bar in frame to avoid this.
-                </Alert>
-              )}
               {extractedId ? (
                 <Alert severity="success" sx={{ mt: 2 }}>
                   Goldrush ID {extractedId} read from the photo — it will be filled in on the Details step.
@@ -2908,13 +2948,6 @@ export default function VisitCreate() {
                 <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
                   <strong>Couldn&apos;t read a Goldrush ID from this photo.</strong> Retake the photo
                   with the 9-digit Goldrush ID clearly visible — you cannot continue without it.
-                </Alert>
-              )}
-              {!hasBtag && !urlNotVisible && (
-                <Alert severity="warning" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                  <strong>No B-Tag number found in the photo</strong> (<em>goldrush.co.za/?btag=...</em>).
-                  You can still continue and submit, but the visit will be flagged in the
-                  capture report — retake the photo with the B-Tag URL clearly visible to avoid this.
                 </Alert>
               )}
             </>
