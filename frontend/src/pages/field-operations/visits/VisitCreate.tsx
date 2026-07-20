@@ -239,6 +239,9 @@ export default function VisitCreate() {
   const isMobileContext = location.pathname.startsWith('/agent/')
   const [draft] = useState(loadVisitDraft)
   const [activeStep, setActiveStep] = useState<number>(draft?.activeStep ?? 0)
+  // Anchor the wizard to a stable step_key (see the remap effect below) — declared here so
+  // the draft-save effect can persist it. Seeded from the restored draft when present.
+  const intendedStepKeyRef = useRef<string>(draft?.activeStepKey ?? '')
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
@@ -358,7 +361,8 @@ export default function VisitCreate() {
     if (!visitTargetType && activeStep === 0) return
     const data = {
       savedAt: Date.now(),
-      activeStep, visitTargetType, gpsLocation,
+      activeStep, activeStepKey: intendedStepKeyRef.current,
+      visitTargetType, gpsLocation,
       selectedCompany, selectedCustomer, newStoreName,
       customFieldValues, customQuestionValues, companyIdTypes,
       individualFirstName, individualLastName, individualIdNumber, individualIdType, individualPhone, individualEmail,
@@ -489,6 +493,23 @@ export default function VisitCreate() {
 
   const stepLabels = useMemo(() => activeSteps.map(s => s.step_label), [activeSteps])
   const currentStepKey = activeSteps[activeStep]?.step_key || ''
+
+  // Anchor the wizard position to the step's stable step_key, not the numeric index.
+  // activeSteps recomputes as async data (process flow, companies, questionnaires) streams
+  // in — especially after a draft restore — which shifts what a fixed index points to and
+  // bounces the agent between steps ("keeps jumping back"). Re-point activeStep to the
+  // intended step_key whenever the step list changes so the position stays consistent.
+  useEffect(() => {
+    if (activeSteps.length === 0) return
+    const key = intendedStepKeyRef.current
+    if (!key) {
+      // No anchor yet (fresh visit) — adopt whatever step we're currently on.
+      intendedStepKeyRef.current = activeSteps[activeStep]?.step_key ?? ''
+      return
+    }
+    const idx = activeSteps.findIndex(s => s.step_key === key)
+    if (idx !== -1 && idx !== activeStep) setActiveStep(idx)
+  }, [activeSteps, activeStep])
 
   // For non-Goldrush companies, surveys are reached via step assignment rather than
   // a standalone Survey visit type. Hide the Survey option for all mobile agents —
@@ -1348,7 +1369,9 @@ export default function VisitCreate() {
           }
         }
       }
-      setActiveStep(prev => prev + 1)
+      const nextIndex = activeStep + 1
+      intendedStepKeyRef.current = activeSteps[nextIndex]?.step_key ?? intendedStepKeyRef.current
+      setActiveStep(nextIndex)
     } catch (err) {
       console.error('handleNext error:', err)
       setError('Something went wrong. Please try again.')
@@ -1367,11 +1390,14 @@ export default function VisitCreate() {
     if (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id')) {
       const photoIdx = activeSteps.findIndex(s => s.step_key === 'photo')
       if (photoIdx !== -1 && photoIdx < activeStep) {
+        intendedStepKeyRef.current = activeSteps[photoIdx]?.step_key ?? intendedStepKeyRef.current
         setActiveStep(photoIdx)
         return
       }
     }
-    setActiveStep(prev => prev - 1)
+    const prevIndex = activeStep - 1
+    intendedStepKeyRef.current = activeSteps[prevIndex]?.step_key ?? intendedStepKeyRef.current
+    setActiveStep(prevIndex)
   }
 
   // Final submit
