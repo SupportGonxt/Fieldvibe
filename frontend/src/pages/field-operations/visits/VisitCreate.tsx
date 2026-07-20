@@ -289,6 +289,9 @@ export default function VisitCreate() {
   const [qrIssuing, setQrIssuing] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
   const [qrIssuedCount, setQrIssuedCount] = useState(0)
+  const [qrScannedTotal, setQrScannedTotal] = useState(0)
+  const [qrOverride, setQrOverride] = useState(false)
+  const qrCountedIds = useRef<Set<string>>(new Set())
   const [online, setOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine)
 
   // Step: GPS
@@ -1190,6 +1193,29 @@ export default function VisitCreate() {
     }
   }, [currentStepKey, online, processFlowId, qrCode, qrIssuing, qrError, issueQr])
 
+  // Scans happen on other devices, so poll the current code's status while the agent is on
+  // the QR step. Each code that gets redeemed counts once toward the visit's scan total
+  // (tracked in a ref so a reroll to a new code keeps the running total).
+  useEffect(() => {
+    if (currentStepKey !== 'qr' || !qrCode || !online) return
+    let cancelled = false
+    const check = async () => {
+      try {
+        const s = await fieldOperationsService.getQrCodeStatus(qrCode.id)
+        if (cancelled || !s) return
+        if ((s.redemptions ?? 0) > 0 && !qrCountedIds.current.has(qrCode.id)) {
+          qrCountedIds.current.add(qrCode.id)
+          setQrScannedTotal(qrCountedIds.current.size)
+          // Auto-issue the next code for the next person when configured.
+          if (qrConfig.auto_advance) rerollQr()
+        }
+      } catch { /* transient — keep polling */ }
+    }
+    check()
+    const t = setInterval(check, 4000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [currentStepKey, qrCode, online, qrConfig.auto_advance, rerollQr])
+
   // Step validation based on dynamic step key
   const canProceed = (): boolean => {
     switch (currentStepKey) {
@@ -1298,10 +1324,11 @@ export default function VisitCreate() {
         return true
       }
       case 'qr': {
-        // Optional/informational by default; if the admin marked it required, the agent
-        // must have displayed at least one code (they can't force anyone to scan).
+        // Optional/informational by default. If the admin marked it required, at least one
+        // person must have scanned a code this visit — unless the agent explicitly overrode
+        // it (no one available to scan), which flags the visit rather than trapping them.
         if (!activeSteps[activeStep]?.is_required) return true
-        return qrIssuedCount > 0
+        return qrScannedTotal > 0 || qrOverride
       }
       case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
@@ -1325,7 +1352,7 @@ export default function VisitCreate() {
         if (photoExtraction.status !== 'done' || !photoExtraction.extractedId) return 'No Goldrush ID could be read from the photo. Retake the photo before continuing.'
         return 'Please complete this step before continuing.'
       }
-      case 'qr': return 'Generate a QR code before continuing.'
+      case 'qr': return 'Waiting for a scan — at least one person must scan the QR code before you can continue.'
       default: return 'Please complete all required fields before continuing.'
     }
   }
@@ -3068,28 +3095,44 @@ export default function VisitCreate() {
             </Box>
           )}
 
-          {qrCode && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-              <QrImage value={qrCode.scan_url} size={220} />
-              <Chip
-                icon={<CheckIcon />}
-                label={`${qrIssuedCount} ${qrIssuedCount === 1 ? 'code' : 'codes'} shown this visit`}
-                color="success"
-                variant="outlined"
-              />
-              <Button
-                variant="contained"
-                onClick={rerollQr}
-                disabled={qrIssuing || !online}
-                startIcon={<RefreshIcon />}
-              >
-                New code for next person
-              </Button>
-              <Typography variant="caption" color="text.secondary">
-                Redirects to: {qrCode.destination_url}
-              </Typography>
-            </Box>
-          )}
+          {qrCode && (() => {
+            const required = !!activeSteps[activeStep]?.is_required
+            const scanned = qrScannedTotal > 0
+            return (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                <QrImage value={qrCode.scan_url} size={220} />
+                <Chip
+                  icon={scanned ? <CheckIcon /> : undefined}
+                  label={scanned
+                    ? `${qrScannedTotal} ${qrScannedTotal === 1 ? 'person has' : 'people have'} scanned`
+                    : `${qrIssuedCount} ${qrIssuedCount === 1 ? 'code' : 'codes'} shown · no scans yet`}
+                  color={scanned ? 'success' : 'default'}
+                  variant="outlined"
+                />
+                {required && !scanned && !qrOverride && (
+                  <Alert severity="info" icon={<CircularProgress size={16} />} sx={{ textAlign: 'left' }}>
+                    Waiting for at least one person to scan before you can continue…
+                  </Alert>
+                )}
+                <Button
+                  variant="contained"
+                  onClick={rerollQr}
+                  disabled={qrIssuing || !online}
+                  startIcon={<RefreshIcon />}
+                >
+                  New code for next person
+                </Button>
+                {required && !scanned && !qrOverride && (
+                  <Button size="small" color="inherit" onClick={() => setQrOverride(true)} sx={{ textTransform: 'none' }}>
+                    No one could scan — continue anyway
+                  </Button>
+                )}
+                <Typography variant="caption" color="text.secondary">
+                  Redirects to: {qrCode.destination_url}
+                </Typography>
+              </Box>
+            )
+          })()}
 
           {!qrCode && !qrIssuing && (online || qrError) && (
             <Button variant="contained" onClick={issueQr} disabled={qrIssuing} startIcon={<QrIcon />}>
