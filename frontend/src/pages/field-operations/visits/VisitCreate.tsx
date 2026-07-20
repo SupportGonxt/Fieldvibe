@@ -146,8 +146,9 @@ const DEFAULT_STORE_STEPS: ProcessFlowStep[] = [
   { id: 's6', step_key: 'review', step_label: 'Review & Submit', step_order: 6, is_required: 1, config: '{}' },
 ]
 
-// Goldrush individuals: the Goldrush system photo is CAPTURED with the camera
-// FIRST (right after visit type) — never uploaded as a screenshot. The customer's
+// Goldrush individuals: the Goldrush system image is provided FIRST (right after
+// visit type) — either captured with the camera or uploaded as a saved screenshot
+// from the gallery. The customer's
 // name, surname and Goldrush ID are extracted from the photo in the background
 // and pre-filled on the Details step that follows. A blurry photo or an unread
 // Goldrush ID is a hard error — the agent must retake the photo. A missing
@@ -2584,7 +2585,7 @@ export default function VisitCreate() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {visitTargetType === 'individual' ? (
-            <>Use your camera to take a photo of the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — do not upload a saved screenshot. The customer&apos;s name and Goldrush ID are read from the photo and pre-filled on the Details step. A blurry photo, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>A photo is required to complete this capture.</strong></>
+            <>Provide the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — either take a photo with your camera or upload a saved screenshot from your gallery. The customer&apos;s name and Goldrush ID are read from the image and pre-filled on the Details step. A blurry image, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>An image is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -2686,7 +2687,7 @@ export default function VisitCreate() {
                 <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
               </Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Or upload a photo from your gallery. Uploaded photos go through the same checks as camera captures.
+                Or upload a saved screenshot or photo from your gallery. Uploaded images go through the same checks as camera captures.
               </Typography>
             </Box>
           )}
