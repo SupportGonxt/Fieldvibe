@@ -1025,9 +1025,12 @@ export default function VisitCreate() {
 
   // Photo hash generation (simple hash for duplicate detection)
   const generatePhotoHash = async (dataUrl: string): Promise<string> => {
-    const data = dataUrl.substring(0, 5000)
+    // Hash the FULL image, not just the first 5000 chars. Screenshots from the same
+    // device compress to JPEGs with identical headers + top-of-image bytes, so a
+    // prefix-only hash collided across different screenshots — the server flagged the
+    // upload as a duplicate and the photo was silently dropped ("a photo is required").
     const encoder = new TextEncoder()
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data))
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(dataUrl))
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   }
@@ -1074,7 +1077,13 @@ export default function VisitCreate() {
     setPhotoDuplicateWarning(null)
 
     const reader = new FileReader()
+    // Without an error handler a failed read silently adds no photo, leaving the agent
+    // stuck on "a photo is required" with no idea why.
+    reader.onerror = () => {
+      toast.error('Could not read that image. Please try another photo.')
+    }
     reader.onload = async (e) => {
+     try {
       const rawDataUrl = e.target?.result as string
       // Compress image to reduce bandwidth and storage
       const dataUrl = await compressImage(rawDataUrl)
@@ -1135,6 +1144,10 @@ export default function VisitCreate() {
       if (isGoldrushIndividualCapture()) {
         extractGoldrushIdFromPhoto(dataUrl)
       }
+     } catch (err) {
+       console.error('Photo processing failed:', err)
+       toast.error('Could not process that image. Please try again or use a different photo.')
+     }
     }
     reader.readAsDataURL(file)
   }
