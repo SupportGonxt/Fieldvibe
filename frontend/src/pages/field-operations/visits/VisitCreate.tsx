@@ -919,6 +919,19 @@ export default function VisitCreate() {
     })
   }
 
+  // The Goldrush ID currently captured on the visit, read from the form values it
+  // was written into (customQuestionValues / customFieldValues). The field is
+  // read-only and only ever set by photo extraction, so a valid value here proves a
+  // system photo was successfully processed earlier — even after a draft restore
+  // that dropped the transient photoExtraction state.
+  const currentGoldrushId = (): string => {
+    const q = customQuestions.find(qq => isGoldrushIdKey(qq.question_key))
+    if (q && customQuestionValues[q.question_key]) return String(customQuestionValues[q.question_key]).trim()
+    const f = customFields.find(ff => isGoldrushIdKey(ff.field_name))
+    if (f && customFieldValues[f.field_name]) return String(customFieldValues[f.field_name]).trim()
+    return ''
+  }
+
   // Pre-fill the Consumer Name / Consumer Surname company questions (and custom
   // fields) from the name read off the photo. Unlike the Goldrush ID these stay
   // editable, so an OCR misread can be corrected by the agent.
@@ -1217,7 +1230,9 @@ export default function VisitCreate() {
           if (photoExtraction.status === 'checking') return false
           // Hard errors — no acknowledgement path, the photo must be retaken.
           if (photoExtraction.blurry === true) return false
-          if (!photoExtraction.extractedId) return false
+          // Accept a fresh extraction this session OR an already-captured Goldrush ID
+          // (a restored draft drops the transient photoExtraction state but keeps the ID).
+          if (!photoExtraction.extractedId && !/^\d{9}$/.test(currentGoldrushId())) return false
           // A missing B-Tag or hidden URL bar no longer blocks — the visit is
           // flagged in the capture-failures report instead.
         }
@@ -1257,12 +1272,21 @@ export default function VisitCreate() {
   const goldrushPhotoIncomplete = (): boolean => {
     if (!isGoldrushIndividualCapture()) return false
     if (!activeSteps.some(s => s.step_key === 'photo')) return false
-    return !(
+    // This session captured a sharp photo that yielded the ID.
+    if (
       photos.length > 0 &&
       photoExtraction.status === 'done' &&
       !!photoExtraction.extractedId &&
       photoExtraction.blurry !== true
-    )
+    ) return false
+    // Restored-draft path: an app reload mid-visit drops the transient
+    // photoExtraction state (and can drop the photo blob on a localStorage quota
+    // overflow), but the captured Goldrush ID is persisted in the visit's form
+    // values. The ID field is read-only and only set by extraction, so a valid
+    // 9-digit ID still proves a system photo was processed — accept it so a
+    // restored visit isn't permanently trapped at Review.
+    if (/^\d{9}$/.test(currentGoldrushId())) return false
+    return true
   }
 
   const handleNext = async () => {
