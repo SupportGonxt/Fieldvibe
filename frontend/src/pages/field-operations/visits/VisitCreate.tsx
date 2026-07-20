@@ -199,16 +199,6 @@ const defaultStepsForType = (t: string): ProcessFlowStep[] =>
 const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
   !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
 
-// TEMPORARY (dead after this date — remove when convenient): one-day fallback
-// letting agents upload the Goldrush system photo from the gallery instead of
-// the camera. The upload still runs the full capture pipeline (duplicate check,
-// extraction, B-Tag validation); only the camera-only restriction is lifted.
-const SYSTEM_PHOTO_UPLOAD_ALLOWED_ON = '2026-07-17'
-const localToday = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 // Parse the JSON config string stored on a ProcessFlowStep row
 function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
   if (!config) return {}
@@ -2682,7 +2672,7 @@ export default function VisitCreate() {
               onChange={handlePhotoCapture}
             />
           </Button>
-          {visitTargetType === 'individual' && localToday() === SYSTEM_PHOTO_UPLOAD_ALLOWED_ON && (
+          {visitTargetType === 'individual' && (
             <Box sx={{ mt: 1.5 }}>
               <Button
                 variant="outlined"
@@ -2692,11 +2682,11 @@ export default function VisitCreate() {
                 Upload System Photo
                 {/* No capture attr — opens the gallery/file picker. accept excludes
                     HEIC so iPhones transcode to JPEG (canvas can't decode HEIC and
-                    the extraction model would see nothing → false "no B-Tag"). */}
+                    the extraction model would see nothing). */}
                 <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
               </Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Temporarily available today only. Uploaded photos go through the same checks as camera captures.
+                Or upload a photo from your gallery. Uploaded photos go through the same checks as camera captures.
               </Typography>
             </Box>
           )}
