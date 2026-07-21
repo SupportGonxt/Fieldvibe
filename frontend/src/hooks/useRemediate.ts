@@ -38,8 +38,10 @@ export function useRemediate() {
     setBusy(userId)
     try {
       const res = await apiClient.post('/field-ops/calls/start', { callee_id: userId })
-      const { callId, iceServers } = res.data
-      navigate(`/agent/call/${callId}`, { state: { peerName: name, iceServers } })
+      const { callId, iceServers, callee_phone, reachable } = res.data
+      navigate(`/agent/call/${callId}`, {
+        state: { peerName: name, iceServers, calleePhone: callee_phone, reachable },
+      })
     } catch {
       toast.error('Could not start call')
       setBusy(null)

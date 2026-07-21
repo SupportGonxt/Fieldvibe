@@ -14,6 +14,8 @@ type NavState = {
   iceServers?: RTCIceServer[]
   peerName?: string
   callId?: string // incoming passes it here (route has no :callId)
+  calleePhone?: string | null // outgoing: GSM fallback when the app can't reach them
+  reachable?: boolean // outgoing: false = callee has no push-capable device
 }
 
 const LABELS: Record<CallState, string> = {
@@ -54,10 +56,24 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   const over = state === 'ended' || state === 'failed' || state === 'declined'
   const waitingForAnswer = !incoming && !over && state !== 'connected' && state !== 'reconnecting'
 
+  // GSM fallback — an internet call can't reach a phone with no data, so when
+  // the app can't get through we hand the caller to the real dialer instead.
+  const calleePhone = (!incoming && nav.calleePhone) || null
+  const telHref = calleePhone ? `tel:${calleePhone.replace(/[^+\d]/g, '')}` : ''
+  const unreachable = !incoming && nav.reachable === false
+  const phoneFallback = !!calleePhone && (noAnswer || state === 'failed')
+
   // A push-opened window has no history to go back to.
   const leave = () => {
     if (window.history.length > 1) navigate(-1)
     else navigate('/agent/dashboard', { replace: true })
+  }
+
+  // Bail out of the ringing app call into the phone dialer (the tel: href does
+  // the dialing; this just finalizes the in-app attempt as missed).
+  const bailToPhone = () => {
+    apiClient.post(`/field-ops/calls/${callId}/end`, { reason: 'no_answer' }).catch(() => {})
+    sessionRef.current?.hangup()
   }
 
   // Duration timer — runs while connected.
@@ -67,14 +83,15 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
     return () => clearInterval(id)
   }, [state])
 
-  // Leave the call screen a moment after it terminates.
+  // Leave the call screen a moment after it terminates — unless we're offering
+  // the phone-dialer fallback, which needs the caller to read and act on it.
   useEffect(() => {
-    if (over) {
+    if (over && !phoneFallback) {
       const id = setTimeout(leave, 1500)
       return () => clearTimeout(id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [over])
+  }, [over, phoneFallback])
 
   // Audible ring: callee hears a ringtone (+vibration) until they act; caller
   // hears a quiet ringback while waiting — "Ringing…" shouldn't be silent.
@@ -178,11 +195,26 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             {status}
           </span>
         </div>
+        {unreachable && waitingForAnswer && (
+          <p className="mt-3 max-w-[260px] text-center text-xs text-amber-500">
+            Their app can't be reached right now — they may be offline or haven't enabled notifications.
+          </p>
+        )}
       </div>
 
       {/* Controls */}
       <div className="w-full max-w-xs">
-        {over ? null : incoming && !accepted ? (
+        {phoneFallback ? (
+          <div className="flex flex-col items-center gap-4">
+            <a
+              href={telHref}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-on-primary shadow-lg shadow-primary/30 active:scale-95 transition-transform"
+            >
+              <Phone className="w-5 h-5" /> Call {calleePhone} instead
+            </a>
+            <button onClick={leave} className="text-sm text-token-muted">Close</button>
+          </div>
+        ) : over ? null : incoming && !accepted ? (
           <div className="flex items-center justify-around">
             <button
               onClick={decline}
@@ -214,6 +246,15 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
               <PhoneOff className="w-7 h-7 text-white" />
             </button>
           </div>
+        )}
+        {waitingForAnswer && calleePhone && (
+          <a
+            href={telHref}
+            onClick={bailToPhone}
+            className="mt-8 block text-center text-sm text-primary underline underline-offset-4"
+          >
+            Can't reach them? Call {calleePhone}
+          </a>
         )}
       </div>
     </div>
