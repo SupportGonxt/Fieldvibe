@@ -284,7 +284,6 @@ export default function VisitCreate() {
   const [qrError, setQrError] = useState<string | null>(null)
   const [qrIssuedCount, setQrIssuedCount] = useState(0)
   const [qrScannedTotal, setQrScannedTotal] = useState(0)
-  const [qrOverride, setQrOverride] = useState(false)
   const qrCountedIds = useRef<Set<string>>(new Set())
   const [online, setOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine)
 
@@ -1364,11 +1363,11 @@ export default function VisitCreate() {
         return true
       }
       case 'qr': {
-        // Optional/informational by default. If the admin marked it required, at least one
-        // person must have scanned a code this visit — unless the agent explicitly overrode
-        // it (no one available to scan), which flags the visit rather than trapping them.
+        // Optional/informational by default. If the admin marked it required, this is a
+        // hard block — at least one person must have actually scanned a code this visit.
+        // There is no override: the agent cannot continue until a real scan is recorded.
         if (!activeSteps[activeStep]?.is_required) return true
-        return qrScannedTotal > 0 || qrOverride
+        return qrScannedTotal > 0
       }
       case 'review': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       default: return true
@@ -3142,9 +3141,9 @@ export default function VisitCreate() {
                   color={scanned ? 'success' : 'default'}
                   variant="outlined"
                 />
-                {required && !scanned && !qrOverride && (
+                {required && !scanned && (
                   <Alert severity="info" icon={<CircularProgress size={16} />} sx={{ textAlign: 'left' }}>
-                    Waiting for at least one person to scan before you can continue…
+                    Waiting for at least one person to scan — you can&apos;t continue until the code is scanned.
                   </Alert>
                 )}
                 <Button
@@ -3155,11 +3154,6 @@ export default function VisitCreate() {
                 >
                   New code for next person
                 </Button>
-                {required && !scanned && !qrOverride && (
-                  <Button size="small" color="inherit" onClick={() => setQrOverride(true)} sx={{ textTransform: 'none' }}>
-                    No one could scan — continue anyway
-                  </Button>
-                )}
                 <Typography variant="caption" color="text.secondary">
                   Redirects to: {qrCode.destination_url}
                 </Typography>
