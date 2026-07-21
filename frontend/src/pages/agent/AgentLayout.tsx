@@ -1,38 +1,16 @@
-import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Home, MapPin, BarChart3, User, Plus, ArrowLeft, Users, Building2, PhoneCall, ClipboardCheck, Wallet, LayoutDashboard, Banknote } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { NotificationCenter } from '../../components/ui/NotificationCenter'
 import OfflineIndicator from '../../components/OfflineIndicator'
-import { ensurePushSubscription } from '../../services/push'
 import FirstLoginTour from './FirstLoginTour'
 import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat'
 import PresenceConsentNotice from '../../components/PresenceConsentNotice'
 import PageErrorBoundary from '../../components/ui/PageErrorBoundary'
 
-// Ring delivery is Web Push only (push-sw.js notification + SW message below).
-// The old 5s /calls/incoming poll is gone: a ringing row stays live for up to
-// 60s, so backing out of the call screen remounted this layout and the next
-// tick force-navigated straight back — a visible flash loop on every field
-// device, plus a constant network drain the field teams don't need.
-function useIncomingCallPush() {
-  const navigate = useNavigate()
-  React.useEffect(() => {
-    // Web Push: subscribe once (best-effort) and route SW notificationclick
-    // messages straight to the call screen when the PWA is already open.
-    ensurePushSubscription()
-    const onSwMessage = (ev: MessageEvent) => {
-      const d = ev.data
-      if (d?.type === 'incoming_call' && d.callId) {
-        navigate('/agent/call/incoming', {
-          state: { callId: d.callId, peerName: d.callerName },
-        })
-      }
-    }
-    navigator.serviceWorker?.addEventListener('message', onSwMessage)
-    return () => navigator.serviceWorker?.removeEventListener('message', onSwMessage)
-  }, [navigate])
-}
+// Incoming-call ring (push subscribe + SW messages + poll fallback) is global
+// now — IncomingCallRinger, mounted in App — so it also reaches BO/desktop
+// screens outside this layout.
 
 function getTabsForRole(role: string | undefined) {
   const baseTabs = [
@@ -140,7 +118,6 @@ export default function AgentLayout() {
   const user = useAuthStore((s) => s.user)
   const tabs = getTabsForRole(user?.role)
   const onSubPage = isSubPage(location.pathname)
-  useIncomingCallPush()
   usePresenceHeartbeat(user?.role)
 
   return (

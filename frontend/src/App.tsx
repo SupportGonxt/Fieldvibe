@@ -11,6 +11,7 @@ import { postLoginTarget } from './utils/workspace'
 import ChooseWorkspace from './pages/auth/ChooseWorkspace'
 import ToastContainer from './components/ui/Toast'
 import AppUpdater from './components/AppUpdater'
+import IncomingCallRinger from './components/IncomingCallRinger'
 
 // T-17: NotFoundPage
 import NotFoundPage from './pages/NotFoundPage'
@@ -529,6 +530,7 @@ function App() {
     <ErrorBoundary>
       <ToastContainer />
       <AppUpdater />
+      <IncomingCallRinger />
       <div className="min-h-screen bg-bg">
         <Routes>
           {/* Marketing Landing Page (installed PWA + logged-in users skip it: /auth redirects by role, or shows login) */}

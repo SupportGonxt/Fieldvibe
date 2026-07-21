@@ -108,16 +108,15 @@ async function callerDisplayName(db, tenantId, callerId) {
   return (u?.name || '').trim() || 'Back office';
 }
 
-// Best-effort push ring to every subscription the callee has registered.
+// Best-effort push to every subscription a user has registered.
 // Prunes subscriptions the push service reports gone (404/410).
-async function ringCallee(c, tenantId, calleeId, callId, callerName) {
+async function pushToUser(c, tenantId, userId, payload) {
   const db = c.env.DB;
   const subs = await db.prepare(
     `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
-  ).bind(tenantId, calleeId).all();
+  ).bind(tenantId, userId).all();
   const rows = subs.results || [];
   if (!rows.length) return;
-  const payload = { type: 'incoming_call', callId, callerName };
   const work = Promise.all(rows.map(async (sub) => {
     const r = await sendPush(c.env, sub, payload);
     if (r && (r.status === 404 || r.status === 410)) {
@@ -128,16 +127,35 @@ async function ringCallee(c, tenantId, calleeId, callId, callerName) {
   if (c.executionCtx?.waitUntil) c.executionCtx.waitUntil(work); else await work;
 }
 
+function ringCallee(c, tenantId, calleeId, callId, callerName) {
+  return pushToUser(c, tenantId, calleeId, { type: 'incoming_call', callId, callerName });
+}
+
+// Broadcast a JSON message to whoever is connected to the call's signaling
+// room — how REST lifecycle changes (decline/end) reach the waiting caller,
+// who otherwise rings forever since the callee never opened a socket.
+async function notifyRoom(env, callId, payload) {
+  try {
+    const id = env.CALL_ROOM.idFromName(callId);
+    await env.CALL_ROOM.get(id).fetch('https://call-room/notify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  } catch { /* best-effort */ }
+}
+
 app.post('/calls/:id/answer', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const now = new Date().toISOString();
-  await db.prepare(
+  const res = await db.prepare(
     `UPDATE bo_calls SET status = 'answered', answered_at = ?
      WHERE id = ? AND tenant_id = ? AND status = 'ringing'`
   ).bind(now, id, tenantId).run();
-  return c.json({ success: true });
+  // active:false = the ring is stale (caller gave up / already finalized) —
+  // the callee tapped a leftover notification and must not join an empty room.
+  return c.json({ success: true, active: (res.meta?.changes ?? 0) > 0 });
 });
 
 app.post('/calls/:id/decline', async (c) => {
@@ -145,10 +163,15 @@ app.post('/calls/:id/decline', async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
   const now = new Date().toISOString();
-  await db.prepare(
+  const res = await db.prepare(
     `UPDATE bo_calls SET status = 'declined', ended_at = ?
      WHERE id = ? AND tenant_id = ? AND status = 'ringing'`
   ).bind(now, id, tenantId).run();
+  if ((res.meta?.changes ?? 0) > 0) {
+    // Stop the caller's ringback, and clear the ring on the callee's other devices.
+    await notifyRoom(c.env, id, { type: 'bye', reason: 'declined' });
+    await pushToUser(c, tenantId, c.get('userId'), { type: 'call_cancelled', callId: id, outcome: 'declined' });
+  }
   return c.json({ success: true });
 });
 
@@ -158,7 +181,8 @@ app.post('/calls/:id/end', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json().catch(() => ({}));
   const row = await db.prepare(
-    `SELECT status, started_at, answered_at, ended_at FROM bo_calls WHERE id = ? AND tenant_id = ?`
+    `SELECT status, started_at, answered_at, ended_at, callee_id, caller_id
+     FROM bo_calls WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).first();
   if (!row) return c.json({ success: false, message: 'call not found' }, 404);
   if (row.ended_at) return c.json({ success: true }); // already finalized
@@ -167,6 +191,19 @@ app.post('/calls/:id/end', async (c) => {
   await db.prepare(
     `UPDATE bo_calls SET status = ?, ended_at = ?, duration_s = ? WHERE id = ? AND tenant_id = ?`
   ).bind(finalized.status, finalized.ended_at, finalized.duration_s, id, tenantId).run();
+
+  await notifyRoom(c.env, id, { type: 'bye', reason: 'ended' });
+  if (finalized.status === 'missed' || finalized.status === 'failed') {
+    // Caller hung up before an answer — take down the still-ringing notification
+    // on the callee's devices; on a plain miss leave a "Missed call" note behind.
+    const callerName = await callerDisplayName(db, tenantId, row.caller_id);
+    await pushToUser(c, tenantId, row.callee_id, {
+      type: 'call_cancelled',
+      callId: id,
+      callerName,
+      outcome: finalized.status,
+    });
+  }
   return c.json({ success: true, status: finalized.status, duration_s: finalized.duration_s });
 });
 
