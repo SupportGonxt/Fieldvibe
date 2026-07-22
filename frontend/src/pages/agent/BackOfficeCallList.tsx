@@ -74,10 +74,8 @@ export default function BackOfficeCallList() {
     setCalling(r.id)
     try {
       const res = await apiClient.post('/field-ops/calls/start', { callee_id: r.id })
-      const { callId, iceServers, callee_phone, reachable } = res.data
-      navigate(`/agent/call/${callId}`, {
-        state: { peerName: r.name || 'Agent', iceServers, calleePhone: callee_phone, reachable },
-      })
+      const { callId, iceServers } = res.data
+      navigate(`/agent/call/${callId}`, { state: { peerName: r.name || 'Agent', iceServers } })
     } catch {
       toast.error('Could not start call')
       setCalling(null)

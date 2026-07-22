@@ -90,9 +90,7 @@ function AgentRow({ a, badge }: { a: RosterAgent; badge?: string }) {
   const call = async () => {
     try {
       const { data } = await apiClient.post('/field-ops/calls/start', { callee_id: a.agentId })
-      navigate(`/agent/call/${data.callId}`, {
-        state: { peerName: a.name, iceServers: data.iceServers, calleePhone: data.callee_phone, reachable: data.reachable },
-      })
+      navigate(`/agent/call/${data.callId}`, { state: { peerName: a.name, iceServers: data.iceServers } })
     } catch {
       toast.error('Could not start call')
     }

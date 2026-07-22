@@ -85,16 +85,6 @@ app.post('/calls/start', boOnly, async (c) => {
   const calleeId = body.callee_id;
   if (!calleeId) return c.json({ success: false, message: 'callee_id required' }, 400);
 
-  const callee = await db.prepare(
-    `SELECT phone FROM users WHERE id = ? AND tenant_id = ?`
-  ).bind(calleeId, tenantId).first();
-  if (!callee) return c.json({ success: false, message: 'Unknown callee' }, 400);
-  // reachable = at least one device can be rung over push. False usually means
-  // offline / notifications never enabled — the client offers the GSM fallback.
-  const subCount = await db.prepare(
-    `SELECT COUNT(*) AS n FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
-  ).bind(tenantId, calleeId).first();
-
   const callId = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.prepare(
@@ -108,13 +98,7 @@ app.post('/calls/start', boOnly, async (c) => {
   const callerName = await callerDisplayName(db, tenantId, callerId);
   ringCallee(c, tenantId, calleeId, callId, callerName);
 
-  return c.json({
-    success: true,
-    callId,
-    iceServers: await iceServers(c.env),
-    callee_phone: callee.phone || null,
-    reachable: (subCount?.n ?? 0) > 0,
-  });
+  return c.json({ success: true, callId, iceServers: await iceServers(c.env) });
 });
 
 async function callerDisplayName(db, tenantId, callerId) {
@@ -126,7 +110,7 @@ async function callerDisplayName(db, tenantId, callerId) {
 
 // Best-effort push to every subscription a user has registered.
 // Prunes subscriptions the push service reports gone (404/410).
-async function pushToUser(c, tenantId, userId, payload, opts) {
+async function pushToUser(c, tenantId, userId, payload) {
   const db = c.env.DB;
   const subs = await db.prepare(
     `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
@@ -134,7 +118,7 @@ async function pushToUser(c, tenantId, userId, payload, opts) {
   const rows = subs.results || [];
   if (!rows.length) return;
   const work = Promise.all(rows.map(async (sub) => {
-    const r = await sendPush(c.env, sub, payload, opts);
+    const r = await sendPush(c.env, sub, payload);
     if (r && (r.status === 404 || r.status === 410)) {
       await db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(sub.endpoint).run();
     }
@@ -212,15 +196,13 @@ app.post('/calls/:id/end', async (c) => {
   if (finalized.status === 'missed' || finalized.status === 'failed') {
     // Caller hung up before an answer — take down the still-ringing notification
     // on the callee's devices; on a plain miss leave a "Missed call" note behind.
-    // 24h TTL: a phone that was OFFLINE during the ring still gets the missed-call
-    // note the moment its data comes back (the 60s ring push will have expired).
     const callerName = await callerDisplayName(db, tenantId, row.caller_id);
     await pushToUser(c, tenantId, row.callee_id, {
       type: 'call_cancelled',
       callId: id,
       callerName,
       outcome: finalized.status,
-    }, { ttl: 86400 });
+    });
   }
   return c.json({ success: true, status: finalized.status, duration_s: finalized.duration_s });
 });

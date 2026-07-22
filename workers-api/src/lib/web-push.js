@@ -106,7 +106,7 @@ async function encryptPayload(plaintext, p256dhB64, authB64) {
  * subscription; caller may prune). Never throws — a failed ring must not break
  * the call-start flow.
  */
-export async function sendPush(env, subscription, payloadObj, opts = {}) {
+export async function sendPush(env, subscription, payloadObj) {
   if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return false;
   try {
     const url = new URL(subscription.endpoint);
@@ -122,10 +122,7 @@ export async function sendPush(env, subscription, payloadObj, opts = {}) {
         Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`,
         'Content-Encoding': 'aes128gcm',
         'Content-Type': 'application/octet-stream',
-        // TTL = how long the push service holds delivery for an offline device.
-        // Rings default to 60s (a stale ring must not fire later); senders like
-        // "missed call" pass a long TTL so it lands when data returns.
-        TTL: String(opts.ttl ?? 60),
+        TTL: '60',
         Urgency: 'high',
       },
       body,
