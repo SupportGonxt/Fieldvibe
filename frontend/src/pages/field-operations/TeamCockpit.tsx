@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
+import { dialUser } from '../../services/dialer'
 import { useAuthStore } from '../../store/auth.store'
 import { roleAllows } from '../../lib/capabilities'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -83,16 +83,18 @@ function NoteBox({ agentId, signalType, onDone }: { agentId: string; signalType?
 }
 
 function AgentRow({ a, badge }: { a: RosterAgent; badge?: string }) {
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
 
+  // Opens the leader's own phone dialer with the agent's number pre-filled
+  // (GSM call — reaches agents with no data). Toast carries the number for
+  // desktop browsers where tel: has no handler.
   const call = async () => {
     try {
-      const { data } = await apiClient.post('/field-ops/calls/start', { callee_id: a.agentId })
-      navigate(`/agent/call/${data.callId}`, { state: { peerName: a.name, iceServers: data.iceServers } })
-    } catch {
-      toast.error('Could not start call')
+      const phone = await dialUser(a.agentId)
+      toast.success(`Calling ${a.name} · ${phone}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not start call')
     }
   }
   const nudge = async () => {

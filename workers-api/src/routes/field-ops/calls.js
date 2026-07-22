@@ -1,9 +1,12 @@
 /**
- * Field-Ops in-app voice calls — BO admin calls field agents over WebRTC.
- * This module owns call lifecycle (bo_calls), signaling handoff to the CallRoom
- * DO, ICE server config, per-BO daily targets, and push-subscription storage.
- * Media is P2P; Web Push (Phase C) rings the agent. Auth is applied globally at
- * the /api mount, so c.get('tenantId'|'userId'|'role') are already populated.
+ * Field-Ops calls — BO admin / team lead / manager reaches field agents.
+ * Active path: GSM dial-out (/calls/dial) — the client opens its own phone
+ * dialer with the agent's number; we log the attempt in bo_calls ('dialed').
+ * The WebRTC in-app call routes (start/answer/decline/end + CallRoom DO
+ * signaling + Web Push ring) are retained but no UI initiates them today.
+ * This module also owns ICE config, per-BO daily targets, and
+ * push-subscription storage (still used by nudges/news pushes). Auth is applied
+ * globally at the /api mount, so c.get('tenantId'|'userId'|'role') are populated.
  */
 import { Hono } from 'hono';
 import { requireRole } from '../../middleware/auth.js';
@@ -74,6 +77,35 @@ app.get('/calls/incoming', async (c) => {
     call: { callId: row.id, callerName: (row.caller_name || '').trim() || 'Back office' },
     iceServers: await iceServers(c.env),
   });
+});
+
+// --- GSM dial-out --------------------------------------------------------------
+// The Call buttons route to the caller's OWN phone dialer (tel:) instead of an
+// in-app WebRTC call — works regardless of whether the agent has data. This
+// endpoint resolves the agent's number and logs the attempt as status 'dialed'
+// (the call happens on the carrier network, so answered/duration are unknowable).
+app.post('/calls/dial', boOnly, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const callerId = c.get('userId');
+  const body = await c.req.json().catch(() => ({}));
+  const calleeId = body.callee_id;
+  if (!calleeId) return c.json({ success: false, message: 'callee_id required' }, 400);
+
+  const callee = await db.prepare(
+    `SELECT phone, TRIM(first_name || ' ' || last_name) AS name FROM users WHERE id = ? AND tenant_id = ?`
+  ).bind(calleeId, tenantId).first();
+  if (!callee) return c.json({ success: false, message: 'Unknown callee' }, 400);
+  const phone = (callee.phone || '').trim();
+  if (!phone) return c.json({ success: false, message: 'No phone number on file for this agent' }, 404);
+
+  const now = new Date().toISOString();
+  await db.prepare(
+    `INSERT INTO bo_calls (id, tenant_id, company_id, caller_id, callee_id, status, started_at, ended_at, duration_s, created_at)
+     VALUES (?, ?, ?, ?, ?, 'dialed', ?, ?, 0, ?)`
+  ).bind(crypto.randomUUID(), tenantId, body.company_id ?? null, callerId, calleeId, now, now, now).run();
+
+  return c.json({ success: true, phone, name: callee.name || 'Agent' });
 });
 
 // --- Lifecycle ---------------------------------------------------------------
@@ -233,20 +265,22 @@ app.get('/calls/target', async (c) => {
     `SELECT daily_target FROM bo_call_targets WHERE user_id = ? AND tenant_id = ?`
   ).bind(userId, tenantId).first();
   const target = t?.daily_target ?? DEFAULT_TARGET;
-  // contacted = distinct agents actually reached (answered) today;
-  // missed = attempts that didn't connect (declined/missed/failed).
+  // contacted = distinct agents reached today: 'answered' (legacy in-app calls)
+  // or 'dialed' (GSM dial-outs — the app can't observe whether those connected,
+  // so the attempt is what we count). missed = in-app attempts that didn't
+  // connect (declined/missed/failed).
   const rows = await db.prepare(
     `SELECT callee_id, status FROM bo_calls
      WHERE tenant_id = ? AND caller_id = ? AND substr(started_at, 1, 10) = ?`
   ).bind(tenantId, userId, today).all();
   const todayCalls = rows.results || [];
-  const answered = todayCalls.filter((r) => r.status === 'answered');
-  const contactedIds = [...new Set(answered.map((r) => r.callee_id))];
+  const reached = todayCalls.filter((r) => r.status === 'answered' || r.status === 'dialed');
+  const contactedIds = [...new Set(reached.map((r) => r.callee_id))];
   return c.json({
     success: true,
     target,
     contacted: contactedIds.length,
-    calls: answered.length,
+    calls: reached.length,
     missed: todayCalls.filter((r) => ['declined', 'missed', 'failed'].includes(r.status)).length,
     contacted_ids: contactedIds,
   });

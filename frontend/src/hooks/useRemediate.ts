@@ -1,19 +1,18 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { apiClient } from '../services/api.service'
+import { dialUser } from '../services/dialer'
 import { useToast } from '../components/ui/Toast'
 
 /**
  * The two remediation actions a supervisor can take on a person from any PWA roster row:
- * send a push/in-app nudge, or open a WebRTC call. `busy` holds the id being acted on so
- * the row can disable its own buttons.
+ * send a push/in-app nudge, or dial their phone (GSM — reaches agents with no data).
+ * `busy` holds the id being acted on so the row can disable its own buttons.
  */
 /** Pre-filled default shown in the nudge editor; also used when no message is passed. */
 export const defaultNudgeMessage = (name: string) =>
   `${name}, your manager is checking in — log your next visit.`
 
 export function useRemediate() {
-  const navigate = useNavigate()
   const { toast } = useToast()
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -37,11 +36,11 @@ export function useRemediate() {
     if (busy) return
     setBusy(userId)
     try {
-      const res = await apiClient.post('/field-ops/calls/start', { callee_id: userId })
-      const { callId, iceServers } = res.data
-      navigate(`/agent/call/${callId}`, { state: { peerName: name, iceServers } })
-    } catch {
-      toast.error('Could not start call')
+      const phone = await dialUser(userId)
+      toast.success(`Calling ${name} · ${phone}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not start call')
+    } finally {
       setBusy(null)
     }
   }

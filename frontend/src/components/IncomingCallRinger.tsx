@@ -1,18 +1,16 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth.store'
-import { apiClient } from '../services/api.service'
 import { ensurePushSubscription } from '../services/push'
 
-// App-wide incoming-call ring. Mounted once in App so a call reaches the user
-// on ANY screen (field app, BO dashboard, cockpit) the moment it arrives:
-//  - Web Push: push-sw.js posts {type:'incoming_call'} to open windows on the
-//    push itself (no notification click needed) — instant in-app ring.
-//  - Poll fallback: devices without push (permission denied, dev, unsupported)
-//    poll /calls/incoming every 10s while visible.
+// App-wide push registration + incoming-call ring. Mounted once in App so it
+// covers every screen (field app, BO dashboard, cockpit).
+// Outbound calling is GSM dial-out now (see services/dialer.ts), so nothing
+// creates in-app rings today — but the push subscription registered here still
+// powers nudges/news, and the incoming_call handling stays live in case a
+// server-side flow rings a user again.
 // `handled` remembers every callId this window has ringed or seen cancelled,
-// so backing out of the call screen can't be re-ambushed by the same ring
-// (the flash-loop bug that got the old always-on poll removed).
+// so backing out of the call screen can't be re-ambushed by the same ring.
 
 const handled = new Set<string>()
 
@@ -26,12 +24,12 @@ export default function IncomingCallRinger() {
     if (!userId) return
     ensurePushSubscription()
 
-    const ring = (callId: string, callerName?: string, iceServers?: RTCIceServer[]) => {
+    const ring = (callId: string, callerName?: string) => {
       if (!callId || handled.has(callId)) return
       handled.add(callId)
       if (window.location.pathname.startsWith('/agent/call')) return // already on a call
       navRef.current('/agent/call/incoming', {
-        state: { callId, peerName: callerName, iceServers },
+        state: { callId, peerName: callerName },
       })
     }
 
@@ -46,30 +44,8 @@ export default function IncomingCallRinger() {
     }
     navigator.serviceWorker?.addEventListener('message', onSwMessage)
 
-    // Poll only when push can't deliver — push-capable devices ring instantly
-    // via the SW message above.
-    let pollId: number | undefined
-    const pushReady =
-      import.meta.env.PROD &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window &&
-      'Notification' in window &&
-      Notification.permission === 'granted'
-    if (!pushReady) {
-      const poll = async () => {
-        if (document.visibilityState !== 'visible') return
-        try {
-          const { data } = await apiClient.get('/field-ops/calls/incoming')
-          if (data?.call?.callId) ring(data.call.callId, data.call.callerName, data.iceServers)
-        } catch { /* offline — next tick */ }
-      }
-      poll()
-      pollId = window.setInterval(poll, 10_000)
-    }
-
     return () => {
       navigator.serviceWorker?.removeEventListener('message', onSwMessage)
-      if (pollId) clearInterval(pollId)
     }
   }, [userId])
 
