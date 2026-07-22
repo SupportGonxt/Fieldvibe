@@ -122,16 +122,6 @@ app.post('/calls/start', boOnly, async (c) => {
     `SELECT phone FROM users WHERE id = ? AND tenant_id = ?`
   ).bind(calleeId, tenantId).first();
   if (!callee) return c.json({ success: false, message: 'Unknown callee' }, 400);
-  // reachable = at least one device can be rung over push. False usually means
-  // offline / notifications never enabled — the client shortens the in-app ring
-  // and fails over to the GSM dial sooner. Best-effort probe: it must never
-  // fail the call (a pre-0015 legacy table shape once 500'd this route).
-  let subCount = null;
-  try {
-    subCount = await db.prepare(
-      `SELECT COUNT(*) AS n FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
-    ).bind(tenantId, calleeId).first();
-  } catch { /* unknown → treat as reachable */ }
 
   const callId = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -150,8 +140,8 @@ app.post('/calls/start', boOnly, async (c) => {
     success: true,
     callId,
     iceServers: await iceServers(c.env),
+    // For the client's GSM fail-over when the ring goes unanswered.
     callee_phone: (callee.phone || '').trim() || null,
-    reachable: subCount ? (subCount.n ?? 0) > 0 : true,
   });
 });
 
@@ -197,6 +187,19 @@ async function notifyRoom(env, callId, payload) {
     });
   } catch { /* best-effort */ }
 }
+
+// Ring liveness for the callee's incoming screen. A device rung by the
+// /calls/incoming poll has no push channel to learn the caller gave up, so the
+// screen polls this until the call leaves 'ringing' and ends the ring locally.
+app.get('/calls/:id/status', async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const row = await db.prepare(
+    `SELECT status FROM bo_calls WHERE id = ? AND tenant_id = ?`
+  ).bind(c.req.param('id'), tenantId).first();
+  if (!row) return c.json({ success: false, message: 'call not found' }, 404);
+  return c.json({ success: true, status: row.status });
+});
 
 app.post('/calls/:id/answer', async (c) => {
   const db = c.env.DB;

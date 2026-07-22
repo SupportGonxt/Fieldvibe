@@ -39,14 +39,13 @@ export function useRemediate() {
     setBusy(userId)
     try {
       const res = await apiClient.post('/field-ops/calls/start', { callee_id: userId })
-      const { callId, iceServers, callee_phone, reachable } = res.data
+      const { callId, iceServers, callee_phone } = res.data
       navigate(`/agent/call/${callId}`, {
         state: {
           peerName: name,
           iceServers,
           calleeId: userId,
           calleePhone: callee_phone,
-          reachable,
         },
       })
     } catch {

@@ -16,7 +16,6 @@ type NavState = {
   callId?: string // incoming passes it here (route has no :callId)
   calleeId?: string // outgoing: who we're calling — needed for the GSM fallback log
   calleePhone?: string | null // outgoing: number for the GSM fallback
-  reachable?: boolean // outgoing: false = callee has no push-capable device
 }
 
 const LABELS: Record<CallState, string> = {
@@ -30,10 +29,10 @@ const LABELS: Record<CallState, string> = {
 }
 
 // How long the in-app ring runs before failing over to a GSM phone call.
-// When the callee has no push-capable device the app ring probably can't reach
-// them at all, so fail over much sooner.
-const RING_TIMEOUT_MS = 30_000
-const RING_TIMEOUT_UNREACHABLE_MS = 10_000
+// A full minute: field agents often need time to reach their phone, and a
+// "has push subscription" probe proved too unreliable to cut the ring short
+// (the app can still ring via the /calls/incoming poll without one).
+const RING_TIMEOUT_MS = 60_000
 
 export default function CallScreen({ incoming = false }: { incoming?: boolean }) {
   const navigate = useNavigate()
@@ -65,7 +64,6 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   const calleeId = (!incoming && nav.calleeId) || ''
   const calleePhone = (!incoming && nav.calleePhone) || null
   const telHref = calleePhone ? `tel:${calleePhone.replace(/[^+\d]/g, '')}` : ''
-  const reachable = nav.reachable !== false
   const phoneFallback = !!calleePhone && (noAnswer || state === 'failed' || state === 'declined')
   const dialLoggedRef = useRef(false)
 
@@ -121,10 +119,10 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
         logDial()
         window.location.href = telHref
       }
-    }, reachable ? RING_TIMEOUT_MS : RING_TIMEOUT_UNREACHABLE_MS)
+    }, RING_TIMEOUT_MS)
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waitingForAnswer, callId, reachable, telHref])
+  }, [waitingForAnswer, callId, telHref])
 
   // Caller hung up / call was handled elsewhere while we were still ringing
   // (relayed by the SW as a call_cancelled message → window event).
@@ -137,6 +135,30 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
     window.addEventListener('fv:call-cancelled', onCancelled)
     return () => window.removeEventListener('fv:call-cancelled', onCancelled)
   }, [incoming, accepted, callId])
+
+  // Ring liveness: the SW cancel above only reaches push-capable devices. A
+  // device rung by the /calls/incoming poll must also stop ringing when the
+  // caller gives up (e.g. fails over to a GSM call) — poll the call's status
+  // and end the ring once it's no longer 'ringing' server-side. Also covers
+  // the call being answered/declined on another of the agent's devices.
+  useEffect(() => {
+    if (!incoming || accepted || over || !callId) return
+    const id = setInterval(async () => {
+      try {
+        const { data } = await apiClient.get(`/field-ops/calls/${callId}/status`)
+        if (data?.status && data.status !== 'ringing') setState('ended')
+      } catch { /* offline blip — keep ringing */ }
+    }, 4000)
+    return () => clearInterval(id)
+  }, [incoming, accepted, over, callId])
+
+  // Safety: if the caller vanished without finalizing (crash/offline), don't
+  // ring forever — callers give up at 60s, so cap the incoming ring just past it.
+  useEffect(() => {
+    if (!incoming || accepted || over) return
+    const id = setTimeout(() => setState('ended'), RING_TIMEOUT_MS + 15_000)
+    return () => clearTimeout(id)
+  }, [incoming, accepted, over])
 
   // Start the WebRTC session once the call is live (outgoing: immediately;
   // incoming: after the user accepts).
@@ -209,11 +231,6 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             {status}
           </span>
         </div>
-        {!reachable && waitingForAnswer && (
-          <p className="mt-3 max-w-[260px] text-center text-xs text-amber-500">
-            Their app can't be reached right now — switching to a phone call shortly…
-          </p>
-        )}
       </div>
 
       {/* Controls */}

@@ -98,7 +98,6 @@ function AgentRow({ a, badge }: { a: RosterAgent; badge?: string }) {
           iceServers: data.iceServers,
           calleeId: a.agentId,
           calleePhone: data.callee_phone,
-          reachable: data.reachable,
         },
       })
     } catch {

@@ -77,14 +77,13 @@ export default function BackOfficeCallList() {
     setCalling(r.id)
     try {
       const res = await apiClient.post('/field-ops/calls/start', { callee_id: r.id })
-      const { callId, iceServers, callee_phone, reachable } = res.data
+      const { callId, iceServers, callee_phone } = res.data
       navigate(`/agent/call/${callId}`, {
         state: {
           peerName: r.name || 'Agent',
           iceServers,
           calleeId: r.id,
           calleePhone: callee_phone,
-          reachable,
         },
       })
     } catch {
