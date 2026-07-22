@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed, KeyRound } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
-import { dialUser } from '../../services/dialer'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import { useToast } from '../../components/ui/Toast'
 
 // Back Office call list: every active field agent with their today's signup count
 // and last activity. Sorted quietest-first by the API so the agents who need a
-// nudge float to the top. Tapping a row opens the phone dialer with the agent's
-// number (GSM call via /calls/dial, which also logs the attempt).
+// nudge float to the top. Tapping a row rings the agent's app (WebRTC); if they
+// don't answer, the call screen fails over to a GSM call via the phone dialer.
 // Header tracks today's contacted-vs-target; a panel shows recent call history.
 
 type RosterRow = {
@@ -71,27 +70,25 @@ export default function BackOfficeCallList() {
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [company, setCompany] = useState<string | null>(null)
 
-  // Opens this device's phone dialer with the agent's number pre-filled (GSM
-  // call — reaches agents with no data). The backend logs the attempt, so bump
-  // the local counters to match without a full reload.
+  // Two-stage call: ring the agent's app first; CallScreen fails over to a GSM
+  // phone call (via calleeId/calleePhone) if they don't pick up.
   async function startCall(r: RosterRow) {
     if (calling) return
     setCalling(r.id)
     try {
-      const phone = await dialUser(r.id)
-      toast.success(`Calling ${r.name || 'agent'} · ${phone}`)
-      setTarget((t) => {
-        if (!t) return t
-        const ids = t.contacted_ids || []
-        return {
-          ...t,
-          calls: t.calls + 1,
-          contacted: ids.includes(r.id) ? t.contacted : t.contacted + 1,
-          contacted_ids: ids.includes(r.id) ? ids : [...ids, r.id],
-        }
+      const res = await apiClient.post('/field-ops/calls/start', { callee_id: r.id })
+      const { callId, iceServers, callee_phone, reachable } = res.data
+      navigate(`/agent/call/${callId}`, {
+        state: {
+          peerName: r.name || 'Agent',
+          iceServers,
+          calleeId: r.id,
+          calleePhone: callee_phone,
+          reachable,
+        },
       })
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not start call')
+    } catch {
+      toast.error('Could not start call')
     } finally {
       setCalling(null)
     }

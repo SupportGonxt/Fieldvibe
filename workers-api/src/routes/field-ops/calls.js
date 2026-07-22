@@ -1,11 +1,11 @@
 /**
  * Field-Ops calls — BO admin / team lead / manager reaches field agents.
- * Active path: GSM dial-out (/calls/dial) — the client opens its own phone
- * dialer with the agent's number; we log the attempt in bo_calls ('dialed').
- * The WebRTC in-app call routes (start/answer/decline/end + CallRoom DO
- * signaling + Web Push ring) are retained but no UI initiates them today.
+ * Two-stage flow: an in-app WebRTC call rings first (bo_calls lifecycle +
+ * CallRoom DO signaling + Web Push ring); if the agent doesn't answer, the
+ * client fails over to a GSM dial-out (/calls/dial) — the caller's own phone
+ * dialer opens with the agent's number, logged in bo_calls as 'dialed'.
  * This module also owns ICE config, per-BO daily targets, and
- * push-subscription storage (still used by nudges/news pushes). Auth is applied
+ * push-subscription storage (also used by nudges/news pushes). Auth is applied
  * globally at the /api mount, so c.get('tenantId'|'userId'|'role') are populated.
  */
 import { Hono } from 'hono';
@@ -80,10 +80,11 @@ app.get('/calls/incoming', async (c) => {
 });
 
 // --- GSM dial-out --------------------------------------------------------------
-// The Call buttons route to the caller's OWN phone dialer (tel:) instead of an
-// in-app WebRTC call — works regardless of whether the agent has data. This
-// endpoint resolves the agent's number and logs the attempt as status 'dialed'
-// (the call happens on the carrier network, so answered/duration are unknowable).
+// Fallback stage of the call flow: when the in-app ring goes unanswered (or the
+// caller taps "Call phone instead"), the client opens its OWN phone dialer via
+// tel: — works regardless of whether the agent has data. This endpoint resolves
+// the agent's number and logs the attempt as status 'dialed' (the call happens
+// on the carrier network, so answered/duration are unknowable).
 app.post('/calls/dial', boOnly, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
@@ -117,6 +118,21 @@ app.post('/calls/start', boOnly, async (c) => {
   const calleeId = body.callee_id;
   if (!calleeId) return c.json({ success: false, message: 'callee_id required' }, 400);
 
+  const callee = await db.prepare(
+    `SELECT phone FROM users WHERE id = ? AND tenant_id = ?`
+  ).bind(calleeId, tenantId).first();
+  if (!callee) return c.json({ success: false, message: 'Unknown callee' }, 400);
+  // reachable = at least one device can be rung over push. False usually means
+  // offline / notifications never enabled — the client shortens the in-app ring
+  // and fails over to the GSM dial sooner. Best-effort probe: it must never
+  // fail the call (a pre-0015 legacy table shape once 500'd this route).
+  let subCount = null;
+  try {
+    subCount = await db.prepare(
+      `SELECT COUNT(*) AS n FROM push_subscriptions WHERE tenant_id = ? AND user_id = ?`
+    ).bind(tenantId, calleeId).first();
+  } catch { /* unknown → treat as reachable */ }
+
   const callId = crypto.randomUUID();
   const now = new Date().toISOString();
   await db.prepare(
@@ -130,7 +146,13 @@ app.post('/calls/start', boOnly, async (c) => {
   const callerName = await callerDisplayName(db, tenantId, callerId);
   ringCallee(c, tenantId, calleeId, callId, callerName);
 
-  return c.json({ success: true, callId, iceServers: await iceServers(c.env) });
+  return c.json({
+    success: true,
+    callId,
+    iceServers: await iceServers(c.env),
+    callee_phone: (callee.phone || '').trim() || null,
+    reachable: subCount ? (subCount.n ?? 0) > 0 : true,
+  });
 });
 
 async function callerDisplayName(db, tenantId, callerId) {

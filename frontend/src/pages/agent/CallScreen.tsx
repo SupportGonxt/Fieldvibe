@@ -14,6 +14,9 @@ type NavState = {
   iceServers?: RTCIceServer[]
   peerName?: string
   callId?: string // incoming passes it here (route has no :callId)
+  calleeId?: string // outgoing: who we're calling — needed for the GSM fallback log
+  calleePhone?: string | null // outgoing: number for the GSM fallback
+  reachable?: boolean // outgoing: false = callee has no push-capable device
 }
 
 const LABELS: Record<CallState, string> = {
@@ -26,8 +29,11 @@ const LABELS: Record<CallState, string> = {
   failed: 'Call failed',
 }
 
-// How long the caller rings before the call is written off as missed.
-const RING_TIMEOUT_MS = 45_000
+// How long the in-app ring runs before failing over to a GSM phone call.
+// When the callee has no push-capable device the app ring probably can't reach
+// them at all, so fail over much sooner.
+const RING_TIMEOUT_MS = 30_000
+const RING_TIMEOUT_UNREACHABLE_MS = 10_000
 
 export default function CallScreen({ incoming = false }: { incoming?: boolean }) {
   const navigate = useNavigate()
@@ -54,6 +60,23 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   const over = state === 'ended' || state === 'failed' || state === 'declined'
   const waitingForAnswer = !incoming && !over && state !== 'connected' && state !== 'reconnecting'
 
+  // GSM fallback — when the in-app ring can't get through (no answer, failure,
+  // or decline) the caller falls over to a real phone call to the agent's number.
+  const calleeId = (!incoming && nav.calleeId) || ''
+  const calleePhone = (!incoming && nav.calleePhone) || null
+  const telHref = calleePhone ? `tel:${calleePhone.replace(/[^+\d]/g, '')}` : ''
+  const reachable = nav.reachable !== false
+  const phoneFallback = !!calleePhone && (noAnswer || state === 'failed' || state === 'declined')
+  const dialLoggedRef = useRef(false)
+
+  // Log the GSM attempt exactly once (as bo_calls status 'dialed') no matter
+  // which path triggers it — the auto fail-over or the fallback button.
+  const logDial = () => {
+    if (dialLoggedRef.current || !calleeId) return
+    dialLoggedRef.current = true
+    apiClient.post('/field-ops/calls/dial', { callee_id: calleeId }).catch(() => {})
+  }
+
   // A push-opened window has no history to go back to.
   const leave = () => {
     if (window.history.length > 1) navigate(-1)
@@ -67,14 +90,15 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
     return () => clearInterval(id)
   }, [state])
 
-  // Leave the call screen a moment after it terminates.
+  // Leave the call screen a moment after it terminates — unless we're offering
+  // the phone-dialer fallback, which needs the caller to read and act on it.
   useEffect(() => {
-    if (over) {
+    if (over && !phoneFallback) {
       const id = setTimeout(leave, 1500)
       return () => clearTimeout(id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [over])
+  }, [over, phoneFallback])
 
   // Audible ring: callee hears a ringtone (+vibration) until they act; caller
   // hears a quiet ringback while waiting — "Ringing…" shouldn't be silent.
@@ -83,17 +107,24 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
     if (!incoming && state === 'ringing') return startRinger('ringback')
   }, [incoming, accepted, over, state])
 
-  // Caller gives up after RING_TIMEOUT_MS: finalize as missed (the server then
-  // clears the ring on the callee's devices via a call_cancelled push).
+  // No answer in time: finalize the app call as missed (the server clears the
+  // ring on the callee's devices via a call_cancelled push), then fail over to
+  // a real GSM phone call. The auto-redirect to tel: can be blocked without a
+  // user gesture on some platforms — the on-screen fallback button covers that.
   useEffect(() => {
     if (!waitingForAnswer) return
     const id = setTimeout(() => {
       apiClient.post(`/field-ops/calls/${callId}/end`, { reason: 'no_answer' }).catch(() => {})
       setNoAnswer(true)
       sessionRef.current?.hangup()
-    }, RING_TIMEOUT_MS)
+      if (telHref) {
+        logDial()
+        window.location.href = telHref
+      }
+    }, reachable ? RING_TIMEOUT_MS : RING_TIMEOUT_UNREACHABLE_MS)
     return () => clearTimeout(id)
-  }, [waitingForAnswer, callId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingForAnswer, callId, reachable, telHref])
 
   // Caller hung up / call was handled elsewhere while we were still ringing
   // (relayed by the SW as a call_cancelled message → window event).
@@ -178,11 +209,27 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             {status}
           </span>
         </div>
+        {!reachable && waitingForAnswer && (
+          <p className="mt-3 max-w-[260px] text-center text-xs text-amber-500">
+            Their app can't be reached right now — switching to a phone call shortly…
+          </p>
+        )}
       </div>
 
       {/* Controls */}
       <div className="w-full max-w-xs">
-        {over ? null : incoming && !accepted ? (
+        {phoneFallback ? (
+          <div className="flex flex-col items-center gap-4">
+            <a
+              href={telHref}
+              onClick={logDial}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-on-primary shadow-lg shadow-primary/30 active:scale-95 transition-transform"
+            >
+              <Phone className="w-5 h-5" /> Call {calleePhone} instead
+            </a>
+            <button onClick={leave} className="text-sm text-token-muted">Close</button>
+          </div>
+        ) : over ? null : incoming && !accepted ? (
           <div className="flex items-center justify-around">
             <button
               onClick={decline}
