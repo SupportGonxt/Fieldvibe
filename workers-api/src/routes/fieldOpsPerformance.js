@@ -607,8 +607,11 @@ app.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const role = c.get('role');
-  // Only managers and admins can export the full org-wide multi-sheet report
-  if (role !== 'manager' && role !== 'admin' && role !== 'super_admin') {
+  // Only manager-tier roles can export the full org-wide multi-sheet report.
+  // Must match the /performance endpoint's manager-view gate — those users see
+  // the Excel button, so rejecting any of them here breaks the button for them.
+  const EXPORT_ROLES = ['manager', 'general_manager', 'admin', 'backoffice_admin', 'super_admin'];
+  if (!EXPORT_ROLES.includes(role)) {
     return c.json({ error: 'Only managers can export the multi-sheet performance report' }, 403);
   }
   const { period, start_date, end_date, company_id } = c.req.query();
