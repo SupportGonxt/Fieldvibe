@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast'
 import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight } from 'lucide-react'
 import { MyIssues, signalText } from '../../components/field-ops/IssueQueue'
 import type { Signal } from '../../components/field-ops/IssueQueue'
+import NewsWidget from '../../components/agent/NewsWidget'
 
 // Team-leader / manager performance cockpit. Consumes GET /field-ops/kpi/roster
 // (already ranked worst-first server-side) and the three POST /field-ops/kpi/remediate/*
@@ -235,6 +236,9 @@ export default function TeamCockpit() {
           </p>
         </div>
       </div>
+
+      {/* Announcements (e.g. the new call feature) — role-filtered inside the widget */}
+      <NewsWidget />
 
       <MyIssues />
 

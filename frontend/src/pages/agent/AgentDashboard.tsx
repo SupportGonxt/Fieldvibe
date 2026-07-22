@@ -532,8 +532,10 @@ export default function AgentDashboard() {
         </p>
       </div>
 
-      {/* Team news / announcements — agents, team leads and managers. */}
-      {(isAgentRole || authUser?.role === 'team_lead' || authUser?.role === 'manager') && (
+      {/* Team news / announcements — agents, team leads, managers and back office.
+          Role-targeted items (e.g. the call-feature announcement) are filtered
+          inside the widget itself. */}
+      {(isAgentRole || authUser?.role === 'team_lead' || authUser?.role === 'manager' || authUser?.role === 'backoffice_admin') && (
         <div className="px-5 mb-3">
           <NewsWidget />
         </div>

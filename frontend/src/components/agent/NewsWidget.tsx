@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Megaphone, ChevronRight, X } from 'lucide-react'
 import { NEWS_ITEMS } from '../../data/news'
+import { useAuthStore } from '../../store/auth.store'
 
 const READ_KEY = 'news_read_ids_v1'
 
@@ -16,26 +17,34 @@ function loadReadIds(): string[] {
 
 // Home-screen news/announcements widget. Shows the latest headline as a tappable
 // card; tapping opens the full news feed. Unread items (by id, tracked in
-// localStorage) surface a dot so a new post gets noticed once.
+// localStorage) surface a dot so a new post gets noticed once. Items with a
+// `roles` list only appear for those roles; the widget hides itself entirely
+// when nothing is visible to this user.
 export default function NewsWidget() {
+  const role = useAuthStore((s) => s.user?.role)
   const [open, setOpen] = useState(false)
   const [readIds, setReadIds] = useState<string[]>(loadReadIds)
 
-  const latest = NEWS_ITEMS[0]
+  const items = useMemo(
+    () => NEWS_ITEMS.filter((n) => !n.roles || (role && n.roles.includes(role))),
+    [role],
+  )
+  const latest = items[0]
   const unreadCount = useMemo(
-    () => NEWS_ITEMS.filter((n) => !readIds.includes(n.id)).length,
-    [readIds],
+    () => items.filter((n) => !readIds.includes(n.id)).length,
+    [items, readIds],
   )
 
-  // Mark everything read once the feed is opened.
+  // Mark everything visible read once the feed is opened. Merge with what's
+  // already stored so a role-hidden item's read state is never wiped out.
   useEffect(() => {
     if (!open) return
-    const allIds = NEWS_ITEMS.map((n) => n.id)
-    setReadIds(allIds)
+    const merged = [...new Set([...loadReadIds(), ...items.map((n) => n.id)])]
+    setReadIds(merged)
     try {
-      localStorage.setItem(READ_KEY, JSON.stringify(allIds))
+      localStorage.setItem(READ_KEY, JSON.stringify(merged))
     } catch { /* ignore */ }
-  }, [open])
+  }, [open, items])
 
   // Close the modal on Escape.
   useEffect(() => {
@@ -90,7 +99,7 @@ export default function NewsWidget() {
             </div>
 
             <div className="overflow-y-auto px-4 py-4">
-              {NEWS_ITEMS.map((item) => (
+              {items.map((item) => (
                 <article key={item.id} className="mb-5 last:mb-0">
                   <h3 className="text-base font-bold text-token">{item.title}</h3>
                   <p className="mb-2 text-[11px] text-token-faint">
