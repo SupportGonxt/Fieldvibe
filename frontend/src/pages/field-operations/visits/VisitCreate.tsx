@@ -211,41 +211,16 @@ function parseStepConfig(config: string | Record<string, unknown> | undefined): 
   try { return JSON.parse(config) } catch { return {} }
 }
 
-// Draft persistence: Android kills the PWA during the camera hand-off, the reload
-// remounts this all-useState wizard at step 0 and the agent loses everything.
-// Persist progress to localStorage so a mid-visit reload restores where they were.
-const DRAFT_KEY = 'visit_draft_v1'
-const DRAFT_TTL_MS = 60 * 60 * 1000
-
-// ponytail: any-typed draft blob — shape mirrors component state, single writer/reader below
-function loadVisitDraft(): any | null {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY)
-    if (!raw) return null
-    const d = JSON.parse(raw)
-    if (!d?.savedAt || Date.now() - d.savedAt > DRAFT_TTL_MS) {
-      localStorage.removeItem(DRAFT_KEY)
-      return null
-    }
-    return d
-  } catch { return null }
-}
-
-function clearVisitDraft() {
-  try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
-}
-
 export default function VisitCreate() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const isMobileContext = location.pathname.startsWith('/agent/')
-  const [draft] = useState(loadVisitDraft)
-  const [activeStep, setActiveStep] = useState<number>(draft?.activeStep ?? 0)
-  // Anchor the wizard to a stable step_key (see the remap effect below) — declared here so
-  // the draft-save effect can persist it. Seeded from the restored draft when present.
-  const intendedStepKeyRef = useRef<string>(draft?.activeStepKey ?? '')
+  const [activeStep, setActiveStep] = useState<number>(0)
+  // Anchor the wizard to a stable step_key (see the remap effect below) so async
+  // step-list recomputes don't shift the visible step. Starts empty on a fresh visit.
+  const intendedStepKeyRef = useRef<string>('')
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
@@ -288,21 +263,19 @@ export default function VisitCreate() {
   const [online, setOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine)
 
   // Step: GPS
-  const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(draft?.gpsLocation ?? null)
+  const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
 
   // Step 2: Visit Type - pre-populate from URL ?type=store or ?type=individual
   const [searchParams] = useSearchParams()
   const preselectedType = searchParams.get('type') as 'individual' | 'store' | 'survey' | null
-  const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | 'survey' | ''>(draft?.visitTargetType ?? (preselectedType || ''))
+  const [visitTargetType, setVisitTargetType] = useState<'individual' | 'store' | 'survey' | ''>(preselectedType || '')
 
   // Sync visitTargetType if URL param changes without unmounting.
   // When the type param is removed (e.g. agent taps "New" from a ?type=store URL),
   // reset to '' so the agent must re-select — prevents the previous type from persisting.
-  // Skipped on the very first run when a draft was restored: the draft's type must
-  // survive a reload of a URL without ?type= (the camera-kill recovery path).
-  const skipTypeResetRef = useRef(!!draft)
+  const skipTypeResetRef = useRef(false)
   useEffect(() => {
     if (preselectedType) {
       if (preselectedType !== visitTargetType) {
@@ -317,13 +290,13 @@ export default function VisitCreate() {
   // Step 3: Details
   const [companies, setCompanies] = useState<Company[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [selectedCompany, setSelectedCompany] = useState<string>(draft?.selectedCompany ?? '')
-  const [selectedCustomer, setSelectedCustomer] = useState<string>(draft?.selectedCustomer ?? '')
-  const [newStoreName, setNewStoreName] = useState<string>(draft?.newStoreName ?? '')
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [newStoreName, setNewStoreName] = useState<string>('')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
-  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>(draft?.customFieldValues ?? {})
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
   const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
-  const [customQuestionValues, setCustomQuestionValues] = useState<Record<string, string>>(draft?.customQuestionValues ?? {})
+  const [customQuestionValues, setCustomQuestionValues] = useState<Record<string, string>>({})
   const [storeRevisitCheck, setStoreRevisitCheck] = useState<{ can_visit: boolean; message: string; days_since?: number } | null>(null)
   const [duplicateCheck, setDuplicateCheck] = useState<{ has_duplicates: boolean; duplicates: Array<{ field: string; value: string }> } | null>(null)
   const [newStoreDialogOpen, setNewStoreDialogOpen] = useState(false)
@@ -332,14 +305,14 @@ export default function VisitCreate() {
   const [savingNewStore, setSavingNewStore] = useState(false)
 
   // Individual fields
-  const [individualFirstName, setIndividualFirstName] = useState(draft?.individualFirstName ?? '')
-  const [individualLastName, setIndividualLastName] = useState(draft?.individualLastName ?? '')
-  const [individualIdNumber, setIndividualIdNumber] = useState(draft?.individualIdNumber ?? '')
-  const [individualIdType, setIndividualIdType] = useState<IdType>(draft?.individualIdType ?? 'sa_id')
-  const [individualPhone, setIndividualPhone] = useState(draft?.individualPhone ?? '')
+  const [individualFirstName, setIndividualFirstName] = useState('')
+  const [individualLastName, setIndividualLastName] = useState('')
+  const [individualIdNumber, setIndividualIdNumber] = useState('')
+  const [individualIdType, setIndividualIdType] = useState<IdType>('sa_id')
+  const [individualPhone, setIndividualPhone] = useState('')
   // Per-question ID type (SA ID vs passport) for auto-detected national-id company questions
-  const [companyIdTypes, setCompanyIdTypes] = useState<Record<string, IdType>>(draft?.companyIdTypes ?? {})
-  const [individualEmail, setIndividualEmail] = useState(draft?.individualEmail ?? '')
+  const [companyIdTypes, setCompanyIdTypes] = useState<Record<string, IdType>>({})
+  const [individualEmail, setIndividualEmail] = useState('')
 
   // Step: Form Choice (store visits only) — agent picks Questionnaire or Survey
   // Form Type chooser removed — formChoice stays unset so survey step uses generic labels
@@ -350,58 +323,24 @@ export default function VisitCreate() {
   // Tracks whether a questionnaire fetch has finished, so the "no survey for your
   // company" message/block only shows once we actually know there are none.
   const [questionnairesLoaded, setQuestionnairesLoaded] = useState(false)
-  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>(draft?.selectedQuestionnaire ?? '')
-  const [surveyResponses, setSurveyResponses] = useState<Record<string, string>>(draft?.surveyResponses ?? {})
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>('')
+  const [surveyResponses, setSurveyResponses] = useState<Record<string, string>>({})
   const [surveyRequired, setSurveyRequired] = useState(false)
-  const [skipSurvey, setSkipSurvey] = useState(draft?.skipSurvey ?? false)
+  const [skipSurvey, setSkipSurvey] = useState(false)
 
   // Step 5: Photo (with board placement questions)
-  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string }>>(draft?.photos ?? [])
-  const [photoGps, setPhotoGps] = useState<GpsLocation | null>(draft?.photoGps ?? null)
+  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string }>>([])
+  const [photoGps, setPhotoGps] = useState<GpsLocation | null>(null)
   const [photoDuplicateWarning, setPhotoDuplicateWarning] = useState<string | null>(null)
   // Board placement defaults for the next photo
-  const [boardPlacementLocation, setBoardPlacementLocation] = useState<string>(draft?.boardPlacementLocation ?? '')
-  const [boardPlacementPosition, setBoardPlacementPosition] = useState<string>(draft?.boardPlacementPosition ?? '')
-  const [boardCondition, setBoardCondition] = useState<string>(draft?.boardCondition ?? '')
+  const [boardPlacementLocation, setBoardPlacementLocation] = useState<string>('')
+  const [boardPlacementPosition, setBoardPlacementPosition] = useState<string>('')
+  const [boardCondition, setBoardCondition] = useState<string>('')
 
   // Notes
-  const [notes, setNotes] = useState(draft?.notes ?? '')
+  const [notes, setNotes] = useState('')
   // Tracks whether the user attempted to proceed so we can highlight missing required fields
   const [showValidation, setShowValidation] = useState(false)
-
-  // Persist draft on every meaningful change so a mid-visit reload (Android camera
-  // hand-off killing the PWA) restores the wizard instead of restarting it.
-  useEffect(() => {
-    if (!visitTargetType && activeStep === 0) return
-    const data = {
-      savedAt: Date.now(),
-      activeStep, activeStepKey: intendedStepKeyRef.current,
-      visitTargetType, gpsLocation,
-      selectedCompany, selectedCustomer, newStoreName,
-      customFieldValues, customQuestionValues, companyIdTypes,
-      individualFirstName, individualLastName, individualIdNumber, individualIdType, individualPhone, individualEmail,
-      selectedQuestionnaire, surveyResponses, skipSurvey,
-      photos, photoGps, boardPlacementLocation, boardPlacementPosition, boardCondition,
-      notes,
-    }
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(data))
-    } catch {
-      // ponytail: photo dataUrls can blow the localStorage quota — save everything
-      // else so at least the answers survive; agent retakes the photo after restore
-      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...data, photos: [] })) } catch { /* full — give up */ }
-    }
-  }, [activeStep, visitTargetType, gpsLocation, selectedCompany, selectedCustomer, newStoreName,
-    customFieldValues, customQuestionValues, companyIdTypes,
-    individualFirstName, individualLastName, individualIdNumber, individualIdType, individualPhone, individualEmail,
-    selectedQuestionnaire, surveyResponses, skipSurvey,
-    photos, photoGps, boardPlacementLocation, boardPlacementPosition, boardCondition, notes])
-
-  // One-shot notice that progress was restored
-  useEffect(() => {
-    if (draft) toast.success('Restored your in-progress visit')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Load process flow when visit type or company changes
   useEffect(() => {
@@ -1601,9 +1540,6 @@ export default function VisitCreate() {
       }
 
       const result = await fieldOperationsService.createVisitWorkflow(payload as Parameters<typeof fieldOperationsService.createVisitWorkflow>[0])
-      // Visit persisted server-side — draft no longer needed (covers both the
-      // warnings branch and the success branch below)
-      clearVisitDraft()
       // Invalidate performance caches so reports update immediately
       queryClient.invalidateQueries({ queryKey: ['field-ops-performance'] })
       queryClient.invalidateQueries({ queryKey: ['field-ops-kpis'] })
