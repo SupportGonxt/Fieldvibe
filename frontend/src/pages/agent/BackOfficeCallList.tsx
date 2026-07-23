@@ -7,7 +7,8 @@ import { useToast } from '../../components/ui/Toast'
 
 // Back Office call list: every active field agent with their today's signup count
 // and last activity. Sorted quietest-first by the API so the agents who need a
-// nudge float to the top. Tapping a row starts an in-app WebRTC call to the agent.
+// nudge float to the top. Tapping a row rings the agent's app (WebRTC); if they
+// don't answer, the call screen fails over to a GSM call via the phone dialer.
 // Header tracks today's contacted-vs-target; a panel shows recent call history.
 
 type RosterRow = {
@@ -69,15 +70,25 @@ export default function BackOfficeCallList() {
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [company, setCompany] = useState<string | null>(null)
 
+  // Two-stage call: ring the agent's app first; CallScreen fails over to a GSM
+  // phone call (via calleeId/calleePhone) if they don't pick up.
   async function startCall(r: RosterRow) {
     if (calling) return
     setCalling(r.id)
     try {
       const res = await apiClient.post('/field-ops/calls/start', { callee_id: r.id })
-      const { callId, iceServers } = res.data
-      navigate(`/agent/call/${callId}`, { state: { peerName: r.name || 'Agent', iceServers } })
+      const { callId, iceServers, callee_phone } = res.data
+      navigate(`/agent/call/${callId}`, {
+        state: {
+          peerName: r.name || 'Agent',
+          iceServers,
+          calleeId: r.id,
+          calleePhone: callee_phone,
+        },
+      })
     } catch {
       toast.error('Could not start call')
+    } finally {
       setCalling(null)
     }
   }
@@ -245,7 +256,7 @@ export default function BackOfficeCallList() {
             ) : (
               <div className="divide-y divide-token">
                 {history.map((h) => {
-                  const answered = h.status === 'answered'
+                  const answered = h.status === 'answered' || h.status === 'dialed'
                   return (
                     <div key={h.id} className="flex items-center gap-3 py-2">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${answered ? 'bg-primary/15 text-primary' : 'bg-white/[0.04] text-gray-500'}`}>

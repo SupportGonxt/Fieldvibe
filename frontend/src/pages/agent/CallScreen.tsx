@@ -3,6 +3,8 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { Phone, PhoneOff, Mic, MicOff, Loader2 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { CallSession, type CallState } from '../../services/webrtc'
+import { startRinger } from '../../services/ringtone'
+import { closeCallNotification } from '../../services/push'
 
 // Full-screen call UI, rendered outside AgentLayout (no bottom nav / header).
 // Outgoing:  /agent/call/:callId   — initiator, call already started server-side.
@@ -12,6 +14,8 @@ type NavState = {
   iceServers?: RTCIceServer[]
   peerName?: string
   callId?: string // incoming passes it here (route has no :callId)
+  calleeId?: string // outgoing: who we're calling — needed for the GSM fallback log
+  calleePhone?: string | null // outgoing: number for the GSM fallback
 }
 
 const LABELS: Record<CallState, string> = {
@@ -20,8 +24,15 @@ const LABELS: Record<CallState, string> = {
   connected: '',
   reconnecting: 'Reconnecting…',
   ended: 'Call ended',
+  declined: 'Call declined',
   failed: 'Call failed',
 }
+
+// How long the in-app ring runs before failing over to a GSM phone call.
+// A full minute: field agents often need time to reach their phone, and a
+// "has push subscription" probe proved too unreliable to cut the ring short
+// (the app can still ring via the /calls/incoming poll without one).
+const RING_TIMEOUT_MS = 60_000
 
 export default function CallScreen({ incoming = false }: { incoming?: boolean }) {
   const navigate = useNavigate()
@@ -36,12 +47,39 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   const iceServers = nav.iceServers || [{ urls: 'stun:stun.l.google.com:19302' }]
   const peerName = nav.peerName || query.get('callerName') || (incoming ? 'Incoming call' : 'Calling')
 
-  const [state, setState] = useState<CallState>('connecting')
+  // Callee starts "ringing" (pre-accept); caller starts "connecting".
+  const [state, setState] = useState<CallState>(incoming ? 'ringing' : 'connecting')
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
+  const [noAnswer, setNoAnswer] = useState(false)
   // Incoming calls wait for the user to accept before touching the mic.
   const [accepted, setAccepted] = useState(!incoming)
   const sessionRef = useRef<CallSession | null>(null)
+
+  const over = state === 'ended' || state === 'failed' || state === 'declined'
+  const waitingForAnswer = !incoming && !over && state !== 'connected' && state !== 'reconnecting'
+
+  // GSM fallback — when the in-app ring can't get through (no answer, failure,
+  // or decline) the caller falls over to a real phone call to the agent's number.
+  const calleeId = (!incoming && nav.calleeId) || ''
+  const calleePhone = (!incoming && nav.calleePhone) || null
+  const telHref = calleePhone ? `tel:${calleePhone.replace(/[^+\d]/g, '')}` : ''
+  const phoneFallback = !!calleePhone && (noAnswer || state === 'failed' || state === 'declined')
+  const dialLoggedRef = useRef(false)
+
+  // Log the GSM attempt exactly once (as bo_calls status 'dialed') no matter
+  // which path triggers it — the auto fail-over or the fallback button.
+  const logDial = () => {
+    if (dialLoggedRef.current || !calleeId) return
+    dialLoggedRef.current = true
+    apiClient.post('/field-ops/calls/dial', { callee_id: calleeId }).catch(() => {})
+  }
+
+  // A push-opened window has no history to go back to.
+  const leave = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/agent/dashboard', { replace: true })
+  }
 
   // Duration timer — runs while connected.
   useEffect(() => {
@@ -50,13 +88,77 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
     return () => clearInterval(id)
   }, [state])
 
-  // Leave the call screen a moment after it terminates.
+  // Leave the call screen a moment after it terminates — unless we're offering
+  // the phone-dialer fallback, which needs the caller to read and act on it.
   useEffect(() => {
-    if (state === 'ended' || state === 'failed') {
-      const id = setTimeout(() => navigate(-1), 1500)
+    if (over && !phoneFallback) {
+      const id = setTimeout(leave, 1500)
       return () => clearTimeout(id)
     }
-  }, [state, navigate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [over, phoneFallback])
+
+  // Audible ring: callee hears a ringtone (+vibration) until they act; caller
+  // hears a quiet ringback while waiting — "Ringing…" shouldn't be silent.
+  useEffect(() => {
+    if (incoming && !accepted && !over) return startRinger('incoming')
+    if (!incoming && state === 'ringing') return startRinger('ringback')
+  }, [incoming, accepted, over, state])
+
+  // No answer in time: finalize the app call as missed (the server clears the
+  // ring on the callee's devices via a call_cancelled push), then fail over to
+  // a real GSM phone call. The auto-redirect to tel: can be blocked without a
+  // user gesture on some platforms — the on-screen fallback button covers that.
+  useEffect(() => {
+    if (!waitingForAnswer) return
+    const id = setTimeout(() => {
+      apiClient.post(`/field-ops/calls/${callId}/end`, { reason: 'no_answer' }).catch(() => {})
+      setNoAnswer(true)
+      sessionRef.current?.hangup()
+      if (telHref) {
+        logDial()
+        window.location.href = telHref
+      }
+    }, RING_TIMEOUT_MS)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingForAnswer, callId, telHref])
+
+  // Caller hung up / call was handled elsewhere while we were still ringing
+  // (relayed by the SW as a call_cancelled message → window event).
+  useEffect(() => {
+    if (!incoming || accepted) return
+    const onCancelled = (e: Event) => {
+      const d = (e as CustomEvent).detail
+      if (d?.callId === callId) setState('ended')
+    }
+    window.addEventListener('fv:call-cancelled', onCancelled)
+    return () => window.removeEventListener('fv:call-cancelled', onCancelled)
+  }, [incoming, accepted, callId])
+
+  // Ring liveness: the SW cancel above only reaches push-capable devices. A
+  // device rung by the /calls/incoming poll must also stop ringing when the
+  // caller gives up (e.g. fails over to a GSM call) — poll the call's status
+  // and end the ring once it's no longer 'ringing' server-side. Also covers
+  // the call being answered/declined on another of the agent's devices.
+  useEffect(() => {
+    if (!incoming || accepted || over || !callId) return
+    const id = setInterval(async () => {
+      try {
+        const { data } = await apiClient.get(`/field-ops/calls/${callId}/status`)
+        if (data?.status && data.status !== 'ringing') setState('ended')
+      } catch { /* offline blip — keep ringing */ }
+    }, 4000)
+    return () => clearInterval(id)
+  }, [incoming, accepted, over, callId])
+
+  // Safety: if the caller vanished without finalizing (crash/offline), don't
+  // ring forever — callers give up at 60s, so cap the incoming ring just past it.
+  useEffect(() => {
+    if (!incoming || accepted || over) return
+    const id = setTimeout(() => setState('ended'), RING_TIMEOUT_MS + 15_000)
+    return () => clearTimeout(id)
+  }, [incoming, accepted, over])
 
   // Start the WebRTC session once the call is live (outgoing: immediately;
   // incoming: after the user accepts).
@@ -78,17 +180,26 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   }, [accepted])
 
   const accept = async () => {
-    try { await apiClient.post(`/field-ops/calls/${callId}/answer`) } catch { /* */ }
+    closeCallNotification(callId)
+    try {
+      const { data } = await apiClient.post(`/field-ops/calls/${callId}/answer`)
+      // Stale notification tap — the caller already gave up; don't join an empty room.
+      if (data && data.active === false) {
+        setState('ended')
+        return
+      }
+    } catch { /* offline blip — still try to join */ }
     setAccepted(true)
   }
   const decline = async () => {
+    closeCallNotification(callId)
     try { await apiClient.post(`/field-ops/calls/${callId}/decline`) } catch { /* */ }
-    navigate(-1)
+    leave()
   }
   const hangup = () => {
     apiClient.post(`/field-ops/calls/${callId}/end`, {}).catch(() => {})
     sessionRef.current?.hangup()
-    navigate(-1)
+    leave()
   }
   const toggleMute = () => {
     const m = sessionRef.current?.toggleMute() ?? false
@@ -96,7 +207,11 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
   }
 
   const mmss = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-  const status = state === 'connected' ? mmss : LABELS[state]
+  const status =
+    state === 'connected' ? mmss
+    : noAnswer ? 'No answer'
+    : incoming && !accepted && state === 'ringing' ? 'Incoming call…'
+    : LABELS[state]
 
   return (
     <div className="fixed inset-0 z-[100] bg-bg flex flex-col items-center justify-between px-6 py-16">
@@ -120,7 +235,18 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
 
       {/* Controls */}
       <div className="w-full max-w-xs">
-        {incoming && !accepted ? (
+        {phoneFallback ? (
+          <div className="flex flex-col items-center gap-4">
+            <a
+              href={telHref}
+              onClick={logDial}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-on-primary shadow-lg shadow-primary/30 active:scale-95 transition-transform"
+            >
+              <Phone className="w-5 h-5" /> Call {calleePhone} instead
+            </a>
+            <button onClick={leave} className="text-sm text-token-muted">Close</button>
+          </div>
+        ) : over ? null : incoming && !accepted ? (
           <div className="flex items-center justify-around">
             <button
               onClick={decline}
@@ -130,7 +256,7 @@ export default function CallScreen({ incoming = false }: { incoming?: boolean })
             </button>
             <button
               onClick={accept}
-              className="w-16 h-16 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform shadow-lg shadow-primary/30"
+              className="w-16 h-16 rounded-full bg-primary flex items-center justify-center active:scale-95 transition-transform shadow-lg shadow-primary/30 animate-pulse"
             >
               <Phone className="w-7 h-7 text-on-primary" />
             </button>

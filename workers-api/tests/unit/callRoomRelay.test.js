@@ -74,4 +74,46 @@ describe('CallRoom signaling relay', () => {
     const res = await room.fetch(wsRequest());
     expect(res.status).toBe(409);
   });
+
+  // The caller connects and sends its offer while the callee is still looking
+  // at the ring notification — the room must hold it for the late joiner.
+  it('replays signaling sent before the second peer joined', async () => {
+    const room = new CallRoom({}, {});
+    await room.fetch(wsRequest()); // caller
+    const [a] = servers;
+    a.dispatch('message', { data: '{"type":"offer"}' });
+    a.dispatch('message', { data: '{"type":"ice","candidate":1}' });
+
+    await room.fetch(wsRequest()); // callee joins after the fact
+    const b = servers[1];
+    expect(b.sent).toEqual(['{"type":"offer"}', '{"type":"ice","candidate":1}']);
+  });
+
+  it('never buffers bye, and clears the buffer when the room empties', async () => {
+    const room = new CallRoom({}, {});
+    await room.fetch(wsRequest());
+    const [a] = servers;
+    a.dispatch('message', { data: '{"type":"offer"}' });
+    a.dispatch('message', { data: '{"type":"bye"}' }); // to nobody — dropped
+    a.dispatch('close', {});                            // room empty — buffer cleared
+
+    await room.fetch(wsRequest());
+    expect(servers[1].sent).toEqual([]);
+  });
+
+  it('broadcasts POST /notify payloads to connected peers', async () => {
+    const room = new CallRoom({}, {});
+    await room.fetch(wsRequest());
+    const [a] = servers;
+
+    const payload = JSON.stringify({ type: 'bye', reason: 'declined' });
+    const res = await room.fetch({
+      method: 'POST',
+      url: 'https://call-room/notify',
+      headers: { get: () => null },
+      text: async () => payload,
+    });
+    expect(res.status).toBe(200);
+    expect(a.sent).toEqual([payload]);
+  });
 });

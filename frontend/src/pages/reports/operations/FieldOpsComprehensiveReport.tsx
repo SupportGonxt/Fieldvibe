@@ -1374,7 +1374,17 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Export failed:', err)
-      toast.error('Failed to export report')
+      // With responseType:'blob' an error body arrives as a Blob — decode it so
+      // the toast shows the server's actual reason, not a generic failure.
+      let message = 'Failed to export report'
+      try {
+        const data = (err as { response?: { data?: unknown } })?.response?.data
+        if (data instanceof Blob) {
+          const parsed = JSON.parse(await data.text())
+          if (parsed?.error) message = parsed.error
+        }
+      } catch { /* keep generic message */ }
+      toast.error(message)
     }
   }
 
@@ -1418,9 +1428,14 @@ function PerformanceTab({ selectedCompany, isStellr }: { selectedCompany: string
             <input type="date" value={dateRange.end_date} onChange={(e) => setDateRange({ ...dateRange, end_date: e.target.value })} className="input text-sm" />
           </div>
         )}
-        <button onClick={() => handleExport('excel')} className="btn-primary flex items-center gap-2" title="Export multi-sheet Excel">
-          <FileSpreadsheet className="w-4 h-4" /> Excel
-        </button>
+        {/* The multi-sheet Excel is org-wide, so the API only serves it to
+            manager-tier users — the API reports those as role 'manager'.
+            Agents/team leads keep the CSV, which is scoped to their own data. */}
+        {role === 'manager' && (
+          <button onClick={() => handleExport('excel')} className="btn-primary flex items-center gap-2" title="Export multi-sheet Excel">
+            <FileSpreadsheet className="w-4 h-4" /> Excel
+          </button>
+        )}
         <button onClick={() => handleExport('csv')} className="btn-outline flex items-center gap-2 text-sm" title="Export CSV">CSV</button>
       </div>
 

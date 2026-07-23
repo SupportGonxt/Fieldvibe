@@ -11,6 +11,7 @@ export type CallState =
   | 'connected'    // media flowing
   | 'reconnecting' // ICE dropped, may recover
   | 'ended'        // hung up / peer left
+  | 'declined'     // callee rejected the call
   | 'failed'       // mic denied or ICE failed
 
 export interface CallSessionOpts {
@@ -98,7 +99,7 @@ export class CallSession {
     } else if (msg.type === 'ice') {
       try { await pc.addIceCandidate(msg.candidate) } catch { /* stale candidate */ }
     } else if (msg.type === 'bye') {
-      this.opts.onState('ended')
+      this.opts.onState(msg.reason === 'declined' ? 'declined' : 'ended')
       this.cleanup()
     }
   }

@@ -5,8 +5,9 @@ import { useToast } from '../components/ui/Toast'
 
 /**
  * The two remediation actions a supervisor can take on a person from any PWA roster row:
- * send a push/in-app nudge, or open a WebRTC call. `busy` holds the id being acted on so
- * the row can disable its own buttons.
+ * send a push/in-app nudge, or call them — rings their app first, and the call screen
+ * fails over to a GSM phone call if they don't pick up.
+ * `busy` holds the id being acted on so the row can disable its own buttons.
  */
 /** Pre-filled default shown in the nudge editor; also used when no message is passed. */
 export const defaultNudgeMessage = (name: string) =>
@@ -38,10 +39,18 @@ export function useRemediate() {
     setBusy(userId)
     try {
       const res = await apiClient.post('/field-ops/calls/start', { callee_id: userId })
-      const { callId, iceServers } = res.data
-      navigate(`/agent/call/${callId}`, { state: { peerName: name, iceServers } })
+      const { callId, iceServers, callee_phone } = res.data
+      navigate(`/agent/call/${callId}`, {
+        state: {
+          peerName: name,
+          iceServers,
+          calleeId: userId,
+          calleePhone: callee_phone,
+        },
+      })
     } catch {
       toast.error('Could not start call')
+    } finally {
       setBusy(null)
     }
   }

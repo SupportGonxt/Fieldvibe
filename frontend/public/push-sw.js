@@ -38,19 +38,48 @@ self.addEventListener('push', (event) => {
 
   if (data.type === 'incoming_call' && data.callId) {
     const title = data.callerName || 'Back office';
-    event.waitUntil(
-      self.registration.showNotification(title, {
+    event.waitUntil((async () => {
+      // Ring any open app window right away — the in-app full-screen ring must
+      // not wait for a notification click.
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const w of wins) {
+        w.postMessage({ type: 'incoming_call', callId: data.callId, callerName: title });
+      }
+      await self.registration.showNotification(title, {
         body: 'Incoming call',
         tag: 'call-' + data.callId, // collapse repeat rings for the same call
         requireInteraction: true,   // keep ringing until the agent acts
         renotify: true,
+        vibrate: [400, 200, 400, 200, 400],
         data: { callId: data.callId, callerName: title },
         actions: [
           { action: 'answer', title: 'Answer' },
           { action: 'decline', title: 'Decline' },
         ],
-      })
-    );
+      });
+    })());
+    return;
+  }
+
+  // Ring cancelled (caller gave up, or answered/declined on another device):
+  // take down the ringing notification everywhere; a genuine miss leaves a
+  // "Missed call" note in its place (same tag, so it replaces the ring).
+  if (data.type === 'call_cancelled' && data.callId) {
+    event.waitUntil((async () => {
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const w of wins) {
+        w.postMessage({ type: 'call_cancelled', callId: data.callId });
+      }
+      const ns = await self.registration.getNotifications({ tag: 'call-' + data.callId });
+      for (const n of ns) n.close();
+      if (data.outcome === 'missed') {
+        await self.registration.showNotification(data.callerName || 'Back office', {
+          body: 'Missed call',
+          tag: 'call-' + data.callId,
+          data: { url: '/agent/dashboard' },
+        });
+      }
+    })());
     return;
   }
 

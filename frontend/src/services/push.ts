@@ -61,6 +61,21 @@ export async function ensurePushSubscription(): Promise<void> {
 }
 
 /**
+ * Close the OS ring notification for a call once it's been handled in-app,
+ * so answering/declining on screen doesn't leave a stale "Incoming call" behind.
+ */
+export function closeCallNotification(callId: string): void {
+  try {
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker
+      .getRegistration()
+      .then((reg) => reg?.getNotifications({ tag: `call-${callId}` }))
+      .then((ns) => ns?.forEach((n) => n.close()))
+      .catch(() => {})
+  } catch { /* no SW (dev) — nothing to close */ }
+}
+
+/**
  * Fire a test push to this user's own devices. Ensures a subscription exists first
  * (no-op if permission isn't granted). Returns true only if the backend actually
  * delivered to at least one device. Powers the first-login tour's test button.

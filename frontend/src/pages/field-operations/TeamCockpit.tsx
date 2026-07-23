@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast'
 import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRight } from 'lucide-react'
 import { MyIssues, signalText } from '../../components/field-ops/IssueQueue'
 import type { Signal } from '../../components/field-ops/IssueQueue'
+import NewsWidget from '../../components/agent/NewsWidget'
 
 // Team-leader / manager performance cockpit. Consumes GET /field-ops/kpi/roster
 // (already ranked worst-first server-side) and the three POST /field-ops/kpi/remediate/*
@@ -87,10 +88,19 @@ function AgentRow({ a, badge }: { a: RosterAgent; badge?: string }) {
   const [open, setOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
 
+  // Two-stage call: ring the agent's app first; CallScreen fails over to a GSM
+  // phone call (via calleeId/calleePhone) if they don't pick up.
   const call = async () => {
     try {
       const { data } = await apiClient.post('/field-ops/calls/start', { callee_id: a.agentId })
-      navigate(`/agent/call/${data.callId}`, { state: { peerName: a.name, iceServers: data.iceServers } })
+      navigate(`/agent/call/${data.callId}`, {
+        state: {
+          peerName: a.name,
+          iceServers: data.iceServers,
+          calleeId: a.agentId,
+          calleePhone: data.callee_phone,
+        },
+      })
     } catch {
       toast.error('Could not start call')
     }
@@ -226,6 +236,9 @@ export default function TeamCockpit() {
           </p>
         </div>
       </div>
+
+      {/* Announcements (e.g. the new call feature) — role-filtered inside the widget */}
+      <NewsWidget />
 
       <MyIssues />
 
