@@ -101,6 +101,26 @@ describe('POST /qr/issue', () => {
     const res = await post(app, db, '/api/field-ops/qr/issue', {});
     expect(res.status).toBe(400);
   });
+
+  it("resolves steps of built-in flows stored under tenant 'default'", async () => {
+    seedStep(db, { tenant: 'default', dest: 'https://default-flow.example.com' });
+    const res = await post(app, db, '/api/field-ops/qr/issue', { process_flow_id: 'pf1' });
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.destination_url).toBe('https://default-flow.example.com');
+  });
+
+  it("prefers the tenant's own step over the 'default' one", async () => {
+    seedStep(db, { tenant: 'default', dest: 'https://default-flow.example.com' });
+    db._sdb.exec(
+      `INSERT INTO process_flow_steps (id, tenant_id, process_flow_id, step_key, step_label, config)
+       VALUES ('pf1-t1', 't1', 'pf1', 'qr', 'QR', '{"destination_url":"https://tenant-override.example.com"}')`,
+    );
+    const res = await post(app, db, '/api/field-ops/qr/issue', { process_flow_id: 'pf1' });
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.destination_url).toBe('https://tenant-override.example.com');
+  });
 });
 
 describe('GET /s/:token (public scan)', () => {
