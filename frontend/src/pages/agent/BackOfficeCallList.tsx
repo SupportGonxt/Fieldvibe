@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed, KeyRound } from 'lucide-react'
+import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed, KeyRound, GraduationCap } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import type { ActiveTodayGroup } from '../../services/field-operations.service'
@@ -161,6 +161,13 @@ export default function BackOfficeCallList() {
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold text-token">Agents</h1>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/agent/role-guide/back-office')}
+              className="p-3 rounded-xl bg-white/[0.04] border border-white/10 text-gray-400 active:scale-95 transition-transform"
+              aria-label="Help & Training — about the Back Office role"
+            >
+              <GraduationCap className="w-5 h-5" />
+            </button>
             <button
               onClick={() => navigate('/agent/pin-management')}
               className="p-3 rounded-xl bg-white/[0.04] border border-white/10 text-gray-400 active:scale-95 transition-transform"

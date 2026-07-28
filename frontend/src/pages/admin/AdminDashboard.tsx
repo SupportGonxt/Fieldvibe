@@ -18,7 +18,9 @@ import {
   LinearProgress,
   ToggleButton,
   ToggleButtonGroup,
+  Button,
 } from '@mui/material'
+import { useNavigate } from 'react-router-dom'
 import {
   Users,
   UserCheck,
@@ -31,6 +33,7 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
+  GraduationCap,
 } from 'lucide-react'
 import { apiClient as api } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
@@ -143,6 +146,7 @@ const getStatusColor = (status: string) => {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate()
   const role = useAuthStore((s) => s.user?.role)
   const allowAll = canViewAllCompanies(role)
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
@@ -240,12 +244,23 @@ export default function AdminDashboard() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Admin Dashboard
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        System overview, user management, and agent performance
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
+        <Box>
+          <Typography variant="h4" fontWeight="bold" gutterBottom>
+            Admin Dashboard
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            System overview, user management, and agent performance
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<GraduationCap size={18} />}
+          onClick={() => navigate('/admin/role-guide')}
+        >
+          Help &amp; Training
+        </Button>
+      </Box>
 
       {/* Goldrush / Stellr scope. Only field-ops (visit-based) metrics split by company;
           the master-data tiles below are labelled "org-wide" when a company is selected. */}

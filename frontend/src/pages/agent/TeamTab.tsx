@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Shield, Store, AlertCircle, Bell, Phone, Loader2 } from 'lucide-react'
+import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Shield, Store, AlertCircle, Bell, Phone, Loader2, GraduationCap } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import type { ActiveTodayGroup } from '../../services/field-operations.service'
@@ -195,9 +195,18 @@ export default function TeamTab() {
             <h1 className="text-lg font-bold text-token">My Team</h1>
             <p className="text-xs text-token-faint">{data?.team_size || 0} agents</p>
           </div>
-          <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/agent/role-guide/team-lead')}
+              className="p-2 rounded-xl bg-white/5"
+              aria-label="Help & Training — about the Team Lead role"
+            >
+              <GraduationCap className="w-4 h-4 text-token-muted" />
+            </button>
+            <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </div>
 

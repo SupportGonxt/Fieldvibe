@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode, GraduationCap,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
@@ -269,6 +269,13 @@ export default function GmOverviewPage() {
           <button onClick={() => refetch()} className="p-2 rounded-lg hover:bg-surface-secondary" aria-label="Refresh">
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
+          <Link
+            to="/dashboard/gm/role-guide"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-xl bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span className="hidden sm:inline">Help &amp; Training</span>
+          </Link>
         </div>
       </div>
 

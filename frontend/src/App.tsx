@@ -77,6 +77,12 @@ const AgentProfile = lazyWithRetry(() => import('./pages/agent/AgentProfile'))
 const AgentOnboarding = lazyWithRetry(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinManagement'))
 const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTrainingGuide'))
+// "About My Role" brochures — persistent Help & Training pages, one per role
+const TeamLeadRole = lazyWithRetry(() => import('./pages/roles/TeamLeadRole'))
+const ManagerRole = lazyWithRetry(() => import('./pages/roles/ManagerRole'))
+const BackOfficeRole = lazyWithRetry(() => import('./pages/roles/BackOfficeRole'))
+const AdminRole = lazyWithRetry(() => import('./pages/roles/AdminRole'))
+const GeneralManagerRole = lazyWithRetry(() => import('./pages/roles/GeneralManagerRole'))
 const BackOfficeCallList = lazyWithRetry(() => import('./pages/agent/BackOfficeCallList'))
 const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOfficeReconcile'))
 const BackOfficeDeposits = lazyWithRetry(() => import('./pages/agent/BackOfficeDeposits'))
@@ -567,6 +573,8 @@ function App() {
             {/* Dashboard Routes */}
             <Route path="dashboard" element={<PageLoader><DashboardForRole /></PageLoader>} />
             <Route path="dashboard/gm" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GmOverviewPage /></PageLoader></ProtectedRoute>} />
+            {/* "About My Role" brochure — reachable from the GM Overview */}
+            <Route path="dashboard/gm/role-guide" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GeneralManagerRole /></PageLoader></ProtectedRoute>} />
             <Route path="analytics" element={<PageLoader><AnalyticsPage /></PageLoader>} />
             
             <Route path="analytics-dashboard/*" element={<Navigate to="/insights" replace />} />
@@ -888,6 +896,12 @@ function App() {
                 <AdminDashboard />
               </ProtectedRoute>
             } />
+            {/* "About My Role" brochure — reachable from the Admin Dashboard */}
+            <Route path="admin/role-guide" element={
+              <ProtectedRoute requiredRole="admin">
+                <PageLoader><AdminRole /></PageLoader>
+              </ProtectedRoute>
+            } />
             <Route path="admin/users" element={
               <ProtectedRoute requiredRole="admin">
                 <UserManagementPage />
@@ -1201,6 +1215,10 @@ function App() {
             <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
             <Route path="onboarding" element={<PageLoader><AgentOnboarding /></PageLoader>} />
             <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
+            {/* "About My Role" brochures reachable from each role's home screen */}
+            <Route path="role-guide/team-lead" element={<PageLoader><TeamLeadRole /></PageLoader>} />
+            <Route path="role-guide/manager" element={<PageLoader><ManagerRole /></PageLoader>} />
+            <Route path="role-guide/back-office" element={<PageLoader><BackOfficeRole /></PageLoader>} />
             <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
 
