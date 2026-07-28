@@ -26,8 +26,13 @@ import {
   DollarSign,
   TrendingUp,
   AlertTriangle,
+  Activity,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { apiClient as api } from '../../services/api.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
+import type { ActiveTodayResponse } from '../../services/field-operations.service'
 import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 
@@ -135,6 +140,8 @@ const getStatusColor = (status: string) => {
 
 export default function AdminDashboard() {
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
+  const [activeToday, setActiveToday] = useState<ActiveTodayResponse | null>(null)
+  const [showActiveRoster, setShowActiveRoster] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -146,7 +153,11 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
       setError(null)
-      const response = await api.get('/dashboard/admin')
+      const [response, active] = await Promise.all([
+        api.get('/dashboard/admin'),
+        fieldOperationsService.getActiveToday().catch(() => null),
+      ])
+      setActiveToday(active ?? null)
       if (response.data.success) {
         setMetrics(response.data.data)
       } else {
@@ -194,6 +205,17 @@ export default function AdminDashboard() {
     ? Math.round((metrics.activeAgents / metrics.totalAgents) * 100)
     : 0
 
+  // Active today (signup OR GPS) across the whole tenant, split by role. One combined,
+  // inactive-first roster for the drill-down — the backend already sorts each group.
+  const atAgents = activeToday?.agents
+  const atLeads = activeToday?.teamLeads
+  const activeTodayCount = (atAgents?.active ?? 0) + (atLeads?.active ?? 0)
+  const activeTodayTotal = (atAgents?.total ?? 0) + (atLeads?.total ?? 0)
+  const activeRoster = [
+    ...(atLeads?.roster ?? []).map((p) => ({ ...p, kind: 'Team Lead' })),
+    ...(atAgents?.roster ?? []).map((p) => ({ ...p, kind: 'Agent' })),
+  ]
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" fontWeight="bold" gutterBottom>
@@ -221,6 +243,15 @@ export default function AdminDashboard() {
             subtitle={`${metrics.activeAgents} active`}
             icon={<Shield size={24} color="#8b5cf6" />}
             color="#8b5cf6"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard
+            title="Active Today"
+            value={`${activeTodayCount} of ${activeTodayTotal}`}
+            subtitle={`${atAgents?.active ?? 0}/${atAgents?.total ?? 0} agents · ${atLeads?.active ?? 0}/${atLeads?.total ?? 0} leads`}
+            icon={<Activity size={24} color="#22c55e" />}
+            color="#22c55e"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -290,6 +321,66 @@ export default function AdminDashboard() {
               />
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Active Today — drillable roster split by team lead / agent */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              sx={{ cursor: activeTodayTotal > 0 ? 'pointer' : 'default' }}
+              onClick={() => activeTodayTotal > 0 && setShowActiveRoster((s) => !s)}
+            >
+              <Box display="flex" alignItems="center" gap={1}>
+                <Activity size={24} color="#22c55e" />
+                <Typography variant="h6" fontWeight="bold">
+                  Active Today — {activeTodayCount} of {activeTodayTotal}
+                </Typography>
+              </Box>
+              {activeTodayTotal > 0 &&
+                (showActiveRoster ? <ChevronUp size={20} /> : <ChevronDown size={20} />)}
+            </Box>
+            {showActiveRoster && activeTodayTotal > 0 && (
+              <TableContainer sx={{ mt: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Role</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Last activity</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {activeRoster.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{p.name || 'Unknown'}</TableCell>
+                        <TableCell>{p.kind}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={p.active ? 'active' : 'inactive'}
+                            color={getStatusColor(p.active ? 'active' : 'inactive')}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {p.lastActivity
+                            ? new Date(
+                                p.lastActivity.includes('T')
+                                  ? p.lastActivity
+                                  : p.lastActivity.replace(' ', 'T') + 'Z'
+                              ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
         </Grid>
 
         {/* System Health Alerts */}

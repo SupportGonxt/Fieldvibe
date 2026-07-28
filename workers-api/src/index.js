@@ -13,6 +13,7 @@ import depositRoutes from './routes/field-ops/deposits.js';
 import metricFactsRoutes from './routes/field-ops/metricFacts.js';
 import issueRoutes from './routes/field-ops/issues.js';
 import qrRoutes, { handleScan } from './routes/field-ops/qr.js';
+import activeTodayRoutes from './routes/field-ops/activeToday.js';
 import cashReconRoutes from './routes/cashRecon.js';
 import fieldOpsPerformanceRoutes from './routes/fieldOpsPerformance.js';
 import vanSalesRoutes from './routes/vanSales.js';
@@ -266,6 +267,7 @@ api.route('/field-ops', depositRoutes);
 api.route('/field-ops', metricFactsRoutes);
 api.route('/field-ops', issueRoutes);
 api.route('/field-ops', qrRoutes);
+api.route('/field-ops', activeTodayRoutes);
 
 // ==================== MOUNT AND EXPORT ====================
 // Mounted last so every api.get/post above (including routes declared late in

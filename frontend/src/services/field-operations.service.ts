@@ -1,5 +1,25 @@
 import { ApiService } from './api.service'
 
+// "Active today" KPI shapes (backend: services/activityToday.js).
+export interface ActiveTodayPerson {
+  id: string
+  name: string
+  role: string
+  active: boolean
+  lastActivity: string | null
+}
+export interface ActiveTodayGroup {
+  active: number
+  total: number
+  roster: ActiveTodayPerson[]
+}
+export interface ActiveTodayResponse {
+  success: boolean
+  asOf: string
+  agents: ActiveTodayGroup
+  teamLeads: ActiveTodayGroup
+}
+
 export interface FieldAgent {
   id: string
   tenant_id: string
@@ -1478,6 +1498,17 @@ class FieldOperationsService extends ApiService {
   // callers should swallow errors/403 and render nothing. date defaults to today (SAST).
   async getPresenceAnomalies(date?: string) {
     const response = await this.get(`/field-ops/presence/anomalies${date ? `?date=${date}` : ''}`)
+    return response.data || response
+  }
+
+  // ==================== FIELD OPS: ACTIVE TODAY ====================
+  // Single source of truth for the "X of Y active today" KPI tiles. Active =
+  // logged a signup OR sent a GPS heartbeat since work-start (backend definition
+  // in services/activityToday.js). Role/company scoped server-side; a team lead
+  // gets only their own agents, managers/admins also get a teamLeads roster.
+  async getActiveToday(companyId?: string): Promise<ActiveTodayResponse> {
+    const params = companyId ? `?company_id=${companyId}` : ''
+    const response = await this.get(`/field-ops/active-today${params}`)
     return response.data || response
   }
 }

@@ -234,10 +234,17 @@ async function checkInactiveAgents(db, env) {
 
       for (const agent of (agents.results || [])) {
         try {
+          // "Last active" = the later of a logged signup OR a GPS presence heartbeat since
+          // work-start. Same definition as services/activityToday.js and the dashboard KPI
+          // tiles, so a moving-but-not-yet-logging agent won't be nudged as idle.
           const last = await db.prepare(
-            `SELECT MAX(vi.created_at) t FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
-             WHERE v.tenant_id = ? AND v.agent_id = ? AND vi.created_at >= ?`
-          ).bind(tenantId, agent.id, workStartUtc).first();
+            `SELECT MAX(t) t FROM (
+               SELECT MAX(vi.created_at) t FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+                 WHERE v.tenant_id = ? AND v.agent_id = ? AND vi.created_at >= ?
+               UNION ALL
+               SELECT MAX(recorded_at) t FROM agent_locations
+                 WHERE tenant_id = ? AND agent_id = ? AND recorded_at >= ?)`
+          ).bind(tenantId, agent.id, workStartUtc, tenantId, agent.id, workStartUtc).first();
           const lastActive = parseSqlUtc(last?.t) || parseSqlUtc(workStartUtc);
           const idleMin = Math.floor((now.getTime() - lastActive.getTime()) / 60000);
           const due = dueEscalation(steps, idleMin - threshold);

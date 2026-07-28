@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Phone, Loader2, Search, RefreshCw, CircleDot, History, Check, PhoneOff, PhoneMissed, KeyRound } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
+import type { ActiveTodayGroup } from '../../services/field-operations.service'
+import ActiveTodayTile from '../../components/field-ops/ActiveTodayTile'
 import { useToast } from '../../components/ui/Toast'
 
 // Back Office call list: every active field agent with their today's signup count
@@ -69,6 +71,7 @@ export default function BackOfficeCallList() {
   const [history, setHistory] = useState<CallRow[] | null>(null)
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [company, setCompany] = useState<string | null>(null)
+  const [activeToday, setActiveToday] = useState<ActiveTodayGroup | null>(null)
 
   // Two-stage call: ring the agent's app first; CallScreen fails over to a GSM
   // phone call (via calleeId/calleePhone) if they don't pick up.
@@ -96,11 +99,13 @@ export default function BackOfficeCallList() {
   async function load() {
     setLoading(true)
     try {
-      const [rosterRes, targetRes] = await Promise.all([
+      const [rosterRes, targetRes, activeRes] = await Promise.all([
         apiClient.get(`/field-ops/incentives/roster${company ? `?company_id=${company}` : ''}`),
         apiClient.get('/field-ops/calls/target').catch(() => null),
+        fieldOperationsService.getActiveToday(company || undefined).catch(() => null),
       ])
       setRoster(rosterRes?.data?.roster || [])
+      setActiveToday(activeRes?.agents ?? null)
       if (targetRes?.data?.success) {
         const d = targetRes.data
         setTarget({ target: d.target, contacted: d.contacted, calls: d.calls, missed: d.missed, contacted_ids: d.contacted_ids })
@@ -153,7 +158,9 @@ export default function BackOfficeCallList() {
     return roster.filter((r) => r.name.toLowerCase().includes(term) || (r.phone || '').includes(term))
   }, [roster, q])
 
-  const quiet = roster.filter((r) => r.today === 0).length
+  // Unified "active today" (signup OR GPS) once loaded; fall back to the signup-only
+  // roster count until it arrives. This is the same notion the KPI tile shows.
+  const notActive = activeToday ? activeToday.total - activeToday.active : roster.filter((r) => r.today === 0).length
   const pct = target ? Math.min(100, Math.round((target.contacted / Math.max(1, target.target)) * 100)) : 0
 
   return (
@@ -186,9 +193,9 @@ export default function BackOfficeCallList() {
           </div>
         </div>
         <p className="text-sm text-token-faint mb-5">
-          {quiet > 0
-            ? `${quiet} ${quiet === 1 ? 'agent has' : 'agents have'} no signups today — tap to call.`
-            : 'Everyone has logged a signup today.'}
+          {notActive > 0
+            ? `${notActive} ${notActive === 1 ? 'agent is' : 'agents are'} not active today — tap to call.`
+            : 'Everyone is active today.'}
         </p>
 
         {/* Company scope — only shown when user manages more than one */}
@@ -200,6 +207,11 @@ export default function BackOfficeCallList() {
             ))}
           </div>
         )}
+
+        {/* Active-today KPI — tap to see who needs a check-in call */}
+        <div className="mb-4">
+          <ActiveTodayTile title="Agents active today" data={activeToday} />
+        </div>
 
         {/* Today's target progress */}
         {target && (
