@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
-import { roleAllows } from '../../lib/capabilities'
+import { roleAllows, canViewAllCompanies } from '../../lib/capabilities'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { toast } from 'react-hot-toast'
@@ -11,6 +11,7 @@ import { Users, AlertTriangle, Phone, Bell, StickyNote, ChevronDown, ChevronRigh
 import { MyIssues, signalText } from '../../components/field-ops/IssueQueue'
 import type { Signal } from '../../components/field-ops/IssueQueue'
 import NewsWidget from '../../components/agent/NewsWidget'
+import CompanyToggle, { type ToggleCompany } from '../../components/field-ops/CompanyToggle'
 
 // Team-leader / manager performance cockpit. Consumes GET /field-ops/kpi/roster
 // (already ranked worst-first server-side) and the three POST /field-ops/kpi/remediate/*
@@ -192,10 +193,21 @@ export default function TeamCockpit() {
   // roleAllows admits admin-equivalents (admin/backoffice_admin/general_manager)
   // + super_admin automatically — matches the backend /kpi/roster gate.
   const allowed = roleAllows(role, LEADER_ROLES)
+  // Admin/GM may view all companies blended; everyone else is scoped to one company.
+  const allowAll = canViewAllCompanies(role)
+  const [company, setCompany] = useState<string | null>(null)
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['field-companies'],
+    queryFn: () => apiClient.get('/field-ops/companies').then((r) => (r.data?.data ?? r.data ?? []) as ToggleCompany[]),
+    enabled: allowed,
+  })
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['kpi-roster'],
-    queryFn: () => apiClient.get('/field-ops/kpi/roster').then((r) => r.data as { roster: RosterAgent[]; teams?: Team[] }),
+    queryKey: ['kpi-roster', company],
+    queryFn: () => apiClient
+      .get(`/field-ops/kpi/roster${company ? `?company_id=${company}` : ''}`)
+      .then((r) => r.data as { roster: RosterAgent[]; teams?: Team[] }),
     enabled: allowed,
   })
 
@@ -235,6 +247,7 @@ export default function TeamCockpit() {
               : `${roster.length} team member${roster.length === 1 ? '' : 's'} · ${flagged} flagged · worst performers first`}
           </p>
         </div>
+        <CompanyToggle companies={companies} value={company} onChange={setCompany} allowAll={allowAll} />
       </div>
 
       {/* Announcements (e.g. the new call feature) — role-filtered inside the widget */}

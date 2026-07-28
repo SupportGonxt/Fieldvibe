@@ -16,6 +16,8 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material'
 import {
   Users,
@@ -33,6 +35,8 @@ import {
 import { apiClient as api } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import type { ActiveTodayResponse } from '../../services/field-operations.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canViewAllCompanies } from '../../lib/capabilities'
 import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 
@@ -139,23 +143,41 @@ const getStatusColor = (status: string) => {
 }
 
 export default function AdminDashboard() {
+  const role = useAuthStore((s) => s.user?.role)
+  const allowAll = canViewAllCompanies(role)
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
   const [activeToday, setActiveToday] = useState<ActiveTodayResponse | null>(null)
   const [showActiveRoster, setShowActiveRoster] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  const [company, setCompany] = useState<string | null>(null)
+
+  useEffect(() => {
+    fieldOperationsService
+      .getCompanies()
+      .then((res: any) => {
+        const list = res?.companies ?? res ?? []
+        setCompanies(list)
+        // Two-button roles must not sit on a blended view — default to a company.
+        if (!allowAll && list.length > 0) setCompany((c) => c ?? list[0].id)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowAll])
 
   useEffect(() => {
     fetchMetrics()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company])
 
   const fetchMetrics = async () => {
     try {
       setLoading(true)
       setError(null)
       const [response, active] = await Promise.all([
-        api.get('/dashboard/admin'),
-        fieldOperationsService.getActiveToday().catch(() => null),
+        api.get(`/dashboard/admin${company ? `?company_id=${company}` : ''}`),
+        fieldOperationsService.getActiveToday(company || undefined).catch(() => null),
       ])
       setActiveToday(active ?? null)
       if (response.data.success) {
@@ -221,9 +243,26 @@ export default function AdminDashboard() {
       <Typography variant="h4" fontWeight="bold" gutterBottom>
         Admin Dashboard
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         System overview, user management, and agent performance
       </Typography>
+
+      {/* Goldrush / Stellr scope. Only field-ops (visit-based) metrics split by company;
+          the master-data tiles below are labelled "org-wide" when a company is selected. */}
+      {companies.length > 1 && (
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={company ?? 'all'}
+          onChange={(_e, val) => { if (val !== null) setCompany(val === 'all' ? null : val) }}
+          sx={{ mb: 3 }}
+        >
+          {allowAll && <ToggleButton value="all">All Companies</ToggleButton>}
+          {companies.map((co) => (
+            <ToggleButton key={co.id} value={co.id}>{co.name}</ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      )}
 
       <Grid container spacing={3}>
         {/* System Statistics */}
@@ -231,7 +270,7 @@ export default function AdminDashboard() {
           <MetricCard
             title="Total Users"
             value={metrics.totalUsers.toLocaleString()}
-            subtitle={`${metrics.activeUsers} active`}
+            subtitle={`${metrics.activeUsers} active${company ? ' · org-wide' : ''}`}
             icon={<Users size={24} color="#3b82f6" />}
             color="#3b82f6"
           />
@@ -240,7 +279,7 @@ export default function AdminDashboard() {
           <MetricCard
             title="Total Agents"
             value={metrics.totalAgents.toLocaleString()}
-            subtitle={`${metrics.activeAgents} active`}
+            subtitle={`${metrics.activeAgents} active${company ? ' · org-wide' : ''}`}
             icon={<Shield size={24} color="#8b5cf6" />}
             color="#8b5cf6"
           />
@@ -258,6 +297,7 @@ export default function AdminDashboard() {
           <MetricCard
             title="Total Customers"
             value={metrics.totalCustomers.toLocaleString()}
+            subtitle={company ? 'org-wide' : undefined}
             icon={<UserCheck size={24} color="#10b981" />}
             color="#10b981"
           />
@@ -266,6 +306,7 @@ export default function AdminDashboard() {
           <MetricCard
             title="Total Products"
             value={metrics.totalProducts.toLocaleString()}
+            subtitle={company ? 'org-wide' : undefined}
             icon={<Package size={24} color="#f59e0b" />}
             color="#f59e0b"
           />
@@ -276,6 +317,7 @@ export default function AdminDashboard() {
           <MetricCard
             title="Total Orders"
             value={metrics.totalOrders.toLocaleString()}
+            subtitle={company ? 'org-wide' : undefined}
             icon={<ShoppingCart size={24} color="#06b6d4" />}
             color="#06b6d4"
           />
@@ -284,6 +326,7 @@ export default function AdminDashboard() {
           <MetricCard
             title="Total Revenue"
             value={`$${metrics.totalRevenue.toLocaleString()}`}
+            subtitle={company ? 'org-wide' : undefined}
             icon={<DollarSign size={24} color="#10b981" />}
             color="#10b981"
           />

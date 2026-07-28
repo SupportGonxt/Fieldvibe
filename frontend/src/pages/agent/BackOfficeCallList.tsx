@@ -5,6 +5,9 @@ import { apiClient } from '../../services/api.service'
 import { fieldOperationsService } from '../../services/field-operations.service'
 import type { ActiveTodayGroup } from '../../services/field-operations.service'
 import ActiveTodayTile from '../../components/field-ops/ActiveTodayTile'
+import CompanyToggle from '../../components/field-ops/CompanyToggle'
+import { useAuthStore } from '../../store/auth.store'
+import { canViewAllCompanies } from '../../lib/capabilities'
 import { useToast } from '../../components/ui/Toast'
 
 // Back Office call list: every active field agent with their today's signup count
@@ -60,6 +63,10 @@ function durLabel(s: number | null): string {
 export default function BackOfficeCallList() {
   const { toast } = useToast()
   const navigate = useNavigate()
+  const role = useAuthStore((s) => s.user?.role)
+  // Back office is company-scoped (two named buttons, no blended default); an admin
+  // viewing this screen still gets the "All Companies" option.
+  const allowAll = canViewAllCompanies(role)
   const [roster, setRoster] = useState<RosterRow[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -198,15 +205,15 @@ export default function BackOfficeCallList() {
             : 'Everyone is active today.'}
         </p>
 
-        {/* Company scope — only shown when user manages more than one */}
-        {companies.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto mb-4 -mx-4 px-4 scrollbar-hide">
-            <CompanyChip label="All companies" active={company === null} onClick={() => setCompany(null)} />
-            {companies.map((co) => (
-              <CompanyChip key={co.id} label={co.name} active={company === co.id} onClick={() => setCompany(co.id)} />
-            ))}
-          </div>
-        )}
+        {/* Company scope — Goldrush / Stellr (+ All Companies for admins) */}
+        <CompanyToggle
+          variant="pwa"
+          companies={companies}
+          value={company}
+          onChange={setCompany}
+          allowAll={allowAll}
+          className="mb-4"
+        />
 
         {/* Active-today KPI — tap to see who needs a check-in call */}
         <div className="mb-4">
@@ -345,15 +352,3 @@ export default function BackOfficeCallList() {
   )
 }
 
-function CompanyChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        active ? 'bg-primary text-on-primary border-primary' : 'bg-white/[0.04] text-token-muted border-token'
-      }`}
-    >
-      {label}
-    </button>
-  )
-}

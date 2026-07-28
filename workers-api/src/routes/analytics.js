@@ -1222,11 +1222,33 @@ app.get('/dashboard/sales', authMiddleware, async (c) => {
 app.get('/dashboard/admin', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
+  const companyId = c.req.query('company_id') || null;
+
+  // Goldrush/Stellr scoping applies ONLY to the field-ops metric with a real company
+  // dimension (visits). users/customers/products/orders/revenue are not partitioned by
+  // company in the schema, so they stay tenant-wide (the UI labels them "org-wide" when
+  // a company is selected). Visits scope via agent_company_links (agent membership) so
+  // Goldrush — whose visits can carry a NULL company_id — is still counted correctly.
+  let visitsWhere = "tenant_id = ? AND created_at >= date('now', 'start of month')";
+  let visitsBinds = [tenantId];
+  if (companyId) {
+    const links = await db.prepare(
+      'SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1'
+    ).bind(tenantId, companyId).all();
+    const agentIds = (links.results || []).map((r) => r.agent_id);
+    if (agentIds.length === 0) {
+      visitsWhere += ' AND 1 = 0'; // company has no linked agents → no visits this month
+    } else {
+      visitsWhere += ` AND agent_id IN (${agentIds.map(() => '?').join(',')})`;
+      visitsBinds = [tenantId, ...agentIds];
+    }
+  }
+
   const [users, customers, products, visits, orders, revenue] = await Promise.all([
     db.prepare('SELECT COUNT(*) as total FROM users WHERE tenant_id = ?').bind(tenantId).first(),
     db.prepare('SELECT COUNT(*) as total FROM customers WHERE tenant_id = ?').bind(tenantId).first(),
     db.prepare('SELECT COUNT(*) as total FROM products WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare("SELECT COUNT(*) as total FROM visits WHERE tenant_id = ? AND created_at >= date('now', 'start of month')").bind(tenantId).first(),
+    db.prepare(`SELECT COUNT(*) as total FROM visits WHERE ${visitsWhere}`).bind(...visitsBinds).first(),
     db.prepare("SELECT COUNT(*) as total FROM sales_orders WHERE tenant_id = ? AND created_at >= date('now', 'start of month')").bind(tenantId).first(),
     db.prepare("SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders WHERE tenant_id = ? AND created_at >= date('now', 'start of month')").bind(tenantId).first(),
   ]);

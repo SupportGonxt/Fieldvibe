@@ -7,6 +7,9 @@ import {
   ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canViewAllCompanies } from '../../lib/capabilities'
+import CompanyToggle from '../../components/field-ops/CompanyToggle'
 import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
 import { SIGNAL_REGISTRY } from '../../lib/signalRegistry'
 import { formatCurrency, formatNumber } from '../../utils/format'
@@ -141,6 +144,8 @@ function Kpi({ icon: Icon, label, value, sub, delta, footer, tone = 'blue' }: {
 }
 
 export default function GmOverviewPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  const allowAll = canViewAllCompanies(role)
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState<string | null>(null) // null = current period
   const [company, setCompany] = useState<string | null>(null) // null = all companies
@@ -207,29 +212,7 @@ export default function GmOverviewPage() {
           <p className="text-content-secondary text-sm">The numbers driving the business right now.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {companies && companies.length > 1 && (
-            <div className="inline-flex rounded-xl bg-surface-secondary p-1">
-              <button
-                onClick={() => setCompany(null)}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  company === null ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
-                }`}
-              >
-                All companies
-              </button>
-              {companies.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCompany(c.id)}
-                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    company === c.id ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <CompanyToggle companies={companies ?? []} value={company} onChange={setCompany} allowAll={allowAll} />
           <div className="inline-flex rounded-xl bg-surface-secondary p-1">
             {PERIODS.map((p) => (
               <button
