@@ -172,6 +172,11 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
       { after_min: 30, to: 'team_lead' },
       { after_min: 60, to: 'manager' },
     ],
+    // Escalation Report intraday stage clock (routes/field-ops/escalation-report.js).
+    // A row appears once an agent is quiet >= minIdleMinutes, then climbs the ladder:
+    // team_lead -> manager (managerAfterH) -> backoffice_admin (backofficeAfterH) ->
+    // general_manager fallback (gmAfterH). Independent of the cron nudge ladder above.
+    escalation_report: { minIdleMinutes: 15, managerAfterH: 1, backofficeAfterH: 3, gmAfterH: 5 },
     salaries: { manager: 0, bo: 0, gm: 0 },
     // Below-lowest-gate floor per role (two-gate engine reads this). Editable post-deploy.
     role_base_salary: { agent: 0, team_lead: 0, manager: 0 },

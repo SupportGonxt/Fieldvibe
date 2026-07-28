@@ -476,6 +476,7 @@ const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/
 const IndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/IndividualInsights'))
 const StoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/StoreInsights'))
 const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operations/reports/CaptureFailuresReport'))
+const EscalationReport = lazyWithRetry(() => import('./pages/field-operations/reports/EscalationReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
 // /agent/stats means different things to different people. AgentStats is scoped to the
@@ -1170,6 +1171,7 @@ function App() {
             <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><IndividualInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><StoreInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-upload-failures" element={<PageLoader><CaptureFailuresReport /></PageLoader>} />
+            <Route path="field-operations/reports/escalations" element={<PageLoader><EscalationReport /></PageLoader>} />
             <Route path="field-operations/portal-setup" element={<ProtectedRoute requiredRole="admin"><PageLoader><PortalSetup /></PageLoader></ProtectedRoute>} />
 
             {/* Stellr → merged into Stores Report */}
