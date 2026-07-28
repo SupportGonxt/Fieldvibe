@@ -10,11 +10,11 @@ import { useAuthStore } from '../../store/auth.store'
 import { canViewAllCompanies } from '../../lib/capabilities'
 import { useToast } from '../../components/ui/Toast'
 
-// Back Office call list: every active field agent with their today's signup count
-// and last activity. Sorted quietest-first by the API so the agents who need a
-// nudge float to the top. Tapping a row rings the agent's app (WebRTC); if they
-// don't answer, the call screen fails over to a GSM call via the phone dialer.
-// Header tracks today's contacted-vs-target; a panel shows recent call history.
+// Back Office call list: every active field agent with their last activity.
+// Sorted quietest-first by the API so the agents who need a nudge float to the
+// top. Tapping a row rings the agent's app (WebRTC); if they don't answer, the
+// call screen fails over to a GSM call via the phone dialer. A ✓ marks agents
+// already contacted today; a panel shows recent call history.
 
 type RosterRow = {
   id: string
@@ -24,7 +24,9 @@ type RosterRow = {
   last_activity: string | null
 }
 
-type TargetInfo = { target: number; contacted: number; calls: number; missed?: number; contacted_ids?: string[] }
+// We still fetch the calls endpoint, but only for contacted_ids — the ✓ that
+// stops staff re-calling someone. The numeric target/progress KPI was removed.
+type ContactedToday = { contacted_ids?: string[] }
 
 type CallRow = {
   id: string
@@ -71,9 +73,7 @@ export default function BackOfficeCallList() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [calling, setCalling] = useState<string | null>(null)
-  const [target, setTarget] = useState<TargetInfo | null>(null)
-  const [editingTarget, setEditingTarget] = useState(false)
-  const [targetDraft, setTargetDraft] = useState('')
+  const [contacted, setContacted] = useState<ContactedToday | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [history, setHistory] = useState<CallRow[] | null>(null)
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
@@ -114,26 +114,12 @@ export default function BackOfficeCallList() {
       setRoster(rosterRes?.data?.roster || [])
       setActiveToday(activeRes?.agents ?? null)
       if (targetRes?.data?.success) {
-        const d = targetRes.data
-        setTarget({ target: d.target, contacted: d.contacted, calls: d.calls, missed: d.missed, contacted_ids: d.contacted_ids })
+        setContacted({ contacted_ids: targetRes.data.contacted_ids })
       }
     } catch {
       toast.error('Could not load agents')
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function saveTarget() {
-    const dt = parseInt(targetDraft, 10)
-    if (!Number.isFinite(dt) || dt < 1) { setEditingTarget(false); return }
-    try {
-      await apiClient.put('/field-ops/calls/target', { daily_target: dt })
-      setTarget((t) => (t ? { ...t, target: dt } : t))
-    } catch {
-      toast.error('Could not save target')
-    } finally {
-      setEditingTarget(false)
     }
   }
 
@@ -168,7 +154,6 @@ export default function BackOfficeCallList() {
   // Unified "active today" (signup OR GPS) once loaded; fall back to the signup-only
   // roster count until it arrives. This is the same notion the KPI tile shows.
   const notActive = activeToday ? activeToday.total - activeToday.active : roster.filter((r) => r.today === 0).length
-  const pct = target ? Math.min(100, Math.round((target.contacted / Math.max(1, target.target)) * 100)) : 0
 
   return (
     <div className="min-h-screen bg-bg px-4 pt-6 pb-24">
@@ -219,50 +204,6 @@ export default function BackOfficeCallList() {
         <div className="mb-4">
           <ActiveTodayTile title="Agents active today" data={activeToday} />
         </div>
-
-        {/* Today's target progress */}
-        {target && (
-          <div className="bg-white/[0.03] border border-token rounded-2xl px-4 py-3 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-token-faint uppercase tracking-wide">Contacted today</span>
-              {editingTarget ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-token-faint">target</span>
-                  <input
-                    autoFocus
-                    type="number"
-                    inputMode="numeric"
-                    value={targetDraft}
-                    onChange={(e) => setTargetDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveTarget() }}
-                    className="w-14 bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-token text-sm text-center focus:outline-none focus:border-primary/50"
-                  />
-                  <button onClick={saveTarget} className="p-1 rounded-lg bg-primary/15 text-primary" aria-label="Save target">
-                    <Check className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setTargetDraft(String(target.target)); setEditingTarget(true) }}
-                  className="text-xs text-token-muted underline decoration-dotted underline-offset-2"
-                >
-                  target {target.target}
-                </button>
-              )}
-            </div>
-            <div className="flex items-baseline gap-1.5 mb-2">
-              <span className="text-2xl font-bold text-token tabular-nums">{target.contacted}</span>
-              <span className="text-sm text-token-faint">/ {target.target} agents · {target.calls} calls</span>
-              {(target.missed ?? 0) > 0 && <span className="text-sm text-amber-400">· {target.missed} missed</span>}
-            </div>
-            <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-[width] duration-500"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Call history panel */}
         {showHistory && (
@@ -325,18 +266,12 @@ export default function BackOfficeCallList() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <div className="text-token font-medium truncate">{r.name || 'Unnamed agent'}</div>
-                        {target?.contacted_ids?.includes(r.id) && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                        {contacted?.contacted_ids?.includes(r.id) && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-token-faint mt-0.5">
                         <CircleDot className={`w-3 h-3 ${r.today > 0 ? 'text-primary' : 'text-gray-600'}`} />
                         {sinceLabel(r.last_activity)}
                       </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className={`text-lg font-semibold tabular-nums ${r.today > 0 ? 'text-primary' : 'text-gray-600'}`}>
-                        {r.today}
-                      </div>
-                      <div className="text-[10px] text-gray-600 uppercase tracking-wide">today</div>
                     </div>
                     <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-primary/15 text-primary">
                       {isCalling ? <Loader2 className="w-5 h-5 animate-spin" /> : <Phone className="w-5 h-5" />}

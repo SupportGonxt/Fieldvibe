@@ -5,10 +5,11 @@ import { apiClient } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
 
 // BO Home work queue: the back-office admin's job is clearing gates — unmatched
-// deposits and unactioned agent notifications. This surfaces both as live counts
-// that tap straight to the screen that clears them, worst-first. When both are
-// zero it says so (unlike a passive KPI card that just hides) so the admin knows
-// the queue is actually clear, not just unloaded. Footer keeps the 7d acted stat.
+// deposits, pending photos/commissions/KYC, and unactioned agent notifications.
+// Each open gate surfaces as a row that taps straight to the screen that clears
+// it, worst-first. Rows are plain labels (no counts) — the queue is a to-do list,
+// not a metric. When nothing is waiting it says so (unlike a passive KPI card that
+// just hides) so the admin knows the queue is actually clear, not just unloaded.
 
 type DepositRow = { matched: boolean }
 type Stats = { received: number; acted: number }
@@ -17,7 +18,6 @@ type Action = {
   key: string
   tone: 'bad' | 'warn'
   icon: typeof Banknote
-  count: number
   label: string
   hint: string
   to: string
@@ -65,32 +65,32 @@ export default function BOActionQueue() {
   const actions: Action[] = []
   if (unmatched > 0)
     actions.push({
-      key: 'deposits', tone: 'bad', icon: Banknote, count: unmatched,
-      label: `${unmatched} deposit${unmatched === 1 ? '' : 's'} unmatched`,
+      key: 'deposits', tone: 'bad', icon: Banknote,
+      label: 'Deposits unmatched',
       hint: 'Chase the signup or remove the row', to: '/agent/deposits',
     })
   if (uploadFails > 0)
     actions.push({
-      key: 'uploads', tone: 'bad', icon: CloudOff, count: uploadFails,
-      label: `${uploadFails} signup${uploadFails === 1 ? '' : 's'} not loaded`,
+      key: 'uploads', tone: 'bad', icon: CloudOff,
+      label: 'Signups not loaded',
       hint: 'Fix the capture so it loads', to: '/agent/upload-failures',
     })
   if (pendingPhotos > 0)
     actions.push({
-      key: 'photos', tone: 'warn', icon: Camera, count: pendingPhotos,
-      label: `${pendingPhotos} photo${pendingPhotos === 1 ? '' : 's'} to review`,
+      key: 'photos', tone: 'warn', icon: Camera,
+      label: 'Photos to review',
       hint: 'Approve or reject for reshoot', to: '/agent/photo-review',
     })
   if (pendingCommissions > 0)
     actions.push({
-      key: 'commissions', tone: 'warn', icon: Wallet, count: pendingCommissions,
-      label: `${pendingCommissions} commission${pendingCommissions === 1 ? '' : 's'} to approve`,
+      key: 'commissions', tone: 'warn', icon: Wallet,
+      label: 'Commissions to approve',
       hint: 'Approve or reject with a reason', to: '/agent/commissions',
     })
   if (outstanding > 0)
     actions.push({
-      key: 'notifs', tone: 'warn', icon: Bell, count: outstanding,
-      label: `${outstanding} notification${outstanding === 1 ? '' : 's'} to action`,
+      key: 'notifs', tone: 'warn', icon: Bell,
+      label: 'Notifications to action',
       hint: 'Call the agent to clear it', to: '/agent/call-list',
     })
 
@@ -151,11 +151,6 @@ export default function BOActionQueue() {
           </button>
         ))}
       </div>
-      {stats && stats.received > 0 && (
-        <div className="text-[11px] text-gray-600 mt-2 px-1">
-          {stats.acted}/{stats.received} notifications acted · 7d
-        </div>
-      )}
     </div>
   )
 }
