@@ -81,13 +81,14 @@ interface MetricCardProps {
   subtitle?: string
   icon: React.ReactNode
   color: string
+  progress?: number
 }
 
-const MetricCard = ({ title, value, subtitle, icon, color }: MetricCardProps) => (
+const MetricCard = ({ title, value, subtitle, icon, color, progress }: MetricCardProps) => (
   <Card sx={{ height: '100%' }}>
     <CardContent>
       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-        <Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography color="text.secondary" variant="body2" gutterBottom>
             {title}
           </Typography>
@@ -99,6 +100,13 @@ const MetricCard = ({ title, value, subtitle, icon, color }: MetricCardProps) =>
               {subtitle}
             </Typography>
           )}
+          {progress !== undefined && (
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              sx={{ mt: 1.5 }}
+            />
+          )}
         </Box>
         <Box
           sx={{
@@ -108,6 +116,8 @@ const MetricCard = ({ title, value, subtitle, icon, color }: MetricCardProps) =>
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            flexShrink: 0,
+            ml: 2,
           }}
         >
           {icon}
@@ -289,8 +299,10 @@ export default function AdminDashboard() {
         </ToggleButtonGroup>
       )}
 
-      <Grid container spacing={3}>
-        {/* System Statistics */}
+      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+        Overview
+      </Typography>
+      <Grid container spacing={3} sx={{ mt: 0.5, mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Users"
@@ -311,15 +323,6 @@ export default function AdminDashboard() {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
-            title="Active Today"
-            value={`${activeTodayCount} of ${activeTodayTotal}`}
-            subtitle={`${atAgents?.active ?? 0}/${atAgents?.total ?? 0} agents · ${atLeads?.active ?? 0}/${atLeads?.total ?? 0} leads`}
-            icon={<Activity size={24} color="#22c55e" />}
-            color="#22c55e"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
             title="Total Customers"
             value={totalCustomers.toLocaleString()}
             subtitle={company ? 'org-wide' : undefined}
@@ -336,8 +339,12 @@ export default function AdminDashboard() {
             color="#f59e0b"
           />
         </Grid>
+      </Grid>
 
-        {/* Business Metrics */}
+      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+        Business Performance
+      </Typography>
+      <Grid container spacing={3} sx={{ mt: 0.5 }}>
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Orders"
@@ -357,40 +364,28 @@ export default function AdminDashboard() {
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography color="text.secondary" variant="body2" gutterBottom>
-                User Activity Rate
-              </Typography>
-              <Typography variant="h4" fontWeight="bold" sx={{ my: 1 }}>
-                {userActivityRate}%
-              </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={userActivityRate}
-                sx={{ mt: 1 }}
-              />
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="User Activity Rate"
+            value={`${userActivityRate}%`}
+            subtitle={`${activeUsers} of ${totalUsers} active`}
+            icon={<TrendingUp size={24} color="#3b82f6" />}
+            color="#3b82f6"
+            progress={userActivityRate}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography color="text.secondary" variant="body2" gutterBottom>
-                Agent Activity Rate
-              </Typography>
-              <Typography variant="h4" fontWeight="bold" sx={{ my: 1 }}>
-                {agentActivityRate}%
-              </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={agentActivityRate}
-                sx={{ mt: 1 }}
-              />
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Agent Activity Rate"
+            value={`${agentActivityRate}%`}
+            subtitle={`${activeAgents} of ${totalAgents} active`}
+            icon={<TrendingUp size={24} color="#8b5cf6" />}
+            color="#8b5cf6"
+            progress={agentActivityRate}
+          />
         </Grid>
+      </Grid>
 
+      <Grid container spacing={3}>
         {/* Active Today — drillable roster split by team lead / agent */}
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>

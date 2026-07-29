@@ -892,8 +892,10 @@ function App() {
                 <AdminPage />
               </ProtectedRoute>
             } />
+            {/* exactRole (not requiredRole): this dashboard is for 'admin' only —
+                backoffice_admin/super_admin don't get the usual admin-equivalence here. */}
             <Route path="admin/dashboard" element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute exactRole="admin">
                 <AdminDashboard />
               </ProtectedRoute>
             } />

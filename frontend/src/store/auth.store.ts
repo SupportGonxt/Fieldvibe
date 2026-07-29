@@ -247,6 +247,11 @@ export const hasRole = (role: string) => {
   return roleAllows(user?.role, [role])
 }
 
+// Strict equality, bypassing admin-equivalence (backoffice_admin/general_manager/
+// super_admin). Use for the rare surface that must stay admin-only, e.g. the
+// Admin Dashboard — everywhere else hasRole's admin-equivalence is intentional.
+export const hasExactRole = (role: string) => getCurrentUser()?.role === role
+
 export const hasPermission = (permission: string) => {
   const user = getCurrentUser()
   return user?.permissions?.includes(permission) || user?.role === 'admin' || user?.role === 'backoffice_admin' || user?.role === 'general_manager' || user?.role === 'super_admin'

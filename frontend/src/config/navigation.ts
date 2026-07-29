@@ -20,6 +20,9 @@ export interface NavigationItem {
   icon: LucideIcon
   permission: string | null
   requiresRole?: string
+  // Strict role match — bypasses admin-equivalence (backoffice_admin/general_manager/
+  // super_admin) that requiresRole grants. Only for surfaces meant for 'admin' alone.
+  exactRole?: string
   children?: NavigationChild[]
   category?: string
   section?: string
@@ -50,7 +53,7 @@ export const navigation: NavigationItem[] = [
     href: '/admin/dashboard',
     icon: Settings,
     permission: null,
-    requiresRole: 'admin',
+    exactRole: 'admin',
     section: 'Core',
     category: 'Core',
   },

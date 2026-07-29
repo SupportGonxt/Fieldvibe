@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ChevronDown, Search } from 'lucide-react'
-import { hasPermission, hasRole } from '../../store/auth.store'
+import { hasPermission, hasRole, hasExactRole } from '../../store/auth.store'
 import { navigation, navigationByCategory } from '../../config/navigation'
 import type { NavigationItem } from '../../config/navigation'
 
@@ -12,6 +12,10 @@ export default function MegaMenu() {
   const closeTimerRef = useRef<number | null>(null)
 
   const isNavItemVisible = (item: NavigationItem) => {
+    // exactRole bypasses admin-equivalence entirely — for surfaces meant for 'admin' alone.
+    if (item.exactRole && !hasExactRole(item.exactRole)) {
+      return false
+    }
     // hasRole encodes admin-equivalence (backoffice_admin & general_manager ⇒ admin,
     // super_admin ⇒ all). GM/BO admin get full office-console module access this way.
     if (item.requiresRole && !hasRole(item.requiresRole)) {
