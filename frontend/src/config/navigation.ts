@@ -34,7 +34,7 @@ export interface NavigationChild {
   group?: string
 }
 
-// Consolidated navigation: 10 top-level items in 4 sections
+// Consolidated navigation: 11 top-level items in 4 sections
 export const navigation: NavigationItem[] = [
   // ═══════════════════ SECTION: CORE ═══════════════════
   {
@@ -42,6 +42,15 @@ export const navigation: NavigationItem[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
     permission: null,
+    section: 'Core',
+    category: 'Core',
+  },
+  {
+    name: 'Admin Dashboard',
+    href: '/admin/dashboard',
+    icon: Settings,
+    permission: null,
+    requiresRole: 'admin',
     section: 'Core',
     category: 'Core',
   },
