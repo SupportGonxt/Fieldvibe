@@ -223,12 +223,22 @@ export default function AdminDashboard() {
     )
   }
 
-  const userActivityRate = metrics.totalUsers > 0
-    ? Math.round((metrics.activeUsers / metrics.totalUsers) * 100)
+  const totalUsers = metrics.totalUsers ?? 0
+  const activeUsers = metrics.activeUsers ?? 0
+  const totalAgents = metrics.totalAgents ?? 0
+  const activeAgents = metrics.activeAgents ?? 0
+  const totalCustomers = metrics.totalCustomers ?? 0
+  const totalProducts = metrics.totalProducts ?? 0
+  const totalOrders = metrics.totalOrders ?? 0
+  const totalRevenue = metrics.totalRevenue ?? 0
+  const systemHealth = metrics.systemHealth ?? { pendingPayments: 0, overdueOrders: 0, inactiveAgents: 0 }
+
+  const userActivityRate = totalUsers > 0
+    ? Math.round((activeUsers / totalUsers) * 100)
     : 0
 
-  const agentActivityRate = metrics.totalAgents > 0
-    ? Math.round((metrics.activeAgents / metrics.totalAgents) * 100)
+  const agentActivityRate = totalAgents > 0
+    ? Math.round((activeAgents / totalAgents) * 100)
     : 0
 
   // Active today (signup OR GPS) across the whole tenant, split by role. One combined,
@@ -284,8 +294,8 @@ export default function AdminDashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Users"
-            value={metrics.totalUsers.toLocaleString()}
-            subtitle={`${metrics.activeUsers} active${company ? ' · org-wide' : ''}`}
+            value={totalUsers.toLocaleString()}
+            subtitle={`${activeUsers} active${company ? ' · org-wide' : ''}`}
             icon={<Users size={24} color="#3b82f6" />}
             color="#3b82f6"
           />
@@ -293,8 +303,8 @@ export default function AdminDashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Agents"
-            value={metrics.totalAgents.toLocaleString()}
-            subtitle={`${metrics.activeAgents} active${company ? ' · org-wide' : ''}`}
+            value={totalAgents.toLocaleString()}
+            subtitle={`${activeAgents} active${company ? ' · org-wide' : ''}`}
             icon={<Shield size={24} color="#8b5cf6" />}
             color="#8b5cf6"
           />
@@ -311,7 +321,7 @@ export default function AdminDashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Customers"
-            value={metrics.totalCustomers.toLocaleString()}
+            value={totalCustomers.toLocaleString()}
             subtitle={company ? 'org-wide' : undefined}
             icon={<UserCheck size={24} color="#10b981" />}
             color="#10b981"
@@ -320,7 +330,7 @@ export default function AdminDashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Products"
-            value={metrics.totalProducts.toLocaleString()}
+            value={totalProducts.toLocaleString()}
             subtitle={company ? 'org-wide' : undefined}
             icon={<Package size={24} color="#f59e0b" />}
             color="#f59e0b"
@@ -331,7 +341,7 @@ export default function AdminDashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Orders"
-            value={metrics.totalOrders.toLocaleString()}
+            value={totalOrders.toLocaleString()}
             subtitle={company ? 'org-wide' : undefined}
             icon={<ShoppingCart size={24} color="#06b6d4" />}
             color="#06b6d4"
@@ -340,7 +350,7 @@ export default function AdminDashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <MetricCard
             title="Total Revenue"
-            value={`$${metrics.totalRevenue.toLocaleString()}`}
+            value={`$${totalRevenue.toLocaleString()}`}
             subtitle={company ? 'org-wide' : undefined}
             icon={<DollarSign size={24} color="#10b981" />}
             color="#10b981"
@@ -458,7 +468,7 @@ export default function AdminDashboard() {
                       Pending Payments
                     </Typography>
                     <Typography variant="h3" fontWeight="bold" color="warning.main">
-                      {metrics.systemHealth.pendingPayments}
+                      {systemHealth.pendingPayments}
                     </Typography>
                   </CardContent>
                 </Card>
@@ -470,7 +480,7 @@ export default function AdminDashboard() {
                       Overdue Orders
                     </Typography>
                     <Typography variant="h3" fontWeight="bold" color="error.main">
-                      {metrics.systemHealth.overdueOrders}
+                      {systemHealth.overdueOrders}
                     </Typography>
                   </CardContent>
                 </Card>
@@ -482,7 +492,7 @@ export default function AdminDashboard() {
                       Inactive Agents
                     </Typography>
                     <Typography variant="h3" fontWeight="bold" color="warning.main">
-                      {metrics.systemHealth.inactiveAgents}
+                      {systemHealth.inactiveAgents}
                     </Typography>
                   </CardContent>
                 </Card>
@@ -526,7 +536,7 @@ export default function AdminDashboard() {
                         <TableCell align="right">{agent.order_count}</TableCell>
                         <TableCell align="right">
                           <Typography fontWeight="bold" color="primary">
-                            ${agent.total_sales.toLocaleString()}
+                            ${(agent.total_sales ?? 0).toLocaleString()}
                           </Typography>
                         </TableCell>
                         <TableCell align="right">{agent.visit_count}</TableCell>

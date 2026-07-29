@@ -1224,35 +1224,67 @@ app.get('/dashboard/admin', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const companyId = c.req.query('company_id') || null;
 
-  // Goldrush/Stellr scoping applies ONLY to the field-ops metric with a real company
-  // dimension (visits). users/customers/products/orders/revenue are not partitioned by
-  // company in the schema, so they stay tenant-wide (the UI labels them "org-wide" when
-  // a company is selected). Visits scope via agent_company_links (agent membership) so
-  // Goldrush — whose visits can carry a NULL company_id — is still counted correctly.
-  let visitsWhere = "tenant_id = ? AND created_at >= date('now', 'start of month')";
-  let visitsBinds = [tenantId];
-  if (companyId) {
-    const links = await db.prepare(
-      'SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1'
-    ).bind(tenantId, companyId).all();
-    const agentIds = (links.results || []).map((r) => r.agent_id);
-    if (agentIds.length === 0) {
-      visitsWhere += ' AND 1 = 0'; // company has no linked agents → no visits this month
-    } else {
-      visitsWhere += ` AND agent_id IN (${agentIds.map(() => '?').join(',')})`;
-      visitsBinds = [tenantId, ...agentIds];
-    }
-  }
-
-  const [users, customers, products, visits, orders, revenue] = await Promise.all([
-    db.prepare('SELECT COUNT(*) as total FROM users WHERE tenant_id = ?').bind(tenantId).first(),
+  // Goldrush/Stellr scoping: users/customers/products/orders/revenue are not partitioned
+  // by company in the schema, so they stay tenant-wide (the UI labels them "org-wide" when
+  // a company is selected). The agent performance drill-down below is the one place a
+  // company filter is meaningful, via agent_company_links (agent membership).
+  const [userCounts, agentCounts, customers, products, orders, revenue, recentUsers] = await Promise.all([
+    db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active FROM users WHERE tenant_id = ?").bind(tenantId).first(),
+    db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent', 'sales_rep')").bind(tenantId).first(),
     db.prepare('SELECT COUNT(*) as total FROM customers WHERE tenant_id = ?').bind(tenantId).first(),
     db.prepare('SELECT COUNT(*) as total FROM products WHERE tenant_id = ?').bind(tenantId).first(),
-    db.prepare(`SELECT COUNT(*) as total FROM visits WHERE ${visitsWhere}`).bind(...visitsBinds).first(),
-    db.prepare("SELECT COUNT(*) as total FROM sales_orders WHERE tenant_id = ? AND created_at >= date('now', 'start of month')").bind(tenantId).first(),
-    db.prepare("SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders WHERE tenant_id = ? AND created_at >= date('now', 'start of month')").bind(tenantId).first(),
+    db.prepare('SELECT COUNT(*) as total FROM sales_orders WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT COALESCE(SUM(total_amount), 0) as total FROM sales_orders WHERE tenant_id = ?').bind(tenantId).first(),
+    db.prepare('SELECT id, first_name, last_name, email, role, status, created_at FROM users WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 10').bind(tenantId).all(),
   ]);
-  return c.json({ success: true, data: { total_users: users?.total || 0, total_customers: customers?.total || 0, total_products: products?.total || 0, month_visits: visits?.total || 0, month_orders: orders?.total || 0, month_revenue: revenue?.total || 0 } });
+
+  let agentScopeSql = '';
+  let agentScopeBinds = [];
+  if (companyId) {
+    agentScopeSql = ' AND u.id IN (SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1)';
+    agentScopeBinds = [tenantId, companyId];
+  }
+  const agentPerformance = await db.prepare(
+    `SELECT u.id, u.first_name || ' ' || u.last_name as name,
+       (SELECT COUNT(*) FROM sales_orders so WHERE so.agent_id = u.id AND so.tenant_id = ?) as order_count,
+       (SELECT COALESCE(SUM(so2.total_amount), 0) FROM sales_orders so2 WHERE so2.agent_id = u.id AND so2.tenant_id = ?) as total_sales,
+       (SELECT COUNT(*) FROM visits v WHERE v.agent_id = u.id AND v.tenant_id = ?) as visit_count
+     FROM users u
+     WHERE u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep') AND u.is_active = 1${agentScopeSql}
+     ORDER BY total_sales DESC
+     LIMIT 10`
+  ).bind(tenantId, tenantId, tenantId, tenantId, ...agentScopeBinds).all();
+
+  const [pendingPayments, overdueOrders] = await Promise.all([
+    db.prepare("SELECT COUNT(*) as total FROM sales_orders WHERE tenant_id = ? AND payment_status = 'pending'").bind(tenantId).first(),
+    db.prepare("SELECT COUNT(*) as total FROM sales_orders WHERE tenant_id = ? AND payment_status = 'overdue'").bind(tenantId).first(),
+  ]);
+
+  const totalAgents = agentCounts?.total || 0;
+  const activeAgents = agentCounts?.active || 0;
+
+  return c.json({ success: true, data: {
+    totalUsers: userCounts?.total || 0,
+    activeUsers: userCounts?.active || 0,
+    totalAgents,
+    activeAgents,
+    totalCustomers: customers?.total || 0,
+    totalProducts: products?.total || 0,
+    totalOrders: orders?.total || 0,
+    totalRevenue: revenue?.total || 0,
+    recentUsers: (recentUsers.results || []).map((u) => ({
+      id: u.id, first_name: u.first_name, last_name: u.last_name, email: u.email,
+      role: u.role, status: u.status || 'active', created_at: u.created_at,
+    })),
+    agentPerformance: (agentPerformance.results || []).map((a) => ({
+      id: a.id, name: a.name, order_count: a.order_count || 0, total_sales: a.total_sales || 0, visit_count: a.visit_count || 0,
+    })),
+    systemHealth: {
+      pendingPayments: pendingPayments?.total || 0,
+      overdueOrders: overdueOrders?.total || 0,
+      inactiveAgents: Math.max(totalAgents - activeAgents, 0),
+    },
+  }});
 });
 
 app.get('/dashboard/customers', authMiddleware, async (c) => {
