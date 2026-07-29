@@ -5,9 +5,10 @@ import { useAuthStore } from '../../../store/auth.store'
 import { canViewAllCompanies } from '../../../lib/capabilities'
 import CompanyToggle from '../../../components/field-ops/CompanyToggle'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { AlertTriangle, RefreshCw, Bell, CheckCircle2, Clock, ShieldAlert, Download } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Bell, CheckCircle2, Clock, ShieldAlert, Download, History } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { saveRowsAsCsv } from '../../../lib/downloadCsv'
+import DateRangePresets from '../../../components/ui/DateRangePresets'
 
 // Mirrors the payload from GET /field-ops/escalation-report.
 interface StageCell {
@@ -30,6 +31,18 @@ interface EscRow {
 }
 interface EscConfig { minIdleMinutes: number; managerAfterH: number; backofficeAfterH: number; gmAfterH: number }
 interface EscResponse { success: boolean; asOf: string; config: EscConfig; rows: EscRow[] }
+
+// Mirrors GET /field-ops/escalation-report/history — audit trail of past "Action nudge" clicks.
+interface EscHistoryRow {
+  id: string
+  agentId: string
+  agentName: string
+  company: string | null
+  stage: 'team_lead' | 'manager' | 'backoffice_admin'
+  actorName: string | null
+  at: string
+}
+interface EscHistoryResponse { success: boolean; rows: EscHistoryRow[] }
 
 // The three actionable stages, in ladder order, with column headers.
 const ACTION_STAGES: Array<{ key: 'team_lead' | 'manager' | 'backoffice_admin'; label: string }> = [
@@ -77,6 +90,9 @@ const EscalationReport: React.FC = () => {
   const allowAll = canViewAllCompanies(role)
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null) // `${agentId}:${stage}` being actioned
+  const [view, setView] = useState<'live' | 'history'>('live')
+  const [historyStart, setHistoryStart] = useState<string>('')
+  const [historyEnd, setHistoryEnd] = useState<string>('')
 
   const { data: companies = [] } = useQuery({
     queryKey: ['field-companies'],
@@ -106,6 +122,23 @@ const EscalationReport: React.FC = () => {
 
   const rows = data?.rows ?? []
   const cfg = data?.config
+
+  const { data: historyData, isLoading: historyLoading, isError: historyError, refetch: refetchHistory, isFetching: historyFetching } = useQuery<EscHistoryResponse>({
+    queryKey: ['escalation-report-history', companyId, historyStart, historyEnd],
+    queryFn: async () => {
+      const res = await apiClient.get('/field-ops/escalation-report/history', {
+        params: {
+          ...(companyId ? { company_id: companyId } : {}),
+          ...(historyStart ? { startDate: historyStart } : {}),
+          ...(historyEnd ? { endDate: historyEnd } : {}),
+        },
+      })
+      return res.data as EscHistoryResponse
+    },
+    enabled: view === 'history',
+    staleTime: 30_000,
+  })
+  const historyRows = historyData?.rows ?? []
 
   const actionNudge = async (agentId: string, stage: string) => {
     const key = `${agentId}:${stage}`
@@ -141,6 +174,21 @@ const EscalationReport: React.FC = () => {
     )
   }
 
+  const exportHistoryCsv = () => {
+    saveRowsAsCsv(
+      ['Date', 'Time', 'Agent', 'Company', 'Stage', 'Actioned by'],
+      historyRows.map((row) => [
+        row.at ? row.at.slice(0, 10) : '',
+        fmtTime(row.at),
+        row.agentName,
+        row.company || '',
+        STAGE_LABEL[row.stage],
+        row.actorName || '',
+      ]),
+      `escalation-history-${historyStart || 'all'}_${historyEnd || 'all'}.csv`,
+    )
+  }
+
   const renderCell = (row: EscRow, stageKey: 'team_lead' | 'manager' | 'backoffice_admin') => {
     const cell = row.stages[stageKey]
     if (!cell || !cell.reached) return <span className="text-gray-300 dark:text-gray-600">—</span>
@@ -171,17 +219,6 @@ const EscalationReport: React.FC = () => {
     )
   }
 
-  if (isLoading) return <LoadingSpinner />
-  if (isError) return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
-      <p className="text-sm text-gray-500 dark:text-gray-400">Could not load the escalation report</p>
-      <button onClick={() => refetch()} className="mt-4 flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm">
-        <RefreshCw className="h-4 w-4" /> Retry
-      </button>
-    </div>
-  )
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -189,28 +226,141 @@ const EscalationReport: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Escalation Report</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Live view of idle agents climbing the escalation ladder. Automatic nudges keep running — action a stage here to record who stepped in.
+            {view === 'live'
+              ? 'Live view of idle agents climbing the escalation ladder. Automatic nudges keep running — action a stage here to record who stepped in.'
+              : 'Audit trail of past "Action nudge" clicks — who actioned which stage, and when.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <CompanyToggle companies={companies} value={companyId} onChange={setCompanyId} allowAll={allowAll} />
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} /> Refresh
-          </button>
-          <button
-            onClick={exportCsv}
-            disabled={rows.length === 0}
-            className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" /> Export CSV
-          </button>
+          {view === 'live' ? (
+            <>
+              <button
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} /> Refresh
+              </button>
+              <button
+                onClick={exportCsv}
+                disabled={rows.length === 0}
+                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" /> Export CSV
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => refetchHistory()}
+                disabled={historyFetching}
+                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${historyFetching ? 'animate-spin' : ''}`} /> Refresh
+              </button>
+              <button
+                onClick={exportHistoryCsv}
+                disabled={historyRows.length === 0}
+                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" /> Export CSV
+              </button>
+            </>
+          )}
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setView('live')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+            view === 'live'
+              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <Clock className="h-3.5 w-3.5" /> Live ladder
+        </button>
+        <button
+          onClick={() => setView('history')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+            view === 'history'
+              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm font-medium'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <History className="h-3.5 w-3.5" /> History
+        </button>
+      </div>
+
+      {view === 'history' && (
+        <DateRangePresets startDate={historyStart} endDate={historyEnd} onStartDateChange={setHistoryStart} onEndDateChange={setHistoryEnd} />
+      )}
+
+      {view === 'live' && isLoading ? <LoadingSpinner /> : view === 'live' && isError ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">Could not load the escalation report</p>
+          <button onClick={() => refetch()} className="mt-4 flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </button>
+        </div>
+      ) : view === 'history' && historyLoading ? <LoadingSpinner /> : view === 'history' && historyError ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">Could not load the escalation history</p>
+          <button onClick={() => refetchHistory()} className="mt-4 flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </button>
+        </div>
+      ) : view === 'history' ? (
+        <>
+          {historyRows.length === 0 ? (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+              <CheckCircle2 className="h-10 w-10 text-green-400 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400 text-sm">No escalation actions in this date range.</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                      <th className="text-left py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 font-medium">Date</th>
+                      <th className="text-left py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 font-medium">Agent</th>
+                      <th className="text-left py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 font-medium">Company</th>
+                      <th className="text-left py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 font-medium">Stage</th>
+                      <th className="text-left py-2.5 px-4 text-xs text-gray-500 dark:text-gray-400 font-medium">Actioned by</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyRows.map((row) => (
+                      <tr key={row.id} className="border-b border-gray-100 dark:border-gray-700/40 hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-medium text-gray-700 dark:text-gray-200">{row.at ? row.at.slice(0, 10) : ''}</span>
+                          <span className="text-gray-400 dark:text-gray-500 ml-1">{fmtTime(row.at)}</span>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.agentName}</td>
+                        <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.company || '—'}</td>
+                        <td className="py-3 px-4 whitespace-nowrap"><StageBadge stage={row.stage} /></td>
+                        <td className="py-3 px-4 text-gray-700 dark:text-gray-200 whitespace-nowrap">{row.actorName || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {historyRows.length > 0 && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {historyRows.length} action{historyRows.length !== 1 ? 's' : ''} in range
+            </div>
+          )}
+        </>
+      ) : (
+        <>
       {/* Ladder legend — the configured stage clock */}
       {cfg && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -276,6 +426,8 @@ const EscalationReport: React.FC = () => {
         <div className="text-sm text-gray-500 dark:text-gray-400">
           {rows.length} agent{rows.length !== 1 ? 's' : ''} on the ladder · updates every minute
         </div>
+      )}
+        </>
       )}
     </div>
   )

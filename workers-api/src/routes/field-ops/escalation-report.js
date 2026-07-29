@@ -308,6 +308,97 @@ app.get(
   }
 );
 
+// GET /field-ops/escalation-report/history?company_id=&startDate=&endDate=
+// Audit trail of past manual "action nudge" clicks — who actioned which stage, for which
+// agent, and when. Independent of the live ladder above (no "quiet since"/idle math),
+// scoped to the same roster the caller can see on the live report. startDate/endDate are
+// optional 'YYYY-MM-DD' bounds (inclusive); omit either for an open-ended range.
+app.get(
+  '/escalation-report/history',
+  requireRole('admin', 'super_admin', 'general_manager', 'manager', 'backoffice_admin', 'team_lead'),
+  async (c) => {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const userId = c.get('userId');
+    const role = c.get('role');
+    const companyId = c.req.query('company_id') || null;
+    const { startDate, endDate } = c.req.query();
+    const hasStart = !!(startDate && startDate.trim());
+    const hasEnd = !!(endDate && endDate.trim());
+
+    try {
+      // Roster scope — same rule as the live ladder (team_lead: own agents; everyone else:
+      // their companies, unrestricted for admin/super_admin/GM). No is_active filter here:
+      // an agent who has since left should still resolve a name in past audit entries.
+      let scope;
+      if (role === 'team_lead') {
+        scope = { sql: 'AND u.team_lead_id = ?', binds: [userId] };
+      } else {
+        let ids = await callerCompanyIds(db, { tenantId, userId, role });
+        if (companyId) ids = ids && !ids.includes(companyId) ? [] : [companyId];
+        scope = companyScope(ids);
+      }
+
+      const { results: orgRows } = await db.prepare(
+        `SELECT u.id, TRIM(u.first_name || ' ' || COALESCE(u.last_name, '')) AS name,
+           (SELECT acl.company_id FROM agent_company_links acl
+              WHERE acl.agent_id = u.id AND acl.tenant_id = u.tenant_id AND acl.is_active = 1 LIMIT 1) AS company_id
+         FROM users u
+         WHERE u.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
+           AND u.id NOT LIKE 'agent-test-%' AND LOWER(TRIM(u.first_name)) != 'test'
+           ${scope.sql}`
+      ).bind(tenantId, ...AGENT_ROLES, ...scope.binds).all();
+
+      if (!orgRows || orgRows.length === 0) {
+        return c.json({ success: true, rows: [] });
+      }
+      const agentById = new Map(orgRows.map((a) => [a.id, a]));
+
+      const { results: coRows } = await db.prepare(
+        `SELECT id, name FROM field_companies WHERE tenant_id = ?`
+      ).bind(tenantId).all().catch(() => ({ results: [] }));
+      const companyNameById = new Map((coRows || []).map((r) => [r.id, r.name]));
+
+      let dateFilter = '';
+      const binds = [tenantId];
+      if (hasStart && hasEnd) { dateFilter = ' AND date(n.created_at) BETWEEN ? AND ?'; binds.push(startDate, endDate); }
+      else if (hasStart) { dateFilter = ' AND date(n.created_at) >= ?'; binds.push(startDate); }
+      else if (hasEnd) { dateFilter = ' AND date(n.created_at) <= ?'; binds.push(endDate); }
+
+      const { results: markerRows } = await db.prepare(
+        `SELECT n.id, n.user_id AS actor_id, n.related_id, n.created_at,
+           TRIM(a.first_name || ' ' || COALESCE(a.last_name, '')) AS actor_name
+         FROM notifications n LEFT JOIN users a ON a.id = n.user_id
+         WHERE n.tenant_id = ? AND n.type = 'escalation_action'${dateFilter}
+         ORDER BY n.created_at DESC`
+      ).bind(...binds).all();
+
+      // related_id = esc:<agentId>:<stage> — parse and drop anything outside caller's roster.
+      const rows = [];
+      for (const m of markerRows || []) {
+        const parts = String(m.related_id || '').split(':');
+        if (parts[0] !== 'esc' || parts.length < 3) continue;
+        const agent = agentById.get(parts[1]);
+        if (!agent) continue;
+        rows.push({
+          id: m.id,
+          agentId: agent.id,
+          agentName: agent.name,
+          company: companyNameById.get(agent.company_id) || null,
+          stage: parts[2],
+          actorName: (m.actor_name || '').trim() || null,
+          at: m.created_at,
+        });
+      }
+
+      return c.json({ success: true, rows });
+    } catch (error) {
+      console.error(`Error building escalation history tenant=${tenantId} role=${role}:`, error);
+      return c.json({ success: false, error: 'Could not build the escalation history' }, 500);
+    }
+  }
+);
+
 // POST /field-ops/escalation-report/action  body: { agentId, stage, message? }
 // Sends the real nudge to the agent via the shared doNudge mechanism, then records an
 // idempotent audit marker (actor + stage + day) the report reads back as "Contacted ✅".
