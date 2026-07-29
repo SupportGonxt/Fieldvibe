@@ -5,8 +5,9 @@ import { useAuthStore } from '../../../store/auth.store'
 import { canViewAllCompanies } from '../../../lib/capabilities'
 import CompanyToggle from '../../../components/field-ops/CompanyToggle'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
-import { AlertTriangle, RefreshCw, Bell, CheckCircle2, Clock, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Bell, CheckCircle2, Clock, ShieldAlert, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { saveRowsAsCsv } from '../../../lib/downloadCsv'
 
 // Mirrors the payload from GET /field-ops/escalation-report.
 interface StageCell {
@@ -53,6 +54,13 @@ function fmtDuration(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+// Plain-text stage status for the CSV export — same three states renderCell shows.
+function stageCellText(cell: StageCell | undefined): string {
+  if (!cell || !cell.reached) return 'Not reached'
+  if (cell.actioned) return `Contacted ${fmtTime(cell.actioned.at)}${cell.actioned.byName ? ` · ${cell.actioned.byName}` : ''}`
+  return cell.overdue ? 'Overdue' : 'Pending'
 }
 
 const StageBadge: React.FC<{ stage: EscRow['currentStage'] }> = ({ stage }) => {
@@ -114,6 +122,25 @@ const EscalationReport: React.FC = () => {
     }
   }
 
+  // Same rows already on screen — CSV built client-side, no extra endpoint.
+  const exportCsv = () => {
+    saveRowsAsCsv(
+      ['Agent', 'Company', 'Quiet since', 'Quiet duration', 'Current stage', 'Team Lead', 'Manager', 'Back Office / Admin', 'GM notified'],
+      rows.map((row) => [
+        row.name,
+        row.company || '',
+        fmtTime(row.quietSince),
+        fmtDuration(row.quietMinutes),
+        STAGE_LABEL[row.currentStage],
+        stageCellText(row.stages.team_lead),
+        stageCellText(row.stages.manager),
+        stageCellText(row.stages.backoffice_admin),
+        row.gmNotified ? 'Yes' : 'No',
+      ]),
+      `escalation-report-${data?.asOf || new Date().toISOString().slice(0, 10)}.csv`,
+    )
+  }
+
   const renderCell = (row: EscRow, stageKey: 'team_lead' | 'manager' | 'backoffice_admin') => {
     const cell = row.stages[stageKey]
     if (!cell || !cell.reached) return <span className="text-gray-300 dark:text-gray-600">—</span>
@@ -173,6 +200,13 @@ const EscalationReport: React.FC = () => {
             className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+          <button
+            onClick={exportCsv}
+            disabled={rows.length === 0}
+            className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" /> Export CSV
           </button>
         </div>
       </div>
