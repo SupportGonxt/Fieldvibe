@@ -1,26 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  Box,
-  Grid,
-  Paper,
-  Typography,
-  Card,
-  CardContent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  CircularProgress,
-  Alert,
-  LinearProgress,
-  ToggleButton,
-  ToggleButtonGroup,
-  Button,
-} from '@mui/material'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   Users,
   UserCheck,
@@ -40,8 +19,10 @@ import { fieldOperationsService } from '../../services/field-operations.service'
 import type { ActiveTodayResponse } from '../../services/field-operations.service'
 import { useAuthStore } from '../../store/auth.store'
 import { canViewAllCompanies } from '../../lib/capabilities'
+import CompanyToggle from '../../components/field-ops/CompanyToggle'
+import { formatCurrency, formatNumber } from '../../utils/format'
+import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import ErrorState from '../../components/ui/ErrorState'
-import EmptyState from '../../components/ui/EmptyState'
 
 interface AdminMetrics {
   totalUsers: number
@@ -75,88 +56,68 @@ interface AdminMetrics {
   }
 }
 
-interface MetricCardProps {
-  title: string
-  value: string | number
-  subtitle?: string
-  icon: React.ReactNode
-  color: string
-  progress?: number
-}
-
-const MetricCard = ({ title, value, subtitle, icon, color, progress }: MetricCardProps) => (
-  <Card sx={{ height: '100%' }}>
-    <CardContent>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography color="text.secondary" variant="body2" gutterBottom>
-            {title}
-          </Typography>
-          <Typography variant="h4" fontWeight="bold" sx={{ my: 1 }}>
-            {value}
-          </Typography>
-          {subtitle && (
-            <Typography variant="body2" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-          {progress !== undefined && (
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{ mt: 1.5 }}
+// Tile styling matches the GM Business Overview's Kpi component (GmOverviewPage.tsx)
+// so the two "office console" dashboards read as one system.
+function Kpi({ icon: Icon, label, value, sub, progress, tone = 'blue' }: {
+  icon: any; label: string; value: string; sub?: string; progress?: number
+  tone?: 'blue' | 'purple' | 'green' | 'amber' | 'cyan' | 'red'
+}) {
+  const tones: Record<string, string> = {
+    blue: 'text-blue-600 bg-blue-50',
+    purple: 'text-purple-600 bg-purple-50',
+    green: 'text-emerald-600 bg-emerald-50',
+    amber: 'text-amber-600 bg-amber-50',
+    cyan: 'text-cyan-600 bg-cyan-50',
+    red: 'text-red-600 bg-red-50',
+  }
+  return (
+    <div className="card flex items-start justify-between">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-content-secondary">{label}</p>
+        <p className="text-2xl font-semibold mt-1">{value}</p>
+        {sub && <p className="text-xs text-content-secondary mt-1">{sub}</p>}
+        {progress !== undefined && (
+          <div className="mt-2 h-1.5 rounded-full bg-surface-secondary overflow-hidden">
+            <div
+              className="h-full rounded-full bg-blue-500"
+              style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }}
             />
-          )}
-        </Box>
-        <Box
-          sx={{
-            backgroundColor: `${color}15`,
-            borderRadius: 2,
-            p: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            ml: 2,
-          }}
-        >
-          {icon}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-)
-
-const getRoleColor = (role: string) => {
-  switch (role.toLowerCase()) {
-    case 'superadmin':
-      return 'error'
-    case 'admin':
-      return 'warning'
-    case 'manager':
-      return 'info'
-    case 'agent':
-      return 'success'
-    default:
-      return 'default'
-  }
+          </div>
+        )}
+      </div>
+      <div className={`p-2.5 rounded-xl shrink-0 ml-3 ${tones[tone]}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+    </div>
+  )
 }
 
-const getStatusColor = (status: string) => {
-  switch (status.toLowerCase()) {
-    case 'active':
-      return 'success'
-    case 'inactive':
-      return 'warning'
-    case 'suspended':
-      return 'error'
-    default:
-      return 'default'
-  }
+function Pill({ label, tone }: { label: string; tone: string }) {
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${tone}`}>{label}</span>
 }
+
+const ROLE_TONE: Record<string, string> = {
+  superadmin: 'text-red-600 bg-red-50',
+  super_admin: 'text-red-600 bg-red-50',
+  admin: 'text-amber-600 bg-amber-50',
+  backoffice_admin: 'text-amber-600 bg-amber-50',
+  general_manager: 'text-amber-600 bg-amber-50',
+  manager: 'text-blue-600 bg-blue-50',
+  team_lead: 'text-blue-600 bg-blue-50',
+  agent: 'text-emerald-600 bg-emerald-50',
+  field_agent: 'text-emerald-600 bg-emerald-50',
+  sales_rep: 'text-emerald-600 bg-emerald-50',
+}
+const roleTone = (role: string) => ROLE_TONE[role?.toLowerCase()] ?? 'text-gray-600 bg-gray-100'
+
+const STATUS_TONE: Record<string, string> = {
+  active: 'text-emerald-600 bg-emerald-50',
+  inactive: 'text-amber-600 bg-amber-50',
+  suspended: 'text-red-600 bg-red-50',
+}
+const statusTone = (status: string) => STATUS_TONE[status?.toLowerCase()] ?? 'text-gray-600 bg-gray-100'
 
 export default function AdminDashboard() {
-  const navigate = useNavigate()
   const role = useAuthStore((s) => s.user?.role)
   const allowAll = canViewAllCompanies(role)
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null)
@@ -207,31 +168,8 @@ export default function AdminDashboard() {
     }
   }
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
-    )
-  }
-
-  if (error) {
-    return (
-      <Box p={3}>
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      </Box>
-    )
-  }
-
-  if (!metrics) {
-    return (
-      <Box p={3}>
-        <Alert severity="warning">No admin data available</Alert>
-      </Box>
-    )
-  }
+  if (loading) return <div className="p-8 flex justify-center"><LoadingSpinner size="lg" /></div>
+  if (error || !metrics) return <ErrorState message={error ?? 'No admin data available'} onRetry={fetchMetrics} />
 
   const totalUsers = metrics.totalUsers ?? 0
   const activeUsers = metrics.activeUsers ?? 0
@@ -242,14 +180,11 @@ export default function AdminDashboard() {
   const totalOrders = metrics.totalOrders ?? 0
   const totalRevenue = metrics.totalRevenue ?? 0
   const systemHealth = metrics.systemHealth ?? { pendingPayments: 0, overdueOrders: 0, inactiveAgents: 0 }
+  const agentPerformance = metrics.agentPerformance ?? []
+  const recentUsers = metrics.recentUsers ?? []
 
-  const userActivityRate = totalUsers > 0
-    ? Math.round((activeUsers / totalUsers) * 100)
-    : 0
-
-  const agentActivityRate = totalAgents > 0
-    ? Math.round((activeAgents / totalAgents) * 100)
-    : 0
+  const userActivityRate = totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0
+  const agentActivityRate = totalAgents > 0 ? Math.round((activeAgents / totalAgents) * 100) : 0
 
   // Active today (signup OR GPS) across the whole tenant, split by role. One combined,
   // inactive-first roster for the drill-down — the backend already sorts each group.
@@ -263,342 +198,159 @@ export default function AdminDashboard() {
   ]
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold" gutterBottom>
-            Admin Dashboard
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            System overview, user management, and agent performance
-          </Typography>
-        </Box>
-        <Button
-          variant="outlined"
-          startIcon={<GraduationCap size={18} />}
-          onClick={() => navigate('/admin/role-guide')}
-        >
-          Help &amp; Training
-        </Button>
-      </Box>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          <p className="text-content-secondary text-sm">System overview, user management, and agent performance.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <CompanyToggle companies={companies} value={company} onChange={setCompany} allowAll={allowAll} />
+          <Link
+            to="/admin/role-guide"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-xl bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span className="hidden sm:inline">Help &amp; Training</span>
+          </Link>
+        </div>
+      </div>
 
-      {/* Goldrush / Stellr scope. Only field-ops (visit-based) metrics split by company;
-          the master-data tiles below are labelled "org-wide" when a company is selected. */}
-      {companies.length > 1 && (
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={company ?? 'all'}
-          onChange={(_e, val) => { if (val !== null) setCompany(val === 'all' ? null : val) }}
-          sx={{ mb: 3 }}
-        >
-          {allowAll && <ToggleButton value="all">All Companies</ToggleButton>}
-          {companies.map((co) => (
-            <ToggleButton key={co.id} value={co.id}>{co.name}</ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      )}
+      {/* Overview */}
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-content-secondary mb-2">Overview</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Kpi icon={Users} tone="blue" label="Total Users" value={formatNumber(totalUsers)}
+            sub={`${formatNumber(activeUsers)} active${company ? ' · org-wide' : ''}`} />
+          <Kpi icon={Shield} tone="purple" label="Total Agents" value={formatNumber(totalAgents)}
+            sub={`${formatNumber(activeAgents)} active${company ? ' · org-wide' : ''}`} />
+          <Kpi icon={UserCheck} tone="green" label="Total Customers" value={formatNumber(totalCustomers)}
+            sub={company ? 'org-wide' : undefined} />
+          <Kpi icon={Package} tone="amber" label="Total Products" value={formatNumber(totalProducts)}
+            sub={company ? 'org-wide' : undefined} />
+        </div>
+      </div>
 
-      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
-        Overview
-      </Typography>
-      <Grid container spacing={3} sx={{ mt: 0.5, mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Users"
-            value={totalUsers.toLocaleString()}
-            subtitle={`${activeUsers} active${company ? ' · org-wide' : ''}`}
-            icon={<Users size={24} color="#3b82f6" />}
-            color="#3b82f6"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Agents"
-            value={totalAgents.toLocaleString()}
-            subtitle={`${activeAgents} active${company ? ' · org-wide' : ''}`}
-            icon={<Shield size={24} color="#8b5cf6" />}
-            color="#8b5cf6"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Customers"
-            value={totalCustomers.toLocaleString()}
-            subtitle={company ? 'org-wide' : undefined}
-            icon={<UserCheck size={24} color="#10b981" />}
-            color="#10b981"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Products"
-            value={totalProducts.toLocaleString()}
-            subtitle={company ? 'org-wide' : undefined}
-            icon={<Package size={24} color="#f59e0b" />}
-            color="#f59e0b"
-          />
-        </Grid>
-      </Grid>
+      {/* Business Performance */}
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-content-secondary mb-2">Business Performance</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Kpi icon={ShoppingCart} tone="cyan" label="Total Orders" value={formatNumber(totalOrders)}
+            sub={company ? 'org-wide' : undefined} />
+          <Kpi icon={DollarSign} tone="green" label="Total Revenue" value={formatCurrency(totalRevenue)}
+            sub={company ? 'org-wide' : undefined} />
+          <Kpi icon={TrendingUp} tone="blue" label="User Activity Rate" value={`${userActivityRate}%`}
+            sub={`${formatNumber(activeUsers)} of ${formatNumber(totalUsers)} active`} progress={userActivityRate} />
+          <Kpi icon={TrendingUp} tone="purple" label="Agent Activity Rate" value={`${agentActivityRate}%`}
+            sub={`${formatNumber(activeAgents)} of ${formatNumber(totalAgents)} active`} progress={agentActivityRate} />
+        </div>
+      </div>
 
-      <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
-        Business Performance
-      </Typography>
-      <Grid container spacing={3} sx={{ mt: 0.5 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Orders"
-            value={totalOrders.toLocaleString()}
-            subtitle={company ? 'org-wide' : undefined}
-            icon={<ShoppingCart size={24} color="#06b6d4" />}
-            color="#06b6d4"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Total Revenue"
-            value={`$${totalRevenue.toLocaleString()}`}
-            subtitle={company ? 'org-wide' : undefined}
-            icon={<DollarSign size={24} color="#10b981" />}
-            color="#10b981"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="User Activity Rate"
-            value={`${userActivityRate}%`}
-            subtitle={`${activeUsers} of ${totalUsers} active`}
-            icon={<TrendingUp size={24} color="#3b82f6" />}
-            color="#3b82f6"
-            progress={userActivityRate}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Agent Activity Rate"
-            value={`${agentActivityRate}%`}
-            subtitle={`${activeAgents} of ${totalAgents} active`}
-            icon={<TrendingUp size={24} color="#8b5cf6" />}
-            color="#8b5cf6"
-            progress={agentActivityRate}
-          />
-        </Grid>
-      </Grid>
+      {/* Active Today — drillable roster split by team lead / agent */}
+      <div
+        className={`card ${activeTodayTotal > 0 ? 'cursor-pointer' : ''}`}
+        onClick={() => activeTodayTotal > 0 && setShowActiveRoster((s) => !s)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-600" />
+            <h2 className="font-semibold">Active Today — {activeTodayCount} of {activeTodayTotal}</h2>
+          </div>
+          {activeTodayTotal > 0 && (
+            showActiveRoster ? <ChevronUp className="w-4 h-4 text-content-secondary" /> : <ChevronDown className="w-4 h-4 text-content-secondary" />
+          )}
+        </div>
+        {showActiveRoster && activeTodayTotal > 0 && (
+          <ul className="mt-3 space-y-2">
+            {activeRoster.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 p-2.5 bg-surface-secondary rounded-lg">
+                <div className="min-w-0">
+                  <span className="font-medium text-sm truncate block">{p.name || 'Unknown'}</span>
+                  <span className="text-xs text-content-secondary">
+                    {p.kind}
+                    {p.lastActivity
+                      ? ` · ${new Date(p.lastActivity.includes('T') ? p.lastActivity : p.lastActivity.replace(' ', 'T') + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                      : ''}
+                  </span>
+                </div>
+                <Pill label={p.active ? 'active' : 'inactive'} tone={statusTone(p.active ? 'active' : 'inactive')} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-      <Grid container spacing={3}>
-        {/* Active Today — drillable roster split by team lead / agent */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Box
-              display="flex"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ cursor: activeTodayTotal > 0 ? 'pointer' : 'default' }}
-              onClick={() => activeTodayTotal > 0 && setShowActiveRoster((s) => !s)}
-            >
-              <Box display="flex" alignItems="center" gap={1}>
-                <Activity size={24} color="#22c55e" />
-                <Typography variant="h6" fontWeight="bold">
-                  Active Today — {activeTodayCount} of {activeTodayTotal}
-                </Typography>
-              </Box>
-              {activeTodayTotal > 0 &&
-                (showActiveRoster ? <ChevronUp size={20} /> : <ChevronDown size={20} />)}
-            </Box>
-            {showActiveRoster && activeTodayTotal > 0 && (
-              <TableContainer sx={{ mt: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Role</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Last activity</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {activeRoster.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>{p.name || 'Unknown'}</TableCell>
-                        <TableCell>{p.kind}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={p.active ? 'active' : 'inactive'}
-                            color={getStatusColor(p.active ? 'active' : 'inactive')}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {p.lastActivity
-                            ? new Date(
-                                p.lastActivity.includes('T')
-                                  ? p.lastActivity
-                                  : p.lastActivity.replace(' ', 'T') + 'Z'
-                              ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                            : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        </Grid>
+      {/* System Health */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle className="w-4 h-4 text-amber-600" />
+          <h2 className="font-semibold">System Health</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 rounded-xl bg-surface-secondary">
+            <p className="text-xs text-content-secondary">Pending Payments</p>
+            <p className="text-2xl font-semibold text-amber-600 mt-1">{systemHealth.pendingPayments}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-surface-secondary">
+            <p className="text-xs text-content-secondary">Overdue Orders</p>
+            <p className="text-2xl font-semibold text-red-600 mt-1">{systemHealth.overdueOrders}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-surface-secondary">
+            <p className="text-xs text-content-secondary">Inactive Agents</p>
+            <p className="text-2xl font-semibold text-amber-600 mt-1">{systemHealth.inactiveAgents}</p>
+          </div>
+        </div>
+      </div>
 
-        {/* System Health Alerts */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
-              <AlertTriangle size={24} color="#f59e0b" />
-              <Typography variant="h6" fontWeight="bold">
-                System Health
-              </Typography>
-            </Box>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <Card>
-                  <CardContent>
-                    <Typography color="text.secondary" variant="body2">
-                      Pending Payments
-                    </Typography>
-                    <Typography variant="h3" fontWeight="bold" color="warning.main">
-                      {systemHealth.pendingPayments}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Card>
-                  <CardContent>
-                    <Typography color="text.secondary" variant="body2">
-                      Overdue Orders
-                    </Typography>
-                    <Typography variant="h3" fontWeight="bold" color="error.main">
-                      {systemHealth.overdueOrders}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Card>
-                  <CardContent>
-                    <Typography color="text.secondary" variant="body2">
-                      Inactive Agents
-                    </Typography>
-                    <Typography variant="h3" fontWeight="bold" color="warning.main">
-                      {systemHealth.inactiveAgents}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
+      {/* Agent performance + Recent users */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card">
+          <h2 className="font-semibold mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-600" /> Top Performing Agents
+          </h2>
+          {agentPerformance.length === 0 ? (
+            <p className="text-sm text-content-secondary">No agent data available.</p>
+          ) : (
+            <ul className="space-y-2">
+              {agentPerformance.map((agent) => (
+                <li key={agent.id} className="flex items-center justify-between gap-3 p-2.5 bg-surface-secondary rounded-lg">
+                  <div className="min-w-0">
+                    <span className="font-medium text-sm truncate block">{agent.name}</span>
+                    <span className="text-xs text-content-secondary">
+                      {formatNumber(agent.order_count)} orders · {formatNumber(agent.visit_count)} visits
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums text-primary shrink-0">
+                    {formatCurrency(agent.total_sales ?? 0)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-        {/* Agent Performance */}
-        <Grid item xs={12} lg={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
-              <TrendingUp size={24} color="#10b981" />
-              <Typography variant="h6" fontWeight="bold">
-                Top Performing Agents
-              </Typography>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Agent Name</TableCell>
-                    <TableCell align="right">Orders</TableCell>
-                    <TableCell align="right">Sales</TableCell>
-                    <TableCell align="right">Visits</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(metrics?.agentPerformance?.length ?? 0) === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center">
-                        <Typography color="text.secondary">No agent data available</Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (metrics?.agentPerformance || []).map((agent) => (
-                      <TableRow key={agent.id} hover>
-                        <TableCell>
-                          <Typography fontWeight="medium">{agent.name}</Typography>
-                        </TableCell>
-                        <TableCell align="right">{agent.order_count}</TableCell>
-                        <TableCell align="right">
-                          <Typography fontWeight="bold" color="primary">
-                            ${(agent.total_sales ?? 0).toLocaleString()}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">{agent.visit_count}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Recent Users */}
-        <Grid item xs={12} lg={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
-              Recent Users
-            </Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell align="center">Role</TableCell>
-                    <TableCell align="center">Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(metrics?.recentUsers?.length ?? 0) === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center">
-                        <Typography color="text.secondary">No users available</Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (metrics?.recentUsers || []).map((user) => (
-                      <TableRow key={user.id} hover>
-                        <TableCell>
-                          <Typography fontWeight="medium">
-                            {user.first_name} {user.last_name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={user.role}
-                            color={getRoleColor(user.role)}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={user.status}
-                            color={getStatusColor(user.status)}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-      </Grid>
-    </Box>
+        <div className="card">
+          <h2 className="font-semibold mb-3">Recent Users</h2>
+          {recentUsers.length === 0 ? (
+            <p className="text-sm text-content-secondary">No users available.</p>
+          ) : (
+            <ul className="space-y-2">
+              {recentUsers.map((user) => (
+                <li key={user.id} className="flex items-center justify-between gap-3 p-2.5 bg-surface-secondary rounded-lg">
+                  <div className="min-w-0">
+                    <span className="font-medium text-sm truncate block">{user.first_name} {user.last_name}</span>
+                    <span className="text-xs text-content-secondary truncate block">{user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Pill label={user.role} tone={roleTone(user.role)} />
+                    <Pill label={user.status} tone={statusTone(user.status)} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
