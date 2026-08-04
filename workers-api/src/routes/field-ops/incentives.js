@@ -179,6 +179,20 @@ app.post('/incentives/close', adminOnly, async (c) => {
   return c.json({ success: true, period, written });
 });
 
+// Goldrush ID lives under a company-configurable custom-question key. By convention that's
+// 'goldrush_id_entry' (fast-entry) or 'goldrush_id' (legacy/photo-OCR), but a company can name
+// its own question anything containing "goldrush_id" — extractGoldrushId() in lib/goldrush.js
+// (uniqueness + duplicate-check at capture time) already matches ANY such key. This used to
+// hardcode just the two literal json_extract paths, so a company on a differently-named key
+// (or a value stored as a JSON number, which a bare json_extract() never TEXT-equals a bound
+// string parameter) silently never matched — reconcile always reported "unmatched" regardless
+// of the pasted ID. json_each walks every key in JS so both classes of bug are gone, without
+// pulling whole custom_field_values blobs (some carry embedded base64 photos) back to the Worker.
+const GOLDRUSH_ID_SQL = `(SELECT TRIM(CAST(je.value AS TEXT)) FROM json_each(COALESCE(custom_field_values,'{}')) je
+     WHERE lower(je.key) LIKE '%goldrush_id%' AND lower(je.key) NOT LIKE '%rejected%' AND lower(je.key) NOT LIKE '%rejection%'
+       AND je.value IS NOT NULL AND TRIM(CAST(je.value AS TEXT)) != ''
+     LIMIT 1)`;
+
 // POST /incentives/reconcile — BO/admin uploads the Goldrush-confirmed IDs; promote matching
 // signups provisional -> qualified. No clawback: only ever promotes, never demotes (already-paid
 // qualified rows and BO-rejected rows are left untouched). Idempotent.
@@ -194,9 +208,7 @@ app.post('/incentives/reconcile', requireRole('admin', 'general_manager', 'backo
     return c.json({ success: false, error: 'No 9-digit Goldrush IDs found in the upload' }, 400);
   }
 
-  // goldrush id lives at custom_field_values.goldrush_id_entry (fast-entry) or .goldrush_id (legacy)
-  const gid = `COALESCE(json_extract(custom_field_values,'$.goldrush_id_entry'),
-                        json_extract(custom_field_values,'$.goldrush_id'))`;
+  const gid = GOLDRUSH_ID_SQL;
   const placeholders = list.map(() => '?').join(',');
 
   // Which uploaded IDs actually exist as signups? Report the rest back to BO for chasing.
@@ -351,12 +363,13 @@ app.get('/incentives/roster', requireRole('admin', 'general_manager', 'backoffic
   const today = new Date().toISOString().slice(0, 10);
   const companyId = c.req.query('company_id') || null;
 
-  // Caller company scope — admins/GM see every agent; managers/team-leads/BO see only
+  // Caller company scope — admins/GM/BO see every agent; managers/team-leads see only
   // agents in the companies they're assigned to (mirrors /field-ops/companies). The pill
   // (company_id) narrows within that set; without it, a scoped caller still can't see
-  // agents outside their companies.
+  // agents outside their companies. Back office has no agent_company_links of its own
+  // (not field staff) — scoping it like a manager left the roster permanently empty.
   let filterIds = null; // null = no company restriction
-  if (!(role === 'admin' || role === 'super_admin' || role === 'general_manager')) {
+  if (role === 'manager' || role === 'team_lead') {
     const linkRows = role === 'manager'
       ? await db.prepare("SELECT company_id FROM manager_company_links WHERE manager_id = ? AND tenant_id = ? AND is_active = 1").bind(userId, tenantId).all()
       : await db.prepare("SELECT company_id FROM agent_company_links WHERE agent_id = ? AND tenant_id = ? AND is_active = 1").bind(userId, tenantId).all();

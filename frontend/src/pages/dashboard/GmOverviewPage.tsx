@@ -4,9 +4,12 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode, GraduationCap,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canViewAllCompanies } from '../../lib/capabilities'
+import CompanyToggle from '../../components/field-ops/CompanyToggle'
 import { MyIssues, UnmanagedIssues } from '../../components/field-ops/IssueQueue'
 import { SIGNAL_REGISTRY } from '../../lib/signalRegistry'
 import { formatCurrency, formatNumber } from '../../utils/format'
@@ -141,6 +144,8 @@ function Kpi({ icon: Icon, label, value, sub, delta, footer, tone = 'blue' }: {
 }
 
 export default function GmOverviewPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  const allowAll = canViewAllCompanies(role)
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState<string | null>(null) // null = current period
   const [company, setCompany] = useState<string | null>(null) // null = all companies
@@ -207,29 +212,7 @@ export default function GmOverviewPage() {
           <p className="text-content-secondary text-sm">The numbers driving the business right now.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {companies && companies.length > 1 && (
-            <div className="inline-flex rounded-xl bg-surface-secondary p-1">
-              <button
-                onClick={() => setCompany(null)}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  company === null ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
-                }`}
-              >
-                All companies
-              </button>
-              {companies.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCompany(c.id)}
-                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    company === c.id ? 'bg-white shadow-sm font-medium' : 'text-content-secondary hover:text-content'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <CompanyToggle companies={companies ?? []} value={company} onChange={setCompany} allowAll={allowAll} />
           <div className="inline-flex rounded-xl bg-surface-secondary p-1">
             {PERIODS.map((p) => (
               <button
@@ -286,6 +269,13 @@ export default function GmOverviewPage() {
           <button onClick={() => refetch()} className="p-2 rounded-lg hover:bg-surface-secondary" aria-label="Refresh">
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
+          <Link
+            to="/dashboard/gm/role-guide"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-xl bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span className="hidden sm:inline">Help &amp; Training</span>
+          </Link>
         </div>
       </div>
 

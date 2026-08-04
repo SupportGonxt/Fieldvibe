@@ -313,10 +313,12 @@ app.get('/field-ops/companies', authMiddleware, async (c) => {
   const role = c.get('role');
   try {
     // Scope to companies the user is assigned to. Managers/agents see only their
-    // linked companies; admins + GM see all active (org-wide oversight). Mirrors
-    // /api/agent/my-companies so pills reflect who-can-manage-what per user.
+    // linked companies; admins + GM + back office see all active (org-wide oversight).
+    // Mirrors /api/agent/my-companies so pills reflect who-can-manage-what per user.
+    // backoffice_admin has no agent_company_links (they aren't field staff), so they
+    // must fall in the all-active branch — otherwise their company toggle is empty.
     let companies;
-    if (role === 'admin' || role === 'super_admin' || role === 'general_manager') {
+    if (role === 'admin' || role === 'super_admin' || role === 'general_manager' || role === 'backoffice_admin') {
       companies = await db.prepare("SELECT * FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
     } else if (role === 'manager') {
       companies = await db.prepare("SELECT fc.* FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId).all();

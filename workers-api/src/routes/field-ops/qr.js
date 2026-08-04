@@ -35,10 +35,13 @@ function windowFrom(c) {
 }
 
 async function stepDestination(db, tenantId, processFlowId, stepKey) {
+  // Steps of the built-in default flows live under tenant 'default' (platform.js keeps
+  // them there on edit), so include them — a tenant-specific row wins over the default.
   const row = await db.prepare(
     `SELECT config FROM process_flow_steps
-      WHERE tenant_id = ? AND process_flow_id = ? AND step_key = ? LIMIT 1`,
-  ).bind(tenantId, processFlowId, stepKey).first();
+      WHERE tenant_id IN (?, 'default') AND process_flow_id = ? AND step_key = ?
+      ORDER BY CASE WHEN tenant_id = ? THEN 0 ELSE 1 END LIMIT 1`,
+  ).bind(tenantId, processFlowId, stepKey, tenantId).first();
   if (!row) return null;
   try {
     return JSON.parse(row.config || '{}').destination_url || null;

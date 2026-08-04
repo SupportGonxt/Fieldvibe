@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
-import SearchableSelect from '../../../components/ui/SearchableSelect'
+import CompanyToggle from '../../../components/field-ops/CompanyToggle'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts'
@@ -75,14 +75,16 @@ export default function StoreInsights() {
   })
   const companies = companiesResp?.data || companiesResp || []
   const [selectedCompany, setSelectedCompany] = useState<string>('')
+  // Default to the first company (companies come back alphabetically, so Goldrush
+  // leads) — id-based, no name substring. This report renders one company at a time.
   useEffect(() => {
     if (Array.isArray(companies) && companies.length > 0 && !selectedCompany) {
-      const goldrush = companies.find((c: any) => c.name?.toLowerCase().includes('goldrush'))
-      if (goldrush) setSelectedCompany(goldrush.id)
-      else if (companies.length === 1) setSelectedCompany(companies[0].id)
+      setSelectedCompany(companies[0].id)
     }
   }, [companies, selectedCompany])
   const selectedCompanyObj = companies.find((c: any) => c.id === selectedCompany)
+  // Which report shape to render (Goldrush stores vs Stellr visits). There is no
+  // schema flag for report type, so this is keyed off the selected company's name.
   const isStellr = !!selectedCompanyObj?.name?.toLowerCase().includes('stellr')
 
   const [cfg, setCfg] = useState<any>(null)
@@ -510,14 +512,13 @@ export default function StoreInsights() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Store visits, merchandising compliance & questionnaire data.</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
-          {Array.isArray(companies) && companies.length > 1 && (
-            <SearchableSelect
-              options={[{ value: '', label: 'All Companies' }, ...companies.map((c: any) => ({ value: c.id, label: c.name }))]}
-              value={selectedCompany || null}
-              onChange={(val) => setSelectedCompany(val || '')}
-              placeholder="All Companies"
-            />
-          )}
+          {/* One company at a time — no blended "All Companies" (it silently meant Goldrush). */}
+          <CompanyToggle
+            companies={companies}
+            value={selectedCompany || null}
+            onChange={(id) => setSelectedCompany(id || '')}
+            allowAll={false}
+          />
           {activeTab === 'insights' && (
             <DateRangePresets startDate={insStartDate} endDate={insEndDate} onStartDateChange={setInsStartDate} onEndDateChange={setInsEndDate} />
           )}

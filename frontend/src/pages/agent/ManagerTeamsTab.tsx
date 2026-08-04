@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, AlertCircle, Shield, Bell, Phone, Loader2 } from 'lucide-react'
+import { Users, MapPin, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, AlertCircle, Shield, Bell, Phone, Loader2, GraduationCap } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
+import type { ActiveTodayResponse } from '../../services/field-operations.service'
+import ActiveTodayTile from '../../components/field-ops/ActiveTodayTile'
 import { useRemediate } from '../../hooks/useRemediate'
 import { NudgeSheet } from '../../components/agent/NudgeSheet'
 
@@ -126,18 +129,23 @@ export default function ManagerTeamsTab() {
   const [showRules, setShowRules] = useState(false)
   const [period, setPeriod] = useState<PeriodKey>('today')
   const [company, setCompany] = useState<string | null>(null)
+  const [activeToday, setActiveToday] = useState<ActiveTodayResponse | null>(null)
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setError(false)
     try {
-      const res = await apiClient.get(`/manager/dashboard${company ? '?company_id=' + company : ''}`)
+      const [res, activeRes] = await Promise.all([
+        apiClient.get(`/manager/dashboard${company ? '?company_id=' + company : ''}`),
+        fieldOperationsService.getActiveToday(company || undefined).catch(() => null),
+      ])
       if (res.data?.success && res.data?.data) {
         setData(res.data.data)
       } else {
         setError(true)
       }
+      setActiveToday(activeRes ?? null)
     } catch (err) {
       console.error('Manager dashboard fetch error:', err)
       setError(true)
@@ -217,9 +225,18 @@ export default function ManagerTeamsTab() {
             <h1 className="text-lg font-bold text-token">Organization</h1>
             <p className="text-xs text-token-faint">{data?.total_team_leads || 0} teams &middot; {data?.total_agents || 0} agents</p>
           </div>
-          <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/agent/role-guide/manager')}
+              className="p-2 rounded-xl bg-white/5"
+              aria-label="Help & Training — about the Manager role"
+            >
+              <GraduationCap className="w-4 h-4 text-token-muted" />
+            </button>
+            <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -266,6 +283,12 @@ export default function ManagerTeamsTab() {
             <p className="text-xl font-bold text-token">{orgPeriod.store}</p>
           </div>
         </div>
+      </div>
+
+      {/* Active today — team leads + agents (tap to expand each roster) */}
+      <div className="px-5 pt-1 pb-2 space-y-3">
+        <ActiveTodayTile title="Team leads active today" data={activeToday?.teamLeads} />
+        <ActiveTodayTile title="Agents active today" data={activeToday?.agents} />
       </div>
 
       {/* Org Targets - Individual + Store Visits with progress bars */}

@@ -20,6 +20,9 @@ export interface NavigationItem {
   icon: LucideIcon
   permission: string | null
   requiresRole?: string
+  // Strict role match — bypasses admin-equivalence (backoffice_admin/general_manager/
+  // super_admin) that requiresRole grants. Only for surfaces meant for 'admin' alone.
+  exactRole?: string
   children?: NavigationChild[]
   category?: string
   section?: string
@@ -34,7 +37,7 @@ export interface NavigationChild {
   group?: string
 }
 
-// Consolidated navigation: 10 top-level items in 4 sections
+// Consolidated navigation: 11 top-level items in 4 sections
 export const navigation: NavigationItem[] = [
   // ═══════════════════ SECTION: CORE ═══════════════════
   {
@@ -42,6 +45,15 @@ export const navigation: NavigationItem[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
     permission: null,
+    section: 'Core',
+    category: 'Core',
+  },
+  {
+    name: 'Admin Dashboard',
+    href: '/admin/dashboard',
+    icon: Settings,
+    permission: null,
+    exactRole: 'admin',
     section: 'Core',
     category: 'Core',
   },
@@ -108,6 +120,7 @@ export const navigation: NavigationItem[] = [
       { name: 'Goldrush Individuals', href: '/field-operations/reports/goldrush-individuals', permission: 'view_field_reports', description: 'Goldrush individual report with questionnaire data', group: 'Reports' },
       { name: 'Stores Report', href: '/field-operations/reports/goldrush-stores', permission: 'view_field_reports', description: 'Store visit report with questionnaire data', group: 'Reports' },
       { name: 'Capture Failures', href: '/field-operations/reports/goldrush-upload-failures', permission: 'view_field_reports', description: 'Uploads that failed to capture, with reasons', group: 'Reports' },
+      { name: 'Escalation Report', href: '/field-operations/reports/escalations', permission: 'view_field_reports', description: 'Live idle-agent escalation ladder with per-stage action nudges', group: 'Reports' },
     ],
   },
   {

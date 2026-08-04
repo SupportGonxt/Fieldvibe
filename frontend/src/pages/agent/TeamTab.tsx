@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Shield, Store, AlertCircle, Bell, Phone, Loader2 } from 'lucide-react'
+import { Users, MapPin, TrendingUp, DollarSign, RefreshCw, ChevronDown, ChevronUp, ChevronRight, UserCheck, Shield, Store, AlertCircle, Bell, Phone, Loader2, GraduationCap } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { fieldOperationsService } from '../../services/field-operations.service'
+import type { ActiveTodayGroup } from '../../services/field-operations.service'
+import ActiveTodayTile from '../../components/field-ops/ActiveTodayTile'
 import { useRemediate } from '../../hooks/useRemediate'
 import { NudgeSheet } from '../../components/agent/NudgeSheet'
 
@@ -112,15 +115,20 @@ export default function TeamTab() {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [showRules, setShowRules] = useState(false)
   const [period, setPeriod] = useState<Period>('day')
+  const [activeToday, setActiveToday] = useState<ActiveTodayGroup | null>(null)
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     try {
-      const res = await apiClient.get('/team-lead/dashboard')
+      const [res, activeRes] = await Promise.all([
+        apiClient.get('/team-lead/dashboard'),
+        fieldOperationsService.getActiveToday().catch(() => null),
+      ])
       if (res.data?.success && res.data?.data) {
         setData(res.data.data)
       }
+      setActiveToday(activeRes?.agents ?? null)
     } catch (err) {
       console.error('Team dashboard fetch error:', err)
     } finally {
@@ -187,9 +195,18 @@ export default function TeamTab() {
             <h1 className="text-lg font-bold text-token">My Team</h1>
             <p className="text-xs text-token-faint">{data?.team_size || 0} agents</p>
           </div>
-          <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/agent/role-guide/team-lead')}
+              className="p-2 rounded-xl bg-white/5"
+              aria-label="Help & Training — about the Team Lead role"
+            >
+              <GraduationCap className="w-4 h-4 text-token-muted" />
+            </button>
+            <button onClick={() => fetchData(true)} className="p-2 rounded-xl bg-white/5" disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 text-token-muted ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -231,6 +248,11 @@ export default function TeamTab() {
             <p className="text-xl font-bold text-token">{teamPeriod.total}</p>
           </div>
         </div>
+      </div>
+
+      {/* Active today — tap to see who's active vs quiet */}
+      <div className="px-5 pt-1 pb-2">
+        <ActiveTodayTile data={activeToday} />
       </div>
 
       {/* Team Targets - Individual + Store Visits with progress bars */}

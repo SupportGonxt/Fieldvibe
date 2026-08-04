@@ -7,6 +7,9 @@ import {
   Minus, Briefcase, Headphones,
 } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
+import { useAuthStore } from '../../store/auth.store'
+import { canViewAllCompanies } from '../../lib/capabilities'
+import CompanyToggle from '../../components/field-ops/CompanyToggle'
 import { MyIssues, UnmanagedIssues, toGroups, groupTotal, type Issue, type IssueGroup } from '../../components/field-ops/IssueQueue'
 import PresenceAlerts from '../../components/field-ops/PresenceAlerts'
 import { PulseBar, type Chip } from '../../components/field-ops/PulseBar'
@@ -88,6 +91,8 @@ function agoLabel(iso: string | null): { text: string; stale: boolean } {
 }
 
 export default function GmOverview() {
+  const role = useAuthStore((s) => s.user?.role)
+  const allowAll = canViewAllCompanies(role)
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState<string | null>(null)
   const [company, setCompany] = useState<string | null>(null)
@@ -148,14 +153,14 @@ export default function GmOverview() {
         <p className="text-sm text-token-faint mb-4">What's driving the business.</p>
 
         {/* Company selector */}
-        {companies.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 mb-3 -mx-4 px-4">
-            <CompanyChip label="All companies" active={company === null} onClick={() => setCompany(null)} />
-            {companies.map((c) => (
-              <CompanyChip key={c.id} label={c.name} active={company === c.id} onClick={() => setCompany(c.id)} />
-            ))}
-          </div>
-        )}
+        <CompanyToggle
+          variant="pwa"
+          companies={companies}
+          value={company}
+          onChange={setCompany}
+          allowAll={allowAll}
+          className="mb-3"
+        />
 
         {/* Period toggle */}
         <div className="flex bg-white/[0.04] border border-token rounded-2xl p-1 mb-2">
@@ -465,19 +470,6 @@ export function buildPulse(d: Overview, mineData?: IssuesPayload, unmanagedData?
   const highlights = groupTotal(mine, 'recognition')
   if (highlights > 0) c.push({ tone: 'good', label: `${highlights} highlight${highlights > 1 ? 's' : ''}` })
   return c
-}
-
-function CompanyChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        active ? 'bg-primary text-on-primary border-primary' : 'bg-white/[0.04] text-token-muted border-token'
-      }`}
-    >
-      {label}
-    </button>
-  )
 }
 
 function Delta({ now, prev, money }: { now: number; prev: number; money?: boolean }) {

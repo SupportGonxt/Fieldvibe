@@ -35,7 +35,7 @@ export default function BackOfficeReconcile() {
         setCommitted(null)
       } else {
         setCommitted(data)
-        toast.success(`${data.qualified} signup${data.qualified === 1 ? '' : 's'} qualified`)
+        toast.success('Reconciliation complete')
       }
     } catch {
       toast.error('Reconciliation failed')
@@ -89,21 +89,11 @@ export default function BackOfficeReconcile() {
 
         {preview && !committed && (
           <div className="mt-6 bg-white/[0.03] border border-token rounded-2xl p-4">
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div>
-                <div className="text-2xl font-bold text-token tabular-nums">{preview.uploaded}</div>
-                <div className="text-xs text-token-faint mt-0.5">IDs uploaded</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-primary tabular-nums">{preview.matched}</div>
-                <div className="text-xs text-token-faint mt-0.5">match a signup</div>
-              </div>
-            </div>
-            {preview.matched > 0 && (
-              <p className="text-sm text-token-muted mt-4 text-center">
-                Confirm to qualify {preview.matched} signup{preview.matched === 1 ? '' : 's'} for payout.
-              </p>
-            )}
+            <p className="text-sm text-token-muted text-center">
+              {preview.matched > 0
+                ? 'Preview ready — confirm below to qualify the matched signups for payout.'
+                : 'None of the pasted IDs match a signup on file.'}
+            </p>
             <UnmatchedList ids={preview.unmatched} />
           </div>
         )}
@@ -112,11 +102,11 @@ export default function BackOfficeReconcile() {
           <div className="mt-6 bg-primary/[0.06] border border-primary/20 rounded-2xl p-4">
             <div className="flex items-center gap-2 text-primary font-semibold mb-3">
               <CheckCircle2 className="w-5 h-5" />
-              {committed.qualified} signup{committed.qualified === 1 ? '' : 's'} qualified
+              Signups qualified
             </div>
             <p className="text-sm text-token-muted">
-              {committed.matched} of {committed.uploaded} uploaded IDs matched a signup.
-              Already-qualified rows were left as-is (no clawback).
+              Matched signups were promoted to qualified for payout. Already-qualified
+              rows were left as-is (no clawback).
             </p>
             <UnmatchedList ids={committed.unmatched} />
           </div>

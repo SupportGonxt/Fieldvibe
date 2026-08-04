@@ -77,6 +77,12 @@ const AgentProfile = lazyWithRetry(() => import('./pages/agent/AgentProfile'))
 const AgentOnboarding = lazyWithRetry(() => import('./pages/agent/AgentOnboarding'))
 const AgentPinManagement = lazyWithRetry(() => import('./pages/agent/AgentPinManagement'))
 const AgentTrainingGuide = lazyWithRetry(() => import('./pages/agent/AgentTrainingGuide'))
+// "About My Role" brochures — persistent Help & Training pages, one per role
+const TeamLeadRole = lazyWithRetry(() => import('./pages/roles/TeamLeadRole'))
+const ManagerRole = lazyWithRetry(() => import('./pages/roles/ManagerRole'))
+const BackOfficeRole = lazyWithRetry(() => import('./pages/roles/BackOfficeRole'))
+const AdminRole = lazyWithRetry(() => import('./pages/roles/AdminRole'))
+const GeneralManagerRole = lazyWithRetry(() => import('./pages/roles/GeneralManagerRole'))
 const BackOfficeCallList = lazyWithRetry(() => import('./pages/agent/BackOfficeCallList'))
 const BackOfficeReconcile = lazyWithRetry(() => import('./pages/agent/BackOfficeReconcile'))
 const BackOfficeDeposits = lazyWithRetry(() => import('./pages/agent/BackOfficeDeposits'))
@@ -470,6 +476,7 @@ const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/
 const IndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/IndividualInsights'))
 const StoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/StoreInsights'))
 const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operations/reports/CaptureFailuresReport'))
+const EscalationReport = lazyWithRetry(() => import('./pages/field-operations/reports/EscalationReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
 // /agent/stats means different things to different people. AgentStats is scoped to the
@@ -567,6 +574,8 @@ function App() {
             {/* Dashboard Routes */}
             <Route path="dashboard" element={<PageLoader><DashboardForRole /></PageLoader>} />
             <Route path="dashboard/gm" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GmOverviewPage /></PageLoader></ProtectedRoute>} />
+            {/* "About My Role" brochure — reachable from the GM Overview */}
+            <Route path="dashboard/gm/role-guide" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><GeneralManagerRole /></PageLoader></ProtectedRoute>} />
             <Route path="analytics" element={<PageLoader><AnalyticsPage /></PageLoader>} />
             
             <Route path="analytics-dashboard/*" element={<Navigate to="/insights" replace />} />
@@ -883,9 +892,17 @@ function App() {
                 <AdminPage />
               </ProtectedRoute>
             } />
+            {/* exactRole (not requiredRole): this dashboard is for 'admin' only —
+                backoffice_admin/super_admin don't get the usual admin-equivalence here. */}
             <Route path="admin/dashboard" element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute exactRole="admin">
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            {/* "About My Role" brochure — reachable from the Admin Dashboard */}
+            <Route path="admin/role-guide" element={
+              <ProtectedRoute requiredRole="admin">
+                <PageLoader><AdminRole /></PageLoader>
               </ProtectedRoute>
             } />
             <Route path="admin/users" element={
@@ -1156,6 +1173,7 @@ function App() {
             <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><IndividualInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><StoreInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-upload-failures" element={<PageLoader><CaptureFailuresReport /></PageLoader>} />
+            <Route path="field-operations/reports/escalations" element={<PageLoader><EscalationReport /></PageLoader>} />
             <Route path="field-operations/portal-setup" element={<ProtectedRoute requiredRole="admin"><PageLoader><PortalSetup /></PageLoader></ProtectedRoute>} />
 
             {/* Stellr → merged into Stores Report */}
@@ -1201,6 +1219,10 @@ function App() {
             <Route path="profile" element={<PageLoader><AgentProfile /></PageLoader>} />
             <Route path="onboarding" element={<PageLoader><AgentOnboarding /></PageLoader>} />
             <Route path="training" element={<PageLoader><AgentTrainingGuide /></PageLoader>} />
+            {/* "About My Role" brochures reachable from each role's home screen */}
+            <Route path="role-guide/team-lead" element={<PageLoader><TeamLeadRole /></PageLoader>} />
+            <Route path="role-guide/manager" element={<PageLoader><ManagerRole /></PageLoader>} />
+            <Route path="role-guide/back-office" element={<PageLoader><BackOfficeRole /></PageLoader>} />
             <Route index element={<PageLoader><AgentDashboard /></PageLoader>} />
           </Route>
 

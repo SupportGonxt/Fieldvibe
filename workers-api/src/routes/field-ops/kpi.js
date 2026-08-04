@@ -210,6 +210,17 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
   const windowDays = thresholds.baseline_window_days || 14;
   const since = new Date(Date.now() - windowDays * 86400000).toISOString().slice(0, 10);
 
+  // Company scoping: restrict the roster to people linked to the selected company
+  // via agent_company_links. Membership-based, so it's correct even for Goldrush
+  // (whose visits can carry a NULL company_id). null companyId = whole tenant (unchanged).
+  // Bind coBind once per query that includes the coExists fragment.
+  const coExists = companyId
+    ? ` AND EXISTS (SELECT 1 FROM agent_company_links acl
+          WHERE acl.agent_id = users.id AND acl.tenant_id = users.tenant_id
+            AND acl.is_active = 1 AND acl.company_id = ?)`
+    : '';
+  const coBind = companyId ? [companyId] : [];
+
   // One roster row: KPIs + signals over `scope` (own visits, or a whole team's
   // for a lead row), live-issue link attached.
   const buildRow = async (id, name, scope) => {
@@ -228,14 +239,14 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
   if (role !== 'team_lead' && role !== 'manager') {
     const nameSql = `TRIM(COALESCE(first_name,'')||' '||COALESCE(last_name,''))`;
     const leads = (await db.prepare(
-      `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND role='team_lead' AND is_active=1 ORDER BY first_name`
-    ).bind(tenantId).all()).results ?? [];
+      `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND role='team_lead' AND is_active=1${coExists} ORDER BY first_name`
+    ).bind(tenantId, ...coBind).all()).results ?? [];
     const teams = [];
     const flat = [];
     for (const tl of leads) {
       const members = (await db.prepare(
-        `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id=? AND is_active=1 ORDER BY first_name`
-      ).bind(tenantId, tl.id).all()).results ?? [];
+        `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id=? AND is_active=1${coExists} ORDER BY first_name`
+      ).bind(tenantId, tl.id, ...coBind).all()).results ?? [];
       const agents = [];
       for (const m of members) agents.push(await buildRow(m.id, m.name || m.id));
       const lead = await buildRow(tl.id, tl.name || tl.id, members.length ? members.map((m) => m.id) : tl.id);
@@ -244,8 +255,8 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
     }
     const unassigned = (await db.prepare(
       `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id IS NULL AND is_active=1
-         AND role IN (${AGENT_ROLES.map(() => '?').join(',')}) ORDER BY first_name`
-    ).bind(tenantId, ...AGENT_ROLES).all()).results ?? [];
+         AND role IN (${AGENT_ROLES.map(() => '?').join(',')})${coExists} ORDER BY first_name`
+    ).bind(tenantId, ...AGENT_ROLES, ...coBind).all()).results ?? [];
     if (unassigned.length) {
       const agents = [];
       for (const m of unassigned) agents.push(await buildRow(m.id, m.name || m.id));
@@ -262,7 +273,15 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
   }
 
   // team_lead / manager: direct team, unchanged shape.
-  const memberIds = await teamMemberIds(db, tenantId, userId, role);
+  let memberIds = await teamMemberIds(db, tenantId, userId, role);
+  if (companyId) {
+    // Keep only reports linked to the selected company (team leads themselves are
+    // in agent_company_links too, so this scopes the manager view as well).
+    const linked = new Set((await db.prepare(
+      `SELECT agent_id FROM agent_company_links WHERE tenant_id=? AND company_id=? AND is_active=1`
+    ).bind(tenantId, companyId).all()).results.map((r) => r.agent_id));
+    memberIds = memberIds.filter((id) => linked.has(id));
+  }
   const agents = [];
   for (const id of memberIds) {
     // manager roster rows = team leads, each scored by their whole team's output

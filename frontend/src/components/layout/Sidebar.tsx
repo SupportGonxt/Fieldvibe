@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react'
-import { useAuthStore, hasPermission, hasRole } from '../../store/auth.store'
+import { useAuthStore, hasPermission, hasRole, hasExactRole } from '../../store/auth.store'
 import { navigation, navigationBySection } from '../../config/navigation'
 import type { NavigationItem, NavigationChild } from '../../config/navigation'
 
@@ -42,6 +42,8 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
   }
 
   const isNavItemVisible = (item: NavigationItem) => {
+    // exactRole bypasses admin-equivalence entirely — for surfaces meant for 'admin' alone.
+    if (item.exactRole && !hasExactRole(item.exactRole)) return false
     // hasRole encodes admin-equivalence (backoffice_admin & general_manager ⇒ admin,
     // super_admin ⇒ all). GM/BO admin get full office-console module access this way.
     if (item.requiresRole && !hasRole(item.requiresRole)) return false
