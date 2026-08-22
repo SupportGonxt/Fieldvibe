@@ -60,6 +60,13 @@ const queryClient = new QueryClient({
         if (error?.response?.status >= 400 && error?.response?.status < 500) {
           return false
         }
+        // Timeouts already got their retries inside the axios interceptor, and a
+        // timeout means the server is still working on the previous attempt. Retrying
+        // here multiplied with that layer (up to 16 attempts of a request that cannot
+        // succeed) and each attempt added load, making the next one slower.
+        if (!error?.response && (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT')) {
+          return false
+        }
         return failureCount < 3
       },
     },

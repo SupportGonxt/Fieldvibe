@@ -4,8 +4,20 @@ import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { rewriteR2Url } from '../lib/photoAi.js';
 import { ensureCaptureFailures } from '../lib/goldrush.js';
 import { parseStoreInsights } from '../services/goldrushVision.js';
+import { reportIndexMiddleware } from '../lib/reportIndexes.js';
 
 const app = new Hono();
+
+// Converge the report indexes on this isolate's first report request; see lib/reportIndexes.js.
+app.use('*', reportIndexMiddleware);
+
+// D1 batch() returns one result object per statement; these call sites all want the
+// single row that .first() would have given, so unwrap here. One round trip instead
+// of one per statement.
+async function batchFirst(db, stmts) {
+  const results = await db.batch(stmts);
+  return results.map(r => (r?.results || [])[0] || null);
+}
 
 function emptyIndividualInsights() {
   return { totals: { individuals: 0, converted: 0, with_id: 0, with_suggestion: 0, conversion_rate: 0 }, visitsOverTime: [], topAgents: [], satisfaction: {}, competitors: [], productInterest: [], suggestionsTop: [], geo: { with_gps: 0 } };
@@ -37,12 +49,16 @@ app.get('/field-ops/reports/kpis', authMiddleware, async (c) => {
       regBinds.push(endDate);
     }
 
-    const totalVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
-    const completedVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.status = 'completed'${dateFilter}`).bind(...binds).first();
-    const activeAgents = await db.prepare(`SELECT COUNT(DISTINCT v.agent_id) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds).first();
-    const totalCustomers = await db.prepare(`SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v WHERE v.tenant_id = ? AND v.customer_id IS NOT NULL${dateFilter}`).bind(...binds).first();
-    const totalIndividuals = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds).first();
-    const conversions = await db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds).first();
+    // Six independent counts: batched into one D1 round trip rather than awaited
+    // one after another (each serial await paid a full round trip).
+    const [totalVisits, completedVisits, activeAgents, totalCustomers, totalIndividuals, conversions] = await batchFirst(db, [
+      db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.status = 'completed'${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(DISTINCT v.agent_id) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v WHERE v.tenant_id = ? AND v.customer_id IS NOT NULL${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds),
+    ]);
 
     return c.json({ success: true, kpis: {
       total_checkins: totalVisits?.count || 0,
@@ -212,10 +228,13 @@ app.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
       regBinds.push(endDate);
     }
 
-    const total = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ?${dateFilter}`).bind(...binds).first();
-    const converted = await db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds).first();
-    const totalRegs = await db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds).first();
-    const storeVisits = await db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_type = 'store'${dateFilter}`).bind(...binds).first();
+    // Batched: four independent counts, one round trip (was four serial awaits).
+    const [total, converted, totalRegs, storeVisits] = await batchFirst(db, [
+      db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ?${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_type = 'store'${dateFilter}`).bind(...binds),
+    ]);
 
     return c.json({ success: true, data: {
       converted_yes: converted?.count || 0,
@@ -435,8 +454,15 @@ app.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
     const effectiveStart = hasStart ? startDate : (hasEnd ? '2000-01-01' : null);
     const effectiveEnd   = hasEnd   ? endDate   : (hasStart ? new Date().toISOString().split('T')[0] : null);
 
+    let dateFilter = '';
+    const visitBinds = [tenantId, goldrushId];
+    if (effectiveStart && effectiveEnd) {
+      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
+      visitBinds.push(effectiveStart, effectiveEnd);
+    }
+
     // ── Query 1: all active agents/TLs linked to Goldrush ──────────────────
-    const agentsResult = await db.prepare(`
+    const agentsSql = `
       SELECT DISTINCT
         u.id            AS agent_id,
         u.first_name || ' ' || u.last_name AS agent_name,
@@ -456,17 +482,10 @@ app.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
         AND u.email != 'luke@templeman.co.za'
         AND u.email != 'luke.templeman@gonxt.tech'
         AND u.role IN ('agent','team_lead','field_agent','sales_rep')
-    `).bind(goldrushId, tenantId, tenantId, tenantId).all();
+    `;
 
     // ── Query 2: visit counts grouped by agent + date ───────────────────────
-    let dateFilter = '';
-    const visitBinds = [tenantId, goldrushId];
-    if (effectiveStart && effectiveEnd) {
-      dateFilter = ' AND v.visit_date BETWEEN ? AND ?';
-      visitBinds.push(effectiveStart, effectiveEnd);
-    }
-
-    const visitsResult = await db.prepare(`
+    const visitsSql = `
       SELECT v.agent_id, DATE(v.visit_date) AS visit_date, COUNT(*) AS count
       FROM visits v
       JOIN users u ON v.agent_id = u.id
@@ -481,7 +500,13 @@ app.get('/field-ops/reports/goldrush-tracking', authMiddleware, async (c) => {
         AND u.email != 'luke.templeman@gonxt.tech'
         ${dateFilter}
       GROUP BY v.agent_id, DATE(v.visit_date)
-    `).bind(...visitBinds).all();
+    `;
+
+    // Independent queries: one round trip instead of two serial awaits.
+    const [agentsResult, visitsResult] = await db.batch([
+      db.prepare(agentsSql).bind(goldrushId, tenantId, tenantId, tenantId),
+      db.prepare(visitsSql).bind(...visitBinds),
+    ]);
 
     // Build lookup: agent_id -> { date -> count }
     const countMap = new Map();
@@ -600,6 +625,10 @@ app.get('/field-ops/reports/goldrush-no-btag', authMiddleware, async (c) => {
     else if (hasStart) { dateFilter = ' AND v.visit_date >= ?'; binds.push(startDate); }
     else if (hasEnd) { dateFilter = ' AND v.visit_date <= ?'; binds.push(endDate); }
 
+    // Same row-cap contract as the other goldrush reports; this was unbounded.
+    const limitRaw = parseInt(c.req.query('limit') || '5000', 10);
+    const rowCap = Math.min(Math.max(Number.isNaN(limitRaw) ? 5000 : limitRaw, 1), 10000);
+
     const result = await db.prepare(`
       SELECT
         v.id AS visit_id,
@@ -629,7 +658,9 @@ app.get('/field-ops/reports/goldrush-no-btag', authMiddleware, async (c) => {
         AND (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com')
         ${dateFilter}
       ORDER BY v.visit_date DESC
-    `).bind(...binds).all();
+      LIMIT ?
+    `).bind(...binds, rowCap).all();
+    const truncated = (result.results || []).length === rowCap;
 
     const data = (result.results || []).map(row => {
       let goldrushId = '';
@@ -648,7 +679,7 @@ app.get('/field-ops/reports/goldrush-no-btag', authMiddleware, async (c) => {
         team_lead_name: row.team_lead_name || null,
       };
     });
-    return c.json({ success: true, data, total: data.length });
+    return c.json({ success: true, data, total: data.length, truncated });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
@@ -674,6 +705,14 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
       binds.push(startD, endD);
     }
 
+    // Row cap, same contract as goldrush-individuals (?limit=, default 5000, max 10000,
+    // truncated=true in the response when the cap is hit). This query was previously
+    // unbounded: with no date filter it read every store visit ever recorded and each
+    // row carries nine correlated subqueries plus two ai_raw_response blobs. On a
+    // ~18k-visit fixture that was ~26MB crossing D1 -> Worker for a single request.
+    const limitRaw = parseInt(c.req.query('limit') || '5000', 10);
+    const rowCap = Math.min(Math.max(Number.isNaN(limitRaw) ? 5000 : limitRaw, 1), 10000);
+
     // Get all store visits for Goldrush with agent name, customer info, and photos
     // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
@@ -698,7 +737,9 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         AND v.agent_id NOT IN ('admin-user-001', 'agent-user-001', 'manager-user-001', 'e6c2898a-6420-4327-8000-e7857021a306')
         AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za' AND u.email != 'luke.templeman@gonxt.tech'))${dateFilter}
       ORDER BY v.created_at DESC
-    `).bind(...binds).all();
+      LIMIT ?
+    `).bind(...binds, rowCap).all();
+    const truncated = (result.results || []).length === rowCap;
 
     // Look up custom company questions with field_type='image' to extract photos
     let customImageKeys = [];
@@ -865,7 +906,7 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
       };
     });
 
-    return c.json({ success: true, data, total: data.length });
+    return c.json({ success: true, data, total: data.length, truncated });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 

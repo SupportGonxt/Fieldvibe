@@ -9,6 +9,17 @@ import { cacheReadThrough, serveOfflineRead, queueOfflineWrite, isWriteMethod } 
 const API_BASE_URL = API_CONFIG.BASE_URL
 const API_TIMEOUT = API_CONFIG.TIMEOUT
 
+// Report/analytics endpoints scan the full visit history; they get a longer budget
+// than an interactive call so a slow-but-progressing request finishes instead of
+// being aborted and retried (the abort does not stop the Worker, so a retry only
+// adds load and makes the next attempt slower).
+function timeoutForUrl(url?: string): number {
+  if (!url) return API_TIMEOUT
+  return API_CONFIG.SLOW_PATH_PREFIXES.some(p => url.includes(p))
+    ? API_CONFIG.REPORT_TIMEOUT
+    : API_TIMEOUT
+}
+
 // Lightweight in-memory cache for GET requests (avoids refetching on tab navigation)
 const responseCache = new Map<string, { data: AxiosResponse; timestamp: number }>()
 const pendingRequests = new Map<string, Promise<AxiosResponse>>() // Request deduplication
@@ -73,6 +84,10 @@ apiClient.interceptors.request.use(
     // Add dynamic tenant header for multi-tenant support
     const tenantCode = tenantService.getTenantCode()
     config.headers['X-Tenant-Code'] = tenantCode
+    // Report/analytics paths get the longer budget unless the caller set one.
+    if (config.timeout === undefined || config.timeout === API_TIMEOUT) {
+      config.timeout = timeoutForUrl(config.url)
+    }
     return config
   },
   (error) => {
@@ -185,8 +200,14 @@ apiClient.interceptors.response.use(
     if (isIdempotent && shouldRetry(error) && !originalRequest._retryCount) {
       originalRequest._retryCount = 0
     }
-    
-    if (isIdempotent && originalRequest._retryCount !== undefined && originalRequest._retryCount < 3) {
+
+    // A timeout means the server was still working, not that the request was lost.
+    // Retrying it stacks another identical query on top of the one still running,
+    // so allow a single retry rather than three.
+    const isTimeout = !error.response && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT')
+    const maxRetries = isTimeout ? 1 : 3
+
+    if (isIdempotent && originalRequest._retryCount !== undefined && originalRequest._retryCount < maxRetries) {
       originalRequest._retryCount++
       const delay = getRetryDelay(originalRequest._retryCount)
       

@@ -390,15 +390,20 @@ export default function StoreInsights() {
   }
   const handleCancelEdit = () => { setEditingId(null); setEditValue('') }
 
-  const { data: stores = [], isLoading, isError, refetch } = useQuery({
+  // The endpoint caps its row count (default 5000) so an all-time query cannot pull
+  // the entire visit history in one response; it reports truncated=true when it hits
+  // the cap, which we surface rather than silently showing a partial list.
+  const { data: storesResult, isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-stores', startDate, endDate, selectedCompany],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/goldrush-stores${dateParams}${companyParam}`)
-      return (res.data?.data || []) as GoldrushStore[]
+      return { rows: (res.data?.data || []) as GoldrushStore[], truncated: !!res.data?.truncated }
     },
     enabled: !isStellr,
     staleTime: 1000 * 60 * 5,
   })
+  const stores = storesResult?.rows ?? []
+  const storesTruncated = storesResult?.truncated ?? false
 
   const { data: stellrVisits = [], isLoading: stellrLoading, isError: stellrIsError, refetch: refetchStellr } = useQuery({
     queryKey: ['stellr-visits', startDate, endDate, selectedCompany],
@@ -737,6 +742,12 @@ export default function StoreInsights() {
       {/* ── Detail tab ── */}
       {activeTab === 'detail' && (
         <>
+          {!isStellr && storesTruncated && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              Showing the {stores.length.toLocaleString()} most recent store visits. Narrow the date range to see the rest.
+            </div>
+          )}
           {activeLoading ? <LoadingSpinner /> : activeError ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />

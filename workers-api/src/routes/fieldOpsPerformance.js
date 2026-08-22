@@ -2,9 +2,13 @@ import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { authMiddleware } from '../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
-import { generateTargetsFromRules } from '../lib/calendar.js';
+import { resolveAgentTargetMapBatch } from '../lib/calendar.js';
+import { reportIndexMiddleware } from '../lib/reportIndexes.js';
 
 const app = new Hono();
+
+// Converge the report indexes on this isolate's first request; see lib/reportIndexes.js.
+app.use('*', reportIndexMiddleware);
 
 // ==================== FIELD OPERATIONS: PERFORMANCE (ROLE-BASED) ====================
 app.get('/field-ops/performance', authMiddleware, async (c) => {
@@ -98,25 +102,9 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
       
       // Get monthly targets for each agent
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
-      const agentTargetMap = {};
-      await Promise.all(agentIds.map(async (aid) => {
-        try {
-          // Try monthly_targets first
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            // Fall back to company_target_rules
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, agentIds, currentMonth, company_id || null, 'agent');
 
       const agentPerformance = agentIds.map(aid => {
         const agent = aid === userId ? { first_name: 'You', last_name: '' } : (teamAgents.results || []).find(a => a.id === aid) || {};
@@ -177,23 +165,9 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
       const storeMap = Object.fromEntries((totalStoreVisits.results || []).map(r => [r.agent_id, r.count]));
 
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
-      const agentTargetMap = {};
-      await Promise.all(agentIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, agentIds, currentMonth, company_id || null, 'agent');
 
       const tlInfo = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(team_lead_id, tenantId).first();
       const agentPerformance = agentIds.map(aid => {
@@ -257,24 +231,10 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
 
       // Get monthly targets for all relevant users
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
       const allUserIds = [...teamLeadsToUse.map(tl => tl.id), ...agentsToUse.map(a => a.id)];
-      const agentTargetMap = {};
-      await Promise.all(allUserIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, allUserIds, currentMonth, company_id || null, 'agent');
 
       const teams = teamLeadsToUse.map(tl => {
         const teamAgts = agentsToUse.filter(a => a.team_lead_id === tl.id);
@@ -425,23 +385,9 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       
       // Get monthly targets for each agent
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
-      const agentTargetMap = {};
-      await Promise.all(agentIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, agentIds, currentMonth, company_id || null, 'agent');
 
       data = agentIds.map(aid => {
         const agent = aid === userId ? { first_name: 'You', last_name: '' } : (teamAgents.results || []).find(a => a.id === aid) || {};
@@ -478,26 +424,12 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       
       // Get monthly targets for all users
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
       const allAgentIds = (allAgents.results || []).map(a => a.id);
       const allTlIds = (allTeamLeads.results || []).map(tl => tl.id);
       const allUserIds = [...allTlIds, ...allAgentIds];
-      const agentTargetMap = {};
-      await Promise.all(allUserIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, allUserIds, currentMonth, company_id || null, 'agent');
 
       data = (allTeamLeads.results || []).map(tl => {
         const teamAgts = (allAgents.results || []).filter(a => a.team_lead_id === tl.id);
@@ -658,24 +590,10 @@ app.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
     };
     // Get monthly targets for all users
     const currentMonth = startD.substring(0, 7);
-    const monthStartDate = currentMonth + '-01';
     const allUserIds = [...(allManagers.results||[]).map(m=>m.id), ...(allTeamLeads.results||[]).map(t=>t.id), ...filteredAgentResults.map(a=>a.id)];
-    const xlTargetMap = {};
-    await Promise.all(allUserIds.map(async (aid) => {
-      try {
-        const mt = company_id
-          ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-          : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-        if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-          xlTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-        } else {
-          const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-          const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-          const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-          xlTargetMap[aid] = { target_visits: tv, target_stores: ts };
-        }
-      } catch { xlTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-    }));
+    // One batched resolve for every user instead of 5-6 D1 queries each
+    // (see resolveAgentTargetMapBatch in lib/calendar.js).
+    const xlTargetMap = await resolveAgentTargetMapBatch(db, tenantId, allUserIds, currentMonth, company_id || null, 'agent');
     const sumTargets = (ids) => {
       let tv=0, ts=0;
       for (const id of ids) { tv += (xlTargetMap[id]||{}).target_visits||0; ts += (xlTargetMap[id]||{}).target_stores||0; }

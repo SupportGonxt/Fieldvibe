@@ -42,6 +42,13 @@ export const API_CONFIG = {
   // Base URL - intelligent detection for development and production
   BASE_URL: getApiBaseUrl(),
   TIMEOUT: 30000,
+  // Reports aggregate across the whole visit history, so they legitimately take
+  // longer than an interactive call. At the shared 30s a heavy report was aborted
+  // client-side and then retried — the abort never stopped the Worker, so each
+  // retry piled another full scan onto D1 and made the next attempt slower still.
+  REPORT_TIMEOUT: 120000,
+  // Paths that get REPORT_TIMEOUT instead of TIMEOUT.
+  SLOW_PATH_PREFIXES: ['/field-ops/reports', '/field-ops/performance', '/field-ops/drill-down', '/analytics'],
   
   // All API endpoints in one place
   ENDPOINTS: {

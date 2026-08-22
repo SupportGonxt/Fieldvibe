@@ -100,6 +100,16 @@ async function ensureCaptureFailures(db) {
     await db.prepare("DROP TABLE goldrush_upload_failures").run();
   }
 
+  // Indexes, not optional: ~31 report sites filter visits with
+  //   NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)
+  // Without idx_capture_failures_visit that probe full-scans this table once per
+  // candidate visit row, which is what made the admin reports take minutes.
+  // Kept here as well as in migration 0023 so a DB that reaches the view via
+  // this runtime path (rather than the migration) is never left unindexed.
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_capture_failures_visit ON capture_failures(visit_id)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_capture_failures_tenant_date ON capture_failures(tenant_id, visit_date)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_capture_failures_tenant_agent ON capture_failures(tenant_id, agent_id)").run();
+
   // Compat view: every legacy read of `goldrush_upload_failures` keeps working; the renamed
   // identifier_value column is re-exposed under its old name `goldrush_id`.
   await db.prepare(
