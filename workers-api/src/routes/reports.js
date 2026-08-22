@@ -5,6 +5,7 @@ import { rewriteR2Url } from '../lib/photoAi.js';
 import { ensureCaptureFailures } from '../lib/goldrush.js';
 import { parseStoreInsights } from '../services/goldrushVision.js';
 import { reportIndexMiddleware } from '../lib/reportIndexes.js';
+import { companyAgentScope } from '../lib/agentScope.js';
 
 const app = new Hono();
 
@@ -87,18 +88,13 @@ app.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
     const dateBinds = [];
     const regBinds = [tenantId];
 
-    // Scope by company via agent_company_links (handles companies with NULL visits.company_id, e.g. Goldrush)
+    // Scope by company via agent_company_links (handles companies with NULL visits.company_id, e.g. Goldrush).
+    // Subquery rather than an inlined id list: D1 allows 100 bound parameters per
+    // statement, and Goldrush has more agents than that. See lib/agentScope.js.
     if (company_id) {
-      const companyLinks = await db.prepare(
-        "SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1"
-      ).bind(tenantId, company_id).all();
-      const agentIds = (companyLinks.results || []).map(r => r.agent_id);
-      if (agentIds.length === 0) {
-        return c.json({ success: true, data: [] });
-      }
-      const placeholders = agentIds.map(() => '?').join(',');
-      agentFilter = ` AND v.agent_id IN (${placeholders})`;
-      agentBinds.push(...agentIds);
+      const scope = companyAgentScope(tenantId, company_id);
+      agentFilter = ` AND v.agent_id IN ${scope.sql}`;
+      agentBinds.push(...scope.binds);
     }
     if (startDate) {
       dateFilter += " AND v.visit_date >= ?";
@@ -202,18 +198,14 @@ app.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
     let regDateFilter = '';
     const binds = [tenantId];
     const regBinds = [tenantId];
-    // Scope by company via agent_company_links (handles companies with NULL visits.company_id, e.g. Goldrush)
+    // Company scoping via agent_company_links, as a subquery — an inlined id list
+    // exceeds D1's 100-parameter limit for a company this size. See lib/agentScope.js.
+    // An empty link set now yields zero counts naturally, which is what the old
+    // early-return produced.
     if (company_id) {
-      const companyLinks = await db.prepare(
-        "SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1"
-      ).bind(tenantId, company_id).all();
-      const agentIds = (companyLinks.results || []).map(r => r.agent_id);
-      if (agentIds.length === 0) {
-        return c.json({ success: true, data: { converted_yes: 0, converted_no: 0, betting_yes: 0, betting_no: 0 } });
-      }
-      const placeholders = agentIds.map(() => '?').join(',');
-      dateFilter += ` AND agent_id IN (${placeholders})`;
-      binds.push(...agentIds);
+      const scope = companyAgentScope(tenantId, company_id);
+      dateFilter += ` AND agent_id IN ${scope.sql}`;
+      binds.push(...scope.binds);
     }
     if (startDate) { 
       dateFilter += " AND visit_date >= ?"; 
@@ -1507,21 +1499,23 @@ app.get('/field-ops/reports/checkins', authMiddleware, async (c) => {
     if (status) { where += ' AND v.status = ?'; binds.push(status); }
     if (agentId) { where += ' AND v.agent_id = ?'; binds.push(agentId); }
 
-    const totalResult = await db.prepare(`SELECT COUNT(*) as count FROM visits v ${where}`).bind(...binds).first();
+    // Count and page are independent: one round trip instead of two serial awaits.
+    const [totalResult, checkins] = await db.batch([
+      db.prepare(`SELECT COUNT(*) as count FROM visits v ${where}`).bind(...binds),
+      db.prepare(`
+        SELECT v.id, v.agent_id, v.customer_id as shop_id, v.visit_date as timestamp,
+          v.latitude, v.longitude,
+          v.status, v.notes, v.visit_type, v.visit_type as visit_target_type,
+          u.first_name || ' ' || u.last_name as agent_name
+        FROM visits v
+        LEFT JOIN users u ON v.agent_id = u.id
+        ${where}
+        ORDER BY v.visit_date DESC
+        LIMIT ? OFFSET ?
+      `).bind(...binds, parseInt(limit), offset),
+    ]);
 
-    const checkins = await db.prepare(`
-      SELECT v.id, v.agent_id, v.customer_id as shop_id, v.visit_date as timestamp,
-        v.latitude, v.longitude,
-        v.status, v.notes, v.visit_type, v.visit_type as visit_target_type,
-        u.first_name || ' ' || u.last_name as agent_name
-      FROM visits v
-      LEFT JOIN users u ON v.agent_id = u.id
-      ${where}
-      ORDER BY v.visit_date DESC
-      LIMIT ? OFFSET ?
-    `).bind(...binds, parseInt(limit), offset).all();
-
-    return c.json({ success: true, checkins: checkins.results || [], total: totalResult?.count || 0 });
+    return c.json({ success: true, checkins: checkins.results || [], total: (totalResult.results || [])[0]?.count || 0 });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
@@ -1557,18 +1551,13 @@ app.get('/field-ops/reports/export/checkins', authMiddleware, async (c) => {
     const { startDate, endDate, company_id } = c.req.query();
     let where = 'WHERE v.tenant_id = ?';
     const binds = [tenantId];
-    // Scope by company via agent_company_links (handles companies with NULL visits.company_id, e.g. Goldrush)
+    // Company scoping via agent_company_links, as a subquery — an inlined id list
+    // exceeds D1's 100-parameter limit for a company this size, which made this export
+    // fail outright rather than merely run slowly. See lib/agentScope.js.
     if (company_id) {
-      const companyLinks = await db.prepare(
-        "SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1"
-      ).bind(tenantId, company_id).all();
-      const agentIds = (companyLinks.results || []).map(r => r.agent_id);
-      if (agentIds.length === 0) {
-        return c.json({ success: true, data: [] });
-      }
-      const placeholders = agentIds.map(() => '?').join(',');
-      where += ` AND v.agent_id IN (${placeholders})`;
-      binds.push(...agentIds);
+      const scope = companyAgentScope(tenantId, company_id);
+      where += ` AND v.agent_id IN ${scope.sql}`;
+      binds.push(...scope.binds);
     }
     if (startDate) { where += ' AND v.visit_date >= ?'; binds.push(startDate); }
     if (endDate) { where += ' AND v.visit_date <= ?'; binds.push(endDate); }
