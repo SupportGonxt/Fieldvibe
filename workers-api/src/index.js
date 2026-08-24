@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { rateLimiter, authMiddleware } from './lib/middleware.js';
-import { reportCacheMiddleware } from './lib/cache.js';
+import { reportCacheMiddleware, isCacheableReportPath } from './lib/cache.js';
 // Route modules
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
@@ -284,8 +284,29 @@ app.route('/api', api);
 // Catch-all for unmatched routes
 app.all('*', (c) => c.json({ success: false, message: 'Not found' }, 404));
 
+// D1 read replication is enabled on the database (read_replication.mode = auto), but
+// that alone changes nothing: D1 only uses replicas for queries issued through a
+// session, everything else still goes to the primary. The primary lives in WNAM and
+// the users are in South Africa, so every serialized query on a report screen pays a
+// cross-continent round trip. Report/dashboard GETs are aggregate reads the UI already
+// treats as 5-minute-stale (react-query) and that we already serve from a 60s edge
+// cache, so 'first-unconstrained' — start at whichever replica is nearest, no bookmark
+// wait — is strictly fresher than what those screens render anyway.
+//
+// Everything else (all writes, and every read on a write-then-read path) keeps the
+// unmodified env and therefore the primary and its read-your-writes guarantee.
+//
+// The env is SHALLOW-COPIED, never mutated: `env` is shared for the isolate's whole
+// lifetime, so assigning env.DB here would hand a replica session to concurrent
+// requests — including writes — and to the cron handler.
 export default {
-  fetch: app.fetch,
+  fetch: (request, env, ctx) => {
+    let e = env;
+    if (env.DB?.withSession && isCacheableReportPath(request.method, new URL(request.url).pathname)) {
+      try { e = { ...env, DB: env.DB.withSession('first-unconstrained') }; } catch { e = env; }
+    }
+    return app.fetch(request, e, ctx);
+  },
   scheduled: async (event, env, ctx) => {
     // reactToIssues runs on its own triggers for a fresh 1000-subrequest budget
     // (the hourly tick's earlier jobs drain the shared budget; see cron/jobs.js).

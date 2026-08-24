@@ -1,13 +1,23 @@
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
-import { cachedD1Query } from '../lib/cache.js';
+import { cachedD1Query, reportCacheMiddleware } from '../lib/cache.js';
 import { DEFAULT_WD_CONFIG, resolveWorkingDaysConfigBatch, countWorkingDaysInMonth, buildFallbackMonthlyTargets, getUserMonthlyTargetFromRules, generateTargetsFromRules, computeTargetTotalsFromRules } from '../lib/calendar.js';
-import { getCommissionTotals, getBulkAgentVisitCounts } from '../lib/aggregates.js';
+import { getCommissionTotals, getBulkAgentVisitCounts, mapLimit } from '../lib/aggregates.js';
+
+// Fan-out caps. These dashboards walked their roster one person at a time and
+// every step is a round trip from the worker to the D1 primary in WNAM, so a
+// team of 30 paid 30 serialized cross-continent trips before the screen drew.
+const ROW_CONCURRENCY = 6;
+const TARGET_CONCURRENCY = 8;
 import { authMiddleware, requireSuperAdmin } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { getScale } from './field-ops/config.js';
 
 const app = new Hono();
+
+// Supervisor roll-ups below carry reportCacheMiddleware (60s edge cache). The agent's
+// own dashboard deliberately does NOT: an agent who just checked in has to see their
+// own counter move on the next pull.
 
 // ==================== AGENT MY-COMPANIES (lightweight) ====================
 app.get('/api/agent/my-companies', authMiddleware, async (c) => {
@@ -545,11 +555,8 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       if (teamTargetVisits === 0 && teamTargetRegs === 0) {
         const teamMemberIds = (teamMembers?.results || []).map(m => m.id);
         const allTeamUserIds = [teamLeadId, ...teamMemberIds];
-        for (const uid of allTeamUserIds) {
-          const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent');
-          teamTargetVisits += fb.target_visits;
-          teamTargetRegs += fb.target_registrations;
-        }
+        const teamFbs = await mapLimit(allTeamUserIds, TARGET_CONCURRENCY, (uid) => getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent'));
+        for (const fb of teamFbs) { teamTargetVisits += fb.target_visits; teamTargetRegs += fb.target_registrations; }
       }
       const teamActualVisits = totalTeamVisits; // use live COUNT from visits table
       const teamActualRegs = totalTeamRegs; // use live COUNT from visits table (store type)
@@ -599,10 +606,8 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
           }
           // Fall back to company_target_rules if monthly_targets are empty for manager scope
           if (mgrTargetVisits === 0) {
-            for (const uid of perfAllMgrUserIds) {
-              const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent');
-              mgrTargetVisits += fb.target_visits;
-            }
+            const fbs = await mapLimit(perfAllMgrUserIds, TARGET_CONCURRENCY, (uid) => getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent'));
+            for (const fb of fbs) mgrTargetVisits += fb.target_visits;
           }
         }
         managerPerformance = {
@@ -643,12 +648,12 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
       // Get agent's assigned companies
       // For managers/team leads, aggregate targets across all agents
       let mergedFallbackTargets = [];
-      for (const aid of perfAgentIdsForCounts) {
+      const perAgentFallbacks = await mapLimit(perfAgentIdsForCounts, ROW_CONCURRENCY, async (aid) => {
         const aCo = await db.prepare("SELECT fc.id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.agent_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(aid, tenantId).all().catch(() => ({ results: [] }));
         const aidCoIds = (aCo.results || []).map(co => co.id);
-        const aidTargets = await buildFallbackMonthlyTargets(db, tenantId, aid, currentMonth, aidCoIds, 'agent');
-        mergedFallbackTargets = [...mergedFallbackTargets, ...aidTargets];
-      }
+        return buildFallbackMonthlyTargets(db, tenantId, aid, currentMonth, aidCoIds, 'agent');
+      });
+      for (const t of perAgentFallbacks) mergedFallbackTargets = [...mergedFallbackTargets, ...t];
       const agentCompanyIds = [];
       targets = mergedFallbackTargets;
     }
@@ -659,10 +664,8 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
     if (targets.length === 0) {
       // For managers/team leads, generate targets from rules for each agent
       let genTargets = [];
-      for (const aid of perfAgentIdsForCounts) {
-        const aidTargets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-        genTargets = [...genTargets, ...aidTargets];
-      }
+      const perAgentGen = await mapLimit(perfAgentIdsForCounts, ROW_CONCURRENCY, (aid) => generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent'));
+      for (const t of perAgentGen) genTargets = [...genTargets, ...t];
       targets = genTargets;
     } else {
       // Enrich all targets in parallel instead of sequentially
@@ -788,7 +791,7 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
 });
 
 // ==================== TEAM LEAD DASHBOARD (Mobile) ====================
-app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
+app.get('/api/team-lead/dashboard', authMiddleware, reportCacheMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -872,10 +875,8 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
           }
           // Fall back to company_target_rules if monthly_targets are empty for manager scope
           if (mTV === 0 && earlyAllMgrUserIds.length > 0) {
-            for (const uid of earlyAllMgrUserIds) {
-              const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent');
-              mTV += fb.target_visits;
-            }
+            const fbs = await mapLimit(earlyAllMgrUserIds, TARGET_CONCURRENCY, (uid) => getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent'));
+            for (const fb of fbs) mTV += fb.target_visits;
           }
         }
         earlyMgrPerf = { manager_name: mgrInfo ? (mgrInfo.first_name + ' ' + mgrInfo.last_name) : 'Manager', achievement: mTV > 0 ? Math.round((mAV / mTV) * 100) : 0 };
@@ -1070,10 +1071,8 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
         }
         // Fall back to company_target_rules if monthly_targets are empty for manager scope
         if (mgrTV === 0 && allMgrUserIds2.length > 0) {
-          for (const uid of allMgrUserIds2) {
-            const fb = await getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent');
-            mgrTV += fb.target_visits;
-          }
+          const fbs = await mapLimit(allMgrUserIds2, TARGET_CONCURRENCY, (uid) => getUserMonthlyTargetFromRules(db, tenantId, uid, currentMonth, 'agent'));
+          for (const fb of fbs) mgrTV += fb.target_visits;
         }
       }
       tlManagerPerf = { manager_name: mgrInfo ? (mgrInfo.first_name + ' ' + mgrInfo.last_name) : 'Manager', achievement: mgrTV > 0 ? Math.round((mgrAV / mgrTV) * 100) : 0 };
@@ -1125,7 +1124,7 @@ app.get('/api/team-lead/dashboard', authMiddleware, async (c) => {
 });
 
 // ==================== MANAGER DASHBOARD (Mobile) ====================
-app.get('/api/manager/dashboard', authMiddleware, async (c) => {
+app.get('/api/manager/dashboard', authMiddleware, reportCacheMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -1489,7 +1488,7 @@ app.get('/api/manager/dashboard', authMiddleware, async (c) => {
 // ==================== DRILL-DOWN ENDPOINTS (Mobile) ====================
 
 // Team Lead: Get a specific agent's detail + recent visits
-app.get('/api/team-lead/agent/:agentId', authMiddleware, async (c) => {
+app.get('/api/team-lead/agent/:agentId', authMiddleware, reportCacheMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -1582,7 +1581,7 @@ app.get('/api/team-lead/agent/:agentId', authMiddleware, async (c) => {
 });
 
 // Manager: Get agents in a specific team (by team lead ID)
-app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
+app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, reportCacheMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -1620,8 +1619,7 @@ app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
     const teamMembers = await db.prepare("SELECT id, first_name, last_name, phone, role, status FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1 ORDER BY first_name").bind(teamLeadId, tenantId).all();
 
     // Build per-agent stats
-    const agentStats = [];
-    for (const member of (teamMembers.results || [])) {
+    const agentStats = await mapLimit(teamMembers.results || [], ROW_CONCURRENCY, async (member) => {
       const [todayV, monthV, todayR, monthR, targets, todayIndiv, monthIndiv] = await Promise.all([
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ?${mgrCFilter} AND visit_date = ?`).bind(tenantId, member.id, ...mgrCompanyIds, today).first(),
         db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND agent_id = ?${mgrCFilter} AND visit_date >= ?`).bind(tenantId, member.id, ...mgrCompanyIds, currentMonth + '-01').first(),
@@ -1640,7 +1638,7 @@ app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
       }
       const av = monthV?.count || 0;
       const ar = monthR?.count || 0;
-      agentStats.push({
+      return {
         id: member.id,
         first_name: member.first_name,
         last_name: member.last_name,
@@ -1655,8 +1653,8 @@ app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
         target_stores: tr,
         actual_stores: ar,
         achievement: tv > 0 ? Math.round((av / tv) * 100) : 0,
-      });
-    }
+      };
+    });
 
     return c.json({
       success: true,
@@ -1676,7 +1674,7 @@ app.get('/api/manager/team/:teamLeadId/agents', authMiddleware, async (c) => {
 });
 
 // Manager: Get a specific agent's detail + recent visits
-app.get('/api/manager/agent/:agentId', authMiddleware, async (c) => {
+app.get('/api/manager/agent/:agentId', authMiddleware, reportCacheMiddleware, async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');

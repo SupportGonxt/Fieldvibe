@@ -208,48 +208,13 @@ jobs:
       - name: Validate Wrangler config
         run: npx wrangler --version
 
-  # ============================================
-  # Deploy to Staging
-  # ============================================
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [lint, security, build-frontend, build-backend]
-    if: github.ref == 'refs/heads/develop'
-    environment:
-      name: staging
-      url: https://staging.fieldvibe.vantax.co.za
-    defaults:
-      run:
-        working-directory: workers-api
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: workers-api/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Deploy to Cloudflare Workers (Staging)
-        run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ENVIRONMENT: staging
-
-      - name: Run smoke tests
-        run: |
-          echo "Running smoke tests against staging environment..."
-          curl -f https://staging.fieldvibe.vantax.co.za/api/v1/health || exit 1
+  # The staging job that used to live here was deleted, not fixed. It gated on
+  # `refs/heads/develop` (a branch that does not exist in this repo) and its deploy step
+  # ran a bare `npx wrangler deploy` with no --env, which resolves to the top-level
+  # wrangler.toml — i.e. the PRODUCTION worker and the production D1. wrangler.toml has
+  # no [env.staging] either. So the job could never deploy staging, and the day someone
+  # pushed a `develop` branch it would have shipped that branch straight to production.
+  # Pre-production deploys go to dev via deploy-dev.yml (`--env preview`).
 
   # ============================================
   # Deploy to Production

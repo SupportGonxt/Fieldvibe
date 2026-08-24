@@ -2,7 +2,12 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
-import { resolveReportCompanyId } from '../lib/aggregates.js';
+import { resolveReportCompanyId, mapLimit } from '../lib/aggregates.js';
+
+// Fan-out caps for the per-agent report loops; nested, so the worst case is
+// RULE x ROW concurrent D1 queries.
+const RULE_CONCURRENCY = 3;
+const ROW_CONCURRENCY = 6;
 import { extractGoldrushId, goldrushIdExists } from '../lib/goldrush.js';
 import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto } from '../lib/photoAi.js';
 import { validate } from '../validate.js';
@@ -589,8 +594,9 @@ app.get('/field-ops/commission-eligibility', authMiddleware, async (c) => {
     const targetRules = rules.results || [];
     if (targetRules.length === 0) return c.json({ data: { eligible: false, reason: 'No target rules configured', details: [] } });
 
-    const results = [];
-    for (const rule of targetRules) {
+    // Rules x agents, three D1 round trips per agent, all of it serialized before —
+    // and this deployment's worker sits a continent away from the D1 primary.
+    const perRule = await mapLimit(targetRules, RULE_CONCURRENCY, async (rule) => {
       // Get agents linked to this company
       let agentsQuery = "SELECT acl.agent_id, u.first_name || ' ' || u.last_name as agent_name, u.role, u.team_lead_id, u.manager_id FROM agent_company_links acl JOIN users u ON acl.agent_id = u.id WHERE acl.company_id = ? AND acl.tenant_id = ? AND acl.is_active = 1 AND u.is_active = 1";
       const agentsParams = [rule.company_id, tenantId];
@@ -598,7 +604,7 @@ app.get('/field-ops/commission-eligibility', authMiddleware, async (c) => {
       const agentsResult = await db.prepare(agentsQuery).bind(...agentsParams).all();
       const agents = agentsResult.results || [];
 
-      for (const agent of agents) {
+      return mapLimit(agents, ROW_CONCURRENCY, async (agent) => {
         // Count agent's visits and registrations for the date
         const [visitCount, regCount, convCount] = await Promise.all([
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date = ?").bind(agent.agent_id, tenantId, checkDate).first(),
@@ -610,7 +616,7 @@ app.get('/field-ops/commission-eligibility', authMiddleware, async (c) => {
                           (regCount?.count || 0) >= rule.target_registrations_per_day &&
                           (convCount?.count || 0) >= rule.target_conversions_per_day;
 
-        results.push({
+        return {
           company_id: rule.company_id,
           company_name: rule.company_name,
           agent_id: agent.agent_id,
@@ -622,9 +628,10 @@ app.get('/field-ops/commission-eligibility', authMiddleware, async (c) => {
             conversions: { target: rule.target_conversions_per_day, actual: convCount?.count || 0, hit: (convCount?.count || 0) >= rule.target_conversions_per_day },
           },
           hit_all: agentHit,
-        });
-      }
-    }
+        };
+      });
+    });
+    const results = perRule.flat();
 
     const allHit = results.length > 0 && results.every(r => r.hit_all);
     return c.json({ data: { eligible: allHit, date: checkDate, details: results } });

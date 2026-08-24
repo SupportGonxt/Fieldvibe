@@ -45,15 +45,29 @@ async function invalidateCache(cacheKey) {
 //
 // Runs BEFORE the rate limiter (see index.js) so a cache hit costs zero D1 round
 // trips instead of the limiter's SELECT + counter write.
-const CACHEABLE = /^\/(field-ops\/reports|field-ops\/performance|analytics|dashboard|reports|field-operations\/(reports|analytics))/;
+// c.req.path is the FULL request path, mount prefix included: the protected API
+// hangs off app.route('/api', api), so every path here arrives as /api/<family>.
+// The first cut of this regex was anchored at /field-ops and therefore matched
+// nothing in production — the prefix is stripped before matching now, and
+// reportCache.test.js asserts on prefixed paths so it can't silently regress.
+const API_PREFIX = /^\/api/;
+const CACHEABLE = /^\/(field-ops\/(reports|performance|kpi|gm|incentives|leaderboard)|analytics|dashboard|reports|field-operations\/(reports|analytics)|team-lead\/(dashboard|agent)|manager\/(dashboard|team|agent))/;
 // live-locations is a live map feed, /realtime is by definition not cacheable, and the
 // export endpoints stream CSV/XLSX a user just asked to download.
 const NEVER_CACHE = /(live-locations|realtime|export)/;
 const RESPONSE_TTL_SECONDS = 60;
 
+// Shared by the middleware and by the fetch wrapper in index.js, which uses it to
+// decide whether a request may read from a D1 replica. Same predicate on purpose:
+// a path is safe to serve from a replica exactly when it is safe to serve from a
+// 60s edge cache, because both mean "seconds-stale aggregate reads are fine here".
+function isCacheableReportPath(method, path) {
+  return method === 'GET' && CACHEABLE.test(path.replace(API_PREFIX, '')) && !NEVER_CACHE.test(path);
+}
+
 async function reportCacheMiddleware(c, next) {
   const path = c.req.path;
-  if (c.req.method !== 'GET' || !CACHEABLE.test(path) || NEVER_CACHE.test(path)) return next();
+  if (!isCacheableReportPath(c.req.method, path)) return next();
 
   // The key MUST carry tenant + user + role: these responses are tenant-scoped, and
   // several of them scope rows by the caller (an agent sees only their own visits).
@@ -95,4 +109,4 @@ async function reportCacheMiddleware(c, next) {
   }
 }
 
-export { cachedD1Query, invalidateCache, reportCacheMiddleware };
+export { cachedD1Query, invalidateCache, reportCacheMiddleware, isCacheableReportPath };

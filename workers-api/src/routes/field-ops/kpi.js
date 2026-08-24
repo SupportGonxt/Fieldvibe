@@ -11,6 +11,12 @@ import { AGENT_ROLES, computeIncentive } from '../../services/incentiveService.j
 import { severityOf } from '../../services/issueEngine.js';
 import { coachingNoteRow, doNote, doNudge } from './issues.js';
 import { CONVERTED_SQL } from '../../services/funnelService.js';
+import { mapLimit } from '../../lib/aggregates.js';
+
+// Fan-out caps for the roster. Nested, so the worst case is LEAD x ROW
+// concurrent D1 queries plus the leads' own rows.
+const LEAD_CONCURRENCY = 4;
+const ROW_CONCURRENCY = 6;
 
 export function resolveRoleKpiKey(role) {
   if (role === 'team_lead') return 'kpi.team_lead';
@@ -41,31 +47,28 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
   const ids = Array.isArray(agentIds) ? agentIds : [agentIds];
   if (!ids.length) return [];
   return (await db.prepare(
-    // vi/vp pre-aggregated to one row per visit → the joins are 1:1, no fan-out.
-    // surveys/qualified stay individual-grain (summed/OR-ed inside the vi subquery);
-    // board placement + sample-board match score live on visit_photos, not visits —
-    // vp rolls a visit's photos up to has_board + best match_score per visit.
+    // Correlated per-visit lookups, NOT derived tables. The previous form used
+    // `LEFT JOIN (SELECT ... FROM visit_individuals GROUP BY visit_id)`, which has no
+    // WHERE to push down: SQLite materialised the whole table (both of them) on every
+    // call. This helper runs ~2.5k times a day, so that was 84M rows read per day for
+    // a query that touches one agent's completed visits. Each subquery below is an
+    // index seek on idx_visit_individuals_visit / idx_visit_photos_visit instead.
+    // Semantics preserved: qualified = OR over the visit's individuals, boards/quality
+    // = best photo per visit, surveys = count within the visit.
     `SELECT v.visit_date date,
             COUNT(v.id) visits,
             SUM(CASE WHEN LOWER(v.visit_type)='individual' THEN 1 ELSE 0 END) signups,
-            SUM(COALESCE(vi.qualified_flag, 0)) qualified,
-            SUM(COALESCE(vp.has_board, 0)) boards,
-            SUM(COALESCE(vi.surveys, 0)) surveys,
-            SUM(CASE WHEN vp.match_score IS NOT NULL THEN vp.match_score ELSE 0 END) quality_sum,
-            SUM(CASE WHEN vp.match_score IS NOT NULL THEN 1 ELSE 0 END) quality_n
+            SUM(COALESCE((SELECT MAX(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END)
+                          FROM visit_individuals vi WHERE vi.visit_id = v.id), 0)) qualified,
+            SUM(COALESCE((SELECT MAX(CASE WHEN vp.board_placement_location IS NOT NULL THEN 1 ELSE 0 END)
+                          FROM visit_photos vp WHERE vp.visit_id = v.id), 0)) boards,
+            SUM(COALESCE((SELECT SUM(CASE WHEN vi.survey_completed = 1 THEN 1 ELSE 0 END)
+                          FROM visit_individuals vi WHERE vi.visit_id = v.id), 0)) surveys,
+            SUM(COALESCE((SELECT MAX(vp.sample_board_match_score)
+                          FROM visit_photos vp WHERE vp.visit_id = v.id), 0)) quality_sum,
+            SUM(CASE WHEN (SELECT MAX(vp.sample_board_match_score)
+                           FROM visit_photos vp WHERE vp.visit_id = v.id) IS NOT NULL THEN 1 ELSE 0 END) quality_n
      FROM visits v
-     LEFT JOIN (
-       SELECT visit_id,
-              SUM(CASE WHEN survey_completed = 1 THEN 1 ELSE 0 END) surveys,
-              MAX(CASE WHEN ${CONVERTED_SQL('visit_individuals')} THEN 1 ELSE 0 END) qualified_flag
-       FROM visit_individuals GROUP BY visit_id
-     ) vi ON vi.visit_id = v.id
-     LEFT JOIN (
-       SELECT visit_id,
-              MAX(CASE WHEN board_placement_location IS NOT NULL THEN 1 ELSE 0 END) has_board,
-              MAX(sample_board_match_score) match_score
-       FROM visit_photos GROUP BY visit_id
-     ) vp ON vp.visit_id = v.id
      WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
      GROUP BY v.visit_date
      ORDER BY v.visit_date`
@@ -241,25 +244,28 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
     const leads = (await db.prepare(
       `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND role='team_lead' AND is_active=1${coExists} ORDER BY first_name`
     ).bind(tenantId, ...coBind).all()).results ?? [];
-    const teams = [];
+    // Fanned out with a concurrency cap instead of one agent at a time: each
+    // buildRow is three D1 round trips, and this loop is the whole tenant. A
+    // 50-agent tenant was ~200 serialized round trips to a database on another
+    // continent before it answered.
     const flat = [];
-    for (const tl of leads) {
+    const teams = await mapLimit(leads, LEAD_CONCURRENCY, async (tl) => {
       const members = (await db.prepare(
         `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id=? AND is_active=1${coExists} ORDER BY first_name`
       ).bind(tenantId, tl.id, ...coBind).all()).results ?? [];
-      const agents = [];
-      for (const m of members) agents.push(await buildRow(m.id, m.name || m.id));
-      const lead = await buildRow(tl.id, tl.name || tl.id, members.length ? members.map((m) => m.id) : tl.id);
-      teams.push({ leadId: tl.id, leadName: tl.name || tl.id, lead, agents: rankRoster(agents) });
-      flat.push(...agents);
-    }
+      const [agents, lead] = await Promise.all([
+        mapLimit(members, ROW_CONCURRENCY, (m) => buildRow(m.id, m.name || m.id)),
+        buildRow(tl.id, tl.name || tl.id, members.length ? members.map((m) => m.id) : tl.id),
+      ]);
+      return { leadId: tl.id, leadName: tl.name || tl.id, lead, agents: rankRoster(agents) };
+    });
+    for (const t of teams) flat.push(...t.agents);
     const unassigned = (await db.prepare(
       `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND team_lead_id IS NULL AND is_active=1
          AND role IN (${AGENT_ROLES.map(() => '?').join(',')})${coExists} ORDER BY first_name`
     ).bind(tenantId, ...AGENT_ROLES, ...coBind).all()).results ?? [];
     if (unassigned.length) {
-      const agents = [];
-      for (const m of unassigned) agents.push(await buildRow(m.id, m.name || m.id));
+      const agents = await mapLimit(unassigned, ROW_CONCURRENCY, (m) => buildRow(m.id, m.name || m.id));
       teams.push({ leadId: null, leadName: 'Unassigned', lead: null, agents: rankRoster(agents) });
       flat.push(...agents);
     }
@@ -282,13 +288,14 @@ app.get('/kpi/roster', requireRole('team_lead', 'manager', 'admin'), async (c) =
     ).bind(tenantId, companyId).all()).results.map((r) => r.agent_id));
     memberIds = memberIds.filter((id) => linked.has(id));
   }
-  const agents = [];
-  for (const id of memberIds) {
+  const agents = await mapLimit(memberIds, ROW_CONCURRENCY, async (id) => {
     // manager roster rows = team leads, each scored by their whole team's output
-    const scope = role === 'manager' ? await kpiScopeIds(db, tenantId, id, 'team_lead') : null;
-    const u = await db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first();
-    agents.push(await buildRow(id, u?.name || id, scope));
-  }
+    const [scope, u] = await Promise.all([
+      role === 'manager' ? kpiScopeIds(db, tenantId, id, 'team_lead') : null,
+      db.prepare(`SELECT first_name||' '||last_name name FROM users WHERE id=?`).bind(id).first(),
+    ]);
+    return buildRow(id, u?.name || id, scope);
+  });
   return c.json({ roster: rankRoster(agents) });
 });
 

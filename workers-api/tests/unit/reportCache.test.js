@@ -18,7 +18,7 @@ function installFakeCache() {
   return store;
 }
 
-function ctx({ method = 'GET', path = '/field-ops/reports/kpis', search = '', tenantId = 't1', userId = 'u1', role = 'admin' } = {}) {
+function ctx({ method = 'GET', path = '/api/field-ops/reports/kpis', search = '', tenantId = 't1', userId = 'u1', role = 'admin' } = {}) {
   const vars = { tenantId, userId, role };
   const c = {
     req: { method, path, url: `https://api.test${path}${search}` },
@@ -89,10 +89,10 @@ describe('reportCacheMiddleware', () => {
   it('does not cache mutations, live feeds or exports', async () => {
     for (const c of [
       ctx({ method: 'POST' }),
-      ctx({ path: '/field-operations/live-locations' }),
-      ctx({ path: '/field-ops/reports/export/checkins' }),
-      ctx({ path: '/analytics/realtime' }),
-      ctx({ path: '/users' }),                       // not a report path at all
+      ctx({ path: '/api/field-operations/live-locations' }),
+      ctx({ path: '/api/field-ops/reports/export/checkins' }),
+      ctx({ path: '/api/analytics/realtime' }),
+      ctx({ path: '/api/users' }),                   // not a report path at all
     ]) {
       const calls = { count: 0 };
       await reportCacheMiddleware(c, handler(c, { n: 1 }, calls));
@@ -123,5 +123,40 @@ describe('reportCacheMiddleware', () => {
     await reportCacheMiddleware(retry, handler(retry, { ok: true }, calls));
     expect(calls.count).toBe(2);
     expect(await retry.res.json()).toEqual({ ok: true });
+  });
+
+  // The first cut of CACHEABLE was anchored at /field-ops, but the protected API is
+  // mounted with app.route('/api', api) and Hono hands middleware the FULL path, so
+  // nothing matched in production and the cache never fired. These paths are the real
+  // shapes as they arrive at the middleware.
+  it.each([
+    '/api/field-ops/reports/agent-performance',
+    '/api/field-ops/performance',
+    '/api/field-ops/kpi/roster',
+    '/api/field-ops/gm/overview',
+    '/api/field-ops/incentives/leaderboard',
+    '/api/analytics/summary',
+    '/api/team-lead/dashboard',
+    '/api/manager/dashboard',
+    '/api/manager/team/tl-1/agents',
+  ])('caches %s (the path shape the middleware actually receives)', async (path) => {
+    const calls = { count: 0 };
+    const a = ctx({ path });
+    await reportCacheMiddleware(a, handler(a, { ok: 1 }, calls));
+    expect(a.res.headers.get('X-Report-Cache')).toBe('MISS');
+
+    const b = ctx({ path });
+    const hit = await reportCacheMiddleware(b, handler(b, { ok: 1 }, calls));
+    expect(hit.headers.get('X-Report-Cache')).toBe('HIT');
+    expect(calls.count).toBe(1);
+  });
+
+  it('leaves the agent-owned mobile dashboard uncached', async () => {
+    const calls = { count: 0 };
+    const a = ctx({ path: '/api/agent/dashboard' });
+    await reportCacheMiddleware(a, handler(a, { ok: 1 }, calls));
+    const b = ctx({ path: '/api/agent/dashboard' });
+    await reportCacheMiddleware(b, handler(b, { ok: 1 }, calls));
+    expect(calls.count).toBe(2);
   });
 });
