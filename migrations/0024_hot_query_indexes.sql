@@ -25,3 +25,29 @@ ANALYZE visit_individuals;
 ANALYZE visit_photos;
 ANALYZE users;
 ANALYZE capture_failures;
+
+-- 3. The AI-drain cron's candidate query read 137k rows per run off an 8.7k-row table
+--    (1650ms average, 48 runs/day): its dedupe guard is
+--      NOT EXISTS (SELECT 1 FROM visit_photos vp2
+--                  WHERE vp2.tenant_id = ... AND vp2.photo_hash = ...
+--                    AND vp2.ai_analysis_status = 'completed')
+--    and nothing indexed (tenant_id, photo_hash), so every candidate row rescanned the
+--    whole table. The second index covers the outer filter + ORDER BY created_at DESC.
+CREATE INDEX IF NOT EXISTS idx_visit_photos_tenant_hash_status
+  ON visit_photos(tenant_id, photo_hash, ai_analysis_status);
+CREATE INDEX IF NOT EXISTS idx_visit_photos_ai_status_created
+  ON visit_photos(ai_analysis_status, created_at DESC);
+
+-- 4. The three slowest remaining list queries (the rejected-photo counters on the visit
+--    list, the visit detail list, and the agent rejected-visits list — 151s, 96s and
+--    30s of DB time a day between them) all filter visit_photos by review_status, which
+--    nothing indexed, and all carry the same correlated guard:
+--      NOT EXISTS (SELECT 1 FROM visit_photos newer
+--                  WHERE newer.visit_id = ... AND newer.photo_type = ...
+--                    AND newer.review_status = 'pending' AND newer.created_at > ...)
+--    The second index below is that guard's exact key order, so the correlated lookup
+--    becomes a seek instead of rescanning the visit's photos.
+CREATE INDEX IF NOT EXISTS idx_visit_photos_tenant_review
+  ON visit_photos(tenant_id, review_status);
+CREATE INDEX IF NOT EXISTS idx_visit_photos_visit_type_review_created
+  ON visit_photos(visit_id, photo_type, review_status, created_at);
