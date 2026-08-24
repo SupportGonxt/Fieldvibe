@@ -1041,9 +1041,10 @@ async function drainAiBacklog(env) {
     ).bind(AI_DRAIN_BATCH_SIZE).all();
     const list = photos.results || [];
     if (list.length === 0) return;
-    for (const p of list) {
-      await env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'processing' WHERE id = ?").bind(p.id).run();
-    }
+    // One batch, not 25 serialized round trips to a primary on another continent.
+    await env.DB.batch(list.map(p =>
+      env.DB.prepare("UPDATE visit_photos SET ai_analysis_status = 'processing' WHERE id = ?").bind(p.id)
+    ));
     // Fire and let the scheduled handler's ctx.waitUntil run them in the background.
     await Promise.all(list.map(p =>
       analyzePhotoWithAI(env, p.id, p.r2_key, p.tenant_id, p.visit_id, p.photo_type || 'general')
