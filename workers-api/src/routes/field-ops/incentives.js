@@ -8,6 +8,12 @@ import { requireRole } from '../../middleware/auth.js';
 import { computeIncentive, AGENT_ROLES, writePayable, extractGoldrushIds, readTargets } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
 import { CONVERTED_SQL, VERIFIED_SQL, NOT_REJECTED_SQL } from '../../services/funnelService.js';
+import { mapLimit } from '../../lib/aggregates.js';
+
+// Incentive engine fan-out cap. computeIncentive is several D1 round trips and
+// this ran once per agent, serialized, against the D1 primary in WNAM.
+const INCENTIVE_CONCURRENCY = 5;
+
 
 const app = new Hono();
 
@@ -161,21 +167,20 @@ app.post('/incentives/close', adminOnly, async (c) => {
 
   // every agent that produced a signup this period
   const start = `${period}-01`, end = nextMonthStart(period);
+  // Role joined in, so closing a period is no longer one extra lookup per agent.
   const { results } = await db.prepare(
-    `SELECT DISTINCT v.agent_id id FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+    `SELECT DISTINCT v.agent_id id, u.role FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     JOIN users u ON u.id = v.agent_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?`
   ).bind(tenantId, start, end).all();
 
-  let written = 0;
-  for (const { id } of results || []) {
-    const u = await db.prepare('SELECT role FROM users WHERE id = ?').bind(id).first();
-    if (!u) continue;
-    const inc = await computeIncentive(db, tenantId, companyId, id, u.role, period, asOf);
-    if (inc.payable > 0) {
-      await writePayable(db, tenantId, id, period, inc.payable, 'incentive');
-      written++;
-    }
-  }
+  const paid = await mapLimit(results || [], INCENTIVE_CONCURRENCY, async ({ id, role }) => {
+    const inc = await computeIncentive(db, tenantId, companyId, id, role, period, asOf);
+    if (inc.payable <= 0) return 0;
+    await writePayable(db, tenantId, id, period, inc.payable, 'incentive');
+    return 1;
+  });
+  const written = paid.reduce((s, x) => s + x, 0);
   return c.json({ success: true, period, written });
 });
 
@@ -273,15 +278,16 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
 
   // Tiered incentive cost: per-agent, avg-based — must run each agent through the engine.
   const { results: agents } = await db.prepare(
-    `SELECT DISTINCT v.agent_id id FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+    `SELECT DISTINCT v.agent_id id, u.role FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     JOIN users u ON u.id = v.agent_id
      WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ?
-       AND (? IS NULL OR v.company_id = ?) AND v.agent_id NOT LIKE 'agent-test-%'`
+       AND (? IS NULL OR v.company_id = ?) AND v.agent_id NOT LIKE 'agent-test-%'
+       AND u.role NOT IN ('team_lead','manager')`
   ).bind(tenantId, start, end, companyId, companyId).all();
   let incentiveQualified = 0, incentivePace = 0;
-  for (const { id } of agents || []) {
-    const u = await db.prepare('SELECT role FROM users WHERE id = ?').bind(id).first();
-    if (!u || u.role === 'team_lead' || u.role === 'manager') continue; // team roles handled below
-    const inc = await computeIncentive(db, tenantId, companyId, id, u.role, period, asOf);
+  const agentIncs = await mapLimit(agents || [], INCENTIVE_CONCURRENCY,
+    ({ id, role }) => computeIncentive(db, tenantId, companyId, id, role, period, asOf));
+  for (const inc of agentIncs) {
     incentiveQualified += inc.payable;
     incentivePace += inc.provisionalPace;
   }
@@ -290,8 +296,9 @@ app.get('/incentives/pnl', requireRole('admin', 'general_manager'), async (c) =>
     `SELECT id, role FROM users WHERE tenant_id = ? AND is_active = 1
        AND role IN ('team_lead','manager') AND id NOT LIKE 'agent-test-%'`
   ).bind(tenantId).all();
-  for (const { id, role } of teamRoles || []) {
-    const inc = await computeIncentive(db, tenantId, companyId, id, role, period, asOf);
+  const teamIncs = await mapLimit(teamRoles || [], INCENTIVE_CONCURRENCY,
+    ({ id, role }) => computeIncentive(db, tenantId, companyId, id, role, period, asOf));
+  for (const inc of teamIncs) {
     incentiveQualified += inc.payable;
     incentivePace += inc.provisionalPace;
   }

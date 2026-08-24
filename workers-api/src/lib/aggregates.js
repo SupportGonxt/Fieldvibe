@@ -78,6 +78,24 @@ async function getBulkAgentVisitCounts(db, tenantId, agentIds, today, monthStart
   return map;
 }
 
+// Bounded-concurrency map. The roster/dashboard fan-outs awaited one person at a
+// time, and every one of those awaits is a full round trip from the worker (this
+// deployment lands in Cape Town) to the D1 primary in WNAM. A 50-agent roster
+// therefore paid ~200 serialized round trips before it answered. Running them
+// flat-out would instead open ~200 D1 queries at once, so the concurrency is
+// capped.
+// ponytail: fixed cap; raise it if a tenant's roster outgrows it, but mind the
+// Workers 1000-subrequest-per-request ceiling.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let i = next++; i < items.length; i = next++) out[i] = await fn(items[i], i);
+  });
+  await Promise.all(runners);
+  return out;
+}
+
 // Resolve which company a goldrush-family report runs against. Explicit
 // ?company_id= wins (tenant-checked; invalid id → null, no silent fallback so
 // a bad filter returns empty rather than leaking goldrush). No company_id →
@@ -91,4 +109,4 @@ async function resolveReportCompanyId(db, tenantId, companyId) {
   return gr ? gr.id : null;
 }
 
-export { getCommissionTotals, getBulkAgentVisitCounts, resolveReportCompanyId };
+export { getCommissionTotals, getBulkAgentVisitCounts, resolveReportCompanyId, mapLimit };

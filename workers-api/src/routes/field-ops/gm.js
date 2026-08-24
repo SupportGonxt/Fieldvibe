@@ -9,6 +9,12 @@ import { computeIncentive, AGENT_ROLES } from '../../services/incentiveService.j
 import { getConfig } from './config.js';
 import { ensureIssues } from './issues.js';
 import { CONVERTED_SQL, NOT_REJECTED_SQL } from '../../services/funnelService.js';
+import { mapLimit } from '../../lib/aggregates.js';
+
+// Incentive engine fan-out cap. computeIncentive is several D1 round trips and
+// this ran once per agent, serialized, against the D1 primary in WNAM.
+const INCENTIVE_CONCURRENCY = 5;
+
 
 const app = new Hono();
 
@@ -168,18 +174,16 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       const salaryCost = Object.values(salaries).reduce((s, v) => s + (Number(v) || 0), 0);
       const monthKey = start.slice(0, 7);          // anchored month, not always current
       const refDate = minDate(today, addDays(end, -1)); // last displayed day
+      // The role comes back on this JOIN instead of one lookup per agent; the inner
+      // join also drops agents with no user row, which the old `if (!u) continue` did.
       const { results: ags } = await db.prepare(
-        `SELECT DISTINCT v.agent_id id FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+        `SELECT DISTINCT v.agent_id id, u.role FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+         JOIN users u ON u.id = v.agent_id
          WHERE v.tenant_id = ? AND vi.created_at >= ? AND vi.created_at < ? ${CO_V} ${NOT_TEST_V}`
       ).bind(tenantId, start, end, companyId, companyId).all();
-      let incentiveCost = 0;
-      for (const { id } of ags || []) {
-        const u = await db.prepare('SELECT role FROM users WHERE id = ?').bind(id).first();
-        if (!u) continue;
-        const inc = await computeIncentive(db, tenantId, companyId, id, u.role, monthKey, refDate);
-        incentiveCost += inc.payable;
-      }
-      incentiveCost = round1(incentiveCost);
+      const incs = await mapLimit(ags || [], INCENTIVE_CONCURRENCY,
+        ({ id, role }) => computeIncentive(db, tenantId, companyId, id, role, monthKey, refDate));
+      const incentiveCost = round1(incs.reduce((s, i) => s + i.payable, 0));
       money = { revenue, incentiveCost, salaryCost, net: round1(revenue - incentiveCost - salaryCost), costsAvailable: true };
     } catch { /* keep costs null on failure */ }
   }

@@ -120,30 +120,32 @@ async function fireFallbacks(db, { tenantId, now, today, agents, starts, resolve
   const sast = new Date(now.getTime() + 2 * 60 * 60 * 1000);
   const h = sast.getUTCHours(), day = sast.getUTCDay();
   if (h < 8 || h >= 17 || day === 0 || day === 6) return; // outside 08:00–17:00 SAST, Mon–Fri
+  const INSERT = `INSERT OR IGNORE INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'ESCALATION', ?, 0, datetime('now'))`;
+  // One batch instead of two writes per quiet agent, serialized. Every one of those
+  // was a round trip to the D1 primary in WNAM while the report waited to render.
+  const stmts = [];
   for (const a of agents) {
-    try {
-      if (a.idleMin >= starts.backoffice_admin) {
-        // Agent-facing alert. In-app only — no HR role, no outbound contact (confirmed scope).
-        await db.prepare(
-          `INSERT OR IGNORE INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at)
-           VALUES (?, ?, ?, 'escalation_hr', ?, ?, 'ESCALATION', ?, 0, datetime('now'))`
-        ).bind(`esc-hr-${a.id}-${today}`, tenantId, a.id, 'Follow-up required',
-          'HR has been notified that you are not working.', `esc_hr_${a.id}_${today}`).run();
-      }
-      if (a.idleMin >= starts.general_manager) {
-        const gmId = resolveGm(a);
-        if (gmId && gmId !== a.id) {
-          await db.prepare(
-            `INSERT OR IGNORE INTO notifications (id, tenant_id, user_id, type, title, message, related_type, related_id, is_read, created_at)
-             VALUES (?, ?, ?, 'escalation_gm_fallback', ?, ?, 'ESCALATION', ?, 0, datetime('now'))`
-          ).bind(`esc-gm-${a.id}-${today}`, tenantId, gmId, 'Escalation reached the top',
-            `${a.name || 'An agent'} has been quiet all day with no supervisor action. It's with you now.`,
-            `esc_gm_${a.id}_${today}`).run();
-        }
-      }
-    } catch (e) {
-      console.error(`escalation fallback error agent=${a.id}:`, e);
+    if (a.idleMin >= starts.backoffice_admin) {
+      // Agent-facing alert. In-app only — no HR role, no outbound contact (confirmed scope).
+      stmts.push(db.prepare(INSERT).bind(`esc-hr-${a.id}-${today}`, tenantId, a.id, 'escalation_hr',
+        'Follow-up required', 'HR has been notified that you are not working.', `esc_hr_${a.id}_${today}`));
     }
+    if (a.idleMin >= starts.general_manager) {
+      const gmId = resolveGm(a);
+      if (gmId && gmId !== a.id) {
+        stmts.push(db.prepare(INSERT).bind(`esc-gm-${a.id}-${today}`, tenantId, gmId, 'escalation_gm_fallback',
+          'Escalation reached the top',
+          `${a.name || 'An agent'} has been quiet all day with no supervisor action. It's with you now.`,
+          `esc_gm_${a.id}_${today}`));
+      }
+    }
+  }
+  if (!stmts.length) return;
+  try {
+    await db.batch(stmts);
+  } catch (e) {
+    console.error('escalation fallback batch error:', e);
   }
 }
 
@@ -260,7 +262,11 @@ app.get(
       });
 
       // Fire HR + GM fallbacks over the full scoped set (independent of row visibility).
-      await fireFallbacks(db, { tenantId, now, today, agents: scored, starts, resolveGm });
+      // Notifications nobody in this response reads, so they no longer block it.
+      const fallbacks = fireFallbacks(db, { tenantId, now, today, agents: scored, starts, resolveGm });
+      // c.executionCtx THROWS (it does not return undefined) when there is no
+      // ExecutionContext, e.g. a unit test calling app.fetch(req) with no ctx.
+      try { c.executionCtx.waitUntil(fallbacks); } catch { await fallbacks; }
 
       // Build the visible rows.
       const rows = [];
