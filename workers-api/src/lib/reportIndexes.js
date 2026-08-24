@@ -64,7 +64,16 @@ async function ensureReportIndexes(db) {
 // Hono middleware form, for `app.use('*', reportIndexMiddleware)` at the top of a
 // report route module.
 async function reportIndexMiddleware(c, next) {
-  if (c.env?.DB) await ensureReportIndexes(c.env.DB);
+  // Do NOT await: this is ten sequential CREATE INDEX round trips, and awaiting them
+  // added ten D1 latencies to the first report request every isolate served. The
+  // indexes are already present in production, so every one of those round trips was
+  // a no-op the user waited on. Kept as a background convergence for a fresh database.
+  if (c.env?.DB) {
+    const converging = ensureReportIndexes(c.env.DB);
+    // c.executionCtx THROWS (it does not return undefined) when there is no
+    // ExecutionContext, e.g. a unit test calling app.fetch(req) with no ctx.
+    try { c.executionCtx.waitUntil(converging); } catch { /* no ctx: let it run unawaited */ }
+  }
   return next();
 }
 

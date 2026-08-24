@@ -238,6 +238,44 @@ interface TabProps {
   isStellr?: boolean
 }
 
+// Overview, Insights and Export all render the same three aggregates. They each used to
+// declare their own useQuery with its own queryKey, so react-query treated them as three
+// unrelated caches and switching tabs refetched the lot — and agent-performance alone
+// reads ~240k D1 rows to return 50. Same key, same request: one fetch, and a tab switch
+// is served from cache.
+function useAgentPerformance(dateParams: string, companyParam: string, startDate: string, endDate: string, selectedCompany: string) {
+  return useQuery({
+    queryKey: ['field-ops-agent-perf', startDate, endDate, selectedCompany],
+    queryFn: async () => {
+      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}${companyParam}`)
+      return (res.data?.data || []) as AgentPerformance[]
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+function useHourlyCheckins(dateParams: string, companyParam: string, startDate: string, endDate: string, selectedCompany: string) {
+  return useQuery({
+    queryKey: ['field-ops-hourly', startDate, endDate, selectedCompany],
+    queryFn: async () => {
+      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}${companyParam}`)
+      return (res.data?.data || []) as HourlyData[]
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+function useConversionStats(dateParams: string, companyParam: string, startDate: string, endDate: string, selectedCompany: string) {
+  return useQuery({
+    queryKey: ['field-ops-conversions', startDate, endDate, selectedCompany],
+    queryFn: async () => {
+      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}${companyParam}`)
+      return (res.data?.data || {}) as ConversionStats
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
 function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
   const { data: kpis, isLoading: kpisLoading, isError: kpisError } = useQuery({
     queryKey: ['field-ops-kpis', startDate, endDate, selectedCompany],
@@ -248,23 +286,9 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: agentPerf = [], isLoading: agentLoading } = useQuery({
-    queryKey: ['field-ops-agent-perf', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}${companyParam}`)
-      return (res.data?.data || []) as AgentPerformance[]
-    },
-    staleTime: 1000 * 60 * 5,
-  })
+  const { data: agentPerf = [], isLoading: agentLoading } = useAgentPerformance(dateParams, companyParam, startDate, endDate, selectedCompany)
 
-  const { data: hourlyData = [] } = useQuery({
-    queryKey: ['field-ops-hourly', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}${companyParam}`)
-      return (res.data?.data || []) as HourlyData[]
-    },
-    staleTime: 1000 * 60 * 5,
-  })
+  const { data: hourlyData = [] } = useHourlyCheckins(dateParams, companyParam, startDate, endDate, selectedCompany)
 
   const { data: dailyData = [] } = useQuery({
     queryKey: ['field-ops-daily', startDate, endDate, selectedCompany],
@@ -275,14 +299,7 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
     staleTime: 1000 * 60 * 5,
   })
 
-  const { data: conversionStats } = useQuery({
-    queryKey: ['field-ops-conversions', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}${companyParam}`)
-      return (res.data?.data || {}) as ConversionStats
-    },
-    staleTime: 1000 * 60 * 5,
-  })
+  const { data: conversionStats } = useConversionStats(dateParams, companyParam, startDate, endDate, selectedCompany)
 
   if (kpisLoading) return <LoadingSpinner />
   if (kpisError) return <ErrorBanner />
@@ -442,29 +459,11 @@ function OverviewTab({ dateParams, companyParam, startDate, endDate, selectedCom
 // ─── Insights Tab (was ReportsInsights) ─────────────────────────────────────
 
 function InsightsTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
-  const { data: agentPerf = [], isLoading, isError } = useQuery({
-    queryKey: ['field-ops-insights-agents', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${dateParams}${companyParam}`)
-      return (res.data?.data || []) as AgentPerformance[]
-    },
-  })
+  const { data: agentPerf = [], isLoading, isError } = useAgentPerformance(dateParams, companyParam, startDate, endDate, selectedCompany)
 
-  const { data: hourlyData = [] } = useQuery({
-    queryKey: ['field-ops-insights-hourly', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/checkins-by-hour${dateParams}${companyParam}`)
-      return (res.data?.data || []) as HourlyData[]
-    },
-  })
+  const { data: hourlyData = [] } = useHourlyCheckins(dateParams, companyParam, startDate, endDate, selectedCompany)
 
-  const { data: conversionStats } = useQuery({
-    queryKey: ['field-ops-insights-conversions', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${dateParams}${companyParam}`)
-      return res.data?.data || {}
-    },
-  })
+  const { data: conversionStats } = useConversionStats(dateParams, companyParam, startDate, endDate, selectedCompany)
 
   if (isLoading) return <LoadingSpinner />
   if (isError) return <ErrorBanner />
@@ -1155,31 +1154,9 @@ function IndividualsTab({ startDate, endDate, selectedCompany }: { startDate: st
 function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompany, isStellr }: TabProps) {
   const [exporting, setExporting] = useState(false)
 
-  const { data: agentPerf = [] } = useQuery({
-    queryKey: ['export-agent-perf', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const parts = []
-      if (startDate) parts.push(`startDate=${startDate}`)
-      if (endDate) parts.push(`endDate=${endDate}`)
-      if (selectedCompany) parts.push(`company_id=${selectedCompany}`)
-      const qs = parts.length > 0 ? `?${parts.join('&')}` : ''
-      const res = await apiClient.get(`/field-ops/reports/agent-performance${qs}`)
-      return res.data?.data || []
-    },
-  })
+  const { data: agentPerf = [] } = useAgentPerformance(dateParams, companyParam, startDate, endDate, selectedCompany)
 
-  const { data: conversionStats } = useQuery({
-    queryKey: ['export-conversions', startDate, endDate, selectedCompany],
-    queryFn: async () => {
-      const parts = []
-      if (startDate) parts.push(`startDate=${startDate}`)
-      if (endDate) parts.push(`endDate=${endDate}`)
-      if (selectedCompany) parts.push(`company_id=${selectedCompany}`)
-      const qs = parts.length > 0 ? `?${parts.join('&')}` : ''
-      const res = await apiClient.get(`/field-ops/reports/conversion-stats${qs}`)
-      return res.data?.data || {}
-    },
-  })
+  const { data: conversionStats } = useConversionStats(dateParams, companyParam, startDate, endDate, selectedCompany)
 
   const downloadCSV = (content: string, filename: string) => {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
@@ -1210,7 +1187,7 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
       } else if (type === 'agents') {
         if (agentPerf.length === 0) { toast.error('No agent data to export'); return }
         const headers = ['agent_name', 'checkin_count', 'conversions', 'conversion_rate']
-        const csv = [headers.join(','), ...agentPerf.map((a: Record<string, unknown>) => headers.map(h => `"${String(a[h] ?? '')}"`).join(','))].join('\n')
+        const csv = [headers.join(','), ...agentPerf.map((a) => headers.map(h => `"${String((a as unknown as Record<string, unknown>)[h] ?? '')}"`).join(','))].join('\n')
         downloadCSV(csv, `agent-performance-${new Date().toISOString().slice(0, 10)}.csv`)
         toast.success(`Exported ${agentPerf.length} agent records`)
       } else if (type === 'conversions') {
@@ -1308,7 +1285,7 @@ function ExportTab({ dateParams, companyParam, startDate, endDate, selectedCompa
             <tbody>
               {agentPerf.length === 0 ? (
                 <tr><td colSpan={4} className="py-8 text-center text-gray-400">No data for selected period</td></tr>
-              ) : agentPerf.slice(0, 10).map((a: Record<string, unknown>, i: number) => (
+              ) : agentPerf.slice(0, 10).map((a, i: number) => (
                 <tr key={i} className="border-b border-gray-100 dark:border-gray-700/50">
                   <td className="py-2 px-3 text-gray-900 dark:text-white">{String(a.agent_name || 'Unknown')}</td>
                   <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-300">{String(a.checkin_count)}</td>

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { rateLimiter, authMiddleware } from './lib/middleware.js';
+import { reportCacheMiddleware } from './lib/cache.js';
 // Route modules
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
@@ -130,6 +131,10 @@ app.route('/', mobileDashboardRoutes);
 // ==================== PROTECTED API ROUTES ====================
 const api = new Hono();
 api.use('*', authMiddleware);
+// Report/dashboard response cache. Deliberately ahead of the rate limiter: a cache hit
+// then costs zero D1 round trips instead of the limiter's SELECT + counter write, which
+// is the whole point on a report page that fires ~20 aggregate requests.
+api.use('*', reportCacheMiddleware);
 // General API rate limiting (100 req/min)
 api.use('*', rateLimiter(100, 60000));
 
