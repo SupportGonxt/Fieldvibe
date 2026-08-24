@@ -18,15 +18,20 @@ export const rateLimiter = (limit, windowMs) => async (c, next) => {
       c.header('X-RateLimit-Remaining', '0');
       return c.json({ success: false, message: 'Too many requests. Please try again later.' }, 429);
     }
-    if (row) {
-      await db.prepare('UPDATE rate_limits SET count = count + 1 WHERE key = ? AND window_start = ?').bind(key, windowStart).run();
-    } else {
-      await db.prepare('INSERT OR REPLACE INTO rate_limits (key, count, window_start) VALUES (?, 1, ?)').bind(key, windowStart).run();
-    }
-    // Cleanup old entries periodically (1 in 100 requests)
-    if (Math.random() < 0.01) {
-      await db.prepare('DELETE FROM rate_limits WHERE window_start < datetime("now", "-1 hour")').run();
-    }
+    // The counter write and the periodic cleanup are not part of the decision that was
+    // just made above, so nothing downstream needs them to have landed. Awaiting them
+    // put a serialized D1 write (to the primary, WNAM) in front of every single API
+    // handler; a report page firing ~20 requests paid that ~20 times before any report
+    // query started. waitUntil keeps the write, off the response path.
+    const bump = row
+      ? db.prepare('UPDATE rate_limits SET count = count + 1 WHERE key = ? AND window_start = ?').bind(key, windowStart).run()
+      : db.prepare('INSERT OR REPLACE INTO rate_limits (key, count, window_start) VALUES (?, 1, ?)').bind(key, windowStart).run();
+    const cleanup = Math.random() < 0.01
+      ? db.prepare('DELETE FROM rate_limits WHERE window_start < datetime("now", "-1 hour")').run()
+      : null;
+    const pending = Promise.all([bump, cleanup].filter(Boolean)).catch(() => {});
+    // c.executionCtx THROWS when there is no ExecutionContext (unit tests).
+    try { c.executionCtx.waitUntil(pending); } catch { await pending; }
     c.header('X-RateLimit-Limit', String(limit));
     c.header('X-RateLimit-Remaining', String(limit - current - 1));
   } catch (e) {
