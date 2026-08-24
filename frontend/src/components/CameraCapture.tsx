@@ -90,15 +90,19 @@ export default function CameraCapture({
 
     if (!context) return;
 
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Downscale to the same 1200px / q0.75 budget compressPhoto() applies on every
+    // other capture path. This one was writing the raw sensor frame at q0.9, which is
+    // where the multi-megabyte photos in the database came from.
+    const MAX_EDGE = 1200;
+    const scale = Math.min(1, MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
 
     // Draw video frame to canvas
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Get image data
-    const imageData = canvas.toDataURL('image/jpeg', 0.9);
+    const imageData = canvas.toDataURL('image/jpeg', 0.75);
     setCapturedImage(imageData);
     stopCamera();
   };

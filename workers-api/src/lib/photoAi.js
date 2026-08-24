@@ -13,7 +13,51 @@ function rewriteR2Url(url, reqUrl) {
   if (match) {
     try { return new URL('/api/uploads/' + match[1], reqUrl).href; } catch { return '/api/uploads/' + match[1]; }
   }
+  // PHOTO_URL_SQL emits a root-relative path. The frontend is served from a different
+  // origin than the Worker, so a relative <img src> would resolve against the frontend
+  // and 404 — absolutize it against the API request that produced it.
+  if (url.startsWith('/api/uploads/')) {
+    try { return new URL(url, reqUrl).href; } catch { return url; }
+  }
   return url;
+}
+
+// List/report queries must NEVER select visit_photos.r2_url: 6,326 of 8,758 rows hold the
+// entire JPEG inline as a base64 data: URI averaging ~85 KB, so a 5,000-row report pulled
+// ~430 MB through the D1 isolate and died with "isolate exceeded its memory limit"
+// (code 7429). Select a URL built from the row's r2_key instead — 60-odd bytes — and let
+// /api/uploads/:key stream the bytes, cached immutable at the edge.
+const PHOTO_URL_SQL = (alias = 'vp') => `'/api/uploads/'||${alias}.r2_key`;
+
+// Legacy rows kept only the data: URI; their R2 objects were never written (a `migrated/`
+// key 404s in the bucket). So /api/uploads/:key falls back to the D1 blob for those, once,
+// and the immutable Cache-Control keeps it out of D1 from then on.
+const DATA_URI_RE = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/;
+
+// Returns { contentType, bytes } for a base64 data: URI, or null for anything else
+// (an http url, a null column, a truncated blob). Callers must treat null as "not mine".
+function decodeDataUri(url) {
+  const m = typeof url === 'string' ? url.match(DATA_URI_RE) : null;
+  if (!m) return null;
+  try {
+    const bin = atob(m[2].replace(/\s/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { contentType: m[1], bytes };
+  } catch { return null; }
+}
+
+async function servePhotoFromD1(db, key) {
+  if (!db || !key) return null;
+  let row;
+  try {
+    row = await db.prepare('SELECT r2_url FROM visit_photos WHERE r2_key = ? LIMIT 1').bind(key).first();
+  } catch { return null; }
+  const decoded = decodeDataUri(row?.r2_url);
+  if (!decoded) return null;
+  return new Response(decoded.bytes, {
+    headers: { 'Content-Type': decoded.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' }
+  });
 }
 
 // SSRF guard: true only for the legacy R2 host we wrote ourselves — the sole
@@ -332,4 +376,4 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
   return newId;
 }
 
-export { rewriteR2Url, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
+export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };

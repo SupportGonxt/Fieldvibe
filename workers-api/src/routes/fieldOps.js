@@ -104,7 +104,7 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
       SELECT v.*,
              c.name as customer_name,
              u.first_name || ' ' || u.last_name as agent_name,
-             vp.r2_url as thumbnail_url,
+             '/api/uploads/'||vp.r2_key as thumbnail_url,
              (
                SELECT COUNT(*)
                FROM visit_photos rp
@@ -127,7 +127,7 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
       LEFT JOIN visit_photos vp ON vp.id = (
         SELECT vp2.id
         FROM visit_photos vp2
-        WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL
+        WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_key IS NOT NULL
         LIMIT 1
       )
       ORDER BY v.created_at DESC
@@ -135,7 +135,7 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
   } catch {
     // Fallback for tenants that have not yet added photo review columns.
     visits = await db.prepare(
-      "SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, vp.r2_url as thumbnail_url, 0 as rejected_photo_count FROM (SELECT * FROM visits v " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?) v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_url IS NOT NULL LIMIT 1) ORDER BY v.created_at DESC"
+      "SELECT v.*, c.name as customer_name, u.first_name || ' ' || u.last_name as agent_name, '/api/uploads/'||vp.r2_key as thumbnail_url, 0 as rejected_photo_count FROM (SELECT * FROM visits v " + where + " ORDER BY v.created_at DESC LIMIT ? OFFSET ?) v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN visit_photos vp ON vp.id = (SELECT vp2.id FROM visit_photos vp2 WHERE vp2.visit_id = v.id AND vp2.tenant_id = v.tenant_id AND vp2.r2_key IS NOT NULL LIMIT 1) ORDER BY v.created_at DESC"
     ).bind(...params, parseInt(limit), offset).all();
   }
   // Surface the Goldrush ID (stored in visit_individuals.custom_field_values JSON)
@@ -157,6 +157,7 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
       for (const v of rows) { if (grByVisit[v.id]) v.goldrush_id = grByVisit[v.id]; }
     } catch { /* list still renders without Goldrush IDs */ }
   }
+  for (const v of rows) { if (v.thumbnail_url) v.thumbnail_url = rewriteR2Url(v.thumbnail_url, c.req.url); }
   return c.json({ data: rows, total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
 });
 

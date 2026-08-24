@@ -9,7 +9,9 @@ CREATE INDEX IF NOT EXISTS idx_visits_visit_type ON visits(tenant_id, visit_type
 CREATE INDEX IF NOT EXISTS idx_visits_goldrush_query ON visits(tenant_id, visit_type, created_at);
 
 -- Index to speed up visit_photos subquery (thumbnail lookups)
-CREATE INDEX IF NOT EXISTS idx_visit_photos_visit_r2 ON visit_photos(visit_id, tenant_id, r2_url);
+-- SUPERSEDED, dropped by 0024: r2_url holds the inline base64 JPEG, so indexing it
+-- made every thumbnail lookup read ~85 KB. See 0024_visit_photo_thumbnail_indexes.sql.
+-- CREATE INDEX IF NOT EXISTS idx_visit_photos_visit_r2 ON visit_photos(visit_id, tenant_id, r2_url);
 
 -- Index for visit_individuals JOIN
 CREATE INDEX IF NOT EXISTS idx_visit_individuals_visit ON visit_individuals(visit_id, tenant_id);

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { cachedD1Query, reportCacheMiddleware } from '../lib/cache.js';
+import { rewriteR2Url } from '../lib/photoAi.js';
 import { DEFAULT_WD_CONFIG, resolveWorkingDaysConfigBatch, countWorkingDaysInMonth, buildFallbackMonthlyTargets, getUserMonthlyTargetFromRules, generateTargetsFromRules, computeTargetTotalsFromRules } from '../lib/calendar.js';
 import { getCommissionTotals, getBulkAgentVisitCounts, mapLimit } from '../lib/aggregates.js';
 
@@ -198,7 +199,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
 
     // Batch: Fire remaining independent queries in parallel (reduced from 11 to 7)
     const [recentVisits, companies, targets, visitBreakdown, weekVisitsByCompany] = await Promise.all([
-      db.prepare(`SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name, (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.${dashAgentFilter} ORDER BY v.created_at DESC LIMIT 10`).bind(tenantId, ...dashAgentIds).all().catch((e) => { console.error('mobileDashboards batch query failed:', e.message); return { results: [] }; }),
+      db.prepare(`SELECT v.id, v.visit_date, v.visit_type, v.status, v.check_in_time, c.name as customer_name, v.individual_name, (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.tenant_id = ? AND v.${dashAgentFilter} ORDER BY v.created_at DESC LIMIT 10`).bind(tenantId, ...dashAgentIds).all().catch((e) => { console.error('mobileDashboards batch query failed:', e.message); return { results: [] }; }),
       db.prepare(companySql).bind(userId, tenantId).all().catch((e) => { console.error('mobileDashboards batch query failed:', e.message); return { results: [] }; }),
       db.prepare(`SELECT dt.*, fc.name as company_name, (SELECT COUNT(*) FROM visits v2 WHERE v2.agent_id = dt.agent_id AND v2.company_id = dt.company_id AND v2.visit_date = dt.target_date AND v2.tenant_id = dt.tenant_id) as actual_visits, (SELECT COUNT(*) FROM visits v3 WHERE v3.agent_id = dt.agent_id AND v3.company_id = dt.company_id AND v3.visit_date = dt.target_date AND v3.tenant_id = dt.tenant_id AND LOWER(v3.visit_type) = 'store') as actual_registrations FROM daily_targets dt LEFT JOIN field_companies fc ON dt.company_id = fc.id WHERE dt.tenant_id = ? AND dt.${dashAgentFilter} AND dt.target_date = ?`).bind(tenantId, ...dashAgentIds, today).all().catch((e) => { console.error('mobileDashboards batch query failed:', e.message); return { results: [] }; }),
       db.prepare(`SELECT COALESCE(v.company_id, 'unassigned') as company_id, COALESCE(fc.name, 'Unassigned') as company_name, COALESCE(v.visit_type, 'unknown') as visit_type, COUNT(*) as count, SUM(CASE WHEN v.visit_date = ? THEN 1 ELSE 0 END) as today_count, SUM(CASE WHEN v.visit_date >= ? AND v.visit_date < ? THEN 1 ELSE 0 END) as month_count FROM visits v LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND v.${dashAgentFilter} AND v.visit_date >= ? AND v.visit_date < ? GROUP BY v.company_id, v.visit_type ORDER BY fc.name, v.visit_type`).bind(todayForCounts, monthStart, nextMonth, tenantId, ...dashAgentIds, monthStart, nextMonth).all().catch((e) => { console.error('mobileDashboards batch query failed:', e.message); return { results: [] }; }),
@@ -442,7 +443,7 @@ app.get('/api/agent/dashboard', authMiddleware, async (c) => {
         prior_month_visits: countsResult.prior_month_visits || 0,
         prior_month_individual_visits: countsResult.prior_month_individual || 0,
         prior_month_store_visits: countsResult.prior_month_store || 0,
-        recent_visits: recentVisits.results || [],
+        recent_visits: (recentVisits.results || []).map(v => ({ ...v, thumbnail_url: rewriteR2Url(v.thumbnail_url, c.req.url) })),
         companies: companies.results || [],
         daily_targets: dailyTargets,
         company_target_rules: companyTargetRules,

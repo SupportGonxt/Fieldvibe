@@ -291,7 +291,7 @@ app.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
       SELECT v.id, i.first_name, i.last_name, i.id_number, i.phone, i.email,
-        (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
+        (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
         JSON_EXTRACT(vi.custom_field_values, '$.product_app_player_id') as product_app_player_id,
         (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted,
         JSON_EXTRACT(vi.custom_field_values, '$.conversion_date') as conversion_date,
@@ -557,7 +557,7 @@ app.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
       SELECT guf.id, guf.visit_id, guf.visit_date, guf.first_name, guf.last_name, guf.id_number, guf.goldrush_id, guf.phone,
         guf.agent_id, guf.agent_name, guf.team_lead_id, guf.team_lead_name,
         guf.error_id_number, guf.error_goldrush_id, guf.error_photo_mismatch, guf.error_no_btag, guf.created_at,
-        vp.r2_url as photo_url, v.customer_id
+        '/api/uploads/'||vp.r2_key as photo_url, v.customer_id
       FROM goldrush_upload_failures guf
       LEFT JOIN visits v ON v.id = guf.visit_id AND v.tenant_id = guf.tenant_id
       LEFT JOIN visit_photos vp ON vp.id = (
@@ -565,7 +565,7 @@ app.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
         WHERE vp2.visit_id = guf.visit_id
           AND vp2.tenant_id = guf.tenant_id
           AND vp2.photo_type = 'goldrush_individual'
-          AND vp2.r2_url IS NOT NULL
+          AND vp2.r2_key IS NOT NULL
         LIMIT 1
       )
       WHERE guf.tenant_id = ? ${dateFilter.replace(/visit_date/g, 'guf.visit_date')}
@@ -585,7 +585,7 @@ app.get('/field-ops/reports/goldrush-upload-failures', authMiddleware, async (c)
       agent_name: row.agent_name || 'Unknown',
       team_lead_id: row.team_lead_id || null,
       team_lead_name: row.team_lead_name || null,
-      photo_url: row.photo_url || null,
+      photo_url: rewriteR2Url(row.photo_url, c.req.url) || null,
       customer_id: row.customer_id || null, // corrective-edit loop: PWA links to /agent/customer-edit/:id
       errors: {
         ...(row.error_id_number ? { id_number: row.error_id_number } : {}),
@@ -712,7 +712,7 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         v.created_at, v.customer_id,
         c.name as store_name, c.address as store_address,
         u.first_name || ' ' || u.last_name as agent_name,
-        (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
+        (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_custom_responses,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type = 'customer' OR vr.visit_type = 'store') LIMIT 1) as questionnaire_responses,
         (SELECT GROUP_CONCAT(vr.responses, '|||') FROM visit_responses vr WHERE vr.visit_id = v.id) as all_responses,
@@ -936,7 +936,7 @@ app.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
         v.created_at, v.customer_id,
         c.name as store_name, c.address as store_address,
         u.first_name || ' ' || u.last_name as agent_name,
-        (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
+        (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
         CASE WHEN EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id) THEN 1 ELSE 0 END as has_photos,
         (SELECT GROUP_CONCAT(vr.responses, '|||') FROM visit_responses vr WHERE vr.visit_id = v.id) as all_responses
       FROM visits v
@@ -1367,7 +1367,7 @@ app.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     const checkins = await db.prepare(`
       SELECT v.id, v.visit_date as timestamp, v.status, v.agent_id,
         u.first_name || ' ' || u.last_name as agent_name,
-        (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) as thumbnail_url,
+        (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
         (SELECT vi2.custom_field_values FROM visit_individuals vi2 WHERE vi2.visit_id = v.id LIMIT 1) as custom_field_values,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses,
         (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes')) as converted,
@@ -1395,8 +1395,10 @@ app.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     } catch (e) { /* ignore */ }
 
     // Process checkins to extract photos from process steps and custom company questions
+    // NOTE: the map callback shadows the Hono context with the row, so grab the URL first.
+    const reqUrl = c.req.url;
     const processedCheckins = (checkins.results || []).map(c => {
-      let photo = c.thumbnail_url || null;
+      let photo = rewriteR2Url(c.thumbnail_url, reqUrl) || null;
       let shop_exterior_photo = null;
       let ad_board_photo = null;
       let competitor_photo = null;

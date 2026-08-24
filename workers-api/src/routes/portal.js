@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { rewriteR2Url } from '../lib/photoAi.js';
 import { defaultDashboardConfig, assertPortalToken, serializeIndividualForPortal, serializeStoreForPortal, matchAskIntent } from '../services/portal.js';
 import { parseStoreInsights } from '../services/goldrushVision.js';
 
@@ -73,8 +74,8 @@ app.get('/portal/individuals', portalAuthMiddleware, async (c) => {
   try {
     const result = await db.prepare(`
       SELECT v.id, i.first_name, i.last_name, i.phone, i.email,
-        (SELECT vp.r2_url FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) AS thumbnail_url,
-        (SELECT vp.id FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_url IS NOT NULL LIMIT 1) AS photo_id,
+        (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) AS thumbnail_url,
+        (SELECT vp.id FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) AS photo_id,
         (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted,
         v.visit_date, v.created_at
       FROM visits v
@@ -84,7 +85,7 @@ app.get('/portal/individuals', portalAuthMiddleware, async (c) => {
         AND v.agent_id NOT LIKE 'agent-test-%'
       ORDER BY v.created_at DESC LIMIT ? OFFSET ?
     `).bind(tenantId, companyId, limit, offset).all();
-    const data = (result.results || []).map(serializeIndividualForPortal);
+    const data = (result.results || []).map(r => serializeIndividualForPortal({ ...r, thumbnail_url: rewriteR2Url(r.thumbnail_url, c.req.url) }));
     return c.json({ success: true, data });
   } catch (e) {
     console.error('portal individuals error:', e);
@@ -101,7 +102,7 @@ app.get('/portal/stores', portalAuthMiddleware, async (c) => {
   try {
     const result = await db.prepare(`
       SELECT v.id, v.store_name, v.visit_date, v.created_at,
-        (SELECT vp.id FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.r2_url IS NOT NULL LIMIT 1) AS photo_id,
+        (SELECT vp.id FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.r2_key IS NOT NULL LIMIT 1) AS photo_id,
         (SELECT MAX(vp.ai_share_of_voice) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_share_of_voice IS NOT NULL) AS share_of_wall
       FROM visits v
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='store'
