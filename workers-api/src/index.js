@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import { rateLimiter, authMiddleware } from './lib/middleware.js';
 import { reportCacheMiddleware, isCacheableReportPath } from './lib/cache.js';
 import { servePhotoFromD1 } from './lib/photoAi.js';
+import photoBackfillRoutes from './routes/photoBackfill.js';
 // Route modules
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
@@ -288,6 +289,10 @@ api.route('/field-ops', escalationReportRoutes);
 // ==================== MOUNT AND EXPORT ====================
 // Mounted last so every api.get/post above (including routes declared late in
 // this file) is registered before Hono copies routes at mount time.
+// One-off base64-to-R2 backfill. Mounted on app, ahead of the authed router: it carries
+// its own BACKFILL_TOKEN gate. Delete once every environment reports remaining: 0.
+app.route('/api', photoBackfillRoutes);
+
 app.route('/api', api);
 
 // Catch-all for unmatched routes

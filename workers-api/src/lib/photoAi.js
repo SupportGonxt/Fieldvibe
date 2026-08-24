@@ -34,22 +34,29 @@ const PHOTO_URL_SQL = (alias = 'vp') => `'/api/uploads/'||${alias}.r2_key`;
 // and the immutable Cache-Control keeps it out of D1 from then on.
 const DATA_URI_RE = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/;
 
+// Returns { contentType, bytes } for a base64 data: URI, or null for anything else
+// (an http url, a null column, a truncated blob). Callers must treat null as "not mine".
+function decodeDataUri(url) {
+  const m = typeof url === 'string' ? url.match(DATA_URI_RE) : null;
+  if (!m) return null;
+  try {
+    const bin = atob(m[2].replace(/\s/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { contentType: m[1], bytes };
+  } catch { return null; }
+}
+
 async function servePhotoFromD1(db, key) {
   if (!db || !key) return null;
   let row;
   try {
     row = await db.prepare('SELECT r2_url FROM visit_photos WHERE r2_key = ? LIMIT 1').bind(key).first();
   } catch { return null; }
-  const m = typeof row?.r2_url === 'string' ? row.r2_url.match(DATA_URI_RE) : null;
-  if (!m) return null;
-  let bytes;
-  try {
-    const bin = atob(m[2].replace(/\s/g, ''));
-    bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  } catch { return null; }
-  return new Response(bytes, {
-    headers: { 'Content-Type': m[1], 'Cache-Control': 'public, max-age=31536000, immutable' }
+  const decoded = decodeDataUri(row?.r2_url);
+  if (!decoded) return null;
+  return new Response(decoded.bytes, {
+    headers: { 'Content-Type': decoded.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' }
   });
 }
 
@@ -369,4 +376,4 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
   return newId;
 }
 
-export { rewriteR2Url, PHOTO_URL_SQL, servePhotoFromD1, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
+export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
