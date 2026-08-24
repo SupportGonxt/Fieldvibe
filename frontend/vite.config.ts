@@ -90,6 +90,19 @@ export default defineConfig({
             },
           },
           {
+            // Photo bytes, keyed on the immutable R2 object key — must sit BEFORE the
+            // /api/ NetworkFirst rules (first match wins) or every thumbnail would be
+            // re-fetched on a 5-minute expiry. Extensionless keys (photos/<uuid>/<uuid>)
+            // never matched the by-extension image rule further down either.
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/uploads/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'photo-cache',
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Production API origin — NetworkFirst, GET only (Workbox default).
             // POST /auth/login etc. pass through to network unmodified.
             urlPattern: ({ url }) => url.origin === 'https://fieldvibe-api.vantax.co.za' && url.pathname.startsWith('/api/'),

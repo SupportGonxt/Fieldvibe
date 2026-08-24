@@ -36,6 +36,14 @@ const STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS idx_monthly_targets_tenant_month_agent ON monthly_targets(tenant_id, target_month, agent_id)',
   'CREATE INDEX IF NOT EXISTS idx_agent_company_links_tenant_agent ON agent_company_links(tenant_id, agent_id, is_active, company_id)',
   'CREATE INDEX IF NOT EXISTS idx_agent_company_links_tenant_company ON agent_company_links(tenant_id, company_id, is_active, agent_id)',
+  // Covering index for the report thumbnail lookups. It MUST carry r2_key and id: a
+  // SQLite secondary index stores the rowid, not a TEXT PRIMARY KEY, so without id in
+  // the index the planner fetches the base row — and that row holds the ~85 KB base64
+  // JPEG in r2_url, which is exactly the read these queries were changed to avoid.
+  'CREATE INDEX IF NOT EXISTS idx_visit_photos_visit_key ON visit_photos(visit_id, tenant_id, r2_key, id)',
+  // /api/uploads/:key falls back to the D1 blob when the bucket has no object (legacy
+  // rows were never uploaded). That lookup is by r2_key.
+  'CREATE INDEX IF NOT EXISTS idx_visit_photos_r2_key ON visit_photos(r2_key)',
 ];
 
 // Per-isolate latch. Set before awaiting so concurrent first requests don't all issue

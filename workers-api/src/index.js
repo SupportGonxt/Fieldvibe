@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { rateLimiter, authMiddleware } from './lib/middleware.js';
 import { reportCacheMiddleware, isCacheableReportPath } from './lib/cache.js';
+import { servePhotoFromD1 } from './lib/photoAi.js';
 // Route modules
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
@@ -194,10 +195,14 @@ api.get('/uploads/:key{.+}', async (c) => {
     if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
     const key = c.req.param('key');
     const object = await bucket.get(key);
-    if (!object) return c.json({ success: false, message: 'File not found' }, 404);
+    if (!object) {
+      const fromD1 = await servePhotoFromD1(c.env.DB, key);
+      return fromD1 || c.json({ success: false, message: 'File not found' }, 404);
+    }
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('etag', object.httpEtag);
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     return new Response(object.body, { headers });
   } catch (error) {
     return c.json({ success: false, message: 'File retrieval failed' }, 500);
@@ -246,7 +251,11 @@ app.get('/api/uploads/:key{.+}', async (c) => {
     if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
     const key = c.req.param('key');
     const object = await bucket.get(key);
-    if (!object) return c.json({ success: false, message: 'File not found' }, 404);
+    if (!object) {
+      // Legacy photos live as base64 in D1, never in the bucket. See servePhotoFromD1.
+      const fromD1 = await servePhotoFromD1(c.env.DB, key);
+      return fromD1 || c.json({ success: false, message: 'File not found' }, 404);
+    }
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('etag', object.httpEtag);

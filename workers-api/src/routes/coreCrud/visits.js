@@ -41,6 +41,7 @@ app.get('/visits', async (c) => {
   ]);
   const total = countR ? countR.total : 0;
   const visitRows = visits.results || [];
+  const reqUrl = c.req.url;
   const visitIds = visitRows.map(v => v.id).filter(Boolean);
 
   // 2) Batch the three previously-correlated subqueries into single IN-queries.
@@ -50,7 +51,7 @@ app.get('/visits', async (c) => {
   if (visitIds.length > 0) {
     const ph = visitIds.map(() => '?').join(',');
     const [thumbs, resps, individuals] = await Promise.all([
-      db.prepare(`SELECT visit_id, r2_url FROM visit_photos WHERE tenant_id = ? AND visit_id IN (${ph}) AND r2_url IS NOT NULL`).bind(tenantId, ...visitIds).all(),
+      db.prepare(`SELECT visit_id, '/api/uploads/'||r2_key as r2_url FROM visit_photos WHERE tenant_id = ? AND visit_id IN (${ph}) AND r2_key IS NOT NULL`).bind(tenantId, ...visitIds).all(),
       db.prepare(`SELECT visit_id, responses FROM visit_responses WHERE visit_id IN (${ph}) AND (visit_type IS NULL OR visit_type != 'store_custom_questions')`).bind(...visitIds).all(),
       db.prepare(`SELECT visit_id, custom_field_values FROM visit_individuals WHERE visit_id IN (${ph})`).bind(...visitIds).all(),
     ]);
@@ -79,7 +80,7 @@ app.get('/visits', async (c) => {
   }
 
   const enrichedVisits = visitRows.map(v => {
-    const row = { ...v, thumbnail_url: thumbByVisit[v.id] || null };
+    const row = { ...v, thumbnail_url: rewriteR2Url(thumbByVisit[v.id], reqUrl) || null };
     if (!row.thumbnail_url && !row.photo_url && v.company_id && reportImageKeys[v.company_id]) {
       try {
         const resp = {};
