@@ -338,15 +338,20 @@ export default function IndividualInsights() {
     return `/field-ops/reports/goldrush-individuals${queryString ? '?' + queryString : ''}`
   }
 
-  const { data: individuals = [], isLoading, isError, refetch } = useQuery({
+  // The endpoint caps its row count (default 5000) so an all-time query cannot pull
+  // the entire visit history in one response; it reports truncated=true when it hits
+  // the cap, which we surface rather than silently showing a partial list.
+  const { data: individualsResult, isLoading, isError, refetch } = useQuery({
     queryKey: ['goldrush-individuals', startDate, endDate, selectedCompany],
     queryFn: async () => {
       const res = await apiClient.get(buildQueryUrl())
-      return (res.data?.data || []) as GoldrushIndividual[]
+      return { rows: (res.data?.data || []) as GoldrushIndividual[], truncated: !!res.data?.truncated }
     },
     staleTime: 60000,
     gcTime: 5 * 60 * 1000,
   })
+  const individuals = individualsResult?.rows ?? []
+  const individualsTruncated = individualsResult?.truncated ?? false
 
   const { data: noBTagRecords = [], isLoading: noBTagLoading, refetch: refetchNoBTag } = useQuery({
     queryKey: ['goldrush-no-btag', startDate, endDate, selectedCompany],
@@ -738,6 +743,12 @@ export default function IndividualInsights() {
       {/* ── All Individuals (detail) tab ── */}
       {activeTab === 'individuals' && (
         <>
+          {individualsTruncated && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              Showing the {individuals.length.toLocaleString()} most recent registrations. Narrow the date range to see the rest.
+            </div>
+          )}
           {isLoading ? <LoadingSpinner /> : isError ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />

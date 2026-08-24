@@ -256,6 +256,130 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, r
   } catch { return []; }
 }
 
+// Batched replacement for the "monthly_targets, else fall back to company_target_rules"
+// block that /field-ops/performance ran once per user.
+//
+// Why this exists: the per-user version issued 1 monthly_targets query plus, on the
+// fallback path, generateTargetsFromRules -> ~4 + 2*companies queries. For an admin
+// looking at every team that is 5-6 D1 queries per user, so ~200 users fanned out to
+// 1000+ queries in a single request — past the Workers subrequest ceiling and the
+// dominant cost of the slow admin report load. Two of those per-user queries fetched
+// live *actuals*, which every caller then discarded (only target_visits and
+// target_registrations are read), so they are simply not issued here.
+//
+// This does the same work in 4 tenant-scoped queries, batched into one round trip.
+// All four are deliberately unparameterised beyond tenant/month: D1 caps a statement at
+// 100 bound parameters, so an `agent_id IN (...)` list would need chunking for a large
+// tenant. Filtering the (small) result sets in JS avoids that entirely.
+//
+// Returns { [userId]: { target_visits, target_stores } } for every id in userIds.
+async function resolveAgentTargetMapBatch(db, tenantId, userIds, currentMonth, companyId, roleType) {
+  const out = {};
+  const ids = Array.from(new Set(userIds || [])).filter(Boolean);
+  for (const id of ids) out[id] = { target_visits: 0, target_stores: 0 };
+  if (ids.length === 0) return out;
+
+  const rt = roleType || 'agent';
+
+  let monthlyRows = [], linkRows = [], ruleRows = [], wdRows = [];
+  try {
+    const stmts = [
+      // 1. Explicit monthly targets, one row per user (mirrors the per-user SUM()).
+      companyId
+        ? db.prepare("SELECT agent_id, COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND target_month = ? AND company_id = ? GROUP BY agent_id").bind(tenantId, currentMonth, companyId)
+        : db.prepare("SELECT agent_id, COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND target_month = ? GROUP BY agent_id").bind(tenantId, currentMonth),
+      // 2. Active agent -> active company memberships.
+      db.prepare("SELECT acl.agent_id, acl.company_id FROM agent_company_links acl JOIN field_companies fc ON acl.company_id = fc.id WHERE acl.tenant_id = ? AND acl.is_active = 1 AND fc.status = 'active'").bind(tenantId),
+      // 3. All target rules for the tenant; role_type is applied per user below so the
+      //    "no role rules -> any rules" fallback keeps generateTargetsFromRules' semantics.
+      db.prepare("SELECT ctr.* FROM company_target_rules ctr JOIN field_companies fc ON ctr.company_id = fc.id WHERE ctr.tenant_id = ?").bind(tenantId),
+      // 4. Every working-days config for the tenant; priority resolved per (user, company).
+      db.prepare("SELECT * FROM working_days_config WHERE tenant_id = ? ORDER BY created_at DESC").bind(tenantId),
+    ];
+    const [m, l, r, w] = await db.batch(stmts);
+    monthlyRows = m?.results || [];
+    linkRows = l?.results || [];
+    ruleRows = r?.results || [];
+    wdRows = w?.results || [];
+  } catch {
+    return out; // same "targets unknown -> zeros" contract the per-user try/catch had
+  }
+
+  const monthlyByAgent = new Map(monthlyRows.map(r => [r.agent_id, r]));
+
+  const companiesByAgent = new Map();
+  for (const l of linkRows) {
+    if (!companiesByAgent.has(l.agent_id)) companiesByAgent.set(l.agent_id, []);
+    companiesByAgent.get(l.agent_id).push(l.company_id);
+  }
+
+  const rulesByCompany = new Map();
+  for (const r of ruleRows) {
+    if (!rulesByCompany.has(r.company_id)) rulesByCompany.set(r.company_id, []);
+    rulesByCompany.get(r.company_id).push(r);
+  }
+
+  // working_days_config priority: agent+company > agent+null > null+company > null+null.
+  // wdRows is already created_at DESC, so the first match per bucket wins, as before.
+  const wdGlobal = wdRows.find(r => !r.agent_id && !r.company_id) || null;
+  const wdAgentGlobal = new Map();
+  const wdAgentCompany = new Map();
+  const wdCompanyOnly = new Map();
+  for (const r of wdRows) {
+    if (r.agent_id && r.company_id) {
+      const k = r.agent_id + '\u0000' + r.company_id;
+      if (!wdAgentCompany.has(k)) wdAgentCompany.set(k, r);
+    } else if (r.agent_id && !r.company_id) {
+      if (!wdAgentGlobal.has(r.agent_id)) wdAgentGlobal.set(r.agent_id, r);
+    } else if (!r.agent_id && r.company_id) {
+      if (!wdCompanyOnly.has(r.company_id)) wdCompanyOnly.set(r.company_id, r);
+    }
+  }
+  // countWorkingDaysInMonth is pure; memoise per resolved config so a tenant with one
+  // calendar does the day walk once instead of once per (user, company).
+  const wdCache = new Map();
+  const workingDays = (agentId, cid) => {
+    const cfg = wdAgentCompany.get(agentId + '\u0000' + cid)
+      || wdAgentGlobal.get(agentId)
+      || wdCompanyOnly.get(cid)
+      || wdGlobal
+      || DEFAULT_WD_CONFIG;
+    const key = cfg.id != null ? String(cfg.id) : 'default';
+    if (!wdCache.has(key)) wdCache.set(key, countWorkingDaysInMonth(cfg, currentMonth));
+    return wdCache.get(key);
+  };
+
+  for (const aid of ids) {
+    const mt = monthlyByAgent.get(aid);
+    if (mt && ((mt.target_visits || 0) > 0 || (mt.target_registrations || 0) > 0)) {
+      out[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
+      continue;
+    }
+    const companyIds = companiesByAgent.get(aid) || [];
+    if (companyIds.length === 0) continue;
+    let rules = [];
+    for (const cid of companyIds) rules.push(...(rulesByCompany.get(cid) || []).filter(r => r.role_type === rt));
+    if (rules.length === 0) {
+      for (const cid of companyIds) rules.push(...(rulesByCompany.get(cid) || []));
+    }
+    if (rules.length === 0) continue;
+
+    let tv = 0, ts = 0;
+    for (const ctr of rules) {
+      // Same arithmetic as generateTargetsFromRules (?? preserves an explicit 0).
+      const indivPerDay = (ctr.individual_target_per_day != null ? ctr.individual_target_per_day : ctr.target_visits_per_day) ?? 0;
+      const storePerMonth = (ctr.store_target_per_month != null ? ctr.store_target_per_month : (ctr.store_target_per_month_agent ?? ctr.store_target_per_month_tl)) ?? 0;
+      const indivPerMonth = ctr.individual_target_per_month != null
+        ? ctr.individual_target_per_month
+        : (indivPerDay * workingDays(aid, ctr.company_id));
+      tv += indivPerMonth || 0;
+      ts += storePerMonth || 0;
+    }
+    out[aid] = { target_visits: tv, target_stores: ts };
+  }
+  return out;
+}
+
 // Helper: compute target totals for a set of user IDs from company_target_rules
 async function computeTargetTotalsFromRules(db, tenantId, userIds, monthStartDate, roleType) {
   let totalTargetVisits = 0, totalActualVisits = 0, totalTargetRegs = 0, totalActualRegs = 0;
@@ -278,4 +402,5 @@ export {
   getUserMonthlyTargetFromRules,
   generateTargetsFromRules,
   computeTargetTotalsFromRules,
+  resolveAgentTargetMapBatch,
 };

@@ -2,9 +2,14 @@ import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { authMiddleware } from '../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
-import { generateTargetsFromRules } from '../lib/calendar.js';
+import { resolveAgentTargetMapBatch } from '../lib/calendar.js';
+import { reportIndexMiddleware } from '../lib/reportIndexes.js';
+import { teamMemberScope } from '../lib/agentScope.js';
 
 const app = new Hono();
+
+// Converge the report indexes on this isolate's first request; see lib/reportIndexes.js.
+app.use('*', reportIndexMiddleware);
 
 // ==================== FIELD OPERATIONS: PERFORMANCE (ROLE-BASED) ====================
 app.get('/field-ops/performance', authMiddleware, async (c) => {
@@ -82,13 +87,16 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
       // Team lead sees own + team's performance
       const teamAgents = await db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(userId, tenantId).all();
       const agentIds = [userId, ...(teamAgents.results || []).map(a => a.id)];
-      const placeholders = agentIds.map(() => '?').join(',');
+      // Subquery, not an inlined id list: D1 allows 100 bound parameters per
+      // statement, so a team of ~100 agents broke these queries outright.
+      // See lib/agentScope.js.
+      const scope = teamMemberScope(tenantId, userId);
       
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders})${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN ${scope.sql}${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...scope.binds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN ${scope.sql} AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY agent_id`).bind(tenantId, startD, endD, ...scope.binds, ...cBind).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN ${scope.sql} AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${cWhereV} GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...scope.binds, ...cBind).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN ${scope.sql}${cWhere} GROUP BY agent_id`).bind(tenantId, startD, endD, ...scope.binds, ...cBind).all(),
       ]);
 
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -98,25 +106,9 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
       
       // Get monthly targets for each agent
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
-      const agentTargetMap = {};
-      await Promise.all(agentIds.map(async (aid) => {
-        try {
-          // Try monthly_targets first
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            // Fall back to company_target_rules
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, agentIds, currentMonth, company_id || null, 'agent');
 
       const agentPerformance = agentIds.map(aid => {
         const agent = aid === userId ? { first_name: 'You', last_name: '' } : (teamAgents.results || []).find(a => a.id === aid) || {};
@@ -161,14 +153,17 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
       // Manager drilling down into a specific team lead's agents
       const teamAgents = await db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(team_lead_id, tenantId).all();
       const agentIds = [team_lead_id, ...(teamAgents.results || []).map(a => a.id)];
-      const placeholders = agentIds.map(() => '?').join(',');
+      // Subquery, not an inlined id list: D1 allows 100 bound parameters per
+      // statement, so a team of ~100 agents broke these queries outright.
+      // See lib/agentScope.js.
+      const scope = teamMemberScope(tenantId, team_lead_id);
 
       // agentIds already scopes to this team; no company_id filter on visits (handles NULL company_id for Goldrush)
       const [totalVisits, totalConvs, totalIndivVisits, totalStoreVisits] = await Promise.all([
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (${placeholders}) AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN (${placeholders}) GROUP BY agent_id`).bind(tenantId, startD, endD, ...agentIds).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND agent_id IN ${scope.sql} GROUP BY agent_id`).bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND v.agent_id IN ${scope.sql} AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY agent_id`).bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare(`SELECT v.agent_id, COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? AND v.status = 'completed' AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN ${scope.sql} AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) GROUP BY v.agent_id`).bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND status = 'completed' AND LOWER(visit_type) = 'store' AND agent_id IN ${scope.sql} GROUP BY agent_id`).bind(tenantId, startD, endD, ...scope.binds).all(),
       ]);
 
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -177,23 +172,9 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
       const storeMap = Object.fromEntries((totalStoreVisits.results || []).map(r => [r.agent_id, r.count]));
 
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
-      const agentTargetMap = {};
-      await Promise.all(agentIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, agentIds, currentMonth, company_id || null, 'agent');
 
       const tlInfo = await db.prepare("SELECT first_name, last_name FROM users WHERE id = ? AND tenant_id = ?").bind(team_lead_id, tenantId).first();
       const agentPerformance = agentIds.map(aid => {
@@ -257,24 +238,10 @@ app.get('/field-ops/performance', authMiddleware, async (c) => {
 
       // Get monthly targets for all relevant users
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
       const allUserIds = [...teamLeadsToUse.map(tl => tl.id), ...agentsToUse.map(a => a.id)];
-      const agentTargetMap = {};
-      await Promise.all(allUserIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, allUserIds, currentMonth, company_id || null, 'agent');
 
       const teams = teamLeadsToUse.map(tl => {
         const teamAgts = agentsToUse.filter(a => a.team_lead_id === tl.id);
@@ -336,7 +303,11 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const role = c.get('role');
   const userId = c.get('userId');
-  const { period, start_date, end_date } = c.req.query();
+  // company_id was referenced further down but never destructured here, so the
+  // target lookup threw a ReferenceError on every agent. The old code caught that
+  // per-agent and wrote a zero target, so this export silently reported every
+  // target as 0 instead of failing. Destructure it so the filter actually applies.
+  const { period, start_date, end_date, company_id } = c.req.query();
   
   // Calculate date range based on period parameter
   const today = new Date();
@@ -411,12 +382,15 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       headers = ['Agent', 'Visits', 'Individual', 'Store', 'Target (Indiv)', 'Target (Store)'];
       const teamAgents = await db.prepare("SELECT id, first_name, last_name FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(userId, tenantId).all();
       const agentIds = [userId, ...(teamAgents.results || []).map(a => a.id)];
-      const placeholders = agentIds.map(() => '?').join(',');
+      // Subquery, not an inlined id list: D1 allows 100 bound parameters per
+      // statement, so a team of ~100 agents broke these queries outright.
+      // See lib/agentScope.js.
+      const scope = teamMemberScope(tenantId, userId);
       
       const [totalVisits, totalIndivVisits, totalStoreVisits] = await Promise.all([
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date <= ? AND agent_id IN (" + placeholders + ") GROUP BY agent_id").bind(tenantId, startD, endD, ...agentIds).all()
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND agent_id IN " + scope.sql + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND agent_id IN " + scope.sql + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date <= ? AND agent_id IN " + scope.sql + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all()
       ]);
       
       const visitMap = Object.fromEntries((totalVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -425,23 +399,9 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       
       // Get monthly targets for each agent
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
-      const agentTargetMap = {};
-      await Promise.all(agentIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, agentIds, currentMonth, company_id || null, 'agent');
 
       data = agentIds.map(aid => {
         const agent = aid === userId ? { first_name: 'You', last_name: '' } : (teamAgents.results || []).find(a => a.id === aid) || {};
@@ -455,7 +415,7 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       // Add drilldown: detailed individual list for all agents
       data.push([]); // Empty row
       data.push(['--- Detailed Individuals (All Agents) ---']);
-      const allRegDetails = await db.prepare("SELECT v.created_at, i.first_name, i.last_name, i.phone, (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN (" + placeholders + ") AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 100").bind(tenantId, ...agentIds, startD, endD).all();
+      const allRegDetails = await db.prepare("SELECT v.created_at, i.first_name, i.last_name, i.phone, (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted, u.first_name || ' ' || u.last_name as agent_name, fc.name as company_name FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id LEFT JOIN individuals i ON vi.individual_id = i.id LEFT JOIN users u ON v.agent_id = u.id LEFT JOIN field_companies fc ON v.company_id = fc.id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND v.agent_id IN " + scope.sql + " AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) ORDER BY v.created_at DESC LIMIT 100").bind(tenantId, ...scope.binds, startD, endD).all();
       data.push(['Date', 'Agent', 'Name', 'Phone', 'Status', 'Company']);
       for (const r of (allRegDetails.results || [])) {
         data.push([r.created_at, r.agent_name, `${r.first_name} ${r.last_name}`, r.phone || '', r.converted ? 'Converted' : 'Pending', r.company_name || 'N/A']);
@@ -478,26 +438,12 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       
       // Get monthly targets for all users
       const currentMonth = startD.substring(0, 7);
-      const monthStartDate = currentMonth + '-01';
       const allAgentIds = (allAgents.results || []).map(a => a.id);
       const allTlIds = (allTeamLeads.results || []).map(tl => tl.id);
       const allUserIds = [...allTlIds, ...allAgentIds];
-      const agentTargetMap = {};
-      await Promise.all(allUserIds.map(async (aid) => {
-        try {
-          const mt = company_id
-            ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-            : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-          if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-            agentTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-          } else {
-            const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-            const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-            const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-            agentTargetMap[aid] = { target_visits: tv, target_stores: ts };
-          }
-        } catch { agentTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-      }));
+      // One batched resolve for every user instead of 5-6 D1 queries each
+      // (see resolveAgentTargetMapBatch in lib/calendar.js).
+      const agentTargetMap = await resolveAgentTargetMapBatch(db, tenantId, allUserIds, currentMonth, company_id || null, 'agent');
 
       data = (allTeamLeads.results || []).map(tl => {
         const teamAgts = (allAgents.results || []).filter(a => a.team_lead_id === tl.id);
@@ -658,24 +604,10 @@ app.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
     };
     // Get monthly targets for all users
     const currentMonth = startD.substring(0, 7);
-    const monthStartDate = currentMonth + '-01';
     const allUserIds = [...(allManagers.results||[]).map(m=>m.id), ...(allTeamLeads.results||[]).map(t=>t.id), ...filteredAgentResults.map(a=>a.id)];
-    const xlTargetMap = {};
-    await Promise.all(allUserIds.map(async (aid) => {
-      try {
-        const mt = company_id
-          ? await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ? AND company_id = ?").bind(tenantId, aid, currentMonth, company_id).first()
-          : await db.prepare("SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_registrations FROM monthly_targets WHERE tenant_id = ? AND agent_id = ? AND target_month = ?").bind(tenantId, aid, currentMonth).first();
-        if (mt && (mt.target_visits > 0 || mt.target_registrations > 0)) {
-          xlTargetMap[aid] = { target_visits: mt.target_visits || 0, target_stores: mt.target_registrations || 0 };
-        } else {
-          const targets = await generateTargetsFromRules(db, tenantId, aid, monthStartDate, 'agent');
-          const tv = targets.reduce((s, t) => s + (t.target_visits || 0), 0);
-          const ts = targets.reduce((s, t) => s + (t.target_registrations || 0), 0);
-          xlTargetMap[aid] = { target_visits: tv, target_stores: ts };
-        }
-      } catch { xlTargetMap[aid] = { target_visits: 0, target_stores: 0 }; }
-    }));
+    // One batched resolve for every user instead of 5-6 D1 queries each
+    // (see resolveAgentTargetMapBatch in lib/calendar.js).
+    const xlTargetMap = await resolveAgentTargetMapBatch(db, tenantId, allUserIds, currentMonth, company_id || null, 'agent');
     const sumTargets = (ids) => {
       let tv=0, ts=0;
       for (const id of ids) { tv += (xlTargetMap[id]||{}).target_visits||0; ts += (xlTargetMap[id]||{}).target_stores||0; }
@@ -886,12 +818,15 @@ app.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
       for (const tl of (teamLeads.results || [])) {
         const teamAgentIds = await db.prepare("SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(tl.id, tenantId).all();
         const allIds = [tl.id, ...(teamAgentIds.results || []).map(a => a.id)];
-        const placeholders = allIds.map(() => '?').join(',');
+        // Subquery, not an inlined id list: D1 allows 100 bound parameters per
+        // statement, so a team of ~100 agents broke these queries outright.
+        // See lib/agentScope.js.
+        const scope = teamMemberScope(tenantId, tl.id);
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${placeholders}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${placeholders}) AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN ${scope.sql} AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...scope.binds, tenantId, startD, endD).first()
         ]);
         subordinates.push({ id: tl.id, agent_id: tl.id, agent_name: tl.first_name + ' ' + tl.last_name, email: tl.email, role: 'team_lead', agents_count: (teamAgentIds.results || []).length, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 });
       }
@@ -976,12 +911,15 @@ app.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
       for (const tl of (teamLeads.results || [])) {
         const teamAgentIds = await db.prepare("SELECT id FROM users WHERE team_lead_id = ? AND tenant_id = ? AND is_active = 1").bind(tl.id, tenantId).all();
         const allIds = [tl.id, ...(teamAgentIds.results || []).map(a => a.id)];
-        const ph = allIds.map(() => '?').join(',');
+        // Subquery, not an inlined id list: D1 allows 100 bound parameters per
+        // statement, so a team of ~100 agents broke these queries outright.
+        // See lib/agentScope.js.
+        const scope = teamMemberScope(tenantId, tl.id);
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${ph}) AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${ph}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN (${ph}) AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...allIds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN (${ph}) AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...allIds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN ${scope.sql} AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...scope.binds, tenantId, startD, endD).first()
         ]);
         const ivCount = iv?.count || 0; const cvCount = cv?.count || 0;
         data.push([tl.first_name + ' ' + tl.last_name, 'Team Lead', v?.count || 0, ivCount, sv?.count || 0, cvCount, ivCount > 0 ? Math.round((cvCount / ivCount) * 100) + '%' : '0%']);
