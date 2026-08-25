@@ -323,8 +323,15 @@ app.get('/kpi/tenant-signals', requireRole('admin', 'general_manager'), async (c
 
   const counts = Object.fromEntries(Object.keys(SIGNAL_REGISTRY).map((k) => [k, 0]));
   const flagged = [];
-  for (const { id, name } of agents) {
+  // Was a sequential for-await: 2 queries per agent, one agent at a time, which is
+  // what made this endpoint the slowest on the GM dashboard (15.5s cold). Every
+  // other fan-out in this file already goes through mapLimit. Safe as a drop-in —
+  // counts are order-independent increments and `flagged` is sorted below.
+  const perAgent = await mapLimit(agents, ROW_CONCURRENCY, async ({ id, name }) => {
     const { signals } = await agentSignals(db, tenantId, id, thresholds, since);
+    return { id, name, signals };
+  });
+  for (const { id, name, signals } of perAgent) {
     if (signals.length) flagged.push({ id, name, signals, severity: severityOf(signals.map((s) => s.type)) });
     for (const s of signals) if (s.type in counts) counts[s.type]++;
   }
