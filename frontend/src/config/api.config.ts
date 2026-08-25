@@ -48,7 +48,10 @@ export const API_CONFIG = {
   // retry piled another full scan onto D1 and made the next attempt slower still.
   REPORT_TIMEOUT: 120000,
   // Paths that get REPORT_TIMEOUT instead of TIMEOUT.
-  SLOW_PATH_PREFIXES: ['/field-ops/reports', '/field-ops/performance', '/field-ops/drill-down', '/analytics'],
+  // gm/kpi aggregate the same way reports do (GM overview fans out per-agent incentive
+  // math), so they belong here too — at 30s a cold overview aborted and retried into
+  // a Worker still running the first pass, and the spinner never resolved.
+  SLOW_PATH_PREFIXES: ['/field-ops/reports', '/field-ops/performance', '/field-ops/drill-down', '/field-ops/gm', '/field-ops/kpi', '/analytics'],
   
   // All API endpoints in one place
   ENDPOINTS: {

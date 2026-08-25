@@ -55,7 +55,11 @@ const CACHEABLE = /^\/(field-ops\/(reports|performance|kpi|gm|incentives|leaderb
 // live-locations is a live map feed, /realtime is by definition not cacheable, and the
 // export endpoints stream CSV/XLSX a user just asked to download.
 const NEVER_CACHE = /(live-locations|realtime|export)/;
-const RESPONSE_TTL_SECONDS = 60;
+// 60s was shorter than every staleTime the UI uses (GM overview: 2 min), so a
+// react-query refetch landed on an expired entry every single time and paid the
+// full cold cost. 300s covers the refetch cadence, and is still no staler than
+// what the UI was already rendering between refetches.
+const RESPONSE_TTL_SECONDS = 300;
 
 // Shared by the middleware and by the fetch wrapper in index.js, which uses it to
 // decide whether a request may read from a D1 replica. Same predicate on purpose:

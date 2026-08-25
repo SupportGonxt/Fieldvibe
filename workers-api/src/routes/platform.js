@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { normalizePhone, generateToken } from '../lib/authUtils.js';
 import { validate } from '../validate.js';
 import { buildGoldrushConfig } from '../services/programConfig.js';
+import { invalidateConfigCache } from './field-ops/config.js';
 import { writePaymentLedgerEntries } from '../lib/paymentLedger.js';
 
 const app = new Hono();
@@ -1667,6 +1668,7 @@ app.post('/seed/goldrush', authMiddleware, async (c) => {
            ON CONFLICT(id) DO UPDATE SET value_json=excluded.value_json`
         ).bind(`pc-${goldrushId}-${e.key}`, tenantId, goldrushId, e.key, e.value_json).run();
       }
+      invalidateConfigCache();
     } catch (e) { console.error('Config bridge seed error:', e); }
 
     return c.json({
