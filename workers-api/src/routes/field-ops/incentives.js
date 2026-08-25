@@ -12,7 +12,10 @@ import { mapLimit } from '../../lib/aggregates.js';
 
 // Incentive engine fan-out cap. computeIncentive is several D1 round trips and
 // this ran once per agent, serialized, against the D1 primary in WNAM.
-const INCENTIVE_CONCURRENCY = 5;
+// Per-agent incentive fan-out width. Raised from 5 once getConfig/getScale stopped
+// re-querying D1 per agent: what's left per agent is 2 metric queries, so a wider
+// window cuts round-trip rounds without multiplying D1 load.
+const INCENTIVE_CONCURRENCY = 12;
 
 
 const app = new Hono();

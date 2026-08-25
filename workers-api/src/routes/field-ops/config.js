@@ -10,13 +10,43 @@ import { canSeeMoney } from '../../lib/capabilities.js';
 import { DEFAULT_CAPTURE_CONFIG } from '../../services/programConfig.js';
 
 // ---- Reusable resolvers (imported by other services) ----
+
+// ponytail: isolate-local read cache for the two config tables. These rows are
+// hot and near-static, but computeIncentive() re-read the SAME row once per agent
+// inside the GM incentive fan-out (22 agents x 3 invariant reads = 66 D1 round
+// trips on a cold /field-ops/gm/overview). Keyed by tenant+company so nothing
+// crosses a tenant. Raw column text is cached, never the parsed object, so a
+// caller mutating what it got back can't poison the next reader.
+// Ceiling: staleness is per-isolate — after a write, another isolate can still
+// serve up to CONFIG_TTL_MS-old config. Swap in a KV version stamp if config
+// ever needs to be read-your-writes across isolates.
+const CONFIG_TTL_MS = 30000;
+const configMemo = new Map();
+
+async function memoized(key, load) {
+  const hit = configMemo.get(key);
+  if (hit && hit.exp > Date.now()) return hit.val;
+  const val = await load();
+  configMemo.set(key, { val, exp: Date.now() + CONFIG_TTL_MS });
+  return val;
+}
+
+// Called after every config/scale write below so an admin edit is visible on the
+// next request served by this isolate instead of waiting out the TTL.
+export function invalidateConfigCache() {
+  configMemo.clear();
+}
+
 export async function getConfig(db, tenantId, companyId, key) {
-  const row = await db.prepare(
-    `SELECT value_json FROM program_config
-     WHERE tenant_id = ? AND key = ? AND (company_id = ? OR company_id IS NULL)
-     ORDER BY company_id IS NULL ASC LIMIT 1`
-  ).bind(tenantId, key, companyId ?? null).first();
-  return row ? JSON.parse(row.value_json) : null;
+  const json = await memoized(`cfg:${tenantId}:${companyId ?? ''}:${key}`, async () => {
+    const row = await db.prepare(
+      `SELECT value_json FROM program_config
+       WHERE tenant_id = ? AND key = ? AND (company_id = ? OR company_id IS NULL)
+       ORDER BY company_id IS NULL ASC LIMIT 1`
+    ).bind(tenantId, key, companyId ?? null).first();
+    return row ? row.value_json : null;
+  });
+  return json ? JSON.parse(json) : null;
 }
 
 // Wire shape for a tier is flat {amount, signups, deposits, …}; rows seeded with the
@@ -24,11 +54,13 @@ export async function getConfig(db, tenantId, companyId, key) {
 export const flatTier = (t) => (t && t.targets ? { amount: t.amount, ...t.targets } : t);
 
 export async function getScale(db, tenantId, companyId, role) {
-  const row = await db.prepare(
-    `SELECT tiers_json, metric, basis, period FROM incentive_scales
-     WHERE tenant_id = ? AND role = ? AND active = 1 AND (company_id = ? OR company_id IS NULL)
-     ORDER BY company_id IS NULL ASC LIMIT 1`
-  ).bind(tenantId, role, companyId ?? null).first();
+  const row = await memoized(`scale:${tenantId}:${companyId ?? ''}:${role}`, () =>
+    db.prepare(
+      `SELECT tiers_json, metric, basis, period FROM incentive_scales
+       WHERE tenant_id = ? AND role = ? AND active = 1 AND (company_id = ? OR company_id IS NULL)
+       ORDER BY company_id IS NULL ASC LIMIT 1`
+    ).bind(tenantId, role, companyId ?? null).first()
+  );
   return row
     ? { tiers: (JSON.parse(row.tiers_json) || []).map(flatTier), metric: row.metric, basis: row.basis, period: row.period }
     : null;
@@ -76,6 +108,7 @@ app.put('/config', adminOnly, async (c) => {
       ).bind(crypto.randomUUID(), tenantId, companyId, key, json).run();
     }
   }
+  invalidateConfigCache();
   return c.json({ success: true, updated: entries.length });
 });
 
@@ -110,6 +143,7 @@ app.put('/incentive-scales', adminOnly, async (c) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`
     ).bind(crypto.randomUUID(), tenantId, companyId, b.role, b.metric, tiersJson, b.basis || 'working_days', b.period || 'month').run();
   }
+  invalidateConfigCache();
   return c.json({ success: true, role: b.role });
 });
 
@@ -195,6 +229,7 @@ app.post('/config/seed-defaults', adminOnly, async (c) => {
   }
 
   await seedKpiDefaults(db, tenantId);
+  invalidateConfigCache();
   return c.json({ success: true, seeded: true });
 });
 
