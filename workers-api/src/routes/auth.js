@@ -17,7 +17,7 @@ app.post('/api/auth/login', rateLimiter(5, 900000), async (c) => {
     const { email, phone, password } = v.data;
     const db = c.env.DB;
     const loginField = email || normalizePhone(phone);
-    const user = await db.prepare('SELECT * FROM users WHERE (email = ? OR phone = ?) AND is_active = 1').bind(loginField, loginField).first();
+    const user = await db.prepare('SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR phone = ?) AND is_active = 1').bind(loginField, loginField).first();
     if (!user) return c.json({ success: false, message: 'Invalid credentials' }, 401);
     if (user.status === 'archived') return c.json({ success: false, message: 'Your account has been archived. Contact your administrator.' }, 403);
     const validPassword = await bcrypt.compare(password, user.password_hash);
@@ -157,7 +157,7 @@ app.post('/api/auth/register', rateLimiter(3, 3600000), async (c) => {
     const v = validate(registerSchema, body);
     if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
     const { email, phone, password, firstName, lastName, tenantCode } = v.data;
-    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    const existing = await db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').bind(email).first();
     if (existing) return c.json({ success: false, message: 'Email already exists' }, 400);
     let tenantId;
     if (tenantCode) {
@@ -201,7 +201,7 @@ app.post('/api/auth/forgot-password', rateLimiter(3, 900000), async (c) => {
     const db = c.env.DB;
     const { email } = await c.req.json();
     if (!email) return c.json({ success: false, message: 'Email is required' }, 400);
-    const user = await db.prepare('SELECT id, tenant_id, email, first_name FROM users WHERE email = ? AND is_active = 1').bind(email).first();
+    const user = await db.prepare('SELECT id, tenant_id, email, first_name FROM users WHERE LOWER(email) = LOWER(?) AND is_active = 1').bind(email).first();
     if (!user) return c.json({ success: true, message: 'If an account exists, a reset link will be sent' });
     const resetToken = uuidv4();
     const expiresAt = new Date(Date.now() + 3600000).toISOString();
