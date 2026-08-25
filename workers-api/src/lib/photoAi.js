@@ -352,6 +352,25 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
   }
 }
 
+// Clients post a captured photo as { r2_url: "data:image/jpeg;base64,..." }. Storing that
+// verbatim is how ~6k inline blobs ended up inside D1 (see migration 0024 / the backfill).
+// Push the bytes to R2 and keep only the URL. On any failure the data URI is returned
+// unchanged, so the photo is never lost — it just stays inline and the backfill can retry.
+async function persistClientPhoto(bucket, photo, visitId, photoId, reqUrl) {
+  const rawKey = typeof photo.r2_key === 'string' ? photo.r2_key : '';
+  const key = rawKey && !rawKey.startsWith('data:') ? rawKey : `photos/${visitId}/${photoId}`;
+  const url = photo.r2_url || photo.photo_url || null;
+  const decoded = bucket ? decodeDataUri(url) : null;
+  if (!decoded) return { r2_key: key, r2_url: url };
+  try {
+    await bucket.put(key, decoded.bytes, { httpMetadata: { contentType: decoded.contentType } });
+  } catch {
+    return { r2_key: key, r2_url: url };
+  }
+  try { return { r2_key: key, r2_url: new URL('/api/uploads/' + key, reqUrl).href }; }
+  catch { return { r2_key: key, r2_url: '/api/uploads/' + key }; }
+}
+
 // Materialise a questionnaire photo (synthetic id = "{vr_id}_{field}") into visit_photos and return the real id.
 // Returns the real visit_photos id to use, or null if the source can't be found.
 async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedBy) {
@@ -376,4 +395,4 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
   return newId;
 }
 
-export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
+export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, persistClientPhoto, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
