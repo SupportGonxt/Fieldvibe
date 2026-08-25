@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
-import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI } from '../../lib/photoAi.js';
+import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
 
 const app = new Hono();
@@ -846,10 +846,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
           continue;
         }
         const photoId = crypto.randomUUID();
+        const stored = await persistClientPhoto(c.env.UPLOADS, photo, visitId, photoId, c.req.url);
         try {
           await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
             photoId, tenantId, visitId, photo.photo_type || 'board',
-            photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+            stored.r2_key, stored.r2_url,
             photo.gps_latitude ?? null, photo.gps_longitude ?? null,
             photo.captured_at || now, photo.photo_hash || null,
             photo.board_placement_location || null, photo.board_placement_position || null,
@@ -859,7 +860,7 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
           // Fallback: board placement columns may not exist yet
           await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
             photoId, tenantId, visitId, photo.photo_type || 'board',
-            photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+            stored.r2_key, stored.r2_url,
             photo.gps_latitude ?? null, photo.gps_longitude ?? null,
             photo.captured_at || now, photo.photo_hash || null, userId
           ).run();
@@ -916,9 +917,10 @@ app.post('/visits/:id/complete-workflow', authMiddleware, async (c) => {
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       for (const photo of body.photos) {
         const photoId = crypto.randomUUID();
+        const stored = await persistClientPhoto(c.env.UPLOADS, photo, visitId, photoId, c.req.url);
         await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
           photoId, tenantId, visitId, photo.photo_type || 'board',
-          photo.r2_key || `photos/${visitId}/${photoId}`, photo.r2_url || photo.photo_url || null,
+          stored.r2_key, stored.r2_url,
           photo.gps_latitude ?? null, photo.gps_longitude ?? null,
           photo.captured_at || now, photo.photo_hash || null, c.get('userId')
         ).run();
