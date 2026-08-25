@@ -354,7 +354,7 @@ app.post('/api/field-ops/company-auth/login', rateLimiter(5, 60000), async (c) =
   const { email, password } = await c.req.json();
   if (!email || !password) return c.json({ success: false, message: 'Email and password required' }, 400);
   try {
-    const login = await db.prepare("SELECT cl.*, fc.name as company_name, fc.tenant_id FROM company_logins cl JOIN field_companies fc ON cl.company_id = fc.id WHERE cl.email = ? AND cl.is_active = 1").bind(email).first();
+    const login = await db.prepare("SELECT cl.*, fc.name as company_name, fc.tenant_id FROM company_logins cl JOIN field_companies fc ON cl.company_id = fc.id WHERE LOWER(cl.email) = LOWER(?) AND cl.is_active = 1").bind(email).first();
     if (!login) return c.json({ success: false, message: 'Invalid credentials' }, 401);
     const passwordValid = await bcrypt.compare(password, login.password_hash);
     if (!passwordValid) return c.json({ success: false, message: 'Invalid credentials' }, 401);
