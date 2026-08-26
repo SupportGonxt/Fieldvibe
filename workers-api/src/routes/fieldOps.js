@@ -9,6 +9,7 @@ import { resolveReportCompanyId, mapLimit } from '../lib/aggregates.js';
 const RULE_CONCURRENCY = 3;
 const ROW_CONCURRENCY = 6;
 import { extractGoldrushId, goldrushIdExists } from '../lib/goldrush.js';
+import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../lib/agentHours.js';
 import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto } from '../lib/photoAi.js';
 import { validate } from '../validate.js';
 import { defaultDashboardConfig, ensurePortalTables } from '../services/portal.js';
@@ -676,6 +677,7 @@ app.get('/field-ops/individuals/:id', authMiddleware, async (c) => {
 });
 
 app.post('/field-ops/individuals/register', authMiddleware, async (c) => {
+  if (isOutsideAgentHours()) return c.json({ success: false, message: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');

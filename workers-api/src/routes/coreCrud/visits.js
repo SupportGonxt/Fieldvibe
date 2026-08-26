@@ -4,8 +4,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
 import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
+import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 
 const app = new Hono();
+
+// Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
+app.get('/visits/hours-status', authMiddleware, async (c) => {
+  const outside = isOutsideAgentHours();
+  return c.json({ allowed: !outside, error: outside ? AGENT_HOURS_ERROR : null });
+});
 
 // ==================== VISITS / CHECK-INS ====================
 app.get('/visits', async (c) => {
@@ -170,6 +177,7 @@ app.get('/visits/:id', async (c) => {
 });
 
 app.post('/visits', async (c) => {
+  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -214,10 +222,11 @@ app.post('/visits', async (c) => {
       }
     }
 
-    // 3. Pattern break: check if agent is visiting outside their usual hours
-    const hour = new Date(body.check_in_time || new Date()).getHours();
-    if (hour < 6 || hour > 21) {
-      anomalies.push({ type: 'PATTERN_BREAK', severity: 'low', details: `Visit created at unusual hour: ${hour}:00` });
+    // 3. Pattern break: check if agent is visiting outside their usual hours (SAST)
+    const checkInDate = new Date(body.check_in_time || new Date());
+    const sastHour = Math.floor(((checkInDate.getUTCHours() * 60 + checkInDate.getUTCMinutes() + 120) % 1440) / 60);
+    if (sastHour < 6 || sastHour > 21) {
+      anomalies.push({ type: 'PATTERN_BREAK', severity: 'low', details: `Visit created at unusual hour: ${sastHour}:00 SAST` });
     }
   }
 
@@ -520,6 +529,7 @@ app.post('/visits/check-photo-duplicate', authMiddleware, async (c) => {
 });
 // Create visit with full workflow data (individual or store)
 app.post('/visits/workflow', authMiddleware, async (c) => {
+  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
