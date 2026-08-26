@@ -1,9 +1,8 @@
-// Field agents may only log visits between 9:30am and 10:00am SAST (Africa/Johannesburg,
-// UTC+2 year-round, no DST) — TEMPORARY TEST WINDOW, revert to 7-19 before production.
-// Enforced server-side using request time so it can't be bypassed by a spoofed
-// client timestamp.
-const AGENT_HOURS_START = '9:30';
-const AGENT_HOURS_END = '10:00';
+// Field agents may only log visits between 7am and 7pm SAST (Africa/Johannesburg,
+// UTC+2 year-round, no DST). Enforced server-side using request time so it
+// can't be bypassed by a spoofed client timestamp.
+const AGENT_HOURS_START = '7:00';
+const AGENT_HOURS_END = '19:00';
 const SAST_OFFSET_MINUTES = 120;
 
 function toMinutes(hhmm) {
