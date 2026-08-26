@@ -523,6 +523,7 @@ app.post('/visits/check-photo-duplicate', authMiddleware, async (c) => {
 });
 // Create visit with full workflow data (individual or store)
 app.post('/visits/workflow', authMiddleware, async (c) => {
+  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
