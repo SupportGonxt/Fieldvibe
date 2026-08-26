@@ -1246,6 +1246,12 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // Check whether visits can be created right now (agent working-hours window)
+  async getVisitHoursStatus(): Promise<{ allowed: boolean; error: string | null }> {
+    const response = await this.get('/visits/hours-status')
+    return response.data || response
+  }
+
   // Create visit via full workflow (individual or store)
   async createVisitWorkflow(data: {
     visit_target_type: 'individual' | 'store';

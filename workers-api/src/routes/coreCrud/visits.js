@@ -8,6 +8,12 @@ import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js'
 
 const app = new Hono();
 
+// Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
+app.get('/visits/hours-status', authMiddleware, async (c) => {
+  const outside = isOutsideAgentHours();
+  return c.json({ allowed: !outside, error: outside ? AGENT_HOURS_ERROR : null });
+});
+
 // ==================== VISITS / CHECK-INS ====================
 app.get('/visits', async (c) => {
   const db = c.env.DB;

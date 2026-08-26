@@ -223,6 +223,15 @@ export default function VisitCreate() {
   const intendedStepKeyRef = useRef<string>('')
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Checked once on mount so an agent is stopped before starting a visit, not just at final submit.
+  const [hoursStatus, setHoursStatus] = useState<{ checked: boolean; allowed: boolean; error: string | null }>({ checked: false, allowed: true, error: null })
+  useEffect(() => {
+    let cancelled = false
+    fieldOperationsService.getVisitHoursStatus()
+      .then((res) => { if (!cancelled) setHoursStatus({ checked: true, allowed: res.allowed, error: res.error }) })
+      .catch(() => { if (!cancelled) setHoursStatus({ checked: true, allowed: true, error: null } ) })
+    return () => { cancelled = true }
+  }, [])
   const [validationWarnings, setValidationWarnings] = useState<{ id_number?: string; goldrush_id?: string; photo_mismatch?: string; no_btag?: string } | null>(null)
   // Result of the background extraction from the captured photo (Goldrush ID,
   // customer name, B-Tag, quality signals). A blurry photo or an unread ID is a
@@ -3134,6 +3143,17 @@ export default function VisitCreate() {
         </Box>
       )}
 
+      {hoursStatus.checked && !hoursStatus.allowed ? (
+        <Box sx={{ mt: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {hoursStatus.error || 'Visits cannot be logged right now.'}
+          </Alert>
+          <Button variant="outlined" startIcon={<BackIcon />} onClick={() => navigate(isMobileContext ? '/agent/visits' : '/field-operations/visits')}>
+            Go back
+          </Button>
+        </Box>
+      ) : (
+      <>
       {/* Compact stepper on mobile to prevent overflow */}
       <Stepper
         activeStep={activeStep}
@@ -3246,6 +3266,8 @@ export default function VisitCreate() {
           </Button>
         )}
       </Paper>
+      </>
+      )}
     </Box>
   )
 }
