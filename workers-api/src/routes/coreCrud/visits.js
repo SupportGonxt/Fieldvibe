@@ -479,6 +479,27 @@ app.post('/visits/check-store-revisit', authMiddleware, async (c) => {
   return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
 });
 
+// Check whether a store name matches a company's imported "existing customer" list
+// (e.g. Diplomat's calling base of already-serviced stores). Such stores should not
+// be surveyed again under that company's questionnaire. Only blocks when the given
+// company has an existing-customer list loaded — a no-op for every other company.
+app.post('/visits/check-existing-customer', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { company_id, customer_name } = body;
+  if (!company_id || !customer_name) return c.json({ is_existing: false });
+  const normalized = String(customer_name).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!normalized) return c.json({ is_existing: false });
+  const match = await db.prepare(
+    'SELECT customer_name FROM company_existing_customers WHERE tenant_id = ? AND company_id = ? AND normalized_name = ?'
+  ).bind(tenantId, company_id, normalized).first();
+  if (match) {
+    return c.json({ is_existing: true, matched_name: match.customer_name, message: `This is an existing customer (${match.customer_name}) and cannot be visited.` });
+  }
+  return c.json({ is_existing: false });
+});
+
 // Check for duplicate individual (ID number, phone, or goldrush player ID)
 app.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
   const db = c.env.DB;

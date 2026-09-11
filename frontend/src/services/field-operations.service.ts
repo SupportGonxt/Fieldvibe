@@ -1193,6 +1193,13 @@ class FieldOperationsService extends ApiService {
     return response.data || response
   }
 
+  // Check whether a store name matches a company's imported "existing customer" list
+  // (e.g. Diplomat's calling base) — a no-op for companies with no such list loaded
+  async checkExistingCustomer(companyId: string, customerName: string) {
+    const response = await this.post('/visits/check-existing-customer', { company_id: companyId, customer_name: customerName })
+    return response.data || response
+  }
+
   // Check for duplicate individual (ID number, phone, or goldrush player ID)
   async checkIndividualDuplicate(data: { id_number?: string; phone?: string; goldrush_id?: string }) {
     const response = await this.post('/visits/check-individual-duplicate', data)

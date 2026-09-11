@@ -255,7 +255,10 @@ export default function VisitCreate() {
   // Track which company+visitType combo has had custom data loaded to avoid redundant fetches
   const loadedCustomDataKeyRef = useRef<string>('')
   const loadDetailsInvocationRef = useRef(0)
-  const [customersLoaded, setCustomersLoaded] = useState(false)
+  // Which company's store list is currently loaded into `customers` — re-fetches
+  // when the agent switches company so one company's stores (e.g. Goldrush) never
+  // leak into another's search results (e.g. Diplomat).
+  const [customersLoadedForCompany, setCustomersLoadedForCompany] = useState<string>('')
 
   // Dynamic process flow steps from backend
   const [processFlowSteps, setProcessFlowSteps] = useState<ProcessFlowStep[]>([])
@@ -307,6 +310,7 @@ export default function VisitCreate() {
   const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
   const [customQuestionValues, setCustomQuestionValues] = useState<Record<string, string>>({})
   const [storeRevisitCheck, setStoreRevisitCheck] = useState<{ can_visit: boolean; message: string; days_since?: number } | null>(null)
+  const [existingCustomerCheck, setExistingCustomerCheck] = useState<{ is_existing: boolean; message?: string; matched_name?: string } | null>(null)
   const [duplicateCheck, setDuplicateCheck] = useState<{ has_duplicates: boolean; duplicates: Array<{ field: string; value: string }> } | null>(null)
   const [newStoreDialogOpen, setNewStoreDialogOpen] = useState(false)
   const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '', contact_person: '', contact_phone: '' })
@@ -589,7 +593,7 @@ export default function VisitCreate() {
     const vType = visitTargetType || undefined
     const dataKey = `${cid}|${vType}`
     // Skip if already loaded for this company+visitType combo
-    if (loadedCustomDataKeyRef.current === dataKey && customersLoaded) return
+    if (loadedCustomDataKeyRef.current === dataKey && customersLoadedForCompany === cid) return
     loadedCustomDataKeyRef.current = dataKey
     const invocationId = ++loadDetailsInvocationRef.current
 
@@ -617,8 +621,8 @@ export default function VisitCreate() {
       promises.push(withTimeout(() => loadSurveyConfig(cid), 'loadSurveyConfig'))
       promises.push(withTimeout(() => loadQuestionnaires(cid), 'loadQuestionnaires'))
     }
-    if (!customersLoaded) {
-      promises.push(withTimeout(() => loadCustomersData(), 'loadCustomersData'))
+    if (customersLoadedForCompany !== cid) {
+      promises.push(withTimeout(() => loadCustomersData(cid), 'loadCustomersData'))
     }
     await Promise.all(promises)
 
@@ -629,25 +633,27 @@ export default function VisitCreate() {
     }
   }
 
-  // Load customers/stores — called lazily when approaching details step
-  const loadCustomersData = async () => {
+  // Load customers/stores — called lazily when approaching details step.
+  // Scoped to `companyId` via /agent/store-search's company_id filter (only
+  // stores previously visited under that company, plus any this session just
+  // created) so one company's stores never leak into another's search results
+  // — e.g. an agent doing a Diplomat visit should never see Goldrush stores.
+  const loadCustomersData = async (companyId?: string) => {
+    const cid = companyId || selectedCompany
     try {
-      if (isMobileContext) {
-        try {
-          const storeRes = await apiClient.get('/agent/store-search?limit=200')
-          const storeData = storeRes?.data?.data || storeRes?.data || []
-          setCustomers(Array.isArray(storeData) ? storeData : [])
-        } catch {
-          const customersRes = await fieldOperationsService.getCustomers()
-          const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
-          setCustomers(Array.isArray(customersData) ? customersData : [])
-        }
-      } else {
+      const params = new URLSearchParams({ limit: '200' })
+      if (cid) params.set('company_id', cid)
+      try {
+        const storeRes = await apiClient.get(`/agent/store-search?${params.toString()}`)
+        const storeData = storeRes?.data?.data || storeRes?.data || []
+        setCustomers(Array.isArray(storeData) ? storeData : [])
+      } catch {
+        // Fall back to the unfiltered customer list if store-search is unavailable
         const customersRes = await fieldOperationsService.getCustomers()
         const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
         setCustomers(Array.isArray(customersData) ? customersData : [])
       }
-      setCustomersLoaded(true)
+      setCustomersLoadedForCompany(cid)
     } catch (err) {
       console.error('Failed to load customers:', err)
     }
@@ -842,6 +848,24 @@ export default function VisitCreate() {
       return res
     } catch (err) {
       console.error('Failed to check store revisit:', err)
+      return null
+    }
+  }
+
+  // Check the store name against the visit's company's imported "existing
+  // customer" list (e.g. Diplomat's calling base) — a no-op for companies
+  // with no such list loaded.
+  const checkExistingCustomer = async (customerName: string) => {
+    if (!selectedCompany || !customerName?.trim()) {
+      setExistingCustomerCheck(null)
+      return null
+    }
+    try {
+      const res = await fieldOperationsService.checkExistingCustomer(selectedCompany, customerName.trim())
+      setExistingCustomerCheck(res)
+      return res
+    } catch (err) {
+      console.error('Failed to check existing customer:', err)
       return null
     }
   }
@@ -1233,6 +1257,7 @@ export default function VisitCreate() {
         if (visitTargetType === 'store') {
           if (!selectedCustomer && !newStoreName) return false
           if (selectedCustomer && storeRevisitCheck && !storeRevisitCheck.can_visit) return false
+          if (existingCustomerCheck?.is_existing) return false
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
           }
@@ -1403,6 +1428,19 @@ export default function VisitCreate() {
             }
             setError('Duplicate individual detected. ID number and phone must be unique.')
             return
+          }
+        }
+        // Existing-customer check: blocks stores already on the visit's company's
+        // imported "existing customer" list (e.g. Diplomat's calling base). Covers
+        // both a selected customer and a freshly-typed store name.
+        if (visitTargetType === 'store' && selectedCompany) {
+          const storeName = selectedCustomer ? (customers.find(c => c.id === selectedCustomer)?.name || '') : newStoreName
+          if (storeName) {
+            const existing = await checkExistingCustomer(storeName)
+            if (existing?.is_existing) {
+              setError(existing.message || 'This is an existing customer and cannot be visited.')
+              return
+            }
           }
         }
         // GPS radius check: only enforced for store revisits, not for new individual visits
@@ -1876,15 +1914,20 @@ export default function VisitCreate() {
                     setSelectedCustomer('')
                     setNewStoreName(newValue)
                     setStoreRevisitCheck(null)
+                    setExistingCustomerCheck(null)
+                    await checkExistingCustomer(newValue)
                   } else if (newValue) {
                     setSelectedCustomer(newValue.id)
                     setNewStoreName('')
                     setStoreRevisitCheck(null)
+                    setExistingCustomerCheck(null)
                     await checkStoreRevisit(newValue.id)
+                    await checkExistingCustomer(newValue.name || newValue.business_name || '')
                   } else {
                     setSelectedCustomer('')
                     setNewStoreName('')
                     setStoreRevisitCheck(null)
+                    setExistingCustomerCheck(null)
                   }
                 }}
                 onInputChange={(_e, value, reason) => {
@@ -1957,6 +2000,14 @@ export default function VisitCreate() {
                     setSavingNewStore(true)
                     setNewStoreFormError('')
                     try {
+                      if (selectedCompany) {
+                        const existing = await checkExistingCustomer(newStoreForm.name.trim())
+                        if (existing?.is_existing) {
+                          setNewStoreFormError(existing.message || 'This is an existing customer and cannot be visited.')
+                          setSavingNewStore(false)
+                          return
+                        }
+                      }
                       const res = await apiClient.post('/customers', {
                         name: newStoreForm.name.trim(),
                         address: newStoreForm.address.trim() || undefined,
@@ -2001,6 +2052,13 @@ export default function VisitCreate() {
             {storeRevisitCheck?.can_visit && (
               <Alert severity="success" sx={{ mt: 2 }}>
                 <Typography variant="body2">{storeRevisitCheck.message}</Typography>
+              </Alert>
+            )}
+
+            {existingCustomerCheck?.is_existing && (
+              <Alert severity="error" sx={{ mt: 2 }} icon={<WarningIcon />}>
+                <Typography variant="body2" fontWeight="bold">Visit Blocked!</Typography>
+                <Typography variant="body2">{existingCustomerCheck.message}</Typography>
               </Alert>
             )}
           </>
