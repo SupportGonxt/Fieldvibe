@@ -1187,9 +1187,10 @@ class FieldOperationsService extends ApiService {
 
   // ==================== VISIT WORKFLOW ====================
 
-  // Check if a store was visited within the last 30 days
-  async checkStoreRevisit(customerId: string) {
-    const response = await this.post('/visits/check-store-revisit', { customer_id: customerId })
+  // Check if a store was visited within the company's revisit cooldown (30 days
+  // by default — a company can override or disable it via revisit_cooldown_days)
+  async checkStoreRevisit(customerId: string, companyId?: string) {
+    const response = await this.post('/visits/check-store-revisit', { customer_id: customerId, company_id: companyId })
     return response.data || response
   }
 

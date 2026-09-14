@@ -859,7 +859,7 @@ export default function VisitCreate() {
   // Check store revisit when customer selected
   const checkStoreRevisit = async (customerId: string) => {
     try {
-      const res = await fieldOperationsService.checkStoreRevisit(customerId)
+      const res = await fieldOperationsService.checkStoreRevisit(customerId, selectedCompany || undefined)
       setStoreRevisitCheck(res)
       return res
     } catch (err) {

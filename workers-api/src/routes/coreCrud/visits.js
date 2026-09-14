@@ -466,15 +466,30 @@ app.post('/visits/check-store-revisit', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  const { customer_id } = body;
+  const { customer_id, company_id } = body;
   if (!customer_id) return c.json({ error: 'customer_id is required' }, 400);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // The 30-day cooldown is a default, not a universal rule — a company can
+  // override it (e.g. prospecting flows that need frequent follow-ups on a
+  // newly-added store). 0 or negative disables the cooldown entirely.
+  let cooldownDays = 30;
+  if (company_id) {
+    const company = await db.prepare('SELECT revisit_cooldown_days FROM field_companies WHERE id = ? AND tenant_id = ?').bind(company_id, tenantId).first();
+    if (company && company.revisit_cooldown_days !== null && company.revisit_cooldown_days !== undefined) {
+      cooldownDays = company.revisit_cooldown_days;
+    }
+  }
+  if (cooldownDays <= 0) {
+    return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
+  }
+
+  const cooldownStart = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const recentVisit = await db.prepare(
     "SELECT id, visit_date, agent_id FROM visits WHERE tenant_id = ? AND customer_id = ? AND visit_date >= ? AND status != 'cancelled' ORDER BY visit_date DESC LIMIT 1"
-  ).bind(tenantId, customer_id, thirtyDaysAgo).first();
+  ).bind(tenantId, customer_id, cooldownStart).first();
   if (recentVisit) {
     const daysSince = Math.floor((Date.now() - new Date(recentVisit.visit_date).getTime()) / (1000 * 60 * 60 * 24));
-    return c.json({ can_visit: false, last_visit: recentVisit, days_since: daysSince, message: `This store was visited ${daysSince} day(s) ago. Must wait 30 days between visits.` });
+    return c.json({ can_visit: false, last_visit: recentVisit, days_since: daysSince, message: `This store was visited ${daysSince} day(s) ago. Must wait ${cooldownDays} days between visits.` });
   }
   return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
 });

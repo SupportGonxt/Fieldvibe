@@ -79,7 +79,7 @@ export default function ProductAuditQuestion({ label, products, required, value,
   const repsWhyNotOk = draft.reps !== 'No' || !!draft.reps_why_not.trim()
   const deliverySourceOk = draft.delivery !== 'No' || !!draft.delivery_source.trim()
   const canAdd = !!draft.product && !!draft.stock && !!draft.reps && !!draft.delivery
-    && whyNotOk && similarOk && repsWhyNotOk && deliverySourceOk && !!draft.comments.trim()
+    && whyNotOk && similarOk && repsWhyNotOk && deliverySourceOk
 
   const handleAdd = () => {
     if (!canAdd) return
@@ -189,8 +189,8 @@ export default function ProductAuditQuestion({ label, products, required, value,
               )}
 
               <TextField
-                fullWidth multiline required rows={2} size="small" sx={{ mb: 2 }}
-                label="Other comments *"
+                fullWidth multiline rows={2} size="small" sx={{ mb: 2 }}
+                label="Other comments"
                 value={draft.comments}
                 onChange={(e) => setDraft(d => ({ ...d, comments: e.target.value }))}
               />
