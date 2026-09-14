@@ -56,11 +56,19 @@ crons = [
 # ─────────────────────────────────────────
 [env.preview]
 name = "fieldvibe-api-preview"
-vars = { ENVIRONMENT = "preview", VAPID_PUBLIC_KEY = "BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw", VAPID_SUBJECT = "mailto:reshigan@vantax.co.za", SCAN_BASE_URL = "https://fieldvibe-api-preview.vantax.co.za" }
+vars = { ENVIRONMENT = "preview", VAPID_PUBLIC_KEY = "BNQWng5ttmLgZjLwv5TOhSjxE9lmo6nEduZnJlt6ZAfX00qmv5HxFaL6ybvwvdc7bCLcUmPGR617IZK0Ai4lYRw", VAPID_SUBJECT = "mailto:reshigan@vantax.co.za", SCAN_BASE_URL = "https://fieldvibe-api-preview.vantax.co.za", MICROSOFT_TENANT_ID = "998b123c-e559-479d-bbb9-cf3330469a73", MICROSOFT_CLIENT_ID = "166236c5-34d7-42fa-b1bc-3ed62ea77211", EMAIL_FROM = "no-reply@gonxt.tech", EMAIL_RECIPIENTS = "tendani@gonxt.tech" }
 
 routes = [
   { pattern = "fieldvibe-api-preview.vantax.co.za/*", zone_name = "vantax.co.za" }
 ]
+
+# Goldrush team-cockpit digest only — testing in dev/preview before this runs in
+# production. Preview has no [env.preview.triggers] otherwise, so none of the
+# root [triggers] crons (GM digest, inactivity nudges, etc.) fire here today;
+# these two ticks exist solely to drive sendGoldrushTeamCockpitDigest at
+# 07:00 / 19:00 SAST (05:00 / 17:00 UTC — see index.js's scheduled handler).
+[env.preview.triggers]
+crons = ["0 5 * * *", "0 17 * * *"]
 
 [env.preview.ai]
 binding = "AI"

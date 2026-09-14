@@ -46,6 +46,7 @@ import activationsPosmRoutes from './routes/activationsPosm.js';
 import adminOpsRoutes from './routes/adminOps.js';
 // Cron jobs (invoked by the scheduled handler)
 import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, syncUserActiveFlags, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
+import { sendGoldrushTeamCockpitDigest } from './cron/teamCockpitDigest.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -342,6 +343,8 @@ export default {
     if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
     // GM daily digest, 06:00 / 12:00 / 18:00 SAST.
     if (sastHour === 6 || sastHour === 12 || sastHour === 18) await generateGmDigest(env);
+    // Goldrush team-cockpit digest (team leads + agents, roster signals), 07:00 / 19:00 SAST.
+    if (sastHour === 7 || sastHour === 19) await sendGoldrushTeamCockpitDigest(env, sastHour === 7 ? 'Morning' : 'Evening');
     // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
     if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
