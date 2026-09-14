@@ -103,28 +103,37 @@ async function buildDigestHtml(db, tenantId, companyId, slotLabel, dateStr) {
   </div>`;
 }
 
-export async function sendGoldrushTeamCockpitDigest(env, slotLabel) {
+// options.tenantId restricts the run to one tenant (the manual admin trigger, scoped to
+// the requesting admin's own tenant) instead of every tenant with team leads (the cron).
+// Returns a per-tenant status list — the manual trigger surfaces it directly so "nothing
+// arrived" can be diagnosed (no Goldrush company vs. no kpi.agent config vs. a send failure)
+// without needing DB access.
+export async function sendGoldrushTeamCockpitDigest(env, slotLabel, { tenantId: onlyTenantId } = {}) {
   const db = env.DB;
   const recipients = (env.EMAIL_RECIPIENTS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (!recipients.length) return;
+  if (!recipients.length) return [{ tenantId: onlyTenantId || null, status: 'skipped', reason: 'EMAIL_RECIPIENTS not configured' }];
   const dateStr = new Date().toISOString().slice(0, 10);
-  const tenants = (await db.prepare(
-    "SELECT DISTINCT tenant_id FROM users WHERE role = 'team_lead' AND is_active = 1"
-  ).all()).results ?? [];
+  const tenants = onlyTenantId
+    ? [{ tenant_id: onlyTenantId }]
+    : (await db.prepare("SELECT DISTINCT tenant_id FROM users WHERE role = 'team_lead' AND is_active = 1").all()).results ?? [];
 
+  const results = [];
   for (const { tenant_id: tenantId } of tenants) {
     try {
       const companyId = await resolveReportCompanyId(db, tenantId, null);
-      if (!companyId) continue; // no Goldrush company for this tenant
+      if (!companyId) { results.push({ tenantId, status: 'skipped', reason: 'no Goldrush company found for this tenant' }); continue; }
       const html = await buildDigestHtml(db, tenantId, companyId, slotLabel, dateStr);
-      if (!html) continue;
+      if (!html) { results.push({ tenantId, status: 'skipped', reason: 'no kpi.agent config, or no team leads/agents linked to Goldrush' }); continue; }
       await sendEmailViaGraph(env, {
         to: recipients,
         subject: `Goldrush team cockpit — ${slotLabel} — ${dateStr}`,
         html,
       });
+      results.push({ tenantId, status: 'sent', to: recipients });
     } catch (e) {
       console.error(`sendGoldrushTeamCockpitDigest error for tenant ${tenantId}:`, e);
+      results.push({ tenantId, status: 'failed', error: String(e?.message || e).slice(0, 300) });
     }
   }
+  return results;
 }
