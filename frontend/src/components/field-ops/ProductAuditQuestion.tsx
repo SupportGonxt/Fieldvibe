@@ -11,13 +11,14 @@ export interface ProductAuditEntry {
   why_not: string
   similar: string
   reps: 'Yes' | 'No' | ''
+  reps_why_not: string
   delivery: 'Yes' | 'No' | ''
   delivery_source: string
   comments: string
 }
 
 const EMPTY_DRAFT: Omit<ProductAuditEntry, 'stock'> & { stock: 'Yes' | 'No' | '' } = {
-  product: '', stock: '', why_not: '', similar: '', reps: '', delivery: '', delivery_source: '', comments: '',
+  product: '', stock: '', why_not: '', similar: '', reps: '', reps_why_not: '', delivery: '', delivery_source: '', comments: '',
 }
 
 function parseEntries(value: string | undefined): ProductAuditEntry[] {
@@ -71,7 +72,14 @@ export default function ProductAuditQuestion({ label, products, required, value,
   const addedProducts = new Set(entries.map(e => e.product))
   const availableProducts = products.filter(p => !addedProducts.has(p))
 
-  const canAdd = !!draft.product && !!draft.stock
+  // Every question for the current product must be answered before it can be
+  // added — conditional follow-ups only count when their trigger question is No.
+  const whyNotOk = draft.stock !== 'No' || !!draft.why_not.trim()
+  const similarOk = draft.stock !== 'No' || !!draft.similar.trim()
+  const repsWhyNotOk = draft.reps !== 'No' || !!draft.reps_why_not.trim()
+  const deliverySourceOk = draft.delivery !== 'No' || !!draft.delivery_source.trim()
+  const canAdd = !!draft.product && !!draft.stock && !!draft.reps && !!draft.delivery
+    && whyNotOk && similarOk && repsWhyNotOk && deliverySourceOk && !!draft.comments.trim()
 
   const handleAdd = () => {
     if (!canAdd) return
@@ -81,6 +89,7 @@ export default function ProductAuditQuestion({ label, products, required, value,
       why_not: draft.stock === 'No' ? draft.why_not : '',
       similar: draft.stock === 'No' ? draft.similar : '',
       reps: draft.reps,
+      reps_why_not: draft.reps === 'No' ? draft.reps_why_not : '',
       delivery: draft.delivery,
       delivery_source: draft.delivery === 'No' ? draft.delivery_source : '',
       comments: draft.comments,
@@ -93,15 +102,18 @@ export default function ProductAuditQuestion({ label, products, required, value,
     onChange(JSON.stringify(entries.filter(e => e.product !== product)))
   }
 
-  const missingRequired = !!required && entries.length === 0
+  const missingRequired = !!required && entries.length < products.length
 
   return (
     <Box sx={{ mb: 3 }}>
       <Typography variant="body1" fontWeight="bold" sx={{ mb: 1 }}>
         {label}{required ? ' *' : ''}
       </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        {entries.length} of {products.length} products added
+      </Typography>
       {showValidation && missingRequired && (
-        <FormHelperText error sx={{ mb: 1 }}>At least one product must be added</FormHelperText>
+        <FormHelperText error sx={{ mb: 1 }}>All {products.length} products must be added — {products.length - entries.length} remaining</FormHelperText>
       )}
 
       {entries.length > 0 && (
@@ -135,18 +147,18 @@ export default function ProductAuditQuestion({ label, products, required, value,
 
           {draft.product && (
             <>
-              <YesNoToggle label="Do you currently stock this product?" value={draft.stock} onChange={(v) => setDraft(d => ({ ...d, stock: v }))} />
+              <YesNoToggle label="Do you currently stock this product? *" value={draft.stock} onChange={(v) => setDraft(d => ({ ...d, stock: v }))} />
 
               {draft.stock === 'No' && (
                 <>
                   <TextField
-                    fullWidth multiline rows={2} size="small" sx={{ mb: 2 }}
+                    fullWidth multiline required rows={2} size="small" sx={{ mb: 2 }}
                     label="If No, why not?"
                     value={draft.why_not}
                     onChange={(e) => setDraft(d => ({ ...d, why_not: e.target.value }))}
                   />
                   <TextField
-                    fullWidth multiline rows={2} size="small" sx={{ mb: 2 }}
+                    fullWidth multiline required rows={2} size="small" sx={{ mb: 2 }}
                     label="What similar product do you stock instead?"
                     value={draft.similar}
                     onChange={(e) => setDraft(d => ({ ...d, similar: e.target.value }))}
@@ -154,12 +166,22 @@ export default function ProductAuditQuestion({ label, products, required, value,
                 </>
               )}
 
-              <YesNoToggle label="Does a rep visit you for this product?" value={draft.reps} onChange={(v) => setDraft(d => ({ ...d, reps: v }))} />
-              <YesNoToggle label="Do you get delivery for this product?" value={draft.delivery} onChange={(v) => setDraft(d => ({ ...d, delivery: v }))} />
+              <YesNoToggle label="Does a rep visit you for this product? *" value={draft.reps} onChange={(v) => setDraft(d => ({ ...d, reps: v }))} />
+
+              {draft.reps === 'No' && (
+                <TextField
+                  fullWidth multiline required rows={2} size="small" sx={{ mb: 2 }}
+                  label="If No, why doesn't a rep visit you?"
+                  value={draft.reps_why_not}
+                  onChange={(e) => setDraft(d => ({ ...d, reps_why_not: e.target.value }))}
+                />
+              )}
+
+              <YesNoToggle label="Do you get delivery for this product? *" value={draft.delivery} onChange={(v) => setDraft(d => ({ ...d, delivery: v }))} />
 
               {draft.delivery === 'No' && (
                 <TextField
-                  fullWidth multiline rows={2} size="small" sx={{ mb: 2 }}
+                  fullWidth multiline required rows={2} size="small" sx={{ mb: 2 }}
                   label="If No delivery, where do you get stock from?"
                   value={draft.delivery_source}
                   onChange={(e) => setDraft(d => ({ ...d, delivery_source: e.target.value }))}
@@ -167,18 +189,21 @@ export default function ProductAuditQuestion({ label, products, required, value,
               )}
 
               <TextField
-                fullWidth multiline rows={2} size="small" sx={{ mb: 2 }}
-                label="Other comments"
+                fullWidth multiline required rows={2} size="small" sx={{ mb: 2 }}
+                label="Other comments *"
                 value={draft.comments}
                 onChange={(e) => setDraft(d => ({ ...d, comments: e.target.value }))}
               />
 
               <Divider sx={{ mb: 2 }} />
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 <Button variant="outlined" size="small" onClick={() => setDraft(EMPTY_DRAFT)}>Cancel</Button>
                 <Button variant="contained" size="small" startIcon={<AddIcon />} disabled={!canAdd} onClick={handleAdd}>
                   Add Product
                 </Button>
+                {!canAdd && (
+                  <Typography variant="caption" color="text.secondary">Answer every question above to add this product</Typography>
+                )}
               </Box>
             </>
           )}

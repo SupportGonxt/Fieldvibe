@@ -176,6 +176,21 @@ const isGoldrushIdKey = (key: string) => {
   return k.replace(/[^a-z0-9]/g, '').includes('goldrushid') && !k.includes('rejected')
 }
 
+// A 'product_audit' question's answer is a JSON array of per-product entries
+// that grows one product at a time — "answered" means every product in its
+// dropdown list has been added, not just that the value is non-empty (which
+// would be true after only the first product).
+const isCustomQuestionAnswered = (q: CustomQuestion, value: string | undefined): boolean => {
+  if (q.field_type === 'product_audit') {
+    let productCount = 0
+    try { productCount = q.field_options ? (JSON.parse(q.field_options) as string[]).length : 0 } catch { productCount = 0 }
+    let entryCount = 0
+    try { entryCount = value ? (JSON.parse(value) as unknown[]).length : 0 } catch { entryCount = 0 }
+    return productCount > 0 && entryCount >= productCount
+  }
+  return !!value
+}
+
 // The Consumer Name / Consumer Surname company questions are pre-filled from the
 // same photo extraction, but stay editable — OCR of a photographed screen can
 // misread a name and the agent must be able to correct it.
@@ -1249,7 +1264,7 @@ export default function VisitCreate() {
               // Read-only — filled from the system photo captured earlier; may be
               // legitimately empty when the ID was unreadable and acknowledged
               if (isGoldrushIdKey(q.question_key)) continue
-              if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (q.is_required && !isCustomQuestionAnswered(q, customQuestionValues[q.question_key])) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
             }
           }
@@ -1265,7 +1280,7 @@ export default function VisitCreate() {
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
               if (isGoldrushIdKey(q.question_key)) continue
-              if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (q.is_required && !isCustomQuestionAnswered(q, customQuestionValues[q.question_key])) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
             }
           }
@@ -1316,7 +1331,7 @@ export default function VisitCreate() {
         for (const q of customQuestions) {
           // Hidden — filled from the photo on the (later) photo step
           if (isGoldrushIdKey(q.question_key)) continue
-          if (q.is_required && !customQuestionValues[q.question_key]) return false
+          if (q.is_required && !isCustomQuestionAnswered(q, customQuestionValues[q.question_key])) return false
         }
         return true
       }
