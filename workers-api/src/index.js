@@ -345,6 +345,8 @@ export default {
     if (sastHour === 6 || sastHour === 12 || sastHour === 18) await generateGmDigest(env);
     // Goldrush team-cockpit digest (team leads + agents, roster signals), 07:00 / 19:00 SAST.
     if (sastHour === 7 || sastHour === 19) await sendGoldrushTeamCockpitDigest(env, sastHour === 7 ? 'Morning' : 'Evening');
+    // One-off live test tick — 14:45 SAST — remove once the digest is confirmed working end-to-end.
+    if (sastHour === 14 && now.getUTCMinutes() === 45) await sendGoldrushTeamCockpitDigest(env, 'Test');
     // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
     if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
