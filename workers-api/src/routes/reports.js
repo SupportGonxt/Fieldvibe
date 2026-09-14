@@ -1015,6 +1015,47 @@ app.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
+// Questions + answers for a single visit's company custom questions (the
+// "Actions -> View" button on the stores Detail Report table). Generic across
+// companies: resolves question_key -> question_label/field_type from
+// company_custom_questions so the UI never has to guess at raw key names.
+app.get('/field-ops/reports/visit-answers/:visitId', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const visitId = c.req.param('visitId');
+    const visit = await db.prepare('SELECT id, company_id FROM visits WHERE id = ? AND tenant_id = ?').bind(visitId, tenantId).first();
+    if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
+
+    const responseRow = await db.prepare(
+      "SELECT responses FROM visit_responses WHERE visit_id = ? AND tenant_id = ? AND visit_type = 'store_custom_questions' LIMIT 1"
+    ).bind(visitId, tenantId).first();
+    let answers = {};
+    try { answers = responseRow?.responses ? JSON.parse(responseRow.responses) : {}; } catch { answers = {}; }
+
+    let questions = [];
+    if (visit.company_id) {
+      const qs = await db.prepare(
+        'SELECT question_key, question_label, field_type FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? ORDER BY display_order'
+      ).bind(tenantId, visit.company_id).all();
+      questions = qs.results || [];
+    }
+
+    const knownKeys = new Set(questions.map(q => q.question_key));
+    const items = questions
+      .filter(q => answers[q.question_key] !== undefined && answers[q.question_key] !== null && answers[q.question_key] !== '')
+      .map(q => ({ question_label: q.question_label, field_type: q.field_type, question_key: q.question_key, answer: answers[q.question_key] }));
+    // Answered keys with no matching (e.g. deactivated/renamed) question definition
+    for (const [key, val] of Object.entries(answers)) {
+      if (knownKeys.has(key)) continue;
+      if (val === undefined || val === null || val === '') continue;
+      items.push({ question_label: key, field_type: 'text', question_key: key, answer: val });
+    }
+
+    return c.json({ success: true, data: items });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
 // ==================== GOLDRUSH INSIGHTS (aggregated for client-grade reports) ====================
 // Two endpoints: one for individuals (consumers), one for stores. Both run on top
 // of the same data the existing /goldrush-individuals and /goldrush-stores pages

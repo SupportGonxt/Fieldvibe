@@ -8,7 +8,7 @@ import DateRangePresets from '../../../components/ui/DateRangePresets'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts'
 import {
   Download, FileDown, Store, ExternalLink, Sparkles, RefreshCw,
-  Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Loader2, Upload,
+  Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Loader2, Upload, Eye,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
@@ -306,6 +306,17 @@ export default function StoreInsights() {
   const [migrating, setMigrating] = useState(false)
   const [migrationStatus, setMigrationStatus] = useState('')
   const [detailVisit, setDetailVisit] = useState<StellrVisit | null>(null)
+  const [answersVisit, setAnswersVisit] = useState<GoldrushStore | null>(null)
+
+  interface VisitAnswer { question_label: string; field_type: string; question_key: string; answer: unknown }
+  const { data: visitAnswers = [], isLoading: answersLoading } = useQuery({
+    queryKey: ['visit-answers', answersVisit?.id],
+    queryFn: async () => {
+      const res = await apiClient.get(`/field-ops/reports/visit-answers/${answersVisit!.id}`)
+      return (res.data?.data || []) as VisitAnswer[]
+    },
+    enabled: !!answersVisit,
+  })
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -873,11 +884,12 @@ export default function StoreInsights() {
                         ))}
                         {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">AI Analysis</th>}
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Visit Date</th>
+                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.length === 0 ? (
-                        <tr><td colSpan={(isDiplomat ? 4 : 10) + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No store records found' : 'No records match your search'}</td></tr>
+                        <tr><td colSpan={(isDiplomat ? 5 : 11) + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No store records found' : 'No records match your search'}</td></tr>
                       ) : filtered.map((store) => (
                         <tr key={store.id} className="group border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="py-3 px-4">
@@ -953,6 +965,11 @@ export default function StoreInsights() {
                             </td>
                           )}
                           <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">{store.visit_date ? new Date(store.visit_date).toLocaleDateString() : '—'}</td>
+                          <td className="py-3 px-4">
+                            <button onClick={() => setAnswersVisit(store)} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">
+                              <Eye className="w-3.5 h-3.5" /> View
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1069,6 +1086,76 @@ export default function StoreInsights() {
                 <button onClick={() => { const id = detailVisit.id; setDetailVisit(null); handleViewPhotos(id); }} className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg">View All Photos</button>
               )}
               <button onClick={() => setDetailVisit(null)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visit Questions & Answers Modal */}
+      {answersVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setAnswersVisit(null)}>
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{answersVisit.store_name}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{answersVisit.store_address} · {answersVisit.visit_date ? new Date(answersVisit.visit_date).toLocaleDateString() : '—'}</p>
+              </div>
+              <button onClick={() => setAnswersVisit(null)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {answersLoading ? (
+                <div className="flex justify-center py-8"><LoadingSpinner /></div>
+              ) : visitAnswers.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No questionnaire answers recorded for this visit.</p>
+              ) : (
+                visitAnswers.map(item => {
+                  if (item.field_type === 'product_audit') {
+                    let entries: Array<Record<string, string>> = []
+                    try { entries = typeof item.answer === 'string' ? JSON.parse(item.answer) : (Array.isArray(item.answer) ? item.answer as any : []) } catch { entries = [] }
+                    return (
+                      <div key={item.question_key}>
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{item.question_label}</h4>
+                        <div className="space-y-3">
+                          {entries.map((e, i) => (
+                            <div key={i} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="font-medium text-gray-900 dark:text-white text-sm">{e.product}</span>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${e.stock === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>Stock: {e.stock}</span>
+                              </div>
+                              <div className="space-y-1 text-xs">
+                                {e.why_not && <div><span className="text-gray-400">Why not:</span> <span className="text-gray-700 dark:text-gray-300">{e.why_not}</span></div>}
+                                {e.similar && <div><span className="text-gray-400">Similar product:</span> <span className="text-gray-700 dark:text-gray-300">{e.similar}</span></div>}
+                                {e.reps && <div><span className="text-gray-400">Rep visits:</span> <span className="text-gray-700 dark:text-gray-300">{e.reps}</span></div>}
+                                {e.reps_why_not && <div><span className="text-gray-400">Why no rep:</span> <span className="text-gray-700 dark:text-gray-300">{e.reps_why_not}</span></div>}
+                                {e.delivery && <div><span className="text-gray-400">Delivery:</span> <span className="text-gray-700 dark:text-gray-300">{e.delivery}</span></div>}
+                                {e.delivery_source && <div><span className="text-gray-400">Stock source:</span> <span className="text-gray-700 dark:text-gray-300">{e.delivery_source}</span></div>}
+                                {e.comments && <div><span className="text-gray-400">Comments:</span> <span className="text-gray-700 dark:text-gray-300">{e.comments}</span></div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (item.field_type === 'image') {
+                    return (
+                      <div key={item.question_key} className="flex justify-between text-sm border-b border-gray-50 dark:border-gray-700/50 pb-1">
+                        <span className="text-gray-500 dark:text-gray-400">{item.question_label}</span>
+                        <span className="text-gray-900 dark:text-white font-medium">[Photo attached]</span>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={item.question_key} className="flex justify-between text-sm border-b border-gray-50 dark:border-gray-700/50 pb-1">
+                      <span className="text-gray-500 dark:text-gray-400">{item.question_label}</span>
+                      <span className="text-gray-900 dark:text-white font-medium text-right ml-4">{String(item.answer)}</span>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button onClick={() => setAnswersVisit(null)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Close</button>
             </div>
           </div>
         </div>
