@@ -862,6 +862,7 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
 
       return {
         id: row.id,
+        customer_id: row.customer_id,
         visit_date: row.visit_date,
         status: row.status,
         store_name: row.store_name || 'Unknown Store',

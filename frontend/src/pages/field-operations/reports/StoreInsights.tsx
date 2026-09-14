@@ -86,6 +86,9 @@ export default function StoreInsights() {
   // Which report shape to render (Goldrush stores vs Stellr visits). There is no
   // schema flag for report type, so this is keyed off the selected company's name.
   const isStellr = !!selectedCompanyObj?.name?.toLowerCase().includes('stellr')
+  // Diplomat's questionnaire is a product-stock audit — it has no board/advertising/AI
+  // photo-analysis concept, so those Goldrush-shaped cards and columns don't apply.
+  const isDiplomat = !!selectedCompanyObj?.name?.toLowerCase().includes('diplomat')
 
   const [cfg, setCfg] = useState<any>(null)
   useEffect(() => {
@@ -808,7 +811,7 @@ export default function StoreInsights() {
             </>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-8 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${isDiplomat ? 'md:grid-cols-3' : 'md:grid-cols-8'}`}>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2 mb-2"><Store className="h-4 w-4 text-blue-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Store Visits</span></div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stores.length}</p>
@@ -821,31 +824,35 @@ export default function StoreInsights() {
                   <div className="flex items-center gap-2 mb-2"><RefreshCw className="h-4 w-4 text-orange-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Revisits</span></div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{revisitCount}</p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-green-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Has Advertising</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalWithAds}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-emerald-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Board Installed</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalBoardInstalled}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><XCircle className="h-4 w-4 text-amber-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Ad Coverage %</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{adRate.toFixed(1)}%</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-purple-500" /><span className="text-xs text-gray-500 dark:text-gray-400">AI Analyzed</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAiAnalyzed} <span className="text-sm font-normal text-gray-400">of {stores.length}</span></p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-sky-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Avg Share of Voice</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgSov.toFixed(1)}%</p>
-                </div>
+                {!isDiplomat && (
+                  <>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-green-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Has Advertising</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalWithAds}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-emerald-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Board Installed</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalBoardInstalled}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><XCircle className="h-4 w-4 text-amber-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Ad Coverage %</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{adRate.toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-purple-500" /><span className="text-xs text-gray-500 dark:text-gray-400">AI Analyzed</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAiAnalyzed} <span className="text-sm font-normal text-gray-400">of {stores.length}</span></p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-sky-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Avg Share of Voice</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgSov.toFixed(1)}%</p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by store, agent, Goldrush ID, stock source, or competitor..." className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400" />
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={isDiplomat ? 'Search by store or agent...' : 'Search by store, agent, Goldrush ID, stock source, or competitor...'} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400" />
               </div>
 
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
@@ -855,22 +862,22 @@ export default function StoreInsights() {
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Photo</th>
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Store</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Goldrush ID</th>
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Goldrush ID</th>}
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Agent</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock Source</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Advertising</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Board</th>
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock Source</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Advertising</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Board</th>}
                         {extraStoreColumns.map((col: any) => (
                           <th key={col.key} className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{col.label}</th>
                         ))}
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">AI Analysis</th>
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">AI Analysis</th>}
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Visit Date</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.length === 0 ? (
-                        <tr><td colSpan={10 + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No Goldrush store records found' : 'No records match your search'}</td></tr>
+                        <tr><td colSpan={(isDiplomat ? 4 : 10) + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No store records found' : 'No records match your search'}</td></tr>
                       ) : filtered.map((store) => (
                         <tr key={store.id} className="group border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="py-3 px-4">
@@ -887,56 +894,64 @@ export default function StoreInsights() {
                             )}
                           </td>
                           <td className="py-3 px-4 text-gray-900 dark:text-white font-medium whitespace-nowrap">{store.store_name}<div className="text-xs text-gray-400 font-normal">{store.store_address}</div></td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {editingId === store.id ? (
-                              <div className="flex items-center gap-1">
-                                <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)} className="w-28 px-2 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500" placeholder="Goldrush ID" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(store); if (e.key === 'Escape') handleCancelEdit(); }} />
-                                <button onClick={() => handleSaveGoldrushId(store)} disabled={saving} className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50" title="Save"><Save className="w-3.5 h-3.5" /></button>
-                                <button onClick={handleCancelEdit} className="p-1 text-gray-400 hover:text-gray-600" title="Cancel"><X className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <span className={`font-medium ${store.goldrush_id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>{store.goldrush_id || '—'}</span>
-                                <button onClick={() => handleEditGoldrushId(store)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Goldrush ID"><Edit2 className="w-3 h-3" /></button>
-                              </div>
-                            )}
-                          </td>
+                          {!isDiplomat && (
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {editingId === store.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)} className="w-28 px-2 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500" placeholder="Goldrush ID" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(store); if (e.key === 'Escape') handleCancelEdit(); }} />
+                                  <button onClick={() => handleSaveGoldrushId(store)} disabled={saving} className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50" title="Save"><Save className="w-3.5 h-3.5" /></button>
+                                  <button onClick={handleCancelEdit} className="p-1 text-gray-400 hover:text-gray-600" title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <span className={`font-medium ${store.goldrush_id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>{store.goldrush_id || '—'}</span>
+                                  <button onClick={() => handleEditGoldrushId(store)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Goldrush ID"><Edit2 className="w-3 h-3" /></button>
+                                </div>
+                              )}
+                            </td>
+                          )}
                           <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.agent_name || '—'}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.stock_source || '—'}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.competitors_in_store || '—'}</td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.has_advertising === 'Yes' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{store.has_advertising || 'No'}</span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.board_installed === 'Yes' || store.ai_board_detected ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                              {store.board_installed === 'Yes' ? 'Yes' : store.ai_board_detected ? 'Yes (AI)' : 'No'}
-                            </span>
-                          </td>
+                          {!isDiplomat && <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.stock_source || '—'}</td>}
+                          {!isDiplomat && <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.competitors_in_store || '—'}</td>}
+                          {!isDiplomat && (
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.has_advertising === 'Yes' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{store.has_advertising || 'No'}</span>
+                            </td>
+                          )}
+                          {!isDiplomat && (
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.board_installed === 'Yes' || store.ai_board_detected ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                {store.board_installed === 'Yes' ? 'Yes' : store.ai_board_detected ? 'Yes (AI)' : 'No'}
+                              </span>
+                            </td>
+                          )}
                           {extraStoreColumns.map((col: any) => (
                             <td key={col.key} className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{(store as any)[col.key] || '—'}</td>
                           ))}
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {store.ai_status === 'completed' ? (
-                              <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
-                                <div>Brand: <span className="font-medium">{store.ai_brand || '—'}</span></div>
-                                <div>Condition: {store.ai_condition || '—'}</div>
-                                <div>Visibility: {store.ai_visibility || '—'}</div>
-                                <div>SoV: {store.ai_share_of_voice != null ? `${store.ai_share_of_voice}%` : '—'}</div>
-                                <div>Type: {store.ai_board_type || '—'}</div>
-                                {store.ai_insights && store.ai_insights.length > 0 && (
-                                  <ul className="mt-1 list-disc list-inside text-gray-500 dark:text-gray-400">
-                                    {store.ai_insights.map((ins, i) => <li key={i}>{ins}</li>)}
-                                  </ul>
-                                )}
-                              </div>
-                            ) : store.ai_status === 'processing' ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Loader2 className="w-3 h-3 animate-spin" /> Processing…</span>
-                            ) : store.ai_status === 'failed' ? (
-                              <span className="text-xs text-red-600 font-medium">Failed</span>
-                            ) : (
-                              <span className="text-gray-400 text-xs">—</span>
-                            )}
-                          </td>
+                          {!isDiplomat && (
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {store.ai_status === 'completed' ? (
+                                <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
+                                  <div>Brand: <span className="font-medium">{store.ai_brand || '—'}</span></div>
+                                  <div>Condition: {store.ai_condition || '—'}</div>
+                                  <div>Visibility: {store.ai_visibility || '—'}</div>
+                                  <div>SoV: {store.ai_share_of_voice != null ? `${store.ai_share_of_voice}%` : '—'}</div>
+                                  <div>Type: {store.ai_board_type || '—'}</div>
+                                  {store.ai_insights && store.ai_insights.length > 0 && (
+                                    <ul className="mt-1 list-disc list-inside text-gray-500 dark:text-gray-400">
+                                      {store.ai_insights.map((ins, i) => <li key={i}>{ins}</li>)}
+                                    </ul>
+                                  )}
+                                </div>
+                              ) : store.ai_status === 'processing' ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Loader2 className="w-3 h-3 animate-spin" /> Processing…</span>
+                              ) : store.ai_status === 'failed' ? (
+                                <span className="text-xs text-red-600 font-medium">Failed</span>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </td>
+                          )}
                           <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">{store.visit_date ? new Date(store.visit_date).toLocaleDateString() : '—'}</td>
                         </tr>
                       ))}
