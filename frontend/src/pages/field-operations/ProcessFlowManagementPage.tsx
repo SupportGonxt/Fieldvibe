@@ -141,6 +141,7 @@ const FIELD_TYPES = [
   { value: 'date', label: 'Date' },
   { value: 'textarea', label: 'Long Text' },
   { value: 'image', label: 'Photo Upload' },
+  { value: 'product_audit', label: 'Product Audit (dropdown + repeatable questions)' },
 ]
 
 // ── Printable question form (blank answer spaces for agents to fill out) ──
@@ -1123,7 +1124,7 @@ function CustomQuestionsTab() {
     mutationFn: async () => {
       const payload = {
         ...form,
-        field_options: (form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox') ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
+        field_options: (form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox' || form.field_type === 'product_audit') ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
         is_required: form.is_required,
         check_duplicate: form.check_duplicate,
         min_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') ? (form.min_length ?? null) : null,
@@ -1384,7 +1385,7 @@ function CustomQuestionsTab() {
                 placeholder="Text"
               />
             </div>
-            {(form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox') && (
+            {(form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox' || form.field_type === 'product_audit') && (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Options (comma-separated)</label>
                 <input

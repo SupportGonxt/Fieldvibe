@@ -29,6 +29,7 @@ import {
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { QrImage } from '../../../components/field-ops/QrImage'
+import ProductAuditQuestion from '../../../components/field-ops/ProductAuditQuestion'
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 
 // Haversine distance between two GPS coordinates in meters
@@ -2139,8 +2140,17 @@ export default function VisitCreate() {
                 const goldrushLenError = isGoldrushId && val.length > 0 && val.length !== GOLDRUSH_ID_LENGTH
                 const goldrushDuplicate = isGoldrushId && (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id') || false)
                 return (
-                <Grid item xs={12} sm={6} key={q.id}>
-                  {isGoldrushIdKey(q.question_key) ? (
+                <Grid item xs={12} sm={q.field_type === 'product_audit' ? 12 : 6} key={q.id}>
+                  {q.field_type === 'product_audit' ? (
+                    <ProductAuditQuestion
+                      label={q.question_label}
+                      products={opts}
+                      required={!!q.is_required}
+                      value={customQuestionValues[q.question_key]}
+                      onChange={(v) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: v }))}
+                      showValidation={showValidation}
+                    />
+                  ) : isGoldrushIdKey(q.question_key) ? (
                     // Filled from the system photo on the photo step — visible but never editable
                     <TextField
                       fullWidth
@@ -2651,6 +2661,20 @@ export default function VisitCreate() {
               const hasValue = !!customQuestionValues[qKey]
               const isGoldrushId = isGoldrushIdKey(qKey)
               const selectedOptions = (customQuestionValues[qKey] || '').split(',').map(s => s.trim()).filter(Boolean)
+              if (qType === 'product_audit') {
+                return (
+                  <Box key={qKey} sx={{ mb: 3 }}>
+                    <ProductAuditQuestion
+                      label={`${idx + 1}. ${qLabel}`}
+                      products={qOptions}
+                      required={isRequired}
+                      value={customQuestionValues[qKey]}
+                      onChange={(v) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: v }))}
+                      showValidation={showValidation}
+                    />
+                  </Box>
+                )
+              }
               return (
                 <Box key={qKey} sx={{ mb: 3 }}>
                   <Typography variant="body1" fontWeight="bold" sx={{ mb: 1 }}>
