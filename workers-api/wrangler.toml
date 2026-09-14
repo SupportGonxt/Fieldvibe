@@ -67,9 +67,9 @@ routes = [
 # root [triggers] crons (GM digest, inactivity nudges, etc.) fire here today;
 # these ticks exist solely to drive sendGoldrushTeamCockpitDigest at
 # 07:00 / 19:00 SAST (05:00 / 17:00 UTC — see index.js's scheduled handler).
-# "45 12 * * *" (14:45 SAST) is a one-off live-test tick — remove once confirmed working.
+# "5 13 * * *" (15:05 SAST) is a one-off live-test tick — remove once confirmed working.
 [env.preview.triggers]
-crons = ["0 5 * * *", "0 17 * * *", "45 12 * * *"]
+crons = ["0 5 * * *", "0 17 * * *", "5 13 * * *"]
 
 [env.preview.ai]
 binding = "AI"
