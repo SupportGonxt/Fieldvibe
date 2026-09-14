@@ -463,6 +463,52 @@ export default function StoreInsights() {
   const adRate = stores.length > 0 ? (totalWithAds / stores.length) * 100 : 0
   const totalStellrAgents = new Set(stellrVisits.map(v => v.agent_name)).size
 
+  const downloadCsv = (headers: string[], rows: (string | undefined)[][], filename: string) => {
+    const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
+    const BOM = '﻿'
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Diplomat has none of Goldrush's board/advertising/AI concepts, so its export
+  // matches what the Detail Report table actually shows — plus a flattened
+  // per-product row pulled from each visit's product_audit answers, since that's
+  // the actual audit data the questionnaire exists to capture.
+  const exportDiplomatToExcel = async () => {
+    setExporting(true)
+    try {
+      if (filtered.length === 0) { toast.error('No data to export'); return }
+      const headers = ['Store Name', 'Store Address', 'Agent', 'Visit Date', 'Product', 'In Stock', 'Why Not', 'Similar Product', 'Rep Visits', 'Why No Rep Visit', 'Delivery', 'Delivery Source', 'Comments']
+      const rows: (string | undefined)[][] = []
+      for (const s of filtered) {
+        let entries: Array<Record<string, string>> = []
+        try {
+          const res = await apiClient.get(`/field-ops/reports/visit-answers/${s.id}`)
+          const items = (res.data?.data || []) as VisitAnswer[]
+          const auditItem = items.find(it => it.field_type === 'product_audit')
+          if (auditItem) entries = typeof auditItem.answer === 'string' ? JSON.parse(auditItem.answer) : (auditItem.answer as any) || []
+        } catch { entries = [] }
+        const base = [s.store_name || '', s.store_address || '', s.agent_name || '', s.visit_date || '']
+        if (entries.length === 0) {
+          rows.push([...base, '', '', '', '', '', '', '', '', ''])
+        } else {
+          for (const e of entries) {
+            rows.push([...base, e.product || '', e.stock || '', e.why_not || '', e.similar || '', e.reps || '', e.reps_why_not || '', e.delivery || '', e.delivery_source || '', e.comments || ''])
+          }
+        }
+      }
+      downloadCsv(headers, rows, `diplomat-store-report-${new Date().toISOString().slice(0, 10)}.csv`)
+      toast.success(`Exported ${filtered.length} visit(s)`)
+    } catch {
+      toast.error('Export failed')
+    } finally { setExporting(false) }
+  }
+
   const exportToExcel = () => {
     setExporting(true)
     try {
@@ -481,15 +527,7 @@ export default function StoreInsights() {
         s.ai_status || '', s.ai_board_detected ? 'Yes' : 'No', s.ai_brand || '', s.ai_condition || '', s.ai_visibility || '', s.ai_board_type || '', s.ai_share_of_voice?.toString() || '', s.ai_description || '',
         s.notes || '', s.gps_latitude?.toString() || '', s.gps_longitude?.toString() || '', s.created_at || '',
       ])
-      const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n')
-      const BOM = '﻿'
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `goldrush-store-report-${new Date().toISOString().slice(0, 10)}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadCsv(headers, rows, `goldrush-store-report-${new Date().toISOString().slice(0, 10)}.csv`)
       toast.success(`Exported ${filtered.length} records`)
     } catch {
       toast.error('Export failed')
@@ -575,8 +613,8 @@ export default function StoreInsights() {
             </>
           )}
           {activeTab === 'detail' && (
-            <button onClick={isStellr ? exportStellrToCSV : exportToExcel} disabled={exporting} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
-              <Download className="h-4 w-4" /> {isStellr ? 'Export CSV' : 'Export Excel'}
+            <button onClick={isStellr ? exportStellrToCSV : isDiplomat ? exportDiplomatToExcel : exportToExcel} disabled={exporting} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
+              <Download className="h-4 w-4" /> {exporting ? 'Exporting…' : isStellr ? 'Export CSV' : 'Export Excel'}
             </button>
           )}
         </div>
