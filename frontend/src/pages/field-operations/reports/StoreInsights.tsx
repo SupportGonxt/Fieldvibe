@@ -38,7 +38,7 @@ interface StoreInsightsData {
 
 // ── Detail types ──
 interface GoldrushStore {
-  id: string; visit_date: string; status: string; store_name: string; store_address: string
+  id: string; customer_id: string; visit_date: string; status: string; store_name: string; store_address: string
   agent_name: string; goldrush_id: string; thumbnail_url: string; has_photos: boolean
   shop_exterior_photo: string; competitor_photo: string; ad_board_photo: string
   gps_latitude: number; gps_longitude: number; created_at: string; notes: string
@@ -435,6 +435,13 @@ export default function StoreInsights() {
     return v.store_name?.toLowerCase().includes(s) || v.store_address?.toLowerCase().includes(s) || v.agent_name?.toLowerCase().includes(s)
   })
 
+  // Unique stores (a store visited N times counts once) vs. revisits (any visit
+  // beyond a store's first) — distinct from `stores.length`, which is one row
+  // per visit and would double-count a repeat visit as another store.
+  const uniqueStoreIds = new Set(stores.map(s => s.customer_id).filter(Boolean))
+  const uniqueStoreCount = uniqueStoreIds.size
+  const revisitCount = Math.max(0, stores.length - uniqueStoreCount)
+
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes' || s.has_advertising === 'true').length
   const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.board_installed === 'true' || s.ai_board_detected).length
   const totalAiAnalyzed = stores.filter(s => s.ai_status === 'completed').length
@@ -801,10 +808,18 @@ export default function StoreInsights() {
             </>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-8 gap-4">
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2 mb-2"><Store className="h-4 w-4 text-blue-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Store Visits</span></div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stores.length}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-2"><Store className="h-4 w-4 text-indigo-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Unique Stores</span></div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{uniqueStoreCount}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-2"><RefreshCw className="h-4 w-4 text-orange-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Revisits</span></div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{revisitCount}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-green-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Has Advertising</span></div>
