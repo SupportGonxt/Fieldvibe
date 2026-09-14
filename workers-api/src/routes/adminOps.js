@@ -3,6 +3,7 @@ import { requireRole } from '../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { computeGoldrushIndividualInsights, computeGoldrushStoreInsights, buildGoldrushWeeklyHtml } from '../cron/jobs.js';
 import { sendEmailViaMailChannels } from '../cron/email.js';
+import { sendGoldrushTeamCockpitDigest } from '../cron/teamCockpitDigest.js';
 
 const app = new Hono();
 
@@ -110,6 +111,15 @@ app.post('/admin/report-email-subscriptions/send-weekly-now', requireRole('admin
     }
   }
   return c.json({ success: true, data: { sent: results.filter(r => r.status === 'sent').length, total: results.length, results } });
+});
+
+// Manual trigger for the Goldrush team-cockpit digest (same idea as
+// send-weekly-now above): verify the pipeline without waiting for the
+// 07:00/19:00 SAST cron tick. Scoped to the requesting admin's own tenant.
+app.post('/admin/goldrush-team-cockpit/send-now', requireRole('admin'), async (c) => {
+  const tenantId = c.get('tenantId');
+  const results = await sendGoldrushTeamCockpitDigest(c.env, 'Manual test', { tenantId });
+  return c.json({ success: true, data: results });
 });
 
 app.get('/admin/settings', requireRole('admin'), async (c) => {
