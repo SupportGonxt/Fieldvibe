@@ -10,7 +10,7 @@ import {
   BarChart3, Users, MapPin, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight,
   AlertTriangle, Award, Activity, Target, Store, Eye, ChevronLeft, X,
   Filter, List, Download, FileSpreadsheet, FileText, UserCheck, ChevronRight,
-  Navigation, Clock, Building2, ClipboardList, PieChart as PieChartIcon, Camera, User
+  Navigation, Clock, Building2, ClipboardList, PieChart as PieChartIcon, Camera, User, RefreshCw
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -863,7 +863,12 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
     queryKey: ['shops-analytics', page, startDate, endDate, selectedCompany],
     queryFn: async () => {
       const res = await apiClient.get(`/field-ops/reports/shops-analytics?page=${page}&limit=15${dateParams}${companyParam}`)
-      return { shops: (res.data?.shops || []) as Shop[], total: res.data?.total || 0 }
+      return {
+        shops: (res.data?.shops || []) as Shop[],
+        total: res.data?.total || 0,
+        totalCheckins: res.data?.total_checkins || 0,
+        totalRevisits: res.data?.total_revisits || 0,
+      }
     },
   })
 
@@ -973,7 +978,7 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className={`grid grid-cols-1 gap-4 ${isStellr ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+      <div className={`grid grid-cols-1 gap-4 ${isStellr ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <Store className="h-5 w-5 text-blue-500 mb-2" />
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.total || 0}</p>
@@ -981,10 +986,13 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <MapPin className="h-5 w-5 text-green-500 mb-2" />
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {(data?.shops || []).reduce((s, shop) => s + shop.total_checkins, 0)}
-          </p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.totalCheckins || 0}</p>
           <p className="text-sm text-gray-500">Total Check-ins</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <RefreshCw className="h-5 w-5 text-orange-500 mb-2" />
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.totalRevisits || 0}</p>
+          <p className="text-sm text-gray-500">Revisits</p>
         </div>
         {!isStellr && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

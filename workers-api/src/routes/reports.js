@@ -1328,6 +1328,19 @@ app.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       ? await db.prepare(`SELECT COUNT(DISTINCT c.id) as count FROM customers c JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id WHERE c.tenant_id = ?${dateFilter}`).bind(tenantId, ...dateBinds).first()
       : await db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first();
 
+    // Grand totals across every matching store, not just the current page — used
+    // to derive revisits (any check-in beyond a store's first one). total_stores
+    // here counts each store once (matches totalResult), so
+    // total_checkins - total_stores_with_visits is exactly the revisit count.
+    const totalCheckinsResult = await db.prepare(
+      `SELECT COUNT(v.id) as checkins, COUNT(DISTINCT c.id) as stores_with_visits
+       FROM customers c JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id
+       WHERE c.tenant_id = ?${dateFilter}`
+    ).bind(tenantId, ...dateBinds).first();
+    const totalCheckins = totalCheckinsResult?.checkins || 0;
+    const storesWithVisits = totalCheckinsResult?.stores_with_visits || 0;
+    const totalRevisits = Math.max(0, totalCheckins - storesWithVisits);
+
     const havingClause = dateBinds.length > 0 ? 'HAVING total_checkins > 0' : '';
     // Conversions as a grouped derived table, not a per-customer correlated subquery —
     // 2.5k customers x correlated scan over 40k visit_individuals blows the D1 CPU
@@ -1353,7 +1366,13 @@ app.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       LIMIT ? OFFSET ?
     `).bind(...dateBinds, tenantId, ...dateBinds, tenantId, parseInt(limit), offset).all();
 
-    return c.json({ success: true, shops: shops.results || [], total: totalResult?.count || 0 });
+    return c.json({
+      success: true,
+      shops: shops.results || [],
+      total: totalResult?.count || 0,
+      total_checkins: totalCheckins,
+      total_revisits: totalRevisits,
+    });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
