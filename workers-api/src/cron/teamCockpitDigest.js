@@ -22,16 +22,29 @@ function signalsText(signals) {
   return (signals || []).map((s) => SIGNAL_REGISTRY[s.type]?.buildText(s.detail) || signalLabel(s.type));
 }
 
+const FONT_STACK = "-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
+
 function agentRowHtml(name, flags, isLead) {
-  const bg = flags.length ? '#FEF2F2' : '#FFFFFF';
-  const nameStyle = isLead ? 'font-weight:700;color:#0F172A' : 'color:#1F2937';
-  const flagsHtml = flags.length
-    ? flags.map((f) => `<div style="color:#B91C1C">${htmlEscape(f)}</div>`).join('')
-    : '<span style="color:#16A34A">On track</span>';
-  return `<tr style="background:${bg}">
-    <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:13px;${nameStyle}">${htmlEscape(name)}${isLead ? ' (Team Lead)' : ''}</td>
-    <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:12px">${flagsHtml}</td>
+  const flagged = flags.length > 0;
+  const borderColor = flagged ? '#EF4444' : '#2ECC71';
+  const rowBg = isLead ? '#E6FBF2' : '#FFFFFF';
+  const leadBadge = isLead
+    ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:4px;background:#00E87B;color:#04110A;font-size:10px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;vertical-align:middle">Lead</span>`
+    : '';
+  const flagsHtml = flagged
+    ? flags.map((f) => `<span style="display:inline-block;background:#FEE2E2;color:#B91C1C;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;margin:2px 4px 2px 0;white-space:nowrap">${htmlEscape(f)}</span>`).join('')
+    : `<span style="display:inline-block;background:#DCFCE7;color:#16A34A;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px">On track</span>`;
+  return `<tr style="background:${rowBg}">
+    <td style="padding:9px 12px;border-bottom:1px solid #EEF2F6;border-left:3px solid ${borderColor};font-size:13px;font-weight:${isLead ? 700 : 400};color:${isLead ? '#0F172A' : '#1F2937'}">${htmlEscape(name)}${leadBadge}</td>
+    <td style="padding:9px 12px;border-bottom:1px solid #EEF2F6;font-size:12px">${flagsHtml}</td>
   </tr>`;
+}
+
+function teamCardHtml(title, rows) {
+  return `<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.06)">
+    <div style="background:#F8FAFC;padding:10px 16px;border-bottom:1px solid #E2E8F0;font-size:13px;font-weight:700;color:#0F172A;font-family:${FONT_STACK}">${title}</div>
+    <table style="border-collapse:collapse;width:100%;font-family:${FONT_STACK}">${rows}</table>
+  </div>`;
 }
 
 // Same roster shape as GET /kpi/roster's admin branch (team leads + their agents,
@@ -50,8 +63,12 @@ async function buildDigestHtml(db, tenantId, companyId, slotLabel, dateStr) {
         AND acl.is_active = 1 AND acl.company_id = ?)`;
   const nameSql = `TRIM(COALESCE(first_name,'')||' '||COALESCE(last_name,''))`;
 
+  // LOWER(TRIM(first_name)) != 'test' excludes the known test team-lead account from
+  // the Goldrush roster — same UUID-id-test-user heuristic as incentives.js's payroll
+  // counts (id NOT LIKE 'agent-test-%' doesn't catch this one; it has a real UUID id).
   const leads = (await db.prepare(
-    `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND role='team_lead' AND is_active=1${coExists} ORDER BY first_name`
+    `SELECT id, ${nameSql} name FROM users WHERE tenant_id=? AND role='team_lead' AND is_active=1
+       AND LOWER(TRIM(first_name)) != 'test'${coExists} ORDER BY first_name`
   ).bind(tenantId, companyId).all()).results ?? [];
 
   let totalAgents = 0, totalFlagged = 0;
@@ -74,8 +91,7 @@ async function buildDigestHtml(db, tenantId, companyId, slotLabel, dateStr) {
       agentRowHtml(tl.name || tl.id, signalsText(leadResult.signals), true),
       ...agentRows.map((a) => agentRowHtml(a.name, signalsText(a.signals), false)),
     ].join('');
-    return `<h3 style="color:#0F172A;font-size:14px;margin:18px 0 4px">${htmlEscape(tl.name || tl.id)}'s team</h3>
-      <table style="border-collapse:collapse;width:100%;font-family:Helvetica,Arial,sans-serif">${rows}</table>`;
+    return teamCardHtml(`${htmlEscape(tl.name || tl.id)}'s team`, rows);
   });
 
   const unassigned = (await db.prepare(
@@ -90,16 +106,24 @@ async function buildDigestHtml(db, tenantId, companyId, slotLabel, dateStr) {
       if (signals.length) totalFlagged += 1;
       return agentRowHtml(m.name || m.id, signalsText(signals), false);
     });
-    unassignedHtml = `<h3 style="color:#0F172A;font-size:14px;margin:18px 0 4px">Unassigned</h3>
-      <table style="border-collapse:collapse;width:100%;font-family:Helvetica,Arial,sans-serif">${rows.join('')}</table>`;
+    unassignedHtml = teamCardHtml('Unassigned', rows.join(''));
   }
 
   if (!leads.length && !unassigned.length) return null;
 
-  return `<div style="font-family:Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;padding:16px">
-    <h2 style="color:#0F172A">Goldrush team cockpit — ${slotLabel} — ${dateStr}</h2>
-    <p style="color:#475569;font-size:13px">${totalFlagged} of ${totalAgents} agents flagged, across ${leads.length} team${leads.length === 1 ? '' : 's'}.</p>
+  return `<div style="font-family:${FONT_STACK};max-width:680px;margin:0 auto;padding:24px 16px;background:#F8FAFC;color:#0F172A">
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748B;margin-bottom:6px">Field<span style="color:#00E87B">Vibe</span></div>
+      <h1 style="margin:0;font-size:22px;line-height:1.3;color:#0F172A;font-weight:800">Team Cockpit Report</h1>
+      <div style="margin-top:4px;font-size:13px;color:#64748B">${htmlEscape(dateStr)} &middot; ${htmlEscape(slotLabel)}</div>
+    </div>
+    <p style="color:#334155;font-size:14px;margin:0 0 20px;line-height:1.5">
+      <strong style="color:#0F172A">${totalFlagged}</strong> of <strong style="color:#0F172A">${totalAgents}</strong> people have no visit logged in the last 24 hours, across ${leads.length} team${leads.length === 1 ? '' : 's'}.
+    </p>
     ${teamSections.join('')}${unassignedHtml}
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #E2E8F0;text-align:center">
+      <a href="https://fieldvibe.vantax.co.za" style="color:#00C468;font-size:13px;font-weight:600;text-decoration:none">View live dashboard &rarr;</a>
+    </div>
   </div>`;
 }
 
