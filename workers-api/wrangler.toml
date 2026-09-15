@@ -18,12 +18,11 @@ VAPID_SUBJECT = "mailto:reshigan@vantax.co.za"
 # Origin the public QR scan URL points at (the Worker itself, for server-side redirect).
 SCAN_BASE_URL = "https://fieldvibe-api.vantax.co.za"
 # Microsoft Graph mail (Goldrush team-cockpit digest only). MICROSOFT_CLIENT_SECRET is a
-# Cloudflare secret, not committed here. EMAIL_RECIPIENTS is tendani@gonxt.tech for this
-# one-off verification send — repoint it at the real GM before this goes out on a schedule.
+# Cloudflare secret, not committed here.
 MICROSOFT_TENANT_ID = "998b123c-e559-479d-bbb9-cf3330469a73"
 MICROSOFT_CLIENT_ID = "166236c5-34d7-42fa-b1bc-3ed62ea77211"
 EMAIL_FROM = "no-reply@gonxt.tech"
-EMAIL_RECIPIENTS = "tendani@gonxt.tech"
+EMAIL_RECIPIENTS = "tendani@gonxt.tech,Abigail@bridgethegap.site"
 
 [[d1_databases]]
 binding = "DB"
@@ -56,7 +55,7 @@ crons = [
   "0 22 1 * *", "0 5 * * 1",
   "30 6-15 * * *", # reactToIssues own trigger, 08:30-17:30 SAST, fresh subrequest budget
   "45 15 * * *", # temp: verification tick, remove after confirming reactToIssues writes
-  "25 10 * * *", # one-off: Goldrush team-cockpit digest live-prod-data test, remove after confirming
+  "0 5 * * *", "0 17 * * *", # Goldrush team-cockpit digest, daily 07:00/19:00 SAST
 ]
 
 # ─────────────────────────────────────────
