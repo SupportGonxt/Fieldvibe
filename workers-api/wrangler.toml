@@ -62,14 +62,11 @@ routes = [
   { pattern = "fieldvibe-api-preview.vantax.co.za/*", zone_name = "vantax.co.za" }
 ]
 
-# Goldrush team-cockpit digest only — testing in dev/preview before this runs in
-# production. Preview has no [env.preview.triggers] otherwise, so none of the
-# root [triggers] crons (GM digest, inactivity nudges, etc.) fire here today;
-# these ticks exist solely to drive sendGoldrushTeamCockpitDigest at
-# 07:00 / 19:00 SAST (05:00 / 17:00 UTC — see index.js's scheduled handler).
-# "45 8 * * *" (10:45 SAST) is a one-off live-test tick — remove once confirmed working.
-[env.preview.triggers]
-crons = ["0 5 * * *", "0 17 * * *", "45 8 * * *"]
+# No [env.preview.triggers] — the Goldrush digest is confirmed working against real
+# production data now (see root [triggers]), so preview no longer runs it on a schedule.
+# Its own recurring 07:00/19:00 SAST tick was firing in parallel with production using
+# fieldvibe-dev data, producing a duplicate "wrong data" email alongside the real one.
+# MICROSOFT_*/EMAIL_* vars above stay for ad hoc testing via the admin send-now endpoint.
 
 [env.preview.ai]
 binding = "AI"
