@@ -343,10 +343,15 @@ export default {
     if (day === 1 && hour === 5) await sendWeeklyGoldrushReports(env);
     // GM daily digest, 06:00 / 12:00 / 18:00 SAST.
     if (sastHour === 6 || sastHour === 12 || sastHour === 18) await generateGmDigest(env);
-    // Goldrush team-cockpit digest (team leads + agents, roster signals), 07:00 / 19:00 SAST.
-    if (sastHour === 7 || sastHour === 19) await sendGoldrushTeamCockpitDigest(env, sastHour === 7 ? 'Morning' : 'Evening');
-    // One-off live test tick — 10:45 SAST — remove once the digest is confirmed working end-to-end.
-    if (sastHour === 10 && now.getUTCMinutes() === 45) await sendGoldrushTeamCockpitDigest(env, 'Test');
+    // Goldrush team-cockpit digest (team leads + agents, roster signals), 07:00 / 19:00 SAST,
+    // weekdays only. Keyed off event.cron, not sastHour: "0 5 * * 1" also lands at 05:00 UTC,
+    // so an sastHour check would send twice on the day that trigger fires. The weekday test
+    // uses getUTCDay() rather than a cron day-of-week field because Cloudflare renders
+    // "0 5 * * 1" as Sunday — its DOW handling isn't dependable. 05:00/17:00 UTC never cross
+    // a SAST day boundary, so the UTC day is the SAST day.
+    const DIGEST_SLOT_BY_CRON = { '0 5 * * *': 'Morning', '0 17 * * *': 'Evening' };
+    const digestSlot = DIGEST_SLOT_BY_CRON[event.cron];
+    if (digestSlot && day >= 1 && day <= 5) await sendGoldrushTeamCockpitDigest(env, digestSlot);
     // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
     if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
