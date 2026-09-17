@@ -69,11 +69,14 @@ routes = [
   { pattern = "fieldvibe-api-preview.vantax.co.za/*", zone_name = "vantax.co.za" }
 ]
 
-# No [env.preview.triggers] — the Goldrush digest is confirmed working against real
-# production data now (see root [triggers]), so preview no longer runs it on a schedule.
-# Its own recurring 07:00/19:00 SAST tick was firing in parallel with production using
-# fieldvibe-dev data, producing a duplicate "wrong data" email alongside the real one.
+# Preview runs no crons. It must stay an explicit empty list, NOT an omitted section:
+# wrangler leaves already-registered triggers alone when `crons` is absent, so deleting
+# this block did not unregister preview's old 07:00/19:00 SAST ticks — they kept firing
+# against fieldvibe-dev and mailing a duplicate, wrong-data digest. `crons = []` is what
+# actually clears them on deploy.
 # MICROSOFT_*/EMAIL_* vars above stay for ad hoc testing via the admin send-now endpoint.
+[env.preview.triggers]
+crons = []
 
 [env.preview.ai]
 binding = "AI"

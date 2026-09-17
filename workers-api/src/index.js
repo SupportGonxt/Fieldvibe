@@ -349,9 +349,15 @@ export default {
     // uses getUTCDay() rather than a cron day-of-week field because Cloudflare renders
     // "0 5 * * 1" as Sunday — its DOW handling isn't dependable. 05:00/17:00 UTC never cross
     // a SAST day boundary, so the UTC day is the SAST day.
+    // The ENVIRONMENT check is load-bearing: preview carries its own copy of these cron
+    // strings and its own EMAIL_RECIPIENTS, so any trigger left registered there mails
+    // fieldvibe-dev data to the same people alongside the real digest. It has happened
+    // twice. The admin send-now endpoint is unaffected and still works in preview.
     const DIGEST_SLOT_BY_CRON = { '0 5 * * *': 'Morning', '0 17 * * *': 'Evening' };
     const digestSlot = DIGEST_SLOT_BY_CRON[event.cron];
-    if (digestSlot && day >= 1 && day <= 5) await sendGoldrushTeamCockpitDigest(env, digestSlot);
+    if (digestSlot && env.ENVIRONMENT === 'production' && day >= 1 && day <= 5) {
+      await sendGoldrushTeamCockpitDigest(env, digestSlot);
+    }
     // Hourly performance summaries, 08:00-17:00 SAST (Mon-Fri).
     if (sastHour >= 8 && sastHour <= 17) await generatePerformanceSummaries(env.DB);
     // Inactivity nudges + escalation on the same work-hours window (self-gates on SAST inside).
