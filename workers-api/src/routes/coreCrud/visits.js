@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
 import { rewriteR2Url, PHOTO_URL_SQL, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos, PRODUCT_AUDIT_AI_STATUS } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
-import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
+import { agentHoursBlocked, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius, findExcludedStore } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 import { resolveVisitTimes } from '../../services/visitTiming.js';
@@ -17,7 +17,7 @@ const DEFAULT_EXCLUSION_RADIUS_M = 200;
 
 // Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
 app.get('/visits/hours-status', authMiddleware, async (c) => {
-  const outside = isOutsideAgentHours();
+  const outside = agentHoursBlocked(c.env);
   return c.json({ allowed: !outside, error: outside ? AGENT_HOURS_ERROR : null });
 });
 
@@ -184,7 +184,7 @@ app.get('/visits/:id', async (c) => {
 });
 
 app.post('/visits', async (c) => {
-  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
+  if (agentHoursBlocked(c.env)) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -669,7 +669,7 @@ app.post('/visits/check-photo-duplicate', authMiddleware, async (c) => {
 });
 // Create visit with full workflow data (individual or store)
 app.post('/visits/workflow', authMiddleware, async (c) => {
-  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
+  if (agentHoursBlocked(c.env)) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
