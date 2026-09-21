@@ -336,6 +336,10 @@ export default function VisitCreate() {
   const [newStoreDialogOpen, setNewStoreDialogOpen] = useState(false)
   const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '', contact_person: '', contact_phone: '' })
   const [newStoreFormError, setNewStoreFormError] = useState('')
+  // What the store the agent is adding doesn't line up with at this position — shown
+  // once as a warning, then the agent may add it anyway and it goes for review.
+  const [storeLocationFindings, setStoreLocationFindings] = useState<Array<{ reason: string; severity: string; description: string }>>([])
+  const [storeLocationAcked, setStoreLocationAcked] = useState(false)
   const [savingNewStore, setSavingNewStore] = useState(false)
 
   // Individual fields
@@ -2012,6 +2016,8 @@ export default function VisitCreate() {
                 onClick={() => {
                   setNewStoreForm({ name: newStoreName, address: '', contact_person: '', contact_phone: '' })
                   setNewStoreFormError('')
+                  setStoreLocationFindings([])
+                  setStoreLocationAcked(false)
                   setNewStoreDialogOpen(true)
                 }}
                 sx={{ mt: 0.5, whiteSpace: 'nowrap', height: 56 }}
@@ -2028,7 +2034,12 @@ export default function VisitCreate() {
                 <TextField
                   label="Store Name *"
                   value={newStoreForm.name}
-                  onChange={e => setNewStoreForm(f => ({ ...f, name: e.target.value }))}
+                  onChange={e => {
+                    setNewStoreForm(f => ({ ...f, name: e.target.value }))
+                    // Editing what was warned about re-opens the question.
+                    setStoreLocationAcked(false)
+                    setStoreLocationFindings([])
+                  }}
                   fullWidth
                   required
                   sx={{ mt: 1, mb: 2 }}
@@ -2037,7 +2048,11 @@ export default function VisitCreate() {
                 <TextField
                   label="Address"
                   value={newStoreForm.address}
-                  onChange={e => setNewStoreForm(f => ({ ...f, address: e.target.value }))}
+                  onChange={e => {
+                    setNewStoreForm(f => ({ ...f, address: e.target.value }))
+                    setStoreLocationAcked(false)
+                    setStoreLocationFindings([])
+                  }}
                   fullWidth
                   sx={{ mb: 2 }}
                 />
@@ -2054,6 +2069,32 @@ export default function VisitCreate() {
                   onChange={e => setNewStoreForm(f => ({ ...f, contact_phone: e.target.value }))}
                   fullWidth
                 />
+                {gpsLocation ? (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    This store will be pinned at your current location
+                    ({gpsLocation.latitude.toFixed(5)}, {gpsLocation.longitude.toFixed(5)}, ±{gpsLocation.accuracy.toFixed(0)}m).
+                    Add it while you are standing at the store.
+                  </Alert>
+                ) : (
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    No GPS fix yet — this store will be saved without a location, and later
+                    visits to it cannot be distance-checked.
+                  </Alert>
+                )}
+
+                {storeLocationFindings.length > 0 && (
+                  <Alert severity="warning" sx={{ mt: 2 }} icon={<WarningIcon />}>
+                    <Typography variant="body2" fontWeight="bold" gutterBottom>
+                      This doesn&apos;t match where you are
+                    </Typography>
+                    {storeLocationFindings.map((f, i) => (
+                      <Typography key={i} variant="body2" sx={{ mb: 0.5 }}>• {f.description}</Typography>
+                    ))}
+                    <Typography variant="caption" color="text.secondary">
+                      Fix the details above, or add it anyway — it will be flagged for your team lead to review.
+                    </Typography>
+                  </Alert>
+                )}
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setNewStoreDialogOpen(false)} disabled={savingNewStore}>Cancel</Button>
@@ -2073,6 +2114,26 @@ export default function VisitCreate() {
                           return
                         }
                       }
+                      // Does the store being entered belong at this position? Shown
+                      // once so a typo or an already-known store can still be fixed;
+                      // a second press adds it anyway (and flags it for review).
+                      if (!storeLocationAcked) {
+                        const check = await apiClient.post('/customers/check-location', {
+                          name: newStoreForm.name.trim(),
+                          address: newStoreForm.address.trim() || undefined,
+                          latitude: gpsLocation?.latitude,
+                          longitude: gpsLocation?.longitude,
+                          accuracy: gpsLocation?.accuracy,
+                        })
+                        const findings = check.data?.data?.findings || []
+                        setStoreLocationFindings(findings)
+                        setStoreLocationAcked(true)
+                        if (findings.length > 0) { setSavingNewStore(false); return }
+                      }
+                      // Pin the store at the check-in position. Without this a new
+                      // store is saved with no coordinates at all, which leaves it
+                      // invisible to every later location check — the revisit radius
+                      // and the do-not-visit lookup both need a store to have GPS.
                       const res = await apiClient.post('/customers', {
                         name: newStoreForm.name.trim(),
                         address: newStoreForm.address.trim() || undefined,
@@ -2080,16 +2141,31 @@ export default function VisitCreate() {
                         contact_phone: newStoreForm.contact_phone.trim() || undefined,
                         customer_type: 'SHOP',
                         type: 'retail',
+                        latitude: gpsLocation?.latitude,
+                        longitude: gpsLocation?.longitude,
+                        accuracy: gpsLocation?.accuracy,
+                        // Tells the API this came off the check-in flow, so it
+                        // re-runs the location check itself and files the review flag.
+                        source: 'field_visit',
                       })
                       const newId = res.data?.data?.id
                       if (!newId) throw new Error('No ID returned')
                       // Add to local list and auto-select
-                      const newCustomer = { id: newId, name: newStoreForm.name.trim(), address: newStoreForm.address.trim() || undefined }
+                      const newCustomer = {
+                        id: newId,
+                        name: newStoreForm.name.trim(),
+                        address: newStoreForm.address.trim() || undefined,
+                        latitude: gpsLocation?.latitude,
+                        longitude: gpsLocation?.longitude,
+                      }
                       setCustomers(prev => [newCustomer, ...prev])
                       setSelectedCustomer(newId)
                       setNewStoreName('')
                       setStoreRevisitCheck(null)
                       setNewStoreDialogOpen(false)
+                      if ((res.data?.data?.location_findings || []).length > 0) {
+                        toast.info('Store added — its location was flagged for review')
+                      }
                       await checkStoreRevisit(newId)
                     } catch (err: unknown) {
                       setNewStoreFormError(extractErrorMessage(err))
@@ -2099,7 +2175,7 @@ export default function VisitCreate() {
                   }}
                 >
                   {savingNewStore ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
-                  {savingNewStore ? 'Saving...' : 'Save Store'}
+                  {savingNewStore ? 'Saving...' : storeLocationFindings.length > 0 ? 'Add Anyway' : 'Save Store'}
                 </Button>
               </DialogActions>
             </Dialog>

@@ -14,6 +14,15 @@ export function normalizeStoreName(name) {
   return String(name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+// A coordinate as a number, or NaN for anything that isn't one. Number() alone is a
+// trap here: Number(null) and Number('') are both 0, which would put a store with no
+// coordinates on the equator off West Africa and make it look thousands of km away.
+export function toCoord(value) {
+  if (value === null || value === undefined || value === '') return NaN;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 // Metres of latitude per degree; longitude degrees shrink towards the poles.
 const M_PER_DEG_LAT = 111320;
 
@@ -30,8 +39,8 @@ export function boundingBox(lat, lng, radiusMeters) {
 // Stores genuinely within the radius, nearest first, each tagged with its distance.
 export function storesWithinRadius(lat, lng, stores, radiusMeters) {
   return (stores || [])
-    .filter(s => Number.isFinite(Number(s?.latitude)) && Number.isFinite(Number(s?.longitude)))
-    .map(s => ({ ...s, distance_meters: haversineM(lat, lng, Number(s.latitude), Number(s.longitude)) }))
+    .filter(s => !Number.isNaN(toCoord(s?.latitude)) && !Number.isNaN(toCoord(s?.longitude)))
+    .map(s => ({ ...s, distance_meters: haversineM(lat, lng, toCoord(s.latitude), toCoord(s.longitude)) }))
     .filter(s => s.distance_meters <= radiusMeters)
     .sort((a, b) => a.distance_meters - b.distance_meters);
 }
