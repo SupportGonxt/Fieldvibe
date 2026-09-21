@@ -47,6 +47,7 @@ import adminOpsRoutes from './routes/adminOps.js';
 // Cron jobs (invoked by the scheduled handler)
 import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, syncUserActiveFlags, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
 import { sendGoldrushTeamCockpitDigest } from './cron/teamCockpitDigest.js';
+import { drainShelfAnalysisBacklog, reapStuckShelfAnalyses } from './services/shelfAnalysis.js';
 export { CallRoom } from './durable/CallRoom.js';
 
 const app = new Hono();
@@ -367,6 +368,10 @@ export default {
     // Drain pending AI analysis on every tick. Bounded by AI_DRAIN_BATCH_SIZE; the existing
     // 14-cron schedule means roughly 14 * BATCH photos per day = 350/day at the current setting.
     ctx.waitUntil(drainAiBacklog(env));
+    // Same pattern for shelf analysis on product-audit photos: the request-time pass
+    // handles the normal case, this catches whatever it could not finish.
+    await reapStuckShelfAnalyses(env.DB);
+    ctx.waitUntil(drainShelfAnalysisBacklog(env));
   },
 };
 

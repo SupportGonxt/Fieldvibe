@@ -2,10 +2,11 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
-import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos } from '../../lib/photoAi.js';
+import { rewriteR2Url, PHOTO_URL_SQL, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
 import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius, findExcludedStore } from '../../services/excludedStore.js';
+import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 
 const app = new Hono();
 
@@ -583,6 +584,40 @@ app.post('/visits/check-location-excluded', authMiddleware, async (c) => {
   }
 });
 
+// Shelf analysis results for a visit's product-audit photos. requireRole('manager')
+// covers Manager plus every admin-equivalent (admin, backoffice_admin, general_manager)
+// and super_admin via roleAllows — agents cannot read their own scores back.
+// ?photo_id= narrows it to a single photo.
+app.get('/visits/:visitId/shelf-analysis', authMiddleware, requireRole('manager'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { visitId } = c.req.param();
+    const { photo_id } = c.req.query();
+
+    let sql = `SELECT spa.id, spa.visit_id, spa.photo_id, spa.product, spa.shelf_level, spa.visibility_score,
+                      spa.obstructions, spa.estimated_facings, spa.notes, spa.confidence, spa.status,
+                      spa.created_at, spa.analysed_at, ${PHOTO_URL_SQL('vp')} as photo_url
+                 FROM shelf_photo_analysis spa
+                 LEFT JOIN visit_photos vp ON vp.id = spa.photo_id
+                WHERE spa.tenant_id = ? AND spa.visit_id = ?`;
+    const params = [tenantId, visitId];
+    if (photo_id) { sql += ' AND spa.photo_id = ?'; params.push(photo_id); }
+    sql += ' ORDER BY spa.created_at ASC';
+
+    const rows = await db.prepare(sql).bind(...params).all();
+    const analyses = (rows.results || []).map(r => ({
+      ...r,
+      // Stored as a JSON string; hand the client the array it expects.
+      obstructions: (() => { try { return JSON.parse(r.obstructions || '[]'); } catch { return []; } })(),
+      photo_url: rewriteR2Url(r.photo_url, c.req.url),
+    }));
+    return c.json({ success: true, data: analyses });
+  } catch (e) {
+    return c.json({ success: false, message: e.message }, 500);
+  }
+});
+
 // Check for duplicate individual (ID number, phone, or goldrush player ID)
 app.post('/visits/check-individual-duplicate', authMiddleware, async (c) => {
   const db = c.env.DB;
@@ -893,8 +928,20 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       // Product-audit photos live inside a JSON answer, so they have to be moved to
       // R2 *before* this row is written — the whole-value offload further down runs
       // after the INSERT, which would mean storing every product's base64 in D1 first.
+      // Each stored photo is also queued for shelf analysis; the model runs after the
+      // response goes back, so the agent never waits for it.
+      const queuedShelfAnalyses = [];
       for (const [key, val] of Object.entries(mergedStoreCustom)) {
-        mergedStoreCustom[key] = await offloadProductAuditPhotos(db, c.env.UPLOADS, val, { tenantId, visitId, userId, reqUrl: c.req.url });
+        mergedStoreCustom[key] = await offloadProductAuditPhotos(db, c.env.UPLOADS, val, {
+          tenantId, visitId, userId, reqUrl: c.req.url,
+          onPhotoStored: async ({ photoId, r2Key, product }) => {
+            const analysisId = await queueShelfAnalysis(db, { tenantId, visitId, photoId, product });
+            if (analysisId) queuedShelfAnalyses.push({ analysisId, photoId, r2Key });
+          },
+        });
+      }
+      if (queuedShelfAnalyses.length > 0) {
+        try { c.executionCtx.waitUntil(runQueuedShelfAnalyses(c.env, queuedShelfAnalyses)); } catch { /* the cron drain picks up whatever stays pending */ }
       }
       if (Object.keys(mergedStoreCustom).length > 0) {
         const cqrId = crypto.randomUUID();

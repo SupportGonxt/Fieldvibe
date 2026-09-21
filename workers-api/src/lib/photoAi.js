@@ -66,6 +66,52 @@ function isLegacyR2PhotoUrl(url) {
   return typeof url === 'string' && LEGACY_R2_URL_RE.test(url);
 }
 
+// Robust JSON extraction from a model reply. Every vision prompt here demands bare
+// JSON, and the model mostly complies — but not always, so this strips markdown code
+// fences it added anyway and, failing that, walks braces to pull the outermost
+// balanced {...} out of surrounding prose. Returns null rather than throwing, so a
+// chatty reply degrades to "no analysis" instead of losing the photo's record.
+function extractJsonObject(raw) {
+  if (!raw) return null;
+  let s = String(raw).trim();
+  // Strip ```json or ``` fences.
+  s = s.replace(/^```(?:json)?\s*|```\s*$/g, '').trim();
+  // Try direct parse.
+  try { return JSON.parse(s); } catch (_) {}
+  // Find the outermost {...} via brace counting.
+  const start = s.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        const candidate = s.slice(start, i + 1);
+        try { return JSON.parse(candidate); } catch (_) { /* fall through */ }
+      }
+    }
+  }
+  return null;
+}
+
+// visit_photos.ai_analysis_status for a product-audit photo: the shelf-analysis
+// pipeline owns these, so the generic analyzer must leave them alone. Exported so the
+// test that guards drainAiBacklog's query can assert against the same literal.
+const PRODUCT_AUDIT_AI_STATUS = 'shelf_only';
+
+// Workers AI wants the image as a base64 data URI in an `image_url` content block.
+// btoa can't take a giant string on Workers, so the binary is chunked.
+function bytesToDataUrl(imageBytes, contentType = 'image/jpeg') {
+  let binStr = '';
+  const CHUNK = 32768;
+  for (let i = 0; i < imageBytes.length; i += CHUNK) {
+    binStr += String.fromCharCode.apply(null, imageBytes.subarray(i, i + CHUNK));
+  }
+  return `data:${contentType};base64,${btoa(binStr)}`;
+}
+
 // Compute SHA-256 hash of photo bytes for deduplication
 async function computePhotoHash(bytes) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
@@ -199,14 +245,7 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
     // 100KB photo in tokens.
     let dataUrl;
     if (imageBytes) {
-      const contentType = (object && object.httpMetadata && object.httpMetadata.contentType) || 'image/jpeg';
-      // btoa can't take giant strings on Workers — chunk to keep it stable.
-      let binStr = '';
-      const CHUNK = 32768;
-      for (let i = 0; i < imageBytes.length; i += CHUNK) {
-        binStr += String.fromCharCode.apply(null, imageBytes.subarray(i, i + CHUNK));
-      }
-      dataUrl = `data:${contentType};base64,${btoa(binStr)}`;
+      dataUrl = bytesToDataUrl(imageBytes, (object && object.httpMetadata && object.httpMetadata.contentType) || 'image/jpeg');
     } else {
       // body.photos path: use the base64 data URL stored on the row directly.
       const row = await env.DB.prepare('SELECT r2_url FROM visit_photos WHERE id = ?').bind(photoId).first();
@@ -237,32 +276,7 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
     //   - strip markdown code fences if the model added them anyway
     //   - find the largest balanced {...} block, not just the first one
     //   - try the full text first, then progressively fall back
-    let parsed = {};
-    function extractJson(raw) {
-      if (!raw) return null;
-      let s = String(raw).trim();
-      // Strip ```json or ``` fences.
-      s = s.replace(/^```(?:json)?\s*|```\s*$/g, '').trim();
-      // Try direct parse.
-      try { return JSON.parse(s); } catch (_) {}
-      // Find the outermost {...} via brace counting.
-      const start = s.indexOf('{');
-      if (start === -1) return null;
-      let depth = 0;
-      for (let i = start; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth += 1;
-        else if (ch === '}') {
-          depth -= 1;
-          if (depth === 0) {
-            const candidate = s.slice(start, i + 1);
-            try { return JSON.parse(candidate); } catch (_) { /* fall through */ }
-          }
-        }
-      }
-      return null;
-    }
-    parsed = extractJson(responseText) || {};
+    const parsed = extractJsonObject(responseText) || {};
 
     let sovPct = 0; let totalFacings = 0; let brandFacings = 0;
     if (parsed.brands && Array.isArray(parsed.brands)) {
@@ -379,7 +393,10 @@ async function persistClientPhoto(bucket, photo, visitId, photoId, reqUrl) {
 // Push each one to R2 and swap in its URL. Anything that fails is left as-is so a
 // photo is never lost, and a value that isn't a product-audit array is returned
 // untouched.
-async function offloadProductAuditPhotos(db, bucket, value, { tenantId, visitId, userId, reqUrl }) {
+// `onPhotoStored` is called once per photo written to R2, with the ids the caller
+// needs to queue shelf analysis. Optional, and anything it throws is swallowed —
+// analysis is a bonus on top of the photo, never a reason to lose one.
+async function offloadProductAuditPhotos(db, bucket, value, { tenantId, visitId, userId, reqUrl, onPhotoStored }) {
   if (typeof value !== 'string' || !value.trimStart().startsWith('[')) return value;
   let entries;
   try { entries = JSON.parse(value); } catch { return value; }
@@ -401,11 +418,26 @@ async function offloadProductAuditPhotos(db, bucket, value, { tenantId, visitId,
       const r2Key = `photos/${tenantId}/${visitId}/${photoId}.jpg`;
       await bucket.put(r2Key, decoded.bytes, { httpMetadata: { contentType: decoded.contentType } });
       const r2Url = new URL(`/api/uploads/${r2Key}`, reqUrl).href;
-      await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
-        photoId, tenantId, visitId, 'general', r2Key, r2Url, hash, userId
+      // Every row this function writes is a product-audit photo, and each one is
+      // queued for shelf analysis by the onPhotoStored hook below. Left at the
+      // 'pending' column default, drainAiBacklog's generic analyzer would pick the
+      // same photo up on the next cron tick and spend a second Workers AI call on it.
+      // PRODUCT_AUDIT_AI_STATUS is deliberately NOT 'skipped': that status means
+      // "couldn't manage it this time" here (analyzePhotoWithAI sets it for
+      // oversized images) and the drain query re-selects it, so it would not stop
+      // anything. It must stay a value that query does not match.
+      await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by, ai_analysis_status) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?, ?)').bind(
+        photoId, tenantId, visitId, 'general', r2Key, r2Url, hash, userId, PRODUCT_AUDIT_AI_STATUS
       ).run();
       entry.photo = r2Url;
       changed = true;
+      if (typeof onPhotoStored === 'function') {
+        try {
+          await onPhotoStored({ photoId, r2Key, product: typeof entry.product === 'string' ? entry.product : null });
+        } catch (hookErr) {
+          console.error('Product audit photo post-store hook failed:', hookErr);
+        }
+      }
     } catch (err) {
       console.error('Product audit photo upload error:', err);
     }
@@ -437,4 +469,4 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
   return newId;
 }
 
-export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, persistClientPhoto, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto, offloadProductAuditPhotos };
+export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, persistClientPhoto, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto, offloadProductAuditPhotos, extractJsonObject, bytesToDataUrl, PRODUCT_AUDIT_AI_STATUS };
