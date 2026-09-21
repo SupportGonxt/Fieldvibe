@@ -1,4 +1,5 @@
 import { apiClient } from './api.service'
+import { compressImageFile } from '../utils/photo-compression'
 
 export const insightsService = {
   getExecutiveDashboard: async () => {
@@ -197,7 +198,18 @@ export const auditLogService = {
 
 export const tradeMarketingService = {
   // Visit Photos
+  // Every visit photo reaches R2 through here, so the compression lives here rather
+  // than in each caller — a page that forgets it can't push a full-size 8MB camera
+  // file into storage. Callers that already compressed (PhotoCaptureWithCompression)
+  // are within budget and pass straight through.
   uploadPhoto: async (formData: FormData) => {
+    for (const key of ['photo', 'thumbnail']) {
+      const value = formData.get(key)
+      if (value instanceof File) {
+        const compressed = await compressImageFile(value)
+        if (compressed !== value) formData.set(key, compressed, 'photo.jpg')
+      }
+    }
     const res = await apiClient.post('/visit-photos/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     return res.data?.data || res.data
   },
