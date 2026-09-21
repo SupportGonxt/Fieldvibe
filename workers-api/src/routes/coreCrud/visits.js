@@ -5,8 +5,13 @@ import { getConfig } from '../field-ops/config.js';
 import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
 import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
+import { normalizeStoreName, boundingBox, storesWithinRadius, findExcludedStore } from '../../services/excludedStore.js';
 
 const app = new Hono();
+
+// How close counts as "at" a store when no per-company radius is configured.
+// Matches the revisit radius default used elsewhere in the check-in flow.
+const DEFAULT_EXCLUSION_RADIUS_M = 200;
 
 // Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
 app.get('/visits/hours-status', authMiddleware, async (c) => {
@@ -504,7 +509,7 @@ app.post('/visits/check-existing-customer', authMiddleware, async (c) => {
   const body = await c.req.json();
   const { company_id, customer_name } = body;
   if (!company_id || !customer_name) return c.json({ is_existing: false });
-  const normalized = String(customer_name).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normalized = normalizeStoreName(customer_name);
   if (!normalized) return c.json({ is_existing: false });
   const match = await db.prepare(
     'SELECT customer_name FROM company_existing_customers WHERE tenant_id = ? AND company_id = ? AND normalized_name = ?'
@@ -513,6 +518,69 @@ app.post('/visits/check-existing-customer', authMiddleware, async (c) => {
     return c.json({ is_existing: true, matched_name: match.customer_name, message: `This is an existing customer (${match.customer_name}) and cannot be visited.` });
   }
   return c.json({ is_existing: false });
+});
+
+// Same do-not-visit list as above, asked the other way round: not "is this store
+// name excluded?" but "is the agent standing at an excluded store?". The name check
+// can only run once a store has been picked or typed, which is several steps after
+// check-in; this one runs the moment GPS is captured, so an agent at a store their
+// company already services is turned away before filling anything in.
+//
+// The excluded list has no coordinates, so listed stores are located through the
+// tenant's customer records: any customer within the radius whose normalized name
+// is on the list means the agent is there. A listed store with no customer record
+// can't be placed on a map at all — the name check still covers that case.
+app.post('/visits/check-location-excluded', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const lat = Number(body.latitude);
+    const lng = Number(body.longitude);
+    // The list is per-company, so without a company there is nothing to check against.
+    if (!body.company_id || !Number.isFinite(lat) || !Number.isFinite(lng)) return c.json({ is_excluded: false });
+
+    const company = await db.prepare('SELECT revisit_radius_meters FROM field_companies WHERE id = ? AND tenant_id = ?').bind(body.company_id, tenantId).first();
+    const configured = Number(company?.revisit_radius_meters);
+    const radius = Number(body.radius_meters) > 0 ? Number(body.radius_meters)
+      : (Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_EXCLUSION_RADIUS_M);
+
+    const box = boundingBox(lat, lng, radius);
+    const nearby = await db.prepare(
+      `SELECT id, name, latitude, longitude FROM customers
+        WHERE tenant_id = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+          AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?
+        LIMIT 200`
+    ).bind(tenantId, box.minLat, box.maxLat, box.minLng, box.maxLng).all();
+
+    const inRadius = storesWithinRadius(lat, lng, nearby.results || [], radius);
+    if (inRadius.length === 0) return c.json({ is_excluded: false, radius_meters: radius });
+
+    const names = [...new Set(inRadius.map(s => normalizeStoreName(s.name)).filter(Boolean))];
+    if (names.length === 0) return c.json({ is_excluded: false, radius_meters: radius });
+    const matches = await db.prepare(
+      `SELECT normalized_name, customer_name FROM company_existing_customers
+        WHERE tenant_id = ? AND company_id = ? AND normalized_name IN (${names.map(() => '?').join(',')})`
+    ).bind(tenantId, body.company_id, ...names).all();
+
+    const excludedNames = new Map((matches.results || []).map(m => [m.normalized_name, m.customer_name]));
+    const hit = findExcludedStore(inRadius, excludedNames);
+    if (!hit) return c.json({ is_excluded: false, radius_meters: radius });
+
+    const distance = Math.round(hit.distance_meters);
+    return c.json({
+      is_excluded: true,
+      store_name: hit.name,
+      matched_name: hit.matched_name,
+      distance_meters: distance,
+      radius_meters: radius,
+      message: `You are at ${hit.matched_name} (${distance}m away), which is on this company's do-not-visit list. A visit cannot be captured here.`
+    });
+  } catch (e) {
+    // Fail open: a lookup that errors must not strand an agent who is somewhere legitimate.
+    console.error('check-location-excluded failed:', e);
+    return c.json({ is_excluded: false });
+  }
 });
 
 // Check for duplicate individual (ID number, phone, or goldrush player ID)

@@ -24,7 +24,8 @@ import {
   Poll as SurveyIcon,
   QrCode2 as QrIcon,
   Refresh as RefreshIcon,
-  CloudOff as OfflineIcon
+  CloudOff as OfflineIcon,
+  Block as BlockIcon
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
@@ -294,6 +295,10 @@ export default function VisitCreate() {
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
+  // Set when the captured position sits at a store on the company's do-not-visit
+  // list — the check-in is blocked there and the agent has to move on to another store.
+  const [locationExcluded, setLocationExcluded] = useState<{ is_excluded: boolean; message?: string; store_name?: string; matched_name?: string; distance_meters?: number } | null>(null)
+  const [locationChecking, setLocationChecking] = useState(false)
 
   // Step 2: Visit Type - pre-populate from URL ?type=store or ?type=individual
   const [searchParams] = useSearchParams()
@@ -679,6 +684,7 @@ export default function VisitCreate() {
   const captureGps = useCallback(() => {
     setGpsLoading(true)
     setGpsError(null)
+    setLocationExcluded(null)
     if (!navigator.geolocation) {
       setGpsError('Geolocation is not supported by your browser')
       setGpsLoading(false)
@@ -708,6 +714,25 @@ export default function VisitCreate() {
       captureGps()
     }
   }, [currentStepKey, gpsLocation, gpsLoading, captureGps])
+
+  // Do-not-visit check on the captured position: an agent standing at a store on
+  // this company's excluded list is stopped here, before filling anything in,
+  // rather than at the store-name check several steps later. Re-runs when the
+  // company changes because the list is per-company. Fails open — a lookup that
+  // errors must not strand an agent who is somewhere perfectly legitimate.
+  useEffect(() => {
+    if (!gpsLocation || !selectedCompany) { setLocationExcluded(null); return }
+    let cancelled = false
+    setLocationChecking(true)
+    fieldOperationsService.checkLocationExcluded(selectedCompany, gpsLocation.latitude, gpsLocation.longitude)
+      .then(res => { if (!cancelled) setLocationExcluded(res?.is_excluded ? res : null) })
+      .catch(err => {
+        console.error('Failed to check excluded location:', err)
+        if (!cancelled) setLocationExcluded(null)
+      })
+      .finally(() => { if (!cancelled) setLocationChecking(false) })
+    return () => { cancelled = true }
+  }, [gpsLocation, selectedCompany])
 
   // Deferred loading: load custom data when entering the details step
   // (replaces the eager useEffect on [selectedCompany, visitTargetType] that fired 4 API calls on startup)
@@ -1244,7 +1269,7 @@ export default function VisitCreate() {
   // Step validation based on dynamic step key
   const canProceed = (): boolean => {
     switch (currentStepKey) {
-      case 'gps': return !!gpsLocation
+      case 'gps': return !!gpsLocation && !locationChecking && !locationExcluded?.is_excluded
       case 'visit_type': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       case 'details': {
         // Survey visits only need a company/brand selected (to load the right questionnaire)
@@ -1655,13 +1680,37 @@ export default function VisitCreate() {
 
           {gpsLocation && (
             <Box sx={{ mt: 2 }}>
-              <Chip icon={<CheckIcon />} label="Location captured" color="success" sx={{ mb: 2 }} />
+              <Chip
+                icon={locationExcluded?.is_excluded ? <BlockIcon /> : <CheckIcon />}
+                label={locationExcluded?.is_excluded ? 'Location not allowed' : 'Location captured'}
+                color={locationExcluded?.is_excluded ? 'error' : 'success'}
+                sx={{ mb: 2 }}
+              />
               <Typography variant="body2" color="text.secondary">
                 Lat: {gpsLocation.latitude.toFixed(6)}, Lng: {gpsLocation.longitude.toFixed(6)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Accuracy: {gpsLocation.accuracy.toFixed(0)}m
               </Typography>
+
+              {locationChecking && (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 2 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="caption" color="text.secondary">Checking this location…</Typography>
+                </Box>
+              )}
+
+              {locationExcluded?.is_excluded && (
+                <Alert severity="error" sx={{ mt: 2, textAlign: 'left' }}>
+                  <Typography variant="body2" fontWeight="bold" gutterBottom>
+                    This store cannot be visited
+                  </Typography>
+                  <Typography variant="body2">{locationExcluded.message}</Typography>
+                  <Button variant="outlined" size="small" color="error" onClick={captureGps} startIcon={<GpsIcon />} sx={{ mt: 1.5 }}>
+                    Re-check location
+                  </Button>
+                </Alert>
+              )}
             </Box>
           )}
 
