@@ -221,6 +221,26 @@ const defaultStepsForType = (t: string): ProcessFlowStep[] =>
 const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
   !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
 
+const isDiplomatCompany = (c?: { name?: string; code?: string } | null) =>
+  !!c && /diplomat/i.test(`${c.name || ''} ${c.code || ''}`)
+
+// Diplomat's final step is two specific shots of the store itself — it runs a
+// product-stock audit and has none of the board/signage concepts the other store
+// flows collect. photo_type is what the API stores and what the AI analyser keys
+// its prompt off, so 'store_front' gets the storefront prompt.
+const DIPLOMAT_PHOTO_SLOTS = [
+  {
+    key: 'store_front',
+    label: 'Outside the store',
+    hint: 'Stand back from the entrance so the shopfront and any signage are in frame.',
+  },
+  {
+    key: 'store_layout',
+    label: 'Store layout, from the door',
+    hint: 'Stand in the doorway and photograph the inside of the shop, showing how it is laid out.',
+  },
+] as const
+
 // Parse the JSON config string stored on a ProcessFlowStep row
 function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
   if (!config) return {}
@@ -367,7 +387,7 @@ export default function VisitCreate() {
   const [skipSurvey, setSkipSurvey] = useState(false)
 
   // Step 5: Photo (with board placement questions)
-  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string }>>([])
+  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string; slot?: string }>>([])
   const [photoGps, setPhotoGps] = useState<GpsLocation | null>(null)
   const [photoDuplicateWarning, setPhotoDuplicateWarning] = useState<string | null>(null)
   // Board placement defaults for the next photo
@@ -1093,6 +1113,11 @@ export default function VisitCreate() {
     })
   }
 
+  // Diplomat store visits end on two named store photos instead of the board
+  // capture every other store flow uses.
+  const isDiplomatStoreVisit = visitTargetType === 'store' &&
+    isDiplomatCompany(companies.find(c => c.id === selectedCompany))
+
   // The individual-visit photo step is the Goldrush system capture. Gate on the
   // configured goldrush_id question as well as the company name: matching the
   // name alone silently skipped extraction (and the B-Tag flag) when the company
@@ -1102,7 +1127,10 @@ export default function VisitCreate() {
     (isGoldrushCompany(companies.find(c => c.id === selectedCompany)) || customQuestions.some(q => isGoldrushIdKey(q.question_key)))
 
   // Capture photo
-  const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // `slot` names a required shot (Diplomat's two store photos). A slot capture
+  // replaces whatever that slot already holds, so re-taking one doesn't pile up
+  // photos; without a slot the photo is appended, which is the existing behaviour.
+  const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>, slot?: string) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -1143,15 +1171,24 @@ export default function VisitCreate() {
       // Add photo immediately so thumbnail + toast are instant. GPS
       // getCurrentPosition can block up to 10s; resolving it inline made
       // agents wait and re-tap. Attach GPS async, patch the entry by hash.
-      setPhotos(prev => [...prev, {
-        boardPlacementLocation: boardPlacementLocation || undefined,
-        boardPlacementPosition: boardPlacementPosition || undefined,
-        boardCondition: boardCondition || undefined,
-        dataUrl,
-        hash,
-        gps: null,
-        timestamp: new Date().toISOString()
-      }])
+      setPhotos(prev => {
+        const entry = {
+          boardPlacementLocation: boardPlacementLocation || undefined,
+          boardPlacementPosition: boardPlacementPosition || undefined,
+          boardCondition: boardCondition || undefined,
+          dataUrl,
+          hash,
+          gps: null,
+          timestamp: new Date().toISOString(),
+          slot,
+        }
+        if (!slot) return [...prev, entry]
+        const existing = prev.findIndex(p => p.slot === slot)
+        if (existing === -1) return [...prev, entry]
+        const next = [...prev]
+        next[existing] = entry
+        return next
+      })
       toast.success('Photo captured successfully')
 
       if (navigator.geolocation) {
@@ -1366,6 +1403,8 @@ export default function VisitCreate() {
       }
       case 'photo': {
         if (photos.length === 0) return false
+        // Diplomat needs both named shots, not just any one photo.
+        if (isDiplomatStoreVisit && !DIPLOMAT_PHOTO_SLOTS.every(s => photos.some(p => p.slot === s.key))) return false
         if (isGoldrushIndividualCapture()) {
           // 'idle' means extraction never started for the captured photo — treat it
           // like a failed read rather than letting the photo through unchecked.
@@ -1402,6 +1441,10 @@ export default function VisitCreate() {
       case 'survey': return 'Please complete all required survey questions before continuing.'
       case 'questionnaire': return 'Please answer all required questions before continuing.'
       case 'photo': {
+        if (isDiplomatStoreVisit) {
+          const missing = DIPLOMAT_PHOTO_SLOTS.filter(s => !photos.some(p => p.slot === s.key))
+          if (missing.length > 0) return `Still needed: ${missing.map(s => s.label.toLowerCase()).join(' and ')}.`
+        }
         if (photos.length === 0) return 'A photo is required before continuing.'
         if (!isGoldrushIndividualCapture()) return 'Please complete this step before continuing.'
         if (photoExtraction.status === 'checking') return 'Please wait — the photo is still being checked.'
@@ -1626,7 +1669,9 @@ export default function VisitCreate() {
           board_condition: p.boardCondition || null,
           gps_latitude: p.gps?.latitude,
           gps_longitude: p.gps?.longitude,
-          photo_type: visitTargetType === 'individual' ? 'goldrush_individual' : 'board',
+          // A slotted photo carries its own type (Diplomat's store_front /
+          // store_layout), which is also what picks the AI analyser's prompt.
+          photo_type: p.slot || (visitTargetType === 'individual' ? 'goldrush_individual' : 'board'),
           captured_at: p.timestamp
         }))
       }
@@ -2909,10 +2954,15 @@ export default function VisitCreate() {
             ? 'Goldrush System Photo'
             : visitTargetType === 'survey'
             ? 'Shop Picture'
+            : isDiplomatStoreVisit
+            ? 'Store Photos'
             : 'Board Photo Capture'}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {visitTargetType === 'individual' ? (
+          {isDiplomatStoreVisit ? (
+            <>Take both photos of the store. Duplicate photos are not allowed.
+            <strong> Both are required.</strong></>
+          ) : visitTargetType === 'individual' ? (
             <>Provide the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — either take a photo with your camera or upload a saved screenshot from your gallery. The customer&apos;s name and Goldrush ID are read from the image and pre-filled on the Details step. A blurry image, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>An image is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
@@ -2922,8 +2972,9 @@ export default function VisitCreate() {
           )}
         </Typography>
 
-        {/* Board Placement Questions — store visits only */}
-        {visitTargetType !== 'survey' && visitTargetType !== 'individual' && (
+        {/* Board Placement Questions — store visits only, and never for Diplomat,
+            whose audit has no board/signage concepts at all */}
+        {visitTargetType !== 'survey' && visitTargetType !== 'individual' && !isDiplomatStoreVisit && (
         <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Board Placement Details</Typography>
           <Grid container spacing={2}>
@@ -2985,7 +3036,53 @@ export default function VisitCreate() {
         </Box>
         )}
 
-        <Box sx={{ mb: 3, textAlign: 'center' }}>
+        {/* Diplomat: two named shots rather than a free-form list, so the outside
+            photo and the from-the-door layout photo are both captured and can be
+            told apart later by photo_type. */}
+        {isDiplomatStoreVisit && (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {DIPLOMAT_PHOTO_SLOTS.map((slot, idx) => {
+              const taken = photos.find(p => p.slot === slot.key)
+              return (
+                <Grid item xs={12} sm={6} key={slot.key}>
+                  <Card variant="outlined" sx={{ height: '100%', borderColor: taken ? 'success.main' : undefined }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography variant="subtitle2" sx={{ flex: 1 }}>{idx + 1}. {slot.label}</Typography>
+                        {taken && <Chip size="small" color="success" icon={<CheckIcon />} label="Taken" />}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                        {slot.hint}
+                      </Typography>
+                      {taken && (
+                        <img
+                          src={taken.dataUrl}
+                          alt={slot.label}
+                          style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
+                        />
+                      )}
+                      <Button
+                        fullWidth
+                        variant={taken ? 'outlined' : 'contained'}
+                        component="label"
+                        startIcon={<CameraIcon />}
+                        color={showValidation && !taken ? 'error' : 'primary'}
+                      >
+                        {taken ? 'Retake' : 'Take photo'}
+                        <input
+                          type="file" hidden accept="image/*" capture="environment"
+                          onChange={(e) => handlePhotoCapture(e, slot.key)}
+                        />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )
+            })}
+          </Grid>
+        )}
+
+        <Box sx={{ mb: 3, textAlign: 'center', display: isDiplomatStoreVisit ? 'none' : 'block' }}>
           <Button
             variant="contained"
             component="label"
@@ -3027,7 +3124,8 @@ export default function VisitCreate() {
           </Alert>
         )}
 
-        {photos.length > 0 && (
+        {/* Diplomat's slots render their own previews above */}
+        {photos.length > 0 && !isDiplomatStoreVisit && (
           <Grid container spacing={2}>
             {photos.map((photo, idx) => (
               <Grid item xs={6} sm={4} key={idx}>
