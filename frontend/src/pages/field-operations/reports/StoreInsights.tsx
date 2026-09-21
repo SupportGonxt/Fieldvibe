@@ -483,7 +483,7 @@ export default function StoreInsights() {
     setExporting(true)
     try {
       if (filtered.length === 0) { toast.error('No data to export'); return }
-      const headers = ['Store Name', 'Store Address', 'Agent', 'Visit Date', 'Product', 'In Stock', 'Why Not', 'Similar Product', 'Rep Visits', 'Why No Rep Visit', 'Delivery', 'Delivery Source', 'Comments']
+      const headers = ['Store Name', 'Store Address', 'Agent', 'Visit Date', 'Product', 'In Stock', 'Why Not', 'Similar Product', 'Rep Visits', 'Why No Rep Visit', 'Delivery', 'Delivery Source', 'Biggest Challenge', 'Product Photo', 'Comments']
       const rows: (string | undefined)[][] = []
       for (const s of filtered) {
         let entries: Array<Record<string, string>> = []
@@ -495,10 +495,10 @@ export default function StoreInsights() {
         } catch { entries = [] }
         const base = [s.store_name || '', s.store_address || '', s.agent_name || '', s.visit_date || '']
         if (entries.length === 0) {
-          rows.push([...base, '', '', '', '', '', '', '', '', ''])
+          rows.push([...base, '', '', '', '', '', '', '', '', '', '', ''])
         } else {
           for (const e of entries) {
-            rows.push([...base, e.product || '', e.stock || '', e.why_not || '', e.similar || '', e.reps || '', e.reps_why_not || '', e.delivery || '', e.delivery_source || '', e.comments || ''])
+            rows.push([...base, e.product || '', e.stock || '', e.why_not || '', e.similar || '', e.reps || '', e.reps_why_not || '', e.delivery || '', e.delivery_source || '', e.challenge || '', e.photo || '', e.comments || ''])
           }
         }
       }
@@ -1167,7 +1167,13 @@ export default function StoreInsights() {
                                 {e.reps_why_not && <div><span className="text-gray-400">Why no rep:</span> <span className="text-gray-700 dark:text-gray-300">{e.reps_why_not}</span></div>}
                                 {e.delivery && <div><span className="text-gray-400">Delivery:</span> <span className="text-gray-700 dark:text-gray-300">{e.delivery}</span></div>}
                                 {e.delivery_source && <div><span className="text-gray-400">Stock source:</span> <span className="text-gray-700 dark:text-gray-300">{e.delivery_source}</span></div>}
+                                {e.challenge && <div><span className="text-gray-400">Biggest challenge:</span> <span className="text-gray-700 dark:text-gray-300">{e.challenge}</span></div>}
                                 {e.comments && <div><span className="text-gray-400">Comments:</span> <span className="text-gray-700 dark:text-gray-300">{e.comments}</span></div>}
+                                {e.photo && (
+                                  <a href={e.photo} target="_blank" rel="noreferrer" className="block mt-1.5">
+                                    <img src={e.photo} alt={e.product} className="w-24 h-24 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                                  </a>
+                                )}
                               </div>
                             </div>
                           ))}

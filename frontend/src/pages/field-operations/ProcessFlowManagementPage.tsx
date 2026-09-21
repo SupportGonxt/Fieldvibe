@@ -141,7 +141,7 @@ const FIELD_TYPES = [
   { value: 'date', label: 'Date' },
   { value: 'textarea', label: 'Long Text' },
   { value: 'image', label: 'Photo Upload' },
-  { value: 'product_audit', label: 'Product Audit (dropdown + repeatable questions)' },
+  { value: 'product_audit', label: 'Product Audit (one page per product)' },
 ]
 
 // ── Printable question form (blank answer spaces for agents to fill out) ──

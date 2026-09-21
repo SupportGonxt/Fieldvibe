@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
-import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto } from '../../lib/photoAi.js';
+import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
 import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 
@@ -759,6 +759,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       // Link visit to individual with custom field values
       // Merge custom_question_values (e.g. goldrush_id) into custom_field_values so they are stored together
       const mergedCustomFields = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      // Same as the store path below: photos nested inside a product-audit answer
+      // go to R2 before the row is written, never as base64 in D1.
+      for (const [key, val] of Object.entries(mergedCustomFields)) {
+        mergedCustomFields[key] = await offloadProductAuditPhotos(db, c.env.UPLOADS, val, { tenantId, visitId, userId, reqUrl: c.req.url });
+      }
       const viId = crypto.randomUUID();
       await db.prepare('INSERT INTO visit_individuals (id, tenant_id, visit_id, individual_id, custom_field_values) VALUES (?, ?, ?, ?, ?)').bind(
         viId, tenantId, visitId, individualId, JSON.stringify(mergedCustomFields)
@@ -817,6 +822,12 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     // 2b. For store visits, save custom_field_values + custom_question_values as a visit_response
     if (body.visit_target_type === 'store') {
       const mergedStoreCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      // Product-audit photos live inside a JSON answer, so they have to be moved to
+      // R2 *before* this row is written — the whole-value offload further down runs
+      // after the INSERT, which would mean storing every product's base64 in D1 first.
+      for (const [key, val] of Object.entries(mergedStoreCustom)) {
+        mergedStoreCustom[key] = await offloadProductAuditPhotos(db, c.env.UPLOADS, val, { tenantId, visitId, userId, reqUrl: c.req.url });
+      }
       if (Object.keys(mergedStoreCustom).length > 0) {
         const cqrId = crypto.randomUUID();
         await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, ?, ?)').bind(

@@ -371,6 +371,48 @@ async function persistClientPhoto(bucket, photo, visitId, photoId, reqUrl) {
   catch { return { r2_key: key, r2_url: '/api/uploads/' + key }; }
 }
 
+// A 'product_audit' answer is a JSON array of per-product entries, and a stocked
+// product carries its proof photo as a data URI on `photo`. The custom-question
+// offload only inspects whole values, so these would be written into D1 verbatim —
+// several megabytes of base64 in one row, the exact problem migration 0024 undid,
+// and past D1's row-size ceiling once a company audits a dozen products.
+// Push each one to R2 and swap in its URL. Anything that fails is left as-is so a
+// photo is never lost, and a value that isn't a product-audit array is returned
+// untouched.
+async function offloadProductAuditPhotos(db, bucket, value, { tenantId, visitId, userId, reqUrl }) {
+  if (typeof value !== 'string' || !value.trimStart().startsWith('[')) return value;
+  let entries;
+  try { entries = JSON.parse(value); } catch { return value; }
+  if (!Array.isArray(entries) || !entries.some(e => e && typeof e.photo === 'string' && e.photo.startsWith('data:image'))) return value;
+  if (!bucket) return value;
+
+  let changed = false;
+  for (const entry of entries) {
+    const decoded = entry && typeof entry.photo === 'string' ? decodeDataUri(entry.photo) : null;
+    if (!decoded) continue;
+    try {
+      const hash = await computePhotoHash(decoded.bytes);
+      if (await isPhotoHashDuplicate(db, tenantId, hash)) {
+        const existing = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, hash).first();
+        if (existing && existing.r2_url) { entry.photo = existing.r2_url; changed = true; }
+        continue;
+      }
+      const photoId = crypto.randomUUID();
+      const r2Key = `photos/${tenantId}/${visitId}/${photoId}.jpg`;
+      await bucket.put(r2Key, decoded.bytes, { httpMetadata: { contentType: decoded.contentType } });
+      const r2Url = new URL(`/api/uploads/${r2Key}`, reqUrl).href;
+      await db.prepare('INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, datetime("now"), ?, ?)').bind(
+        photoId, tenantId, visitId, 'general', r2Key, r2Url, hash, userId
+      ).run();
+      entry.photo = r2Url;
+      changed = true;
+    } catch (err) {
+      console.error('Product audit photo upload error:', err);
+    }
+  }
+  return changed ? JSON.stringify(entries) : value;
+}
+
 // Materialise a questionnaire photo (synthetic id = "{vr_id}_{field}") into visit_photos and return the real id.
 // Returns the real visit_photos id to use, or null if the source can't be found.
 async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedBy) {
@@ -395,4 +437,4 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
   return newId;
 }
 
-export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, persistClientPhoto, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto };
+export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, persistClientPhoto, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto, offloadProductAuditPhotos };

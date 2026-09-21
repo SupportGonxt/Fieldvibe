@@ -176,10 +176,10 @@ const isGoldrushIdKey = (key: string) => {
   return k.replace(/[^a-z0-9]/g, '').includes('goldrushid') && !k.includes('rejected')
 }
 
-// A 'product_audit' question's answer is a JSON array of per-product entries
-// that grows one product at a time — "answered" means every product in its
-// dropdown list has been added, not just that the value is non-empty (which
-// would be true after only the first product).
+// A 'product_audit' question's answer is a JSON array of per-product entries,
+// one written per fully-answered product page — "answered" means every product
+// in its configured list has an entry, not just that the value is non-empty
+// (which would be true after only the first product).
 const isCustomQuestionAnswered = (q: CustomQuestion, value: string | undefined): boolean => {
   if (q.field_type === 'product_audit') {
     let productCount = 0
