@@ -43,6 +43,16 @@ Example of a valid reply:
 
 Now analyse the photo and reply with the JSON object only.`;
 
+// Workers AI does not always throw an Error — it can throw a plain object, and
+// String() on one of those records "[object Object]", which says nothing about what
+// went wrong. Keep whatever detail is actually there.
+function describeError(err) {
+  if (err == null) return 'unknown error';
+  if (typeof err === 'string') return err;
+  if (err.message) return String(err.message);
+  try { return JSON.stringify(err); } catch { return String(err); }
+}
+
 function clampInt(value, min, max) {
   const n = typeof value === 'string' ? parseInt(value, 10) : value;
   if (typeof n !== 'number' || !Number.isFinite(n)) return null;
@@ -54,14 +64,30 @@ function oneOf(value, allowed, fallback) {
   return allowed.includes(v) ? v : fallback;
 }
 
+// A model reply as something safe to put in a TEXT column. Never String(value) on an
+// object: that yields the literal "[object Object]" and throws the actual reply away,
+// which is exactly how the first real analysis lost its output.
+function rawToText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  try { return JSON.stringify(value); } catch { return String(value); }
+}
+
 // Model output -> the row we are willing to store. Never throws: a reply that cannot
 // be parsed comes back as analysis_failed with the raw text kept, so the failure can
 // be read back later instead of disappearing into a log line.
-export function parseShelfAnalysis(rawText) {
-  const parsed = extractJsonObject(rawText);
+//
+// `raw` is whatever Workers AI put in `response`. Usually a string of JSON, but this
+// model also hands back an already-parsed object — the same behaviour that makes
+// analyzePhotoWithAI fail with D1_TYPE_ERROR on its numeric fields. Both are accepted.
+export function parseShelfAnalysis(raw) {
+  const parsed = (raw && typeof raw === 'object' && !Array.isArray(raw))
+    ? raw
+    : extractJsonObject(raw);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { status: 'analysis_failed', raw_model_response: rawText == null ? '' : String(rawText) };
+    return { status: 'analysis_failed', raw_model_response: rawToText(raw) };
   }
+  const rawText = rawToText(raw);
 
   const obstructions = Array.isArray(parsed.obstructions)
     ? parsed.obstructions
@@ -79,7 +105,7 @@ export function parseShelfAnalysis(rawText) {
     estimated_facings: clampInt(parsed.estimated_facings, 0, 9999),
     notes: typeof parsed.notes === 'string' ? parsed.notes.trim().slice(0, 500) : '',
     confidence: oneOf(parsed.confidence, CONFIDENCE_LEVELS, 'low'),
-    raw_model_response: rawText == null ? '' : String(rawText),
+    raw_model_response: rawText,
   };
 }
 
@@ -123,9 +149,10 @@ export async function analyzeShelfPhoto(ai, imageBytes, options = {}) {
       max_tokens: 400,
       temperature: 0,
     });
+    // Handed to the parser as-is: it may be a JSON string or an already-parsed object.
     response = result?.response ?? '';
   } catch (err) {
-    return { status: 'analysis_failed', raw_model_response: `Workers AI call failed: ${err?.message || err}` };
+    return { status: 'analysis_failed', raw_model_response: `Workers AI call failed: ${describeError(err)}` };
   }
 
   return parseShelfAnalysis(response);
@@ -196,7 +223,7 @@ export async function runShelfAnalysis(env, { analysisId, photoId, r2Key }) {
     try {
       await env.DB.prepare(
         "UPDATE shelf_photo_analysis SET status = 'failed', raw_model_response = ?, analysed_at = datetime('now') WHERE id = ?"
-      ).bind(String(err?.message || err), analysisId).run();
+      ).bind(describeError(err), analysisId).run();
     } catch { /* the row stays pending and the cron will retry it */ }
     return 'failed';
   }

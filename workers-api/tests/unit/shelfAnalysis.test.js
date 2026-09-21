@@ -78,6 +78,34 @@ describe('parseShelfAnalysis', () => {
   it('rejects a JSON array — the schema is an object', () => {
     expect(parseShelfAnalysis('[1,2,3]').status).toBe('analysis_failed');
   });
+
+  // Regression: the first real analysis on preview failed with raw_model_response
+  // recorded as the literal "[object Object]". Workers AI had handed back `response`
+  // as an already-parsed object, and String() on it destroyed the reply. The same
+  // model behaviour is what makes the older analyzePhotoWithAI die with
+  // D1_TYPE_ERROR: Type 'object' not supported.
+  it('accepts an already-parsed object from Workers AI, not just a JSON string', () => {
+    const out = parseShelfAnalysis({
+      shelf_level: 'bottom', visibility_score: 3, obstructions: ['crate in front'],
+      estimated_facings: 2, notes: 'Two facings low down behind a crate.', confidence: 'medium',
+    });
+    expect(out.status).toBe('complete');
+    expect(out.shelf_level).toBe('bottom');
+    expect(out.visibility_score).toBe(3);
+    expect(out.estimated_facings).toBe(2);
+  });
+
+  it('never records the string "[object Object]" for an unusable reply', () => {
+    for (const reply of [{ unexpected: 'shape' }, ['a'], 42, { nested: { deep: true } }]) {
+      const out = parseShelfAnalysis(reply);
+      expect(out.raw_model_response).not.toBe('[object Object]');
+    }
+  });
+
+  it('keeps an object reply readable in raw_model_response', () => {
+    const out = parseShelfAnalysis({ shelf_level: 'top', visibility_score: 9 });
+    expect(JSON.parse(out.raw_model_response).shelf_level).toBe('top');
+  });
 });
 
 describe('analyzeShelfPhoto', () => {
@@ -103,6 +131,21 @@ describe('analyzeShelfPhoto', () => {
 
   it('reports a failure when no AI binding is present', async () => {
     expect((await analyzeShelfPhoto(undefined, bytes())).status).toBe('analysis_failed');
+  });
+
+  it('completes when the binding returns response as an object rather than a string', async () => {
+    const binding = { run: async () => ({ response: { shelf_level: 'middle', visibility_score: 5, confidence: 'low' } }) };
+    const out = await analyzeShelfPhoto(binding, bytes());
+    expect(out.status).toBe('complete');
+    expect(out.shelf_level).toBe('middle');
+  });
+
+  it('keeps the detail when Workers AI throws a plain object instead of an Error', async () => {
+    const binding = { run: async () => { throw { code: 5021, detail: 'context window exceeded' }; } };
+    const out = await analyzeShelfPhoto(binding, bytes());
+    expect(out.status).toBe('analysis_failed');
+    expect(out.raw_model_response).toContain('5021');
+    expect(out.raw_model_response).not.toContain('[object Object]');
   });
 
   it('refuses an image over the size cap without calling the model', async () => {
