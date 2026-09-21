@@ -2,11 +2,12 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
-import { rewriteR2Url, PHOTO_URL_SQL, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos } from '../../lib/photoAi.js';
+import { rewriteR2Url, PHOTO_URL_SQL, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos, PRODUCT_AUDIT_AI_STATUS } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
 import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius, findExcludedStore } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
+import { resolveVisitTimes } from '../../services/visitTiming.js';
 
 const app = new Hono();
 
@@ -798,13 +799,16 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     }
 
     // 1. Create the visit record (try with company_id column first, fallback without)
+    // The wizard's GPS fix is the check-in; this submit is the check-out. The gap
+    // is the visit's time on site (see services/visitTiming.js for the guards).
+    const times = resolveVisitTimes(body, now);
     const companyId = body.company_id || null;
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
     try {
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, visit_target_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, visit_target_type, check_in_time, check_out_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-        body.visit_target_type || 'customer', body.visit_target_type || 'customer', now,
+        body.visit_target_type || 'customer', body.visit_target_type || 'customer', times.check_in_time, times.check_out_time,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
         brandId, companyId,
         body.individual_first_name || null, body.individual_last_name || null,
@@ -815,9 +819,9 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       ).run();
     } catch {
       // Fallback: company_id column may not exist yet
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, check_out_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-        body.visit_target_type || 'customer', now,
+        body.visit_target_type || 'customer', times.check_in_time, times.check_out_time,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
         brandId,
         body.individual_first_name || null, body.individual_last_name || null,
@@ -1010,6 +1014,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
 
     // 4. Save photos with GPS, hash, and board placement data (with deduplication)
     const stepPhotoIds = [];
+    // Bulk product shots from the product_photos step. Each is queued for shelf
+    // analysis (with no product name — the agent doesn't label them) and stored
+    // with the same ai_analysis_status the offloaded audit photos use, so the
+    // generic AI drain doesn't spend a second vision call on it.
+    const productPhotoAnalyses = [];
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       for (const photo of body.photos) {
         // Skip duplicate photos by hash
@@ -1019,26 +1028,37 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
         }
         const photoId = crypto.randomUUID();
         const stored = await persistClientPhoto(c.env.UPLOADS, photo, visitId, photoId, c.req.url);
+        const isProductPhoto = photo.photo_type === 'product';
+        const aiStatus = isProductPhoto ? PRODUCT_AUDIT_AI_STATUS : 'pending';
         try {
-          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by, ai_analysis_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
             photoId, tenantId, visitId, photo.photo_type || 'board',
             stored.r2_key, stored.r2_url,
             photo.gps_latitude ?? null, photo.gps_longitude ?? null,
             photo.captured_at || now, photo.photo_hash || null,
             photo.board_placement_location || null, photo.board_placement_position || null,
-            photo.board_condition || null, photo.sample_board_id || null, userId
+            photo.board_condition || null, photo.sample_board_id || null, userId, aiStatus
           ).run();
         } catch {
           // Fallback: board placement columns may not exist yet
-          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by, ai_analysis_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
             photoId, tenantId, visitId, photo.photo_type || 'board',
             stored.r2_key, stored.r2_url,
             photo.gps_latitude ?? null, photo.gps_longitude ?? null,
-            photo.captured_at || now, photo.photo_hash || null, userId
+            photo.captured_at || now, photo.photo_hash || null, userId, aiStatus
           ).run();
         }
         stepPhotoIds.push(photoId);
+        if (isProductPhoto && stored.r2_key && !stored.r2_key.startsWith('data:')) {
+          try {
+            const analysisId = await queueShelfAnalysis(db, { tenantId, visitId, photoId, product: null });
+            if (analysisId) productPhotoAnalyses.push({ analysisId, photoId, r2Key: stored.r2_key });
+          } catch (queueErr) { console.error('Product photo shelf-analysis queue failed:', queueErr); }
+        }
       }
+    }
+    if (productPhotoAnalyses.length > 0) {
+      try { c.executionCtx.waitUntil(runQueuedShelfAnalyses(c.env, productPhotoAnalyses)); } catch { /* the cron drain picks up whatever stays pending */ }
     }
 
     // 5. Trigger AI analysis for uploaded body.photos only (custom question photos are handled in steps 2a/2c with aiEnabledKeys)

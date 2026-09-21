@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../lib/middleware.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { rewriteR2Url } from '../lib/photoAi.js';
+import { visitDurationMinutes } from '../services/visitTiming.js';
 import { ensureCaptureFailures } from '../lib/goldrush.js';
 import { parseStoreInsights } from '../services/goldrushVision.js';
 import { reportIndexMiddleware } from '../lib/reportIndexes.js';
@@ -709,7 +710,7 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
     // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
       SELECT v.id, v.visit_date, v.status, v.notes, v.latitude as gps_latitude, v.longitude as gps_longitude,
-        v.created_at, v.customer_id,
+        v.created_at, v.customer_id, v.check_in_time, v.check_out_time,
         c.name as store_name, c.address as store_address,
         u.first_name || ' ' || u.last_name as agent_name,
         (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
@@ -871,6 +872,9 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         gps_latitude: row.gps_latitude,
         gps_longitude: row.gps_longitude,
         created_at: row.created_at,
+        check_in_time: row.check_in_time || null,
+        check_out_time: row.check_out_time || null,
+        duration_minutes: visitDurationMinutes(row.check_in_time, row.check_out_time),
         notes: additional_notes,
         goldrush_id,
         thumbnail_url: photo_url,

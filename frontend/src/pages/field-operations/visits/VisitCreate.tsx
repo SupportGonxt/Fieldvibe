@@ -30,7 +30,12 @@ import {
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { QrImage } from '../../../components/field-ops/QrImage'
-import ProductAuditQuestion from '../../../components/field-ops/ProductAuditQuestion'
+import StoreQuestionsStep from '../../../components/field-ops/StoreQuestionsStep'
+import StockCheckStep from '../../../components/field-ops/StockCheckStep'
+import {
+  parseProductAudit, serializeProductAudit, parseProductList, isProductAuditComplete,
+  isStoreAnswersComplete, isStockCheckComplete, stockSummary, type ProductAudit,
+} from '../../../utils/product-audit'
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 
 // Haversine distance between two GPS coordinates in meters
@@ -177,17 +182,12 @@ const isGoldrushIdKey = (key: string) => {
   return k.replace(/[^a-z0-9]/g, '').includes('goldrushid') && !k.includes('rejected')
 }
 
-// A 'product_audit' question's answer is a JSON array of per-product entries,
-// one written per fully-answered product page — "answered" means every product
-// in its configured list has an entry, not just that the value is non-empty
-// (which would be true after only the first product).
+// A 'product_audit' question is answered only when both of its pages are: every
+// store-level question, and a Yes/No (with a reason for each No) for every product
+// in its configured list — not merely when the value is non-empty.
 const isCustomQuestionAnswered = (q: CustomQuestion, value: string | undefined): boolean => {
   if (q.field_type === 'product_audit') {
-    let productCount = 0
-    try { productCount = q.field_options ? (JSON.parse(q.field_options) as string[]).length : 0 } catch { productCount = 0 }
-    let entryCount = 0
-    try { entryCount = value ? (JSON.parse(value) as unknown[]).length : 0 } catch { entryCount = 0 }
-    return productCount > 0 && entryCount >= productCount
+    return isProductAuditComplete(parseProductList(q.field_options), value)
   }
   return !!value
 }
@@ -240,6 +240,15 @@ const DIPLOMAT_PHOTO_SLOTS = [
     hint: 'Stand in the doorway and photograph the inside of the shop, showing how it is laid out.',
   },
 ] as const
+
+// Store-audit wizard pages. Each is its own process-flow step (so the Stepper shows
+// it and Back/Next move between them), but all of them write into the company's
+// single product_audit question value — see utils/product-audit.ts for the shape.
+const AUDIT_STEP_KEYS = new Set(['store_questions', 'stock_check', 'product_photos'])
+// Steps that need the company's custom questions loaded before they can render.
+const QUESTION_STEP_KEYS = new Set(['details', 'questionnaire', 'store_questions', 'stock_check'])
+// photo_type of the bulk product shots. Not a slot — they append rather than replace.
+const PRODUCT_PHOTO_TYPE = 'product'
 
 // Parse the JSON config string stored on a ProcessFlowStep row
 function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
@@ -387,7 +396,18 @@ export default function VisitCreate() {
   const [skipSurvey, setSkipSurvey] = useState(false)
 
   // Step 5: Photo (with board placement questions)
-  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string; slot?: string }>>([])
+  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string; slot?: string; photoType?: string }>>([])
+  const [productPhotosBusy, setProductPhotosBusy] = useState(false)
+  // When the agent checked in — set the first time a GPS fix lands and sent as
+  // check_in_time, so the API can time the visit (the submit is the check-out).
+  // The tick re-renders the "min on site" chip every half minute.
+  const [visitStartedAt, setVisitStartedAt] = useState<string>('')
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    if (!visitStartedAt) return
+    const id = setInterval(() => setClockTick(t => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [visitStartedAt])
   const [photoGps, setPhotoGps] = useState<GpsLocation | null>(null)
   const [photoDuplicateWarning, setPhotoDuplicateWarning] = useState<string | null>(null)
   // Board placement defaults for the next photo
@@ -468,6 +488,8 @@ export default function VisitCreate() {
       // It renders the company's custom questions as a dedicated step
       // (visit stays as store/individual, responses saved as visit data).
       if (step.step_key === 'questionnaire') return true
+      // Store-audit pages only make sense on a store visit.
+      if (AUDIT_STEP_KEYS.has(step.step_key)) return visitTargetType === 'store'
       return true
     })
 
@@ -722,6 +744,8 @@ export default function VisitCreate() {
           accuracy: position.coords.accuracy,
           timestamp: position.timestamp
         })
+        // First fix of the visit = check-in. A retake later keeps the original.
+        setVisitStartedAt(prev => prev || new Date().toISOString())
         setGpsLoading(false)
       },
       (err) => {
@@ -761,7 +785,7 @@ export default function VisitCreate() {
   // Deferred loading: load custom data when entering the details step
   // (replaces the eager useEffect on [selectedCompany, visitTargetType] that fired 4 API calls on startup)
   useEffect(() => {
-    if (currentStepKey === 'details' && selectedCompany) {
+    if (QUESTION_STEP_KEYS.has(currentStepKey) && selectedCompany) {
       loadDetailsStepData(selectedCompany)
     }
   }, [currentStepKey, selectedCompany])
@@ -1118,6 +1142,42 @@ export default function VisitCreate() {
   const isDiplomatStoreVisit = visitTargetType === 'store' &&
     isDiplomatCompany(companies.find(c => c.id === selectedCompany))
 
+  // The store audit (store questions + per-product stock check) is stored as one
+  // JSON value under the company's product_audit question; the product list is
+  // that question's options. Without such a question the pages still work and
+  // store under a fixed key, but the stock check has nothing to list.
+  const auditQuestion = customQuestions.find(q => q.field_type === 'product_audit')
+  const auditKey = auditQuestion?.question_key ?? 'store_audit'
+  const auditOptions = auditQuestion?.field_options
+  const auditProducts = useMemo(() => parseProductList(auditOptions), [auditOptions])
+  const auditValue = customQuestionValues[auditKey]
+  const audit = useMemo(() => parseProductAudit(auditValue), [auditValue])
+  const updateAudit = (patch: Partial<ProductAudit>) => {
+    setCustomQuestionValues(prev => ({
+      ...prev,
+      [auditKey]: serializeProductAudit({ ...parseProductAudit(prev[auditKey]), ...patch }),
+    }))
+  }
+  const productPhotos = photos.filter(p => p.photoType === PRODUCT_PHOTO_TYPE)
+
+  // A product_audit question rendered inline (Details or Questionnaire step) when
+  // the flow has no dedicated store_questions / stock_check pages: both pages
+  // stacked, writing into the same value the dedicated steps would.
+  const renderAuditInline = (q: CustomQuestion, products: string[]) => {
+    const current = parseProductAudit(customQuestionValues[q.question_key])
+    const write = (patch: Partial<ProductAudit>) => setCustomQuestionValues(prev => ({
+      ...prev,
+      [q.question_key]: serializeProductAudit({ ...parseProductAudit(prev[q.question_key]), ...patch }),
+    }))
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Typography variant="body1" fontWeight="bold">{q.question_label}{q.is_required ? ' *' : ''}</Typography>
+        <StoreQuestionsStep value={current.store} onChange={(store) => write({ store })} showValidation={showValidation} />
+        <StockCheckStep products={products} value={current.products} onChange={(prods) => write({ products: prods })} showValidation={showValidation} />
+      </Box>
+    )
+  }
+
   // The individual-visit photo step is the Goldrush system capture. Gate on the
   // configured goldrush_id question as well as the company name: matching the
   // name alone silently skipped extraction (and the B-Tag flag) when the company
@@ -1219,6 +1279,45 @@ export default function VisitCreate() {
      }
     }
     reader.readAsDataURL(file)
+  }
+
+  // Bulk product photos: the agent multi-selects from the gallery and every file
+  // is added. No per-photo duplicate round trip to the server (it drops exact
+  // duplicates by hash on save) — just a local dedupe so one shot isn't listed twice.
+  const handleProductPhotosUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    // Reset so picking the same files again after a remove still fires onChange.
+    event.target.value = ''
+    if (files.length === 0) return
+    setPhotoDuplicateWarning(null)
+    setProductPhotosBusy(true)
+    let added = 0
+    let skipped = 0
+    try {
+      const seen = new Set(photos.map(p => p.hash))
+      for (const file of files) {
+        try {
+          const raw = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = () => reject(new Error('Could not read image'))
+            reader.readAsDataURL(file)
+          })
+          const dataUrl = await compressImage(raw)
+          const hash = await generatePhotoHash(dataUrl)
+          if (seen.has(hash)) { skipped++; continue }
+          seen.add(hash)
+          setPhotos(prev => [...prev, { dataUrl, hash, gps: gpsLocation, timestamp: new Date().toISOString(), photoType: PRODUCT_PHOTO_TYPE }])
+          added++
+        } catch {
+          skipped++
+        }
+      }
+    } finally {
+      setProductPhotosBusy(false)
+    }
+    if (added > 0) toast.success(`${added} product photo${added === 1 ? '' : 's'} added`)
+    if (skipped > 0) toast.error(`${skipped} photo${skipped === 1 ? ' was' : 's were'} skipped (duplicate or unreadable)`)
   }
 
   const removePhoto = (index: number) => {
@@ -1401,8 +1500,12 @@ export default function VisitCreate() {
         }
         return true
       }
+      case 'store_questions': return isStoreAnswersComplete(audit.store)
+      case 'stock_check': return auditProducts.length === 0 || isStockCheckComplete(auditProducts, audit.products)
+      case 'product_photos': return productPhotos.length > 0
       case 'photo': {
-        if (photos.length === 0) return false
+        // Bulk product shots belong to their own step; they don't satisfy this one.
+        if (photos.length - productPhotos.length === 0) return false
         // Diplomat needs both named shots, not just any one photo.
         if (isDiplomatStoreVisit && !DIPLOMAT_PHOTO_SLOTS.every(s => photos.some(p => p.slot === s.key))) return false
         if (isGoldrushIndividualCapture()) {
@@ -1440,6 +1543,9 @@ export default function VisitCreate() {
       case 'details': return 'Please complete all required fields before continuing.'
       case 'survey': return 'Please complete all required survey questions before continuing.'
       case 'questionnaire': return 'Please answer all required questions before continuing.'
+      case 'store_questions': return 'Please answer every required store question before continuing.'
+      case 'stock_check': return 'Every product needs a Yes or No — and a reason for every No — before continuing.'
+      case 'product_photos': return 'Add at least one product photo before continuing.'
       case 'photo': {
         if (isDiplomatStoreVisit) {
           const missing = DIPLOMAT_PHOTO_SLOTS.filter(s => !photos.some(p => p.slot === s.key))
@@ -1485,7 +1591,7 @@ export default function VisitCreate() {
   const handleNext = async () => {
     // Only block navigation for stepDataLoading on the details step (where custom questions/fields are needed)
     // GPS and visit_type steps should not be blocked by background data loading
-    const blockForLoading = stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')
+    const blockForLoading = stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')
     if (navigating || blockForLoading) return
     setNavigating(true)
     setError(null)
@@ -1614,6 +1720,7 @@ export default function VisitCreate() {
         checkin_longitude: gpsLocation?.longitude,
         company_id: selectedCompany || undefined,
         client_visit_id: submitIdRef.current,
+        check_in_time: visitStartedAt || undefined,
         notes
       }
 
@@ -1671,7 +1778,7 @@ export default function VisitCreate() {
           gps_longitude: p.gps?.longitude,
           // A slotted photo carries its own type (Diplomat's store_front /
           // store_layout), which is also what picks the AI analyser's prompt.
-          photo_type: p.slot || (visitTargetType === 'individual' ? 'goldrush_individual' : 'board'),
+          photo_type: p.photoType || p.slot || (visitTargetType === 'individual' ? 'goldrush_individual' : 'board'),
           captured_at: p.timestamp
         }))
       }
@@ -2327,14 +2434,7 @@ export default function VisitCreate() {
                 return (
                 <Grid item xs={12} sm={q.field_type === 'product_audit' ? 12 : 6} key={q.id}>
                   {q.field_type === 'product_audit' ? (
-                    <ProductAuditQuestion
-                      label={q.question_label}
-                      products={opts}
-                      required={!!q.is_required}
-                      value={customQuestionValues[q.question_key]}
-                      onChange={(v) => setCustomQuestionValues(prev => ({ ...prev, [q.question_key]: v }))}
-                      showValidation={showValidation}
-                    />
+                    renderAuditInline(q, opts)
                   ) : isGoldrushIdKey(q.question_key) ? (
                     // Filled from the system photo on the photo step — visible but never editable
                     <TextField
@@ -2806,7 +2906,8 @@ export default function VisitCreate() {
 
   // True when the active process flow has a dedicated questionnaire step —
   // used to move custom questions out of the details step into their own step.
-  const hasQuestionnaireStep = activeSteps.some(s => s.step_key === 'questionnaire')
+  // Custom questions render inline on Details only when no later step owns them.
+  const hasQuestionnaireStep = activeSteps.some(s => s.step_key === 'questionnaire' || s.step_key === 'store_questions' || s.step_key === 'stock_check')
 
   const renderQuestionnaireStep = () => {
     if (stepDataLoading) {
@@ -2849,14 +2950,7 @@ export default function VisitCreate() {
               if (qType === 'product_audit') {
                 return (
                   <Box key={qKey} sx={{ mb: 3 }}>
-                    <ProductAuditQuestion
-                      label={`${idx + 1}. ${qLabel}`}
-                      products={qOptions}
-                      required={isRequired}
-                      value={customQuestionValues[qKey]}
-                      onChange={(v) => setCustomQuestionValues(prev => ({ ...prev, [qKey]: v }))}
-                      showValidation={showValidation}
-                    />
+                    {renderAuditInline(q, qOptions)}
                   </Box>
                 )
               }
@@ -3227,6 +3321,71 @@ export default function VisitCreate() {
     </Card>
   )
 
+  const renderProductPhotosStep = () => (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Product Photos</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Walk the store and photograph the products you found. Pick as many photos as you like from your
+          gallery — no need to label them. <strong>At least one photo is required.</strong>
+        </Typography>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'center', mb: 3 }}>
+          <Button
+            variant="contained"
+            component="label"
+            size="large"
+            startIcon={productPhotosBusy ? <CircularProgress size={18} color="inherit" /> : <UploadIcon />}
+            disabled={productPhotosBusy}
+          >
+            {productPhotosBusy ? 'Adding photos…' : 'Choose photos from gallery'}
+            {/* No capture attr → the picker opens on the gallery; multiple lets the agent bulk-select. */}
+            <input type="file" hidden multiple accept="image/*" onChange={handleProductPhotosUpload} />
+          </Button>
+          <Button variant="outlined" component="label" startIcon={<CameraIcon />} disabled={productPhotosBusy}>
+            Take a photo now
+            <input type="file" hidden accept="image/*" capture="environment" onChange={handleProductPhotosUpload} />
+          </Button>
+        </Box>
+
+        {photoDuplicateWarning && (
+          <Alert severity="error" sx={{ mb: 2 }}>{photoDuplicateWarning}</Alert>
+        )}
+
+        {productPhotos.length > 0 ? (
+          <>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              {productPhotos.length} product photo{productPhotos.length === 1 ? '' : 's'}
+            </Typography>
+            <Grid container spacing={1.5}>
+              {photos.map((photo, idx) => photo.photoType !== PRODUCT_PHOTO_TYPE ? null : (
+                <Grid item xs={4} sm={3} key={photo.hash}>
+                  <Box sx={{ position: 'relative' }}>
+                    <img
+                      src={photo.dataUrl}
+                      alt={`Product photo ${idx + 1}`}
+                      style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                    />
+                    <IconButton
+                      size="small"
+                      aria-label="Remove photo"
+                      onClick={() => removePhoto(idx)}
+                      sx={{ position: 'absolute', top: 4, right: 4, bgcolor: 'rgba(0,0,0,0.55)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' } }}
+                    >
+                      ✕
+                    </IconButton>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </>
+        ) : (
+          <Alert severity={showValidation ? 'error' : 'info'}>No product photos added yet.</Alert>
+        )}
+      </CardContent>
+    </Card>
+  )
+
   const renderReviewStep = () => (
     <Card>
       <CardContent>
@@ -3304,6 +3463,29 @@ export default function VisitCreate() {
               <Typography variant="subtitle2" color="text.secondary">Company Questions</Typography>
               {Object.entries(customQuestionValues).map(([key, value]) => {
                 const cq = customQuestions.find(q => q.question_key === key)
+                if (cq?.field_type === 'product_audit' || key === auditKey) {
+                  const a = parseProductAudit(value)
+                  const counts = stockSummary(a.products)
+                  const notStocked = a.products.filter(p => p.stock === 'No')
+                  return (
+                    <Box key={key} sx={{ mb: 1.5 }}>
+                      <Typography variant="body2" fontWeight="medium">{cq?.question_label || 'Store audit'}</Typography>
+                      <Typography variant="body2">Rep visits: {a.store.rep_visits || '—'} · Deliveries: {a.store.deliveries || '—'}</Typography>
+                      {a.store.deliveries === 'No' && a.store.delivery_method && <Typography variant="body2">How they get stock: {a.store.delivery_method}</Typography>}
+                      {a.store.deliveries === 'Yes' && a.store.delivered_products && <Typography variant="body2">Delivered: {a.store.delivered_products}</Typography>}
+                      {a.store.biggest_challenge && <Typography variant="body2">Biggest challenge: {a.store.biggest_challenge}</Typography>}
+                      {a.store.other_delivery_issues && <Typography variant="body2">Other delivery issues: {a.store.other_delivery_issues}</Typography>}
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        Products: {counts.stocked} stocked, {counts.notStocked} not stocked{auditProducts.length > 0 ? ` (of ${auditProducts.length})` : ''}
+                      </Typography>
+                      {notStocked.map(p => (
+                        <Typography key={p.product} variant="caption" color="text.secondary" display="block">
+                          ✕ {p.product}{p.why_not ? ` — ${p.why_not}` : ''}
+                        </Typography>
+                      ))}
+                    </Box>
+                  )
+                }
                 const isImage = cq?.field_type === 'image' || (typeof value === 'string' && value.startsWith('data:image/'))
                 return isImage ? (
                   <Box key={key} sx={{ mb: 1 }}>
@@ -3331,13 +3513,17 @@ export default function VisitCreate() {
           )}
         </Box>
 
-        {/* Only show photos section if photo step exists in flow */}
-        {activeSteps.some(s => s.step_key === 'photo') && (
+        {/* Only show photos section if a photo step exists in flow */}
+        {activeSteps.some(s => s.step_key === 'photo' || s.step_key === 'product_photos') && (
           <>
             <Divider sx={{ my: 2 }} />
             <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle2" color="text.secondary">Photos</Typography>
-              <Typography variant="body2">{photos.length} photo(s) captured</Typography>
+              <Typography variant="body2">
+                {productPhotos.length > 0
+                  ? `${productPhotos.length} product photo(s), ${photos.length - productPhotos.length} store photo(s)`
+                  : `${photos.length} photo(s) captured`}
+              </Typography>
               {photos.length > 0 && (
                 <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                   {photos.map((p, i) => (
@@ -3444,6 +3630,13 @@ export default function VisitCreate() {
       case 'details': return renderDetailsStep()
       case 'survey': return renderSurveyStep()
       case 'questionnaire': return renderQuestionnaireStep()
+      case 'store_questions': return (
+        <StoreQuestionsStep value={audit.store} onChange={(store) => updateAudit({ store })} showValidation={showValidation} />
+      )
+      case 'stock_check': return (
+        <StockCheckStep products={auditProducts} value={audit.products} onChange={(products) => updateAudit({ products })} showValidation={showValidation} />
+      )
+      case 'product_photos': return renderProductPhotosStep()
       case 'photo': return renderPhotoStep()
       case 'qr': return renderQrStep()
       case 'review': return renderReviewStep()
@@ -3474,6 +3667,17 @@ export default function VisitCreate() {
         </Box>
       ) : (
       <>
+      {visitStartedAt && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <Chip
+            size="small"
+            variant="outlined"
+            color="info"
+            icon={<GpsIcon />}
+            label={`Checked in ${new Date(visitStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${Math.max(0, Math.floor((Date.now() - new Date(visitStartedAt).getTime()) / 60000))} min on site`}
+          />
+        </Box>
+      )}
       {/* Compact stepper on mobile to prevent overflow */}
       <Stepper
         activeStep={activeStep}
@@ -3555,11 +3759,11 @@ export default function VisitCreate() {
           <Button
             variant="contained"
             onClick={handleNext}
-            disabled={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) || (currentStepKey === 'survey' && visitTargetType === 'survey' && questionnairesLoaded && questionnaires.length === 0)}
-            endIcon={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
+            disabled={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')) || (currentStepKey === 'survey' && visitTargetType === 'survey' && questionnairesLoaded && questionnaires.length === 0)}
+            endIcon={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')) ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
             size={isMobileContext ? 'medium' : 'large'}
           >
-            {(stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) ? 'Loading...' : 'Next'}
+            {(stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')) ? 'Loading...' : 'Next'}
           </Button>
         ) : goldrushPhotoIncomplete() ? (
           // No Submit button at all when the system photo hasn't yielded a

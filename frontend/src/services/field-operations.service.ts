@@ -1282,6 +1282,9 @@ class FieldOperationsService extends ApiService {
     brand_id?: string;
     checkin_latitude?: number;
     checkin_longitude?: number;
+    // When the agent checked in (GPS fix at the start of the wizard). The API
+    // stamps check_out_time at submit; the gap is the visit's time on site.
+    check_in_time?: string;
     individual_first_name?: string;
     individual_last_name?: string;
     individual_id_number?: string;
