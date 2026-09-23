@@ -45,14 +45,3 @@ export function storesWithinRadius(lat, lng, stores, radiusMeters) {
     .sort((a, b) => a.distance_meters - b.distance_meters);
 }
 
-// The nearest store in range that is on the excluded list, or null when the agent
-// is clear. `excludedNames` maps normalized name -> the name as the company listed it.
-export function findExcludedStore(storesInRadius, excludedNames) {
-  for (const store of storesInRadius || []) {
-    const key = normalizeStoreName(store.name);
-    if (key && excludedNames && excludedNames.has(key)) {
-      return { ...store, matched_name: excludedNames.get(key) || store.name };
-    }
-  }
-  return null;
-}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeStoreName, boundingBox, storesWithinRadius, findExcludedStore } from '../../src/services/excludedStore.js';
+import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../src/services/excludedStore.js';
 
 // Johannesburg CBD-ish; ~0.0009 deg latitude is ~100m.
 const LAT = -26.2041;
@@ -62,45 +62,5 @@ describe('storesWithinRadius', () => {
   it('handles an empty or missing list', () => {
     expect(storesWithinRadius(LAT, LNG, [], 200)).toEqual([]);
     expect(storesWithinRadius(LAT, LNG, undefined, 200)).toEqual([]);
-  });
-});
-
-describe('findExcludedStore', () => {
-  const excluded = new Map([['SHOPRITESOWETO', 'SHOPRITE SOWETO']]);
-
-  it('blocks when a store in range is on the list, whatever its punctuation', () => {
-    const inRadius = storesWithinRadius(LAT, LNG, [
-      { id: 's1', name: 'Shoprite (Soweto)', latitude: LAT, longitude: LNG },
-    ], 200);
-    const hit = findExcludedStore(inRadius, excluded);
-    expect(hit).toBeTruthy();
-    expect(hit.matched_name).toBe('SHOPRITE SOWETO');
-  });
-
-  it('lets the agent through when nothing in range is listed', () => {
-    const inRadius = storesWithinRadius(LAT, LNG, [
-      { id: 's2', name: 'Some Other Spaza', latitude: LAT, longitude: LNG },
-    ], 200);
-    expect(findExcludedStore(inRadius, excluded)).toBeNull();
-  });
-
-  it('reports the nearest listed store when several are in range', () => {
-    const map = new Map([['STOREA', 'Store A'], ['STOREB', 'Store B']]);
-    const inRadius = storesWithinRadius(LAT, LNG, [
-      { id: 'b', name: 'Store B', latitude: LAT + 0.0009, longitude: LNG },
-      { id: 'a', name: 'Store A', latitude: LAT + 0.0001, longitude: LNG },
-    ], 200);
-    expect(findExcludedStore(inRadius, map).id).toBe('a');
-  });
-
-  it('is a no-op for a company with no list loaded', () => {
-    const inRadius = storesWithinRadius(LAT, LNG, [{ id: 's', name: 'Shoprite Soweto', latitude: LAT, longitude: LNG }], 200);
-    expect(findExcludedStore(inRadius, new Map())).toBeNull();
-    expect(findExcludedStore(inRadius, undefined)).toBeNull();
-  });
-
-  it('ignores a store whose name normalizes to nothing', () => {
-    const inRadius = storesWithinRadius(LAT, LNG, [{ id: 's', name: '---', latitude: LAT, longitude: LNG }], 200);
-    expect(findExcludedStore(inRadius, new Map([['', 'blank']]))).toBeNull();
   });
 });

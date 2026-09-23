@@ -5,14 +5,19 @@ import { getConfig } from '../field-ops/config.js';
 import { rewriteR2Url, PHOTO_URL_SQL, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
 import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
-import { normalizeStoreName, boundingBox, storesWithinRadius, findExcludedStore } from '../../services/excludedStore.js';
+import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 
 const app = new Hono();
 
-// How close counts as "at" a store when no per-company radius is configured.
-// Matches the revisit radius default used elsewhere in the check-in flow.
-const DEFAULT_EXCLUSION_RADIUS_M = 200;
+// How close counts as standing at an excluded store. Deliberately much tighter than the
+// 200m revisit radius, and deliberately not read from revisit_radius_meters: the
+// do-not-visit list holds 12,739 shop positions across Johannesburg, and at 200m an
+// average point has 9 other listed shops around it (87 in the worst township high
+// street). A radius that wide would stop an agent standing at a perfectly visitable
+// shop next door. Township shopfronts are metres apart and phone GPS lands within
+// 10-50m, so this is about as tight as it can be without missing the store itself.
+const DEFAULT_EXCLUSION_RADIUS_M = 60;
 
 // Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
 app.get('/visits/hours-status', authMiddleware, async (c) => {
@@ -541,41 +546,36 @@ app.post('/visits/check-location-excluded', authMiddleware, async (c) => {
     // The list is per-company, so without a company there is nothing to check against.
     if (!body.company_id || !Number.isFinite(lat) || !Number.isFinite(lng)) return c.json({ is_excluded: false });
 
-    const company = await db.prepare('SELECT revisit_radius_meters FROM field_companies WHERE id = ? AND tenant_id = ?').bind(body.company_id, tenantId).first();
-    const configured = Number(company?.revisit_radius_meters);
-    const radius = Number(body.radius_meters) > 0 ? Number(body.radius_meters)
-      : (Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_EXCLUSION_RADIUS_M);
+    const radius = Number(body.radius_meters) > 0 ? Number(body.radius_meters) : DEFAULT_EXCLUSION_RADIUS_M;
 
+    // Straight positional lookup against the list's own coordinates. It used to find a
+    // listed store only when that store also existed as a customer record with GPS, which
+    // was 827 of 16,347; the list now carries its own coordinates for 12,739 of them.
     const box = boundingBox(lat, lng, radius);
     const nearby = await db.prepare(
-      `SELECT id, name, latitude, longitude FROM customers
-        WHERE tenant_id = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+      `SELECT id, customer_name AS name, address, latitude, longitude
+         FROM company_existing_customers
+        WHERE tenant_id = ? AND company_id = ?
+          AND latitude IS NOT NULL AND longitude IS NOT NULL
           AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?
-        LIMIT 200`
-    ).bind(tenantId, box.minLat, box.maxLat, box.minLng, box.maxLng).all();
+        LIMIT 100`
+    ).bind(tenantId, body.company_id, box.minLat, box.maxLat, box.minLng, box.maxLng).all();
 
+    // Every row here is on the do-not-visit list by definition, so anything genuinely
+    // within the radius is a block — no name comparison involved.
     const inRadius = storesWithinRadius(lat, lng, nearby.results || [], radius);
     if (inRadius.length === 0) return c.json({ is_excluded: false, radius_meters: radius });
 
-    const names = [...new Set(inRadius.map(s => normalizeStoreName(s.name)).filter(Boolean))];
-    if (names.length === 0) return c.json({ is_excluded: false, radius_meters: radius });
-    const matches = await db.prepare(
-      `SELECT normalized_name, customer_name FROM company_existing_customers
-        WHERE tenant_id = ? AND company_id = ? AND normalized_name IN (${names.map(() => '?').join(',')})`
-    ).bind(tenantId, body.company_id, ...names).all();
-
-    const excludedNames = new Map((matches.results || []).map(m => [m.normalized_name, m.customer_name]));
-    const hit = findExcludedStore(inRadius, excludedNames);
-    if (!hit) return c.json({ is_excluded: false, radius_meters: radius });
-
+    const hit = inRadius[0];
     const distance = Math.round(hit.distance_meters);
     return c.json({
       is_excluded: true,
       store_name: hit.name,
-      matched_name: hit.matched_name,
+      matched_name: hit.name,
       distance_meters: distance,
       radius_meters: radius,
-      message: `You are at ${hit.matched_name} (${distance}m away), which is on this company's do-not-visit list. A visit cannot be captured here.`
+      nearby_excluded_count: inRadius.length,
+      message: `You are ${distance}m from ${hit.name}, which is on this company's do-not-visit list. A visit cannot be captured here.`
     });
   } catch (e) {
     // Fail open: a lookup that errors must not strand an agent who is somewhere legitimate.
