@@ -1,4 +1,5 @@
 import { ApiService } from './api.service'
+import { compressImageFile } from '../utils/photo-compression'
 
 // ============================================================================
 // Type Definitions
@@ -545,7 +546,7 @@ class FieldMarketingService {
 
   async uploadPhoto(file: File, type: 'board_installation' | 'product_distribution' | 'storefront'): Promise<string> {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', await compressImageFile(file))
     formData.append('type', type)
     
     const response = await this.api.post<{ url: string }>('/upload-photo', formData)

@@ -24,11 +24,18 @@ import {
   Poll as SurveyIcon,
   QrCode2 as QrIcon,
   Refresh as RefreshIcon,
-  CloudOff as OfflineIcon
+  CloudOff as OfflineIcon,
+  Block as BlockIcon
 } from '@mui/icons-material'
 import { useToast } from '../../../components/ui/Toast'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { QrImage } from '../../../components/field-ops/QrImage'
+import StoreQuestionsStep from '../../../components/field-ops/StoreQuestionsStep'
+import StockCheckStep from '../../../components/field-ops/StockCheckStep'
+import {
+  parseProductAudit, serializeProductAudit, parseProductList, isProductAuditComplete,
+  isStoreAnswersComplete, isStockCheckComplete, stockSummary, type ProductAudit,
+} from '../../../utils/product-audit'
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 
 // Haversine distance between two GPS coordinates in meters
@@ -175,6 +182,16 @@ const isGoldrushIdKey = (key: string) => {
   return k.replace(/[^a-z0-9]/g, '').includes('goldrushid') && !k.includes('rejected')
 }
 
+// A 'product_audit' question is answered only when both of its pages are: every
+// store-level question, and a Yes/No (with a reason for each No) for every product
+// in its configured list — not merely when the value is non-empty.
+const isCustomQuestionAnswered = (q: CustomQuestion, value: string | undefined): boolean => {
+  if (q.field_type === 'product_audit') {
+    return isProductAuditComplete(parseProductList(q.field_options), value)
+  }
+  return !!value
+}
+
 // The Consumer Name / Consumer Surname company questions are pre-filled from the
 // same photo extraction, but stay editable — OCR of a photographed screen can
 // misread a name and the agent must be able to correct it.
@@ -203,6 +220,39 @@ const defaultStepsForType = (t: string): ProcessFlowStep[] =>
 // Pure helper — defined at module level so it can be used before any component state is initialised
 const isGoldrushCompany = (c?: { name?: string; code?: string } | null) =>
   !!c && /goldrush/i.test(`${c.name || ''} ${c.code || ''}`)
+
+const isDiplomatCompany = (c?: { name?: string; code?: string } | null) =>
+  !!c && /diplomat/i.test(`${c.name || ''} ${c.code || ''}`)
+
+// Diplomat's final step is two specific shots of the store itself — it runs a
+// product-stock audit and has none of the board/signage concepts the other store
+// flows collect. photo_type is what the API stores and what the AI analyser keys
+// its prompt off, so 'store_front' gets the storefront prompt.
+// The inside shot takes as many angles as the shop needs — one frame from the doorway
+// covers a spaza, not a supermarket. One is required, the rest are the agent's call.
+const DIPLOMAT_PHOTO_SLOTS = [
+  {
+    key: 'store_front',
+    label: 'Outside the store',
+    hint: 'Stand back from the entrance so the shopfront and any signage are in frame.',
+    multiple: false,
+  },
+  {
+    key: 'store_layout',
+    label: 'Inside the store, from the door',
+    hint: 'Stand in the doorway and photograph the inside of the shop. For a bigger store, add more angles until the layout is covered.',
+    multiple: true,
+  },
+] as const
+
+// Store-audit wizard pages. Each is its own process-flow step (so the Stepper shows
+// it and Back/Next move between them), but all of them write into the company's
+// single product_audit question value — see utils/product-audit.ts for the shape.
+const AUDIT_STEP_KEYS = new Set(['store_questions', 'stock_check', 'product_photos'])
+// Steps that need the company's custom questions loaded before they can render.
+const QUESTION_STEP_KEYS = new Set(['details', 'questionnaire', 'store_questions', 'stock_check'])
+// photo_type of the bulk product shots. Not a slot — they append rather than replace.
+const PRODUCT_PHOTO_TYPE = 'product'
 
 // Parse the JSON config string stored on a ProcessFlowStep row
 function parseStepConfig(config: string | Record<string, unknown> | undefined): Record<string, unknown> {
@@ -255,7 +305,10 @@ export default function VisitCreate() {
   // Track which company+visitType combo has had custom data loaded to avoid redundant fetches
   const loadedCustomDataKeyRef = useRef<string>('')
   const loadDetailsInvocationRef = useRef(0)
-  const [customersLoaded, setCustomersLoaded] = useState(false)
+  // Which company's store list is currently loaded into `customers` — re-fetches
+  // when the agent switches company so one company's stores (e.g. Goldrush) never
+  // leak into another's search results (e.g. Diplomat).
+  const [customersLoadedForCompany, setCustomersLoadedForCompany] = useState<string>('')
 
   // Dynamic process flow steps from backend
   const [processFlowSteps, setProcessFlowSteps] = useState<ProcessFlowStep[]>([])
@@ -275,6 +328,10 @@ export default function VisitCreate() {
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
+  // Set when the captured position sits at a store on the company's do-not-visit
+  // list — the check-in is blocked there and the agent has to move on to another store.
+  const [locationExcluded, setLocationExcluded] = useState<{ is_excluded: boolean; message?: string; store_name?: string; matched_name?: string; distance_meters?: number } | null>(null)
+  const [locationChecking, setLocationChecking] = useState(false)
 
   // Step 2: Visit Type - pre-populate from URL ?type=store or ?type=individual
   const [searchParams] = useSearchParams()
@@ -307,10 +364,15 @@ export default function VisitCreate() {
   const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
   const [customQuestionValues, setCustomQuestionValues] = useState<Record<string, string>>({})
   const [storeRevisitCheck, setStoreRevisitCheck] = useState<{ can_visit: boolean; message: string; days_since?: number } | null>(null)
+  const [existingCustomerCheck, setExistingCustomerCheck] = useState<{ is_existing: boolean; message?: string; matched_name?: string } | null>(null)
   const [duplicateCheck, setDuplicateCheck] = useState<{ has_duplicates: boolean; duplicates: Array<{ field: string; value: string }> } | null>(null)
   const [newStoreDialogOpen, setNewStoreDialogOpen] = useState(false)
   const [newStoreForm, setNewStoreForm] = useState({ name: '', address: '', contact_person: '', contact_phone: '' })
   const [newStoreFormError, setNewStoreFormError] = useState('')
+  // What the store the agent is adding doesn't line up with at this position — shown
+  // once as a warning, then the agent may add it anyway and it goes for review.
+  const [storeLocationFindings, setStoreLocationFindings] = useState<Array<{ reason: string; severity: string; description: string }>>([])
+  const [storeLocationAcked, setStoreLocationAcked] = useState(false)
   const [savingNewStore, setSavingNewStore] = useState(false)
 
   // Individual fields
@@ -338,7 +400,18 @@ export default function VisitCreate() {
   const [skipSurvey, setSkipSurvey] = useState(false)
 
   // Step 5: Photo (with board placement questions)
-  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string }>>([])
+  const [photos, setPhotos] = useState<Array<{ dataUrl: string; hash: string; gps: GpsLocation | null; timestamp: string; boardPlacementLocation?: string; boardPlacementPosition?: string; boardCondition?: string; slot?: string; photoType?: string }>>([])
+  const [productPhotosBusy, setProductPhotosBusy] = useState(false)
+  // When the agent checked in — set the first time a GPS fix lands and sent as
+  // check_in_time, so the API can time the visit (the submit is the check-out).
+  // The tick re-renders the "min on site" chip every half minute.
+  const [visitStartedAt, setVisitStartedAt] = useState<string>('')
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    if (!visitStartedAt) return
+    const id = setInterval(() => setClockTick(t => t + 1), 30000)
+    return () => clearInterval(id)
+  }, [visitStartedAt])
   const [photoGps, setPhotoGps] = useState<GpsLocation | null>(null)
   const [photoDuplicateWarning, setPhotoDuplicateWarning] = useState<string | null>(null)
   // Board placement defaults for the next photo
@@ -419,6 +492,8 @@ export default function VisitCreate() {
       // It renders the company's custom questions as a dedicated step
       // (visit stays as store/individual, responses saved as visit data).
       if (step.step_key === 'questionnaire') return true
+      // Store-audit pages only make sense on a store visit.
+      if (AUDIT_STEP_KEYS.has(step.step_key)) return visitTargetType === 'store'
       return true
     })
 
@@ -589,7 +664,7 @@ export default function VisitCreate() {
     const vType = visitTargetType || undefined
     const dataKey = `${cid}|${vType}`
     // Skip if already loaded for this company+visitType combo
-    if (loadedCustomDataKeyRef.current === dataKey && customersLoaded) return
+    if (loadedCustomDataKeyRef.current === dataKey && customersLoadedForCompany === cid) return
     loadedCustomDataKeyRef.current = dataKey
     const invocationId = ++loadDetailsInvocationRef.current
 
@@ -617,8 +692,8 @@ export default function VisitCreate() {
       promises.push(withTimeout(() => loadSurveyConfig(cid), 'loadSurveyConfig'))
       promises.push(withTimeout(() => loadQuestionnaires(cid), 'loadQuestionnaires'))
     }
-    if (!customersLoaded) {
-      promises.push(withTimeout(() => loadCustomersData(), 'loadCustomersData'))
+    if (customersLoadedForCompany !== cid) {
+      promises.push(withTimeout(() => loadCustomersData(cid), 'loadCustomersData'))
     }
     await Promise.all(promises)
 
@@ -629,25 +704,27 @@ export default function VisitCreate() {
     }
   }
 
-  // Load customers/stores — called lazily when approaching details step
-  const loadCustomersData = async () => {
+  // Load customers/stores — called lazily when approaching details step.
+  // Scoped to `companyId` via /agent/store-search's company_id filter (only
+  // stores previously visited under that company, plus any this session just
+  // created) so one company's stores never leak into another's search results
+  // — e.g. an agent doing a Diplomat visit should never see Goldrush stores.
+  const loadCustomersData = async (companyId?: string) => {
+    const cid = companyId || selectedCompany
     try {
-      if (isMobileContext) {
-        try {
-          const storeRes = await apiClient.get('/agent/store-search?limit=200')
-          const storeData = storeRes?.data?.data || storeRes?.data || []
-          setCustomers(Array.isArray(storeData) ? storeData : [])
-        } catch {
-          const customersRes = await fieldOperationsService.getCustomers()
-          const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
-          setCustomers(Array.isArray(customersData) ? customersData : [])
-        }
-      } else {
+      const params = new URLSearchParams({ limit: '200' })
+      if (cid) params.set('company_id', cid)
+      try {
+        const storeRes = await apiClient.get(`/agent/store-search?${params.toString()}`)
+        const storeData = storeRes?.data?.data || storeRes?.data || []
+        setCustomers(Array.isArray(storeData) ? storeData : [])
+      } catch {
+        // Fall back to the unfiltered customer list if store-search is unavailable
         const customersRes = await fieldOperationsService.getCustomers()
         const customersData = customersRes?.data?.data || customersRes?.data || customersRes || []
         setCustomers(Array.isArray(customersData) ? customersData : [])
       }
-      setCustomersLoaded(true)
+      setCustomersLoadedForCompany(cid)
     } catch (err) {
       console.error('Failed to load customers:', err)
     }
@@ -657,6 +734,7 @@ export default function VisitCreate() {
   const captureGps = useCallback(() => {
     setGpsLoading(true)
     setGpsError(null)
+    setLocationExcluded(null)
     if (!navigator.geolocation) {
       setGpsError('Geolocation is not supported by your browser')
       setGpsLoading(false)
@@ -670,6 +748,8 @@ export default function VisitCreate() {
           accuracy: position.coords.accuracy,
           timestamp: position.timestamp
         })
+        // First fix of the visit = check-in. A retake later keeps the original.
+        setVisitStartedAt(prev => prev || new Date().toISOString())
         setGpsLoading(false)
       },
       (err) => {
@@ -687,10 +767,29 @@ export default function VisitCreate() {
     }
   }, [currentStepKey, gpsLocation, gpsLoading, captureGps])
 
+  // Do-not-visit check on the captured position: an agent standing at a store on
+  // this company's excluded list is stopped here, before filling anything in,
+  // rather than at the store-name check several steps later. Re-runs when the
+  // company changes because the list is per-company. Fails open — a lookup that
+  // errors must not strand an agent who is somewhere perfectly legitimate.
+  useEffect(() => {
+    if (!gpsLocation || !selectedCompany) { setLocationExcluded(null); return }
+    let cancelled = false
+    setLocationChecking(true)
+    fieldOperationsService.checkLocationExcluded(selectedCompany, gpsLocation.latitude, gpsLocation.longitude)
+      .then(res => { if (!cancelled) setLocationExcluded(res?.is_excluded ? res : null) })
+      .catch(err => {
+        console.error('Failed to check excluded location:', err)
+        if (!cancelled) setLocationExcluded(null)
+      })
+      .finally(() => { if (!cancelled) setLocationChecking(false) })
+    return () => { cancelled = true }
+  }, [gpsLocation, selectedCompany])
+
   // Deferred loading: load custom data when entering the details step
   // (replaces the eager useEffect on [selectedCompany, visitTargetType] that fired 4 API calls on startup)
   useEffect(() => {
-    if (currentStepKey === 'details' && selectedCompany) {
+    if (QUESTION_STEP_KEYS.has(currentStepKey) && selectedCompany) {
       loadDetailsStepData(selectedCompany)
     }
   }, [currentStepKey, selectedCompany])
@@ -837,11 +936,29 @@ export default function VisitCreate() {
   // Check store revisit when customer selected
   const checkStoreRevisit = async (customerId: string) => {
     try {
-      const res = await fieldOperationsService.checkStoreRevisit(customerId)
+      const res = await fieldOperationsService.checkStoreRevisit(customerId, selectedCompany || undefined)
       setStoreRevisitCheck(res)
       return res
     } catch (err) {
       console.error('Failed to check store revisit:', err)
+      return null
+    }
+  }
+
+  // Check the store name against the visit's company's imported "existing
+  // customer" list (e.g. Diplomat's calling base) — a no-op for companies
+  // with no such list loaded.
+  const checkExistingCustomer = async (customerName: string) => {
+    if (!selectedCompany || !customerName?.trim()) {
+      setExistingCustomerCheck(null)
+      return null
+    }
+    try {
+      const res = await fieldOperationsService.checkExistingCustomer(selectedCompany, customerName.trim())
+      setExistingCustomerCheck(res)
+      return res
+    } catch (err) {
+      console.error('Failed to check existing customer:', err)
       return null
     }
   }
@@ -1024,6 +1141,47 @@ export default function VisitCreate() {
     })
   }
 
+  // Diplomat store visits end on two named store photos instead of the board
+  // capture every other store flow uses.
+  const isDiplomatStoreVisit = visitTargetType === 'store' &&
+    isDiplomatCompany(companies.find(c => c.id === selectedCompany))
+
+  // The store audit (store questions + per-product stock check) is stored as one
+  // JSON value under the company's product_audit question; the product list is
+  // that question's options. Without such a question the pages still work and
+  // store under a fixed key, but the stock check has nothing to list.
+  const auditQuestion = customQuestions.find(q => q.field_type === 'product_audit')
+  const auditKey = auditQuestion?.question_key ?? 'store_audit'
+  const auditOptions = auditQuestion?.field_options
+  const auditProducts = useMemo(() => parseProductList(auditOptions), [auditOptions])
+  const auditValue = customQuestionValues[auditKey]
+  const audit = useMemo(() => parseProductAudit(auditValue), [auditValue])
+  const updateAudit = (patch: Partial<ProductAudit>) => {
+    setCustomQuestionValues(prev => ({
+      ...prev,
+      [auditKey]: serializeProductAudit({ ...parseProductAudit(prev[auditKey]), ...patch }),
+    }))
+  }
+  const productPhotos = photos.filter(p => p.photoType === PRODUCT_PHOTO_TYPE)
+
+  // A product_audit question rendered inline (Details or Questionnaire step) when
+  // the flow has no dedicated store_questions / stock_check pages: both pages
+  // stacked, writing into the same value the dedicated steps would.
+  const renderAuditInline = (q: CustomQuestion, products: string[]) => {
+    const current = parseProductAudit(customQuestionValues[q.question_key])
+    const write = (patch: Partial<ProductAudit>) => setCustomQuestionValues(prev => ({
+      ...prev,
+      [q.question_key]: serializeProductAudit({ ...parseProductAudit(prev[q.question_key]), ...patch }),
+    }))
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Typography variant="body1" fontWeight="bold">{q.question_label}{q.is_required ? ' *' : ''}</Typography>
+        <StoreQuestionsStep value={current.store} onChange={(store) => write({ store })} showValidation={showValidation} />
+        <StockCheckStep products={products} value={current.products} onChange={(prods) => write({ products: prods })} showValidation={showValidation} />
+      </Box>
+    )
+  }
+
   // The individual-visit photo step is the Goldrush system capture. Gate on the
   // configured goldrush_id question as well as the company name: matching the
   // name alone silently skipped extraction (and the B-Tag flag) when the company
@@ -1033,7 +1191,10 @@ export default function VisitCreate() {
     (isGoldrushCompany(companies.find(c => c.id === selectedCompany)) || customQuestions.some(q => isGoldrushIdKey(q.question_key)))
 
   // Capture photo
-  const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // `slot` names a required shot (Diplomat's two store photos). A slot capture
+  // replaces whatever that slot already holds, so re-taking one doesn't pile up
+  // photos; without a slot the photo is appended, which is the existing behaviour.
+  const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>, slot?: string) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -1074,15 +1235,27 @@ export default function VisitCreate() {
       // Add photo immediately so thumbnail + toast are instant. GPS
       // getCurrentPosition can block up to 10s; resolving it inline made
       // agents wait and re-tap. Attach GPS async, patch the entry by hash.
-      setPhotos(prev => [...prev, {
-        boardPlacementLocation: boardPlacementLocation || undefined,
-        boardPlacementPosition: boardPlacementPosition || undefined,
-        boardCondition: boardCondition || undefined,
-        dataUrl,
-        hash,
-        gps: null,
-        timestamp: new Date().toISOString()
-      }])
+      setPhotos(prev => {
+        const entry = {
+          boardPlacementLocation: boardPlacementLocation || undefined,
+          boardPlacementPosition: boardPlacementPosition || undefined,
+          boardCondition: boardCondition || undefined,
+          dataUrl,
+          hash,
+          gps: null,
+          timestamp: new Date().toISOString(),
+          slot,
+        }
+        if (!slot) return [...prev, entry]
+        // A slot that takes several angles appends; a single-photo slot is replaced,
+        // so re-taking it doesn't leave the old frame behind.
+        if (DIPLOMAT_PHOTO_SLOTS.find(s => s.key === slot)?.multiple) return [...prev, entry]
+        const existing = prev.findIndex(p => p.slot === slot)
+        if (existing === -1) return [...prev, entry]
+        const next = [...prev]
+        next[existing] = entry
+        return next
+      })
       toast.success('Photo captured successfully')
 
       if (navigator.geolocation) {
@@ -1113,6 +1286,45 @@ export default function VisitCreate() {
      }
     }
     reader.readAsDataURL(file)
+  }
+
+  // Bulk product photos: the agent multi-selects from the gallery and every file
+  // is added. No per-photo duplicate round trip to the server (it drops exact
+  // duplicates by hash on save) — just a local dedupe so one shot isn't listed twice.
+  const handleProductPhotosUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    // Reset so picking the same files again after a remove still fires onChange.
+    event.target.value = ''
+    if (files.length === 0) return
+    setPhotoDuplicateWarning(null)
+    setProductPhotosBusy(true)
+    let added = 0
+    let skipped = 0
+    try {
+      const seen = new Set(photos.map(p => p.hash))
+      for (const file of files) {
+        try {
+          const raw = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = () => reject(new Error('Could not read image'))
+            reader.readAsDataURL(file)
+          })
+          const dataUrl = await compressImage(raw)
+          const hash = await generatePhotoHash(dataUrl)
+          if (seen.has(hash)) { skipped++; continue }
+          seen.add(hash)
+          setPhotos(prev => [...prev, { dataUrl, hash, gps: gpsLocation, timestamp: new Date().toISOString(), photoType: PRODUCT_PHOTO_TYPE }])
+          added++
+        } catch {
+          skipped++
+        }
+      }
+    } finally {
+      setProductPhotosBusy(false)
+    }
+    if (added > 0) toast.success(`${added} product photo${added === 1 ? '' : 's'} added`)
+    if (skipped > 0) toast.error(`${skipped} photo${skipped === 1 ? ' was' : 's were'} skipped (duplicate or unreadable)`)
   }
 
   const removePhoto = (index: number) => {
@@ -1204,7 +1416,7 @@ export default function VisitCreate() {
   // Step validation based on dynamic step key
   const canProceed = (): boolean => {
     switch (currentStepKey) {
-      case 'gps': return !!gpsLocation
+      case 'gps': return !!gpsLocation && !locationChecking && !locationExcluded?.is_excluded
       case 'visit_type': return visitTargetType === 'individual' || visitTargetType === 'store' || visitTargetType === 'survey'
       case 'details': {
         // Survey visits only need a company/brand selected (to load the right questionnaire)
@@ -1224,7 +1436,7 @@ export default function VisitCreate() {
               // Read-only — filled from the system photo captured earlier; may be
               // legitimately empty when the ID was unreadable and acknowledged
               if (isGoldrushIdKey(q.question_key)) continue
-              if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (q.is_required && !isCustomQuestionAnswered(q, customQuestionValues[q.question_key])) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
             }
           }
@@ -1233,13 +1445,14 @@ export default function VisitCreate() {
         if (visitTargetType === 'store') {
           if (!selectedCustomer && !newStoreName) return false
           if (selectedCustomer && storeRevisitCheck && !storeRevisitCheck.can_visit) return false
+          if (existingCustomerCheck?.is_existing) return false
           for (const field of customFields) {
             if (field.is_required && !customFieldValues[field.field_name]) return false
           }
           if (!hasQuestionnaireStep) {
             for (const q of customQuestions) {
               if (isGoldrushIdKey(q.question_key)) continue
-              if (q.is_required && !customQuestionValues[q.question_key]) return false
+              if (q.is_required && !isCustomQuestionAnswered(q, customQuestionValues[q.question_key])) return false
               if (isNationalIdKey(q.question_key) && idError(companyIdTypes[q.question_key] || 'sa_id', customQuestionValues[q.question_key] || '')) return false
             }
           }
@@ -1290,12 +1503,18 @@ export default function VisitCreate() {
         for (const q of customQuestions) {
           // Hidden — filled from the photo on the (later) photo step
           if (isGoldrushIdKey(q.question_key)) continue
-          if (q.is_required && !customQuestionValues[q.question_key]) return false
+          if (q.is_required && !isCustomQuestionAnswered(q, customQuestionValues[q.question_key])) return false
         }
         return true
       }
+      case 'store_questions': return isStoreAnswersComplete(audit.store)
+      case 'stock_check': return auditProducts.length === 0 || isStockCheckComplete(auditProducts, audit.products)
+      case 'product_photos': return productPhotos.length > 0
       case 'photo': {
-        if (photos.length === 0) return false
+        // Bulk product shots belong to their own step; they don't satisfy this one.
+        if (photos.length - productPhotos.length === 0) return false
+        // Diplomat needs both named shots, not just any one photo.
+        if (isDiplomatStoreVisit && !DIPLOMAT_PHOTO_SLOTS.every(s => photos.some(p => p.slot === s.key))) return false
         if (isGoldrushIndividualCapture()) {
           // 'idle' means extraction never started for the captured photo — treat it
           // like a failed read rather than letting the photo through unchecked.
@@ -1331,7 +1550,14 @@ export default function VisitCreate() {
       case 'details': return 'Please complete all required fields before continuing.'
       case 'survey': return 'Please complete all required survey questions before continuing.'
       case 'questionnaire': return 'Please answer all required questions before continuing.'
+      case 'store_questions': return 'Please answer every required store question before continuing.'
+      case 'stock_check': return 'Every product needs a Yes or No — and a reason for every No — before continuing.'
+      case 'product_photos': return 'Add at least one product photo before continuing.'
       case 'photo': {
+        if (isDiplomatStoreVisit) {
+          const missing = DIPLOMAT_PHOTO_SLOTS.filter(s => !photos.some(p => p.slot === s.key))
+          if (missing.length > 0) return `Still needed: ${missing.map(s => s.label.toLowerCase()).join(' and ')}.`
+        }
         if (photos.length === 0) return 'A photo is required before continuing.'
         if (!isGoldrushIndividualCapture()) return 'Please complete this step before continuing.'
         if (photoExtraction.status === 'checking') return 'Please wait — the photo is still being checked.'
@@ -1372,7 +1598,7 @@ export default function VisitCreate() {
   const handleNext = async () => {
     // Only block navigation for stepDataLoading on the details step (where custom questions/fields are needed)
     // GPS and visit_type steps should not be blocked by background data loading
-    const blockForLoading = stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')
+    const blockForLoading = stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')
     if (navigating || blockForLoading) return
     setNavigating(true)
     setError(null)
@@ -1403,6 +1629,19 @@ export default function VisitCreate() {
             }
             setError('Duplicate individual detected. ID number and phone must be unique.')
             return
+          }
+        }
+        // Existing-customer check: blocks stores already on the visit's company's
+        // imported "existing customer" list (e.g. Diplomat's calling base). Covers
+        // both a selected customer and a freshly-typed store name.
+        if (visitTargetType === 'store' && selectedCompany) {
+          const storeName = selectedCustomer ? (customers.find(c => c.id === selectedCustomer)?.name || '') : newStoreName
+          if (storeName) {
+            const existing = await checkExistingCustomer(storeName)
+            if (existing?.is_existing) {
+              setError(existing.message || 'This is an existing customer and cannot be visited.')
+              return
+            }
           }
         }
         // GPS radius check: only enforced for store revisits, not for new individual visits
@@ -1488,6 +1727,7 @@ export default function VisitCreate() {
         checkin_longitude: gpsLocation?.longitude,
         company_id: selectedCompany || undefined,
         client_visit_id: submitIdRef.current,
+        check_in_time: visitStartedAt || undefined,
         notes
       }
 
@@ -1543,7 +1783,9 @@ export default function VisitCreate() {
           board_condition: p.boardCondition || null,
           gps_latitude: p.gps?.latitude,
           gps_longitude: p.gps?.longitude,
-          photo_type: visitTargetType === 'individual' ? 'goldrush_individual' : 'board',
+          // A slotted photo carries its own type (Diplomat's store_front /
+          // store_layout), which is also what picks the AI analyser's prompt.
+          photo_type: p.photoType || p.slot || (visitTargetType === 'individual' ? 'goldrush_individual' : 'board'),
           captured_at: p.timestamp
         }))
       }
@@ -1601,13 +1843,37 @@ export default function VisitCreate() {
 
           {gpsLocation && (
             <Box sx={{ mt: 2 }}>
-              <Chip icon={<CheckIcon />} label="Location captured" color="success" sx={{ mb: 2 }} />
+              <Chip
+                icon={locationExcluded?.is_excluded ? <BlockIcon /> : <CheckIcon />}
+                label={locationExcluded?.is_excluded ? 'Location not allowed' : 'Location captured'}
+                color={locationExcluded?.is_excluded ? 'error' : 'success'}
+                sx={{ mb: 2 }}
+              />
               <Typography variant="body2" color="text.secondary">
                 Lat: {gpsLocation.latitude.toFixed(6)}, Lng: {gpsLocation.longitude.toFixed(6)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Accuracy: {gpsLocation.accuracy.toFixed(0)}m
               </Typography>
+
+              {locationChecking && (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 2 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="caption" color="text.secondary">Checking this location…</Typography>
+                </Box>
+              )}
+
+              {locationExcluded?.is_excluded && (
+                <Alert severity="error" sx={{ mt: 2, textAlign: 'left' }}>
+                  <Typography variant="body2" fontWeight="bold" gutterBottom>
+                    This store cannot be visited
+                  </Typography>
+                  <Typography variant="body2">{locationExcluded.message}</Typography>
+                  <Button variant="outlined" size="small" color="error" onClick={captureGps} startIcon={<GpsIcon />} sx={{ mt: 1.5 }}>
+                    Re-check location
+                  </Button>
+                </Alert>
+              )}
             </Box>
           )}
 
@@ -1876,15 +2142,20 @@ export default function VisitCreate() {
                     setSelectedCustomer('')
                     setNewStoreName(newValue)
                     setStoreRevisitCheck(null)
+                    setExistingCustomerCheck(null)
+                    await checkExistingCustomer(newValue)
                   } else if (newValue) {
                     setSelectedCustomer(newValue.id)
                     setNewStoreName('')
                     setStoreRevisitCheck(null)
+                    setExistingCustomerCheck(null)
                     await checkStoreRevisit(newValue.id)
+                    await checkExistingCustomer(newValue.name || newValue.business_name || '')
                   } else {
                     setSelectedCustomer('')
                     setNewStoreName('')
                     setStoreRevisitCheck(null)
+                    setExistingCustomerCheck(null)
                   }
                 }}
                 onInputChange={(_e, value, reason) => {
@@ -1904,6 +2175,8 @@ export default function VisitCreate() {
                 onClick={() => {
                   setNewStoreForm({ name: newStoreName, address: '', contact_person: '', contact_phone: '' })
                   setNewStoreFormError('')
+                  setStoreLocationFindings([])
+                  setStoreLocationAcked(false)
                   setNewStoreDialogOpen(true)
                 }}
                 sx={{ mt: 0.5, whiteSpace: 'nowrap', height: 56 }}
@@ -1920,7 +2193,12 @@ export default function VisitCreate() {
                 <TextField
                   label="Store Name *"
                   value={newStoreForm.name}
-                  onChange={e => setNewStoreForm(f => ({ ...f, name: e.target.value }))}
+                  onChange={e => {
+                    setNewStoreForm(f => ({ ...f, name: e.target.value }))
+                    // Editing what was warned about re-opens the question.
+                    setStoreLocationAcked(false)
+                    setStoreLocationFindings([])
+                  }}
                   fullWidth
                   required
                   sx={{ mt: 1, mb: 2 }}
@@ -1929,7 +2207,11 @@ export default function VisitCreate() {
                 <TextField
                   label="Address"
                   value={newStoreForm.address}
-                  onChange={e => setNewStoreForm(f => ({ ...f, address: e.target.value }))}
+                  onChange={e => {
+                    setNewStoreForm(f => ({ ...f, address: e.target.value }))
+                    setStoreLocationAcked(false)
+                    setStoreLocationFindings([])
+                  }}
                   fullWidth
                   sx={{ mb: 2 }}
                 />
@@ -1946,6 +2228,32 @@ export default function VisitCreate() {
                   onChange={e => setNewStoreForm(f => ({ ...f, contact_phone: e.target.value }))}
                   fullWidth
                 />
+                {gpsLocation ? (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    This store will be pinned at your current location
+                    ({gpsLocation.latitude.toFixed(5)}, {gpsLocation.longitude.toFixed(5)}, ±{gpsLocation.accuracy.toFixed(0)}m).
+                    Add it while you are standing at the store.
+                  </Alert>
+                ) : (
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    No GPS fix yet — this store will be saved without a location, and later
+                    visits to it cannot be distance-checked.
+                  </Alert>
+                )}
+
+                {storeLocationFindings.length > 0 && (
+                  <Alert severity="warning" sx={{ mt: 2 }} icon={<WarningIcon />}>
+                    <Typography variant="body2" fontWeight="bold" gutterBottom>
+                      This doesn&apos;t match where you are
+                    </Typography>
+                    {storeLocationFindings.map((f, i) => (
+                      <Typography key={i} variant="body2" sx={{ mb: 0.5 }}>• {f.description}</Typography>
+                    ))}
+                    <Typography variant="caption" color="text.secondary">
+                      Fix the details above, or add it anyway — it will be flagged for your team lead to review.
+                    </Typography>
+                  </Alert>
+                )}
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setNewStoreDialogOpen(false)} disabled={savingNewStore}>Cancel</Button>
@@ -1957,6 +2265,34 @@ export default function VisitCreate() {
                     setSavingNewStore(true)
                     setNewStoreFormError('')
                     try {
+                      if (selectedCompany) {
+                        const existing = await checkExistingCustomer(newStoreForm.name.trim())
+                        if (existing?.is_existing) {
+                          setNewStoreFormError(existing.message || 'This is an existing customer and cannot be visited.')
+                          setSavingNewStore(false)
+                          return
+                        }
+                      }
+                      // Does the store being entered belong at this position? Shown
+                      // once so a typo or an already-known store can still be fixed;
+                      // a second press adds it anyway (and flags it for review).
+                      if (!storeLocationAcked) {
+                        const check = await apiClient.post('/customers/check-location', {
+                          name: newStoreForm.name.trim(),
+                          address: newStoreForm.address.trim() || undefined,
+                          latitude: gpsLocation?.latitude,
+                          longitude: gpsLocation?.longitude,
+                          accuracy: gpsLocation?.accuracy,
+                        })
+                        const findings = check.data?.data?.findings || []
+                        setStoreLocationFindings(findings)
+                        setStoreLocationAcked(true)
+                        if (findings.length > 0) { setSavingNewStore(false); return }
+                      }
+                      // Pin the store at the check-in position. Without this a new
+                      // store is saved with no coordinates at all, which leaves it
+                      // invisible to every later location check — the revisit radius
+                      // and the do-not-visit lookup both need a store to have GPS.
                       const res = await apiClient.post('/customers', {
                         name: newStoreForm.name.trim(),
                         address: newStoreForm.address.trim() || undefined,
@@ -1964,16 +2300,31 @@ export default function VisitCreate() {
                         contact_phone: newStoreForm.contact_phone.trim() || undefined,
                         customer_type: 'SHOP',
                         type: 'retail',
+                        latitude: gpsLocation?.latitude,
+                        longitude: gpsLocation?.longitude,
+                        accuracy: gpsLocation?.accuracy,
+                        // Tells the API this came off the check-in flow, so it
+                        // re-runs the location check itself and files the review flag.
+                        source: 'field_visit',
                       })
                       const newId = res.data?.data?.id
                       if (!newId) throw new Error('No ID returned')
                       // Add to local list and auto-select
-                      const newCustomer = { id: newId, name: newStoreForm.name.trim(), address: newStoreForm.address.trim() || undefined }
+                      const newCustomer = {
+                        id: newId,
+                        name: newStoreForm.name.trim(),
+                        address: newStoreForm.address.trim() || undefined,
+                        latitude: gpsLocation?.latitude,
+                        longitude: gpsLocation?.longitude,
+                      }
                       setCustomers(prev => [newCustomer, ...prev])
                       setSelectedCustomer(newId)
                       setNewStoreName('')
                       setStoreRevisitCheck(null)
                       setNewStoreDialogOpen(false)
+                      if ((res.data?.data?.location_findings || []).length > 0) {
+                        toast.info('Store added — its location was flagged for review')
+                      }
                       await checkStoreRevisit(newId)
                     } catch (err: unknown) {
                       setNewStoreFormError(extractErrorMessage(err))
@@ -1983,7 +2334,7 @@ export default function VisitCreate() {
                   }}
                 >
                   {savingNewStore ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
-                  {savingNewStore ? 'Saving...' : 'Save Store'}
+                  {savingNewStore ? 'Saving...' : storeLocationFindings.length > 0 ? 'Add Anyway' : 'Save Store'}
                 </Button>
               </DialogActions>
             </Dialog>
@@ -2001,6 +2352,13 @@ export default function VisitCreate() {
             {storeRevisitCheck?.can_visit && (
               <Alert severity="success" sx={{ mt: 2 }}>
                 <Typography variant="body2">{storeRevisitCheck.message}</Typography>
+              </Alert>
+            )}
+
+            {existingCustomerCheck?.is_existing && (
+              <Alert severity="error" sx={{ mt: 2 }} icon={<WarningIcon />}>
+                <Typography variant="body2" fontWeight="bold">Visit Blocked!</Typography>
+                <Typography variant="body2">{existingCustomerCheck.message}</Typography>
               </Alert>
             )}
           </>
@@ -2081,8 +2439,10 @@ export default function VisitCreate() {
                 const goldrushLenError = isGoldrushId && val.length > 0 && val.length !== GOLDRUSH_ID_LENGTH
                 const goldrushDuplicate = isGoldrushId && (duplicateCheck?.duplicates?.some(d => d.field === 'goldrush_id') || false)
                 return (
-                <Grid item xs={12} sm={6} key={q.id}>
-                  {isGoldrushIdKey(q.question_key) ? (
+                <Grid item xs={12} sm={q.field_type === 'product_audit' ? 12 : 6} key={q.id}>
+                  {q.field_type === 'product_audit' ? (
+                    renderAuditInline(q, opts)
+                  ) : isGoldrushIdKey(q.question_key) ? (
                     // Filled from the system photo on the photo step — visible but never editable
                     <TextField
                       fullWidth
@@ -2553,7 +2913,8 @@ export default function VisitCreate() {
 
   // True when the active process flow has a dedicated questionnaire step —
   // used to move custom questions out of the details step into their own step.
-  const hasQuestionnaireStep = activeSteps.some(s => s.step_key === 'questionnaire')
+  // Custom questions render inline on Details only when no later step owns them.
+  const hasQuestionnaireStep = activeSteps.some(s => s.step_key === 'questionnaire' || s.step_key === 'store_questions' || s.step_key === 'stock_check')
 
   const renderQuestionnaireStep = () => {
     if (stepDataLoading) {
@@ -2593,6 +2954,13 @@ export default function VisitCreate() {
               const hasValue = !!customQuestionValues[qKey]
               const isGoldrushId = isGoldrushIdKey(qKey)
               const selectedOptions = (customQuestionValues[qKey] || '').split(',').map(s => s.trim()).filter(Boolean)
+              if (qType === 'product_audit') {
+                return (
+                  <Box key={qKey} sx={{ mb: 3 }}>
+                    {renderAuditInline(q, qOptions)}
+                  </Box>
+                )
+              }
               return (
                 <Box key={qKey} sx={{ mb: 3 }}>
                   <Typography variant="body1" fontWeight="bold" sx={{ mb: 1 }}>
@@ -2687,10 +3055,16 @@ export default function VisitCreate() {
             ? 'Goldrush System Photo'
             : visitTargetType === 'survey'
             ? 'Shop Picture'
+            : isDiplomatStoreVisit
+            ? 'Store Photos'
             : 'Board Photo Capture'}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {visitTargetType === 'individual' ? (
+          {isDiplomatStoreVisit ? (
+            <>One photo of the outside, and at least one from the door showing the layout —
+            add more angles if the store is big. Duplicate photos are not allowed.
+            <strong> Both are required.</strong></>
+          ) : visitTargetType === 'individual' ? (
             <>Provide the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — either take a photo with your camera or upload a saved screenshot from your gallery. The customer&apos;s name and Goldrush ID are read from the image and pre-filled on the Details step. A blurry image, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>An image is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
@@ -2700,8 +3074,9 @@ export default function VisitCreate() {
           )}
         </Typography>
 
-        {/* Board Placement Questions — store visits only */}
-        {visitTargetType !== 'survey' && visitTargetType !== 'individual' && (
+        {/* Board Placement Questions — store visits only, and never for Diplomat,
+            whose audit has no board/signage concepts at all */}
+        {visitTargetType !== 'survey' && visitTargetType !== 'individual' && !isDiplomatStoreVisit && (
         <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Board Placement Details</Typography>
           <Grid container spacing={2}>
@@ -2763,7 +3138,87 @@ export default function VisitCreate() {
         </Box>
         )}
 
-        <Box sx={{ mb: 3, textAlign: 'center' }}>
+        {/* Diplomat: two named shots rather than a free-form list, so the outside
+            photo and the from-the-door layout photo are both captured and can be
+            told apart later by photo_type. */}
+        {isDiplomatStoreVisit && (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {DIPLOMAT_PHOTO_SLOTS.map((slot, idx) => {
+              const taken = photos.filter(p => p.slot === slot.key)
+              const hasAny = taken.length > 0
+              return (
+                <Grid item xs={12} sm={6} key={slot.key}>
+                  <Card variant="outlined" sx={{ height: '100%', borderColor: hasAny ? 'success.main' : undefined }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography variant="subtitle2" sx={{ flex: 1 }}>{idx + 1}. {slot.label}</Typography>
+                        {hasAny && (
+                          <Chip
+                            size="small" color="success" icon={<CheckIcon />}
+                            label={slot.multiple ? `${taken.length} photo${taken.length === 1 ? '' : 's'}` : 'Taken'}
+                          />
+                        )}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                        {slot.hint}
+                      </Typography>
+
+                      {slot.multiple ? (
+                        taken.length > 0 && (
+                          <Grid container spacing={1} sx={{ mb: 1 }}>
+                            {taken.map(photo => (
+                              <Grid item xs={6} key={photo.hash}>
+                                <Box sx={{ position: 'relative' }}>
+                                  <img
+                                    src={photo.dataUrl}
+                                    alt={slot.label}
+                                    style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, display: 'block' }}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    aria-label="Remove photo"
+                                    sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(255,0,0,0.7)', color: 'white', '&:hover': { bgcolor: 'red' } }}
+                                    onClick={() => removePhoto(photos.findIndex(p => p.hash === photo.hash))}
+                                  >
+                                    ✕
+                                  </IconButton>
+                                </Box>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        )
+                      ) : (
+                        hasAny && (
+                          <img
+                            src={taken[0].dataUrl}
+                            alt={slot.label}
+                            style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
+                          />
+                        )
+                      )}
+
+                      <Button
+                        fullWidth
+                        variant={hasAny ? 'outlined' : 'contained'}
+                        component="label"
+                        startIcon={<CameraIcon />}
+                        color={showValidation && !hasAny ? 'error' : 'primary'}
+                      >
+                        {slot.multiple ? (hasAny ? 'Add another angle' : 'Take photo') : (hasAny ? 'Retake' : 'Take photo')}
+                        <input
+                          type="file" hidden accept="image/*" capture="environment"
+                          onChange={(e) => handlePhotoCapture(e, slot.key)}
+                        />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )
+            })}
+          </Grid>
+        )}
+
+        <Box sx={{ mb: 3, textAlign: 'center', display: isDiplomatStoreVisit ? 'none' : 'block' }}>
           <Button
             variant="contained"
             component="label"
@@ -2805,7 +3260,8 @@ export default function VisitCreate() {
           </Alert>
         )}
 
-        {photos.length > 0 && (
+        {/* Diplomat's slots render their own previews above */}
+        {photos.length > 0 && !isDiplomatStoreVisit && (
           <Grid container spacing={2}>
             {photos.map((photo, idx) => (
               <Grid item xs={6} sm={4} key={idx}>
@@ -2907,6 +3363,71 @@ export default function VisitCreate() {
     </Card>
   )
 
+  const renderProductPhotosStep = () => (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Product Photos</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Walk the store and photograph the products you found. Pick as many photos as you like from your
+          gallery — no need to label them. <strong>At least one photo is required.</strong>
+        </Typography>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'center', mb: 3 }}>
+          <Button
+            variant="contained"
+            component="label"
+            size="large"
+            startIcon={productPhotosBusy ? <CircularProgress size={18} color="inherit" /> : <UploadIcon />}
+            disabled={productPhotosBusy}
+          >
+            {productPhotosBusy ? 'Adding photos…' : 'Choose photos from gallery'}
+            {/* No capture attr → the picker opens on the gallery; multiple lets the agent bulk-select. */}
+            <input type="file" hidden multiple accept="image/*" onChange={handleProductPhotosUpload} />
+          </Button>
+          <Button variant="outlined" component="label" startIcon={<CameraIcon />} disabled={productPhotosBusy}>
+            Take a photo now
+            <input type="file" hidden accept="image/*" capture="environment" onChange={handleProductPhotosUpload} />
+          </Button>
+        </Box>
+
+        {photoDuplicateWarning && (
+          <Alert severity="error" sx={{ mb: 2 }}>{photoDuplicateWarning}</Alert>
+        )}
+
+        {productPhotos.length > 0 ? (
+          <>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              {productPhotos.length} product photo{productPhotos.length === 1 ? '' : 's'}
+            </Typography>
+            <Grid container spacing={1.5}>
+              {photos.map((photo, idx) => photo.photoType !== PRODUCT_PHOTO_TYPE ? null : (
+                <Grid item xs={4} sm={3} key={photo.hash}>
+                  <Box sx={{ position: 'relative' }}>
+                    <img
+                      src={photo.dataUrl}
+                      alt={`Product photo ${idx + 1}`}
+                      style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                    />
+                    <IconButton
+                      size="small"
+                      aria-label="Remove photo"
+                      onClick={() => removePhoto(idx)}
+                      sx={{ position: 'absolute', top: 4, right: 4, bgcolor: 'rgba(0,0,0,0.55)', color: 'white', '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' } }}
+                    >
+                      ✕
+                    </IconButton>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </>
+        ) : (
+          <Alert severity={showValidation ? 'error' : 'info'}>No product photos added yet.</Alert>
+        )}
+      </CardContent>
+    </Card>
+  )
+
   const renderReviewStep = () => (
     <Card>
       <CardContent>
@@ -2984,6 +3505,29 @@ export default function VisitCreate() {
               <Typography variant="subtitle2" color="text.secondary">Company Questions</Typography>
               {Object.entries(customQuestionValues).map(([key, value]) => {
                 const cq = customQuestions.find(q => q.question_key === key)
+                if (cq?.field_type === 'product_audit' || key === auditKey) {
+                  const a = parseProductAudit(value)
+                  const counts = stockSummary(a.products)
+                  const notStocked = a.products.filter(p => p.stock === 'No')
+                  return (
+                    <Box key={key} sx={{ mb: 1.5 }}>
+                      <Typography variant="body2" fontWeight="medium">{cq?.question_label || 'Store audit'}</Typography>
+                      <Typography variant="body2">Rep visits: {a.store.rep_visits || '—'} · Deliveries: {a.store.deliveries || '—'}</Typography>
+                      {a.store.deliveries === 'No' && a.store.delivery_method && <Typography variant="body2">How they get stock: {a.store.delivery_method}</Typography>}
+                      {a.store.deliveries === 'Yes' && a.store.delivered_products && <Typography variant="body2">Delivered: {a.store.delivered_products}</Typography>}
+                      {a.store.biggest_challenge && <Typography variant="body2">Biggest challenge: {a.store.biggest_challenge}</Typography>}
+                      {a.store.other_delivery_issues && <Typography variant="body2">Other delivery issues: {a.store.other_delivery_issues}</Typography>}
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        Products: {counts.stocked} stocked, {counts.notStocked} not stocked{auditProducts.length > 0 ? ` (of ${auditProducts.length})` : ''}
+                      </Typography>
+                      {notStocked.map(p => (
+                        <Typography key={p.product} variant="caption" color="text.secondary" display="block">
+                          ✕ {p.product}{p.why_not ? ` — ${p.why_not}` : ''}
+                        </Typography>
+                      ))}
+                    </Box>
+                  )
+                }
                 const isImage = cq?.field_type === 'image' || (typeof value === 'string' && value.startsWith('data:image/'))
                 return isImage ? (
                   <Box key={key} sx={{ mb: 1 }}>
@@ -3011,13 +3555,17 @@ export default function VisitCreate() {
           )}
         </Box>
 
-        {/* Only show photos section if photo step exists in flow */}
-        {activeSteps.some(s => s.step_key === 'photo') && (
+        {/* Only show photos section if a photo step exists in flow */}
+        {activeSteps.some(s => s.step_key === 'photo' || s.step_key === 'product_photos') && (
           <>
             <Divider sx={{ my: 2 }} />
             <Box sx={{ mb: 3 }}>
               <Typography variant="subtitle2" color="text.secondary">Photos</Typography>
-              <Typography variant="body2">{photos.length} photo(s) captured</Typography>
+              <Typography variant="body2">
+                {productPhotos.length > 0
+                  ? `${productPhotos.length} product photo(s), ${photos.length - productPhotos.length} store photo(s)`
+                  : `${photos.length} photo(s) captured`}
+              </Typography>
               {photos.length > 0 && (
                 <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                   {photos.map((p, i) => (
@@ -3124,6 +3672,13 @@ export default function VisitCreate() {
       case 'details': return renderDetailsStep()
       case 'survey': return renderSurveyStep()
       case 'questionnaire': return renderQuestionnaireStep()
+      case 'store_questions': return (
+        <StoreQuestionsStep value={audit.store} onChange={(store) => updateAudit({ store })} showValidation={showValidation} />
+      )
+      case 'stock_check': return (
+        <StockCheckStep products={auditProducts} value={audit.products} onChange={(products) => updateAudit({ products })} showValidation={showValidation} />
+      )
+      case 'product_photos': return renderProductPhotosStep()
       case 'photo': return renderPhotoStep()
       case 'qr': return renderQrStep()
       case 'review': return renderReviewStep()
@@ -3154,6 +3709,17 @@ export default function VisitCreate() {
         </Box>
       ) : (
       <>
+      {visitStartedAt && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <Chip
+            size="small"
+            variant="outlined"
+            color="info"
+            icon={<GpsIcon />}
+            label={`Checked in ${new Date(visitStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${Math.max(0, Math.floor((Date.now() - new Date(visitStartedAt).getTime()) / 60000))} min on site`}
+          />
+        </Box>
+      )}
       {/* Compact stepper on mobile to prevent overflow */}
       <Stepper
         activeStep={activeStep}
@@ -3235,11 +3801,11 @@ export default function VisitCreate() {
           <Button
             variant="contained"
             onClick={handleNext}
-            disabled={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) || (currentStepKey === 'survey' && visitTargetType === 'survey' && questionnairesLoaded && questionnaires.length === 0)}
-            endIcon={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
+            disabled={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')) || (currentStepKey === 'survey' && visitTargetType === 'survey' && questionnairesLoaded && questionnaires.length === 0)}
+            endIcon={navigating || (stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')) ? <CircularProgress size={16} color="inherit" /> : <NextIcon />}
             size={isMobileContext ? 'medium' : 'large'}
           >
-            {(stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey')) ? 'Loading...' : 'Next'}
+            {(stepDataLoading && (currentStepKey === 'details' || currentStepKey === 'survey' || currentStepKey === 'stock_check')) ? 'Loading...' : 'Next'}
           </Button>
         ) : goldrushPhotoIncomplete() ? (
           // No Submit button at all when the system photo hasn't yielded a

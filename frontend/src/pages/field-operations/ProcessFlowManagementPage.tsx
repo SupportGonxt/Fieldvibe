@@ -123,6 +123,9 @@ const AVAILABLE_STEPS = [
   { key: 'details', label: 'Details', description: 'Capture visit details, individual/store info' },
   { key: 'survey', label: 'Survey', description: 'Complete a survey (visit saved as survey type in reports)' },
   { key: 'questionnaire', label: 'Questionnaire', description: 'Inline questions saved as visit data (visit stays as individual/store)' },
+  { key: 'store_questions', label: 'Store Questions', description: 'Store-level audit page: rep visits, deliveries, biggest challenge (needs a Product Audit question)' },
+  { key: 'stock_check', label: 'Product Stock', description: 'Yes/No per product from the Product Audit question, with a reason for every No' },
+  { key: 'product_photos', label: 'Product Photos', description: 'Bulk upload of product photos from the gallery — as many as needed, no labelling' },
   { key: 'photo', label: 'Photo', description: 'Capture photos (store visits only)' },
   { key: 'board', label: 'Board Placement', description: 'Verify board placement' },
   { key: 'qr', label: 'QR Redirect', description: 'Show a unique one-time QR that redirects scanners and tracks reach' },
@@ -141,6 +144,7 @@ const FIELD_TYPES = [
   { value: 'date', label: 'Date' },
   { value: 'textarea', label: 'Long Text' },
   { value: 'image', label: 'Photo Upload' },
+  { value: 'product_audit', label: 'Product Audit (store questions + stock check per product)' },
 ]
 
 // ── Printable question form (blank answer spaces for agents to fill out) ──
@@ -700,6 +704,16 @@ function ProcessFlowForm({ flow, onClose, onSuccess }: ProcessFlowFormProps) {
                     Shows the company's custom questions as a dedicated step. Answers saved as visit data — visit type stays as individual/store.
                   </p>
                 )}
+                {(step.step_key === 'store_questions' || step.step_key === 'stock_check') && (
+                  <p className="mt-1 ml-10 text-xs text-blue-600 dark:text-blue-400">
+                    Store visits only. Answers are saved under the company&apos;s Product Audit question — add that question (with its product list) so this step has something to store into.
+                  </p>
+                )}
+                {step.step_key === 'product_photos' && (
+                  <p className="mt-1 ml-10 text-xs text-blue-600 dark:text-blue-400">
+                    Store visits only. The agent picks any number of product photos from their gallery; at least one is required. Saved as visit photos of type &quot;product&quot;.
+                  </p>
+                )}
                 {step.step_key === 'qr' && (() => {
                   const cfg = (step.config as Record<string, unknown>) || {}
                   const dest = (cfg.destination_url as string) || ''
@@ -1123,7 +1137,7 @@ function CustomQuestionsTab() {
     mutationFn: async () => {
       const payload = {
         ...form,
-        field_options: (form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox') ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
+        field_options: (form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox' || form.field_type === 'product_audit') ? form.field_options.split(',').map(o => o.trim()).filter(Boolean) : undefined,
         is_required: form.is_required,
         check_duplicate: form.check_duplicate,
         min_length: (form.field_type === 'text' || form.field_type === 'number' || form.field_type === 'textarea' || form.field_type === 'email' || form.field_type === 'phone') ? (form.min_length ?? null) : null,
@@ -1384,7 +1398,7 @@ function CustomQuestionsTab() {
                 placeholder="Text"
               />
             </div>
-            {(form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox') && (
+            {(form.field_type === 'select' || form.field_type === 'radio' || form.field_type === 'checkbox' || form.field_type === 'product_audit') && (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Options (comma-separated)</label>
                 <input

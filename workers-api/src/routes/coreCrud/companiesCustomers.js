@@ -2,8 +2,43 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, createCustomerSchema, updateCustomerSchema } from '../../validate.js';
+import { evaluateNewStoreLocation, namePrefix } from '../../services/storeLocationCheck.js';
 
 const app = new Hono();
+
+// Existing stores that might be the same store the agent is adding: same name (by a
+// cheap prefix filter, confirmed by exact normalized comparison in the evaluator) or
+// the same typed address. Bounded — this runs on a table with no index on name.
+async function findStoreLocationCandidates(db, tenantId, name, address) {
+  const prefix = namePrefix(name);
+  if (!prefix && !address) return [];
+  const rows = await db.prepare(
+    `SELECT id, name, address, latitude, longitude FROM customers
+      WHERE tenant_id = ? AND status = 'active'
+        AND latitude IS NOT NULL AND longitude IS NOT NULL
+        AND (UPPER(name) LIKE ? OR (? != '' AND UPPER(IFNULL(address, '')) = ?))
+      LIMIT 100`
+  ).bind(tenantId, prefix ? `${prefix}%` : '\u0000', address ? String(address).toUpperCase() : '', address ? String(address).toUpperCase() : '').all();
+  return rows.results || [];
+}
+
+// Read-only: the Add New Store dialog calls this before saving so the agent sees the
+// warning while they can still fix a typo or pick the store that already exists.
+// The authoritative version runs again inside POST /customers, which is what writes
+// the review flag — a client can't talk its own anomaly away by skipping this call.
+app.post('/customers/check-location', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const candidates = await findStoreLocationCandidates(db, tenantId, body.name, body.address);
+    return c.json({ success: true, data: { findings: evaluateNewStoreLocation(body, candidates) } });
+  } catch (e) {
+    // Fail open: the check is advisory and must never stop a store being added.
+    console.error('check-location failed:', e);
+    return c.json({ success: true, data: { findings: [] } });
+  }
+});
 
 // ==================== COMPANIES / TENANTS ====================
 app.get('/companies', requireRole('admin'), async (c) => {
@@ -98,7 +133,27 @@ app.post('/customers', async (c) => {
   if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
   const id = uuidv4();
   await db.prepare('INSERT INTO customers (id, tenant_id, name, code, type, customer_type, contact_person, contact_phone, contact_email, phone, email, address, latitude, longitude, route_id, credit_limit, outstanding_balance, payment_terms, category, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, tenantId, body.name, body.code || id.slice(0, 8), body.type || 'retail', body.customer_type || body.customerType || 'SHOP', body.contact_person || body.contactPerson || null, body.contact_phone || body.contactPhone || null, body.contact_email || body.contactEmail || null, body.phone || null, body.email || null, body.address || null, body.latitude || null, body.longitude || null, body.route_id || null, body.credit_limit || body.creditLimit || 0, 0, body.payment_terms || 0, body.category || 'B', body.notes || null, 'active').run();
-  return c.json({ success: true, data: { id }, message: 'Customer created' }, 201);
+
+  // A store added from the check-in flow is pinned wherever the agent was standing.
+  // Re-run the location check here (not on the client's word) and record anything
+  // that doesn't add up for a team lead to review. Never blocks the create.
+  let findings = [];
+  if (body.source === 'field_visit') {
+    try {
+      const candidates = await findStoreLocationCandidates(db, tenantId, body.name, body.address);
+      findings = evaluateNewStoreLocation(body, candidates);
+      if (findings.length > 0) {
+        const agentId = c.get('userId');
+        await db.batch(findings.map(f => db.prepare(
+          "INSERT INTO anomaly_flags (id, tenant_id, agent_id, anomaly_type, severity, description, reference_type, reference_id, data, status, created_at) VALUES (?, ?, ?, 'STORE_LOCATION_MISMATCH', ?, ?, 'CUSTOMER', ?, ?, 'OPEN', datetime('now'))"
+        ).bind(uuidv4(), tenantId, agentId, f.severity, f.description, id, JSON.stringify({ ...f, store_name: body.name, latitude: body.latitude ?? null, longitude: body.longitude ?? null }))));
+      }
+    } catch (e) {
+      console.error('Store location flagging failed:', e);
+    }
+  }
+
+  return c.json({ success: true, data: { id, location_findings: findings }, message: 'Customer created' }, 201);
 });
 
 app.put('/customers/:id', async (c) => {

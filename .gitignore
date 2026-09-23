@@ -69,3 +69,9 @@ frontend/audit-*
 e2e/node_modules
 e2e/test-results
 e2e/playwright-report
+
+# Customer calling-base workbooks. These carry store contact names, emails and phone
+# numbers; coordinates are loaded from them via scripts/import-existing-customer-coordinates.mjs
+# and the workbook itself stays out of the repo.
+*.xlsx
+*.xls

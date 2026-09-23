@@ -1,4 +1,5 @@
 import { ApiService } from './api.service'
+import { compressImageFile } from '../utils/photo-compression'
 
 // "Active today" KPI shapes (backend: services/activityToday.js).
 export interface ActiveTodayPerson {
@@ -339,7 +340,9 @@ class FieldOperationsService extends ApiService {
     const formData = new FormData()
     if (notes) formData.append('notes', notes)
     if (attachments) {
-      attachments.forEach((file, index) => {
+      // Attachments can be anything; compressImageFile only touches the images.
+      const prepared = await Promise.all(attachments.map(file => compressImageFile(file)))
+      prepared.forEach((file, index) => {
         formData.append(`attachment_${index}`, file)
       })
     }
@@ -396,7 +399,8 @@ class FieldOperationsService extends ApiService {
     formData.append('outcomes', JSON.stringify(outcomes))
     if (notes) formData.append('notes', notes)
     if (photos) {
-      photos.forEach((file, index) => {
+      const prepared = await Promise.all(photos.map(file => compressImageFile(file)))
+      prepared.forEach((file, index) => {
         formData.append(`photo_${index}`, file)
       })
     }
@@ -1187,9 +1191,26 @@ class FieldOperationsService extends ApiService {
 
   // ==================== VISIT WORKFLOW ====================
 
-  // Check if a store was visited within the last 30 days
-  async checkStoreRevisit(customerId: string) {
-    const response = await this.post('/visits/check-store-revisit', { customer_id: customerId })
+  // Check if a store was visited within the company's revisit cooldown (30 days
+  // by default — a company can override or disable it via revisit_cooldown_days)
+  async checkStoreRevisit(customerId: string, companyId?: string) {
+    const response = await this.post('/visits/check-store-revisit', { customer_id: customerId, company_id: companyId })
+    return response.data || response
+  }
+
+  // Check whether a store name matches a company's imported "existing customer" list
+  // (e.g. Diplomat's calling base) — a no-op for companies with no such list loaded
+  async checkExistingCustomer(companyId: string, customerName: string) {
+    const response = await this.post('/visits/check-existing-customer', { company_id: companyId, customer_name: customerName })
+    return response.data || response
+  }
+
+  // Check whether the captured GPS position sits at a store on the company's
+  // do-not-visit list — the same list checkExistingCustomer matches by name, asked
+  // at check-in before any store has been named. A no-op for companies with no
+  // such list loaded.
+  async checkLocationExcluded(companyId: string, latitude: number, longitude: number) {
+    const response = await this.post('/visits/check-location-excluded', { company_id: companyId, latitude, longitude })
     return response.data || response
   }
 
@@ -1261,6 +1282,9 @@ class FieldOperationsService extends ApiService {
     brand_id?: string;
     checkin_latitude?: number;
     checkin_longitude?: number;
+    // When the agent checked in (GPS fix at the start of the wizard). The API
+    // stamps check_out_time at submit; the gap is the visit's time on site.
+    check_in_time?: string;
     individual_first_name?: string;
     individual_last_name?: string;
     individual_id_number?: string;

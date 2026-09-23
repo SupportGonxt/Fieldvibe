@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../lib/middleware.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { rewriteR2Url } from '../lib/photoAi.js';
+import { visitDurationMinutes } from '../services/visitTiming.js';
 import { ensureCaptureFailures } from '../lib/goldrush.js';
 import { parseStoreInsights } from '../services/goldrushVision.js';
 import { reportIndexMiddleware } from '../lib/reportIndexes.js';
@@ -709,7 +710,7 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
     // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
       SELECT v.id, v.visit_date, v.status, v.notes, v.latitude as gps_latitude, v.longitude as gps_longitude,
-        v.created_at, v.customer_id,
+        v.created_at, v.customer_id, v.check_in_time, v.check_out_time,
         c.name as store_name, c.address as store_address,
         u.first_name || ' ' || u.last_name as agent_name,
         (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
@@ -862,6 +863,7 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
 
       return {
         id: row.id,
+        customer_id: row.customer_id,
         visit_date: row.visit_date,
         status: row.status,
         store_name: row.store_name || 'Unknown Store',
@@ -870,6 +872,9 @@ app.get('/field-ops/reports/goldrush-stores', authMiddleware, async (c) => {
         gps_latitude: row.gps_latitude,
         gps_longitude: row.gps_longitude,
         created_at: row.created_at,
+        check_in_time: row.check_in_time || null,
+        check_out_time: row.check_out_time || null,
+        duration_minutes: visitDurationMinutes(row.check_in_time, row.check_out_time),
         notes: additional_notes,
         goldrush_id,
         thumbnail_url: photo_url,
@@ -1011,6 +1016,47 @@ app.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
     });
 
     return c.json({ success: true, data, total: data.length });
+  } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// Questions + answers for a single visit's company custom questions (the
+// "Actions -> View" button on the stores Detail Report table). Generic across
+// companies: resolves question_key -> question_label/field_type from
+// company_custom_questions so the UI never has to guess at raw key names.
+app.get('/field-ops/reports/visit-answers/:visitId', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const visitId = c.req.param('visitId');
+    const visit = await db.prepare('SELECT id, company_id FROM visits WHERE id = ? AND tenant_id = ?').bind(visitId, tenantId).first();
+    if (!visit) return c.json({ success: false, message: 'Visit not found' }, 404);
+
+    const responseRow = await db.prepare(
+      "SELECT responses FROM visit_responses WHERE visit_id = ? AND tenant_id = ? AND visit_type = 'store_custom_questions' LIMIT 1"
+    ).bind(visitId, tenantId).first();
+    let answers = {};
+    try { answers = responseRow?.responses ? JSON.parse(responseRow.responses) : {}; } catch { answers = {}; }
+
+    let questions = [];
+    if (visit.company_id) {
+      const qs = await db.prepare(
+        'SELECT question_key, question_label, field_type FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? ORDER BY display_order'
+      ).bind(tenantId, visit.company_id).all();
+      questions = qs.results || [];
+    }
+
+    const knownKeys = new Set(questions.map(q => q.question_key));
+    const items = questions
+      .filter(q => answers[q.question_key] !== undefined && answers[q.question_key] !== null && answers[q.question_key] !== '')
+      .map(q => ({ question_label: q.question_label, field_type: q.field_type, question_key: q.question_key, answer: answers[q.question_key] }));
+    // Answered keys with no matching (e.g. deactivated/renamed) question definition
+    for (const [key, val] of Object.entries(answers)) {
+      if (knownKeys.has(key)) continue;
+      if (val === undefined || val === null || val === '') continue;
+      items.push({ question_label: key, field_type: 'text', question_key: key, answer: val });
+    }
+
+    return c.json({ success: true, data: items });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 
@@ -1328,6 +1374,19 @@ app.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       ? await db.prepare(`SELECT COUNT(DISTINCT c.id) as count FROM customers c JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id WHERE c.tenant_id = ?${dateFilter}`).bind(tenantId, ...dateBinds).first()
       : await db.prepare('SELECT COUNT(*) as count FROM customers WHERE tenant_id = ?').bind(tenantId).first();
 
+    // Grand totals across every matching store, not just the current page — used
+    // to derive revisits (any check-in beyond a store's first one). total_stores
+    // here counts each store once (matches totalResult), so
+    // total_checkins - total_stores_with_visits is exactly the revisit count.
+    const totalCheckinsResult = await db.prepare(
+      `SELECT COUNT(v.id) as checkins, COUNT(DISTINCT c.id) as stores_with_visits
+       FROM customers c JOIN visits v ON v.customer_id = c.id AND v.tenant_id = c.tenant_id
+       WHERE c.tenant_id = ?${dateFilter}`
+    ).bind(tenantId, ...dateBinds).first();
+    const totalCheckins = totalCheckinsResult?.checkins || 0;
+    const storesWithVisits = totalCheckinsResult?.stores_with_visits || 0;
+    const totalRevisits = Math.max(0, totalCheckins - storesWithVisits);
+
     const havingClause = dateBinds.length > 0 ? 'HAVING total_checkins > 0' : '';
     // Conversions as a grouped derived table, not a per-customer correlated subquery —
     // 2.5k customers x correlated scan over 40k visit_individuals blows the D1 CPU
@@ -1353,7 +1412,13 @@ app.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       LIMIT ? OFFSET ?
     `).bind(...dateBinds, tenantId, ...dateBinds, tenantId, parseInt(limit), offset).all();
 
-    return c.json({ success: true, shops: shops.results || [], total: totalResult?.count || 0 });
+    return c.json({
+      success: true,
+      shops: shops.results || [],
+      total: totalResult?.count || 0,
+      total_checkins: totalCheckins,
+      total_revisits: totalRevisits,
+    });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 

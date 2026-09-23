@@ -8,11 +8,34 @@ import DateRangePresets from '../../../components/ui/DateRangePresets'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts'
 import {
   Download, FileDown, Store, ExternalLink, Sparkles, RefreshCw,
-  Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Loader2, Upload,
+  Search, CheckCircle, XCircle, AlertTriangle, Edit2, Save, X, Camera, Loader2, Upload, Eye,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
 import { captureCharts } from '../../../utils/capture-chart'
+import { parseProductAudit, type LegacyProductEntry } from '../../../utils/product-audit'
+
+// One "Label: value" line in the visit-answers modal; renders nothing for a blank.
+function AnswerRow({ label, value }: { label: string; value?: string }) {
+  if (!value) return null
+  return <div><span className="text-gray-400">{label}:</span> <span className="text-gray-700 dark:text-gray-300">{value}</span></div>
+}
+
+// Per-product answers from the retired one-page-per-product audit, flattened
+// into one cell so the pilot visits captured with it still export readably.
+function legacyNotes(e?: LegacyProductEntry): string {
+  if (!e) return ''
+  const parts: string[] = []
+  if (e.reps) parts.push(`Rep visits: ${e.reps}${e.reps_why_not ? ` (${e.reps_why_not})` : ''}`)
+  if (e.delivery) parts.push(`Delivery: ${e.delivery}${e.delivery_source ? ` (${e.delivery_source})` : ''}`)
+  if (e.challenge) parts.push(`Challenge: ${e.challenge}`)
+  if (e.similar) parts.push(`Similar: ${e.similar}`)
+  if (e.comments) parts.push(`Comments: ${e.comments}`)
+  if (e.photo) parts.push(`Photo: ${e.photo}`)
+  return parts.join(' | ')
+}
+
+const fmtClock = (iso?: string | null) => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
 // ── Insights types ──
 interface YesNoBucket { key: string; yes: number; no: number; other: number }
@@ -38,7 +61,7 @@ interface StoreInsightsData {
 
 // ── Detail types ──
 interface GoldrushStore {
-  id: string; visit_date: string; status: string; store_name: string; store_address: string
+  id: string; customer_id: string; visit_date: string; status: string; store_name: string; store_address: string
   agent_name: string; goldrush_id: string; thumbnail_url: string; has_photos: boolean
   shop_exterior_photo: string; competitor_photo: string; ad_board_photo: string
   gps_latitude: number; gps_longitude: number; created_at: string; notes: string
@@ -47,6 +70,7 @@ interface GoldrushStore {
   other_ad_brands: string; board_installed: string
   ai_status: string; ai_board_detected: boolean; ai_photos_analyzed: number; ai_share_of_voice: number
   ai_brand: string; ai_condition: string; ai_visibility: string; ai_board_type: string; ai_description: string; ai_insights?: string[]
+  check_in_time?: string | null; check_out_time?: string | null; duration_minutes?: number | null
 }
 interface StellrVisit {
   id: string; visit_date: string; status: string; store_name: string; store_address: string
@@ -86,6 +110,9 @@ export default function StoreInsights() {
   // Which report shape to render (Goldrush stores vs Stellr visits). There is no
   // schema flag for report type, so this is keyed off the selected company's name.
   const isStellr = !!selectedCompanyObj?.name?.toLowerCase().includes('stellr')
+  // Diplomat's questionnaire is a product-stock audit — it has no board/advertising/AI
+  // photo-analysis concept, so those Goldrush-shaped cards and columns don't apply.
+  const isDiplomat = !!selectedCompanyObj?.name?.toLowerCase().includes('diplomat')
 
   const [cfg, setCfg] = useState<any>(null)
   useEffect(() => {
@@ -303,6 +330,17 @@ export default function StoreInsights() {
   const [migrating, setMigrating] = useState(false)
   const [migrationStatus, setMigrationStatus] = useState('')
   const [detailVisit, setDetailVisit] = useState<StellrVisit | null>(null)
+  const [answersVisit, setAnswersVisit] = useState<GoldrushStore | null>(null)
+
+  interface VisitAnswer { question_label: string; field_type: string; question_key: string; answer: unknown }
+  const { data: visitAnswers = [], isLoading: answersLoading } = useQuery({
+    queryKey: ['visit-answers', answersVisit?.id],
+    queryFn: async () => {
+      const res = await apiClient.get(`/field-ops/reports/visit-answers/${answersVisit!.id}`)
+      return (res.data?.data || []) as VisitAnswer[]
+    },
+    enabled: !!answersVisit,
+  })
 
   const handleViewPhotos = async (visitId: string) => {
     setPhotoModalVisitId(visitId)
@@ -435,12 +473,76 @@ export default function StoreInsights() {
     return v.store_name?.toLowerCase().includes(s) || v.store_address?.toLowerCase().includes(s) || v.agent_name?.toLowerCase().includes(s)
   })
 
+  // Unique stores (a store visited N times counts once) vs. revisits (any visit
+  // beyond a store's first) — distinct from `stores.length`, which is one row
+  // per visit and would double-count a repeat visit as another store.
+  const uniqueStoreIds = new Set(stores.map(s => s.customer_id).filter(Boolean))
+  const uniqueStoreCount = uniqueStoreIds.size
+  const revisitCount = Math.max(0, stores.length - uniqueStoreCount)
+
   const totalWithAds = stores.filter(s => s.has_advertising === 'Yes' || s.has_advertising === 'true').length
   const totalBoardInstalled = stores.filter(s => s.board_installed === 'Yes' || s.board_installed === 'true' || s.ai_board_detected).length
   const totalAiAnalyzed = stores.filter(s => s.ai_status === 'completed').length
   const avgSov = totalAiAnalyzed > 0 ? (stores.filter(s => s.ai_status === 'completed').reduce((sum, s) => sum + (s.ai_share_of_voice || 0), 0) / totalAiAnalyzed) : 0
   const adRate = stores.length > 0 ? (totalWithAds / stores.length) * 100 : 0
   const totalStellrAgents = new Set(stellrVisits.map(v => v.agent_name)).size
+
+  const downloadCsv = (headers: string[], rows: (string | undefined)[][], filename: string) => {
+    const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
+    const BOM = '﻿'
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Diplomat has none of Goldrush's board/advertising/AI concepts, so its export
+  // matches what the Detail Report table actually shows, then the store audit:
+  // the store-level answers and time on site repeated on one row per product,
+  // with that product's stock answer. Pilot visits captured with the retired
+  // per-product audit keep their extra answers in a trailing notes column.
+  const exportDiplomatToExcel = async () => {
+    setExporting(true)
+    try {
+      if (filtered.length === 0) { toast.error('No data to export'); return }
+      const headers = [
+        'Store Name', 'Store Address', 'Agent', 'Visit Date', 'Check-in', 'Check-out', 'Minutes on Site',
+        'Rep Visits', 'Deliveries', 'How They Get Stock', 'What Is Delivered / How', 'Biggest Challenge', 'Other Delivery Issues',
+        'Product', 'In Stock', 'Why Not', 'Legacy Notes',
+      ]
+      const rows: (string | undefined)[][] = []
+      for (const s of filtered) {
+        let audit = parseProductAudit(undefined)
+        try {
+          const res = await apiClient.get(`/field-ops/reports/visit-answers/${s.id}`)
+          const items = (res.data?.data || []) as VisitAnswer[]
+          const auditItem = items.find(it => it.field_type === 'product_audit')
+          if (auditItem) audit = parseProductAudit(auditItem.answer)
+        } catch { /* no answers — the visit still exports its header row */ }
+        const st = audit.store
+        const base = [
+          s.store_name || '', s.store_address || '', s.agent_name || '', s.visit_date || '',
+          fmtClock(s.check_in_time), fmtClock(s.check_out_time), s.duration_minutes != null ? String(s.duration_minutes) : '',
+          st.rep_visits, st.deliveries, st.delivery_method, st.delivered_products, st.biggest_challenge, st.other_delivery_issues,
+        ]
+        if (audit.products.length === 0) {
+          rows.push([...base, '', '', '', ''])
+          continue
+        }
+        const legacyByProduct = new Map(audit.legacy.map(e => [e.product, e]))
+        for (const p of audit.products) {
+          rows.push([...base, p.product, p.stock, p.why_not, legacyNotes(legacyByProduct.get(p.product))])
+        }
+      }
+      downloadCsv(headers, rows, `diplomat-store-report-${new Date().toISOString().slice(0, 10)}.csv`)
+      toast.success(`Exported ${filtered.length} visit(s)`)
+    } catch {
+      toast.error('Export failed')
+    } finally { setExporting(false) }
+  }
 
   const exportToExcel = () => {
     setExporting(true)
@@ -460,15 +562,7 @@ export default function StoreInsights() {
         s.ai_status || '', s.ai_board_detected ? 'Yes' : 'No', s.ai_brand || '', s.ai_condition || '', s.ai_visibility || '', s.ai_board_type || '', s.ai_share_of_voice?.toString() || '', s.ai_description || '',
         s.notes || '', s.gps_latitude?.toString() || '', s.gps_longitude?.toString() || '', s.created_at || '',
       ])
-      const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n')
-      const BOM = '﻿'
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `goldrush-store-report-${new Date().toISOString().slice(0, 10)}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadCsv(headers, rows, `goldrush-store-report-${new Date().toISOString().slice(0, 10)}.csv`)
       toast.success(`Exported ${filtered.length} records`)
     } catch {
       toast.error('Export failed')
@@ -554,8 +648,8 @@ export default function StoreInsights() {
             </>
           )}
           {activeTab === 'detail' && (
-            <button onClick={isStellr ? exportStellrToCSV : exportToExcel} disabled={exporting} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
-              <Download className="h-4 w-4" /> {isStellr ? 'Export CSV' : 'Export Excel'}
+            <button onClick={isStellr ? exportStellrToCSV : isDiplomat ? exportDiplomatToExcel : exportToExcel} disabled={exporting} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
+              <Download className="h-4 w-4" /> {exporting ? 'Exporting…' : isStellr ? 'Export CSV' : 'Export Excel'}
             </button>
           )}
         </div>
@@ -801,36 +895,48 @@ export default function StoreInsights() {
             </>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${isDiplomat ? 'md:grid-cols-3' : 'md:grid-cols-8'}`}>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2 mb-2"><Store className="h-4 w-4 text-blue-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Store Visits</span></div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stores.length}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-green-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Has Advertising</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalWithAds}</p>
+                  <div className="flex items-center gap-2 mb-2"><Store className="h-4 w-4 text-indigo-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Unique Stores</span></div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{uniqueStoreCount}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-emerald-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Board Installed</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalBoardInstalled}</p>
+                  <div className="flex items-center gap-2 mb-2"><RefreshCw className="h-4 w-4 text-orange-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Revisits</span></div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{revisitCount}</p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><XCircle className="h-4 w-4 text-amber-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Ad Coverage %</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{adRate.toFixed(1)}%</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-purple-500" /><span className="text-xs text-gray-500 dark:text-gray-400">AI Analyzed</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAiAnalyzed} <span className="text-sm font-normal text-gray-400">of {stores.length}</span></p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-sky-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Avg Share of Voice</span></div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgSov.toFixed(1)}%</p>
-                </div>
+                {!isDiplomat && (
+                  <>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-green-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Has Advertising</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalWithAds}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-emerald-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Board Installed</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalBoardInstalled}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><XCircle className="h-4 w-4 text-amber-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Ad Coverage %</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{adRate.toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-purple-500" /><span className="text-xs text-gray-500 dark:text-gray-400">AI Analyzed</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAiAnalyzed} <span className="text-sm font-normal text-gray-400">of {stores.length}</span></p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                      <div className="flex items-center gap-2 mb-2"><CheckCircle className="h-4 w-4 text-sky-500" /><span className="text-xs text-gray-500 dark:text-gray-400">Avg Share of Voice</span></div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgSov.toFixed(1)}%</p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by store, agent, Goldrush ID, stock source, or competitor..." className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400" />
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={isDiplomat ? 'Search by store or agent...' : 'Search by store, agent, Goldrush ID, stock source, or competitor...'} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400" />
               </div>
 
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
@@ -840,22 +946,24 @@ export default function StoreInsights() {
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Photo</th>
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Store</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Goldrush ID</th>
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Goldrush ID</th>}
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Agent</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock Source</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Advertising</th>
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Board</th>
+                        {isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Time on Site</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock Source</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Advertising</th>}
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Board</th>}
                         {extraStoreColumns.map((col: any) => (
                           <th key={col.key} className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{col.label}</th>
                         ))}
-                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">AI Analysis</th>
+                        {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">AI Analysis</th>}
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Visit Date</th>
+                        <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.length === 0 ? (
-                        <tr><td colSpan={10 + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No Goldrush store records found' : 'No records match your search'}</td></tr>
+                        <tr><td colSpan={(isDiplomat ? 6 : 11) + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No store records found' : 'No records match your search'}</td></tr>
                       ) : filtered.map((store) => (
                         <tr key={store.id} className="group border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="py-3 px-4">
@@ -872,57 +980,75 @@ export default function StoreInsights() {
                             )}
                           </td>
                           <td className="py-3 px-4 text-gray-900 dark:text-white font-medium whitespace-nowrap">{store.store_name}<div className="text-xs text-gray-400 font-normal">{store.store_address}</div></td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {editingId === store.id ? (
-                              <div className="flex items-center gap-1">
-                                <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)} className="w-28 px-2 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500" placeholder="Goldrush ID" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(store); if (e.key === 'Escape') handleCancelEdit(); }} />
-                                <button onClick={() => handleSaveGoldrushId(store)} disabled={saving} className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50" title="Save"><Save className="w-3.5 h-3.5" /></button>
-                                <button onClick={handleCancelEdit} className="p-1 text-gray-400 hover:text-gray-600" title="Cancel"><X className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1">
-                                <span className={`font-medium ${store.goldrush_id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>{store.goldrush_id || '—'}</span>
-                                <button onClick={() => handleEditGoldrushId(store)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Goldrush ID"><Edit2 className="w-3 h-3" /></button>
-                              </div>
-                            )}
-                          </td>
+                          {!isDiplomat && (
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {editingId === store.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)} className="w-28 px-2 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500" placeholder="Goldrush ID" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveGoldrushId(store); if (e.key === 'Escape') handleCancelEdit(); }} />
+                                  <button onClick={() => handleSaveGoldrushId(store)} disabled={saving} className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50" title="Save"><Save className="w-3.5 h-3.5" /></button>
+                                  <button onClick={handleCancelEdit} className="p-1 text-gray-400 hover:text-gray-600" title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <span className={`font-medium ${store.goldrush_id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>{store.goldrush_id || '—'}</span>
+                                  <button onClick={() => handleEditGoldrushId(store)} className="p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Goldrush ID"><Edit2 className="w-3 h-3" /></button>
+                                </div>
+                              )}
+                            </td>
+                          )}
                           <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.agent_name || '—'}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.stock_source || '—'}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.competitors_in_store || '—'}</td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.has_advertising === 'Yes' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{store.has_advertising || 'No'}</span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.board_installed === 'Yes' || store.ai_board_detected ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                              {store.board_installed === 'Yes' ? 'Yes' : store.ai_board_detected ? 'Yes (AI)' : 'No'}
-                            </span>
-                          </td>
+                          {isDiplomat && (
+                            <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap" title={store.check_in_time ? `${fmtClock(store.check_in_time)} → ${fmtClock(store.check_out_time)}` : undefined}>
+                              {store.duration_minutes != null ? `${store.duration_minutes} min` : '—'}
+                            </td>
+                          )}
+                          {!isDiplomat && <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.stock_source || '—'}</td>}
+                          {!isDiplomat && <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.competitors_in_store || '—'}</td>}
+                          {!isDiplomat && (
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.has_advertising === 'Yes' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{store.has_advertising || 'No'}</span>
+                            </td>
+                          )}
+                          {!isDiplomat && (
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${store.board_installed === 'Yes' || store.ai_board_detected ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                                {store.board_installed === 'Yes' ? 'Yes' : store.ai_board_detected ? 'Yes (AI)' : 'No'}
+                              </span>
+                            </td>
+                          )}
                           {extraStoreColumns.map((col: any) => (
                             <td key={col.key} className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{(store as any)[col.key] || '—'}</td>
                           ))}
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {store.ai_status === 'completed' ? (
-                              <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
-                                <div>Brand: <span className="font-medium">{store.ai_brand || '—'}</span></div>
-                                <div>Condition: {store.ai_condition || '—'}</div>
-                                <div>Visibility: {store.ai_visibility || '—'}</div>
-                                <div>SoV: {store.ai_share_of_voice != null ? `${store.ai_share_of_voice}%` : '—'}</div>
-                                <div>Type: {store.ai_board_type || '—'}</div>
-                                {store.ai_insights && store.ai_insights.length > 0 && (
-                                  <ul className="mt-1 list-disc list-inside text-gray-500 dark:text-gray-400">
-                                    {store.ai_insights.map((ins, i) => <li key={i}>{ins}</li>)}
-                                  </ul>
-                                )}
-                              </div>
-                            ) : store.ai_status === 'processing' ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Loader2 className="w-3 h-3 animate-spin" /> Processing…</span>
-                            ) : store.ai_status === 'failed' ? (
-                              <span className="text-xs text-red-600 font-medium">Failed</span>
-                            ) : (
-                              <span className="text-gray-400 text-xs">—</span>
-                            )}
-                          </td>
+                          {!isDiplomat && (
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {store.ai_status === 'completed' ? (
+                                <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
+                                  <div>Brand: <span className="font-medium">{store.ai_brand || '—'}</span></div>
+                                  <div>Condition: {store.ai_condition || '—'}</div>
+                                  <div>Visibility: {store.ai_visibility || '—'}</div>
+                                  <div>SoV: {store.ai_share_of_voice != null ? `${store.ai_share_of_voice}%` : '—'}</div>
+                                  <div>Type: {store.ai_board_type || '—'}</div>
+                                  {store.ai_insights && store.ai_insights.length > 0 && (
+                                    <ul className="mt-1 list-disc list-inside text-gray-500 dark:text-gray-400">
+                                      {store.ai_insights.map((ins, i) => <li key={i}>{ins}</li>)}
+                                    </ul>
+                                  )}
+                                </div>
+                              ) : store.ai_status === 'processing' ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-600"><Loader2 className="w-3 h-3 animate-spin" /> Processing…</span>
+                              ) : store.ai_status === 'failed' ? (
+                                <span className="text-xs text-red-600 font-medium">Failed</span>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </td>
+                          )}
                           <td className="py-3 px-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">{store.visit_date ? new Date(store.visit_date).toLocaleDateString() : '—'}</td>
+                          <td className="py-3 px-4">
+                            <button onClick={() => setAnswersVisit(store)} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">
+                              <Eye className="w-3.5 h-3.5" /> View
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1039,6 +1165,101 @@ export default function StoreInsights() {
                 <button onClick={() => { const id = detailVisit.id; setDetailVisit(null); handleViewPhotos(id); }} className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg">View All Photos</button>
               )}
               <button onClick={() => setDetailVisit(null)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visit Questions & Answers Modal */}
+      {answersVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setAnswersVisit(null)}>
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{answersVisit.store_name}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{answersVisit.store_address} · {answersVisit.visit_date ? new Date(answersVisit.visit_date).toLocaleDateString() : '—'}</p>
+              </div>
+              <button onClick={() => setAnswersVisit(null)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {answersLoading ? (
+                <div className="flex justify-center py-8"><LoadingSpinner /></div>
+              ) : visitAnswers.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No questionnaire answers recorded for this visit.</p>
+              ) : (
+                visitAnswers.map(item => {
+                  if (item.field_type === 'product_audit') {
+                    const a = parseProductAudit(item.answer)
+                    const legacyByProduct = new Map(a.legacy.map(e => [e.product, e]))
+                    const hasStoreAnswers = !!(a.store.rep_visits || a.store.deliveries || a.store.biggest_challenge || a.store.other_delivery_issues)
+                    return (
+                      <div key={item.question_key}>
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{item.question_label}</h4>
+                        {hasStoreAnswers && (
+                          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-3 space-y-1 text-xs">
+                            <div className="font-medium text-gray-900 dark:text-white text-sm mb-1">Store</div>
+                            <AnswerRow label="Rep visits" value={a.store.rep_visits} />
+                            <AnswerRow label="Deliveries" value={a.store.deliveries} />
+                            <AnswerRow label="How they get stock" value={a.store.delivery_method} />
+                            <AnswerRow label="What is delivered / how" value={a.store.delivered_products} />
+                            <AnswerRow label="Biggest challenge" value={a.store.biggest_challenge} />
+                            <AnswerRow label="Other delivery issues" value={a.store.other_delivery_issues} />
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {a.products.map((p) => {
+                            const legacy = legacyByProduct.get(p.product)
+                            return (
+                              <div key={p.product} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-gray-900 dark:text-white text-sm">{p.product}</span>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${p.stock === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>Stock: {p.stock}</span>
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  <AnswerRow label="Why not" value={p.why_not} />
+                                  {legacy && (
+                                    <>
+                                      <AnswerRow label="Rep visits" value={legacy.reps} />
+                                      <AnswerRow label="Why no rep" value={legacy.reps_why_not} />
+                                      <AnswerRow label="Delivery" value={legacy.delivery} />
+                                      <AnswerRow label="Stock source" value={legacy.delivery_source} />
+                                      <AnswerRow label="Biggest challenge" value={legacy.challenge} />
+                                      <AnswerRow label="Similar product" value={legacy.similar} />
+                                      <AnswerRow label="Comments" value={legacy.comments} />
+                                      {legacy.photo && (
+                                        <a href={legacy.photo} target="_blank" rel="noreferrer" className="block mt-1.5">
+                                          <img src={legacy.photo} alt={p.product} className="w-24 h-24 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                                        </a>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (item.field_type === 'image') {
+                    return (
+                      <div key={item.question_key} className="flex justify-between text-sm border-b border-gray-50 dark:border-gray-700/50 pb-1">
+                        <span className="text-gray-500 dark:text-gray-400">{item.question_label}</span>
+                        <span className="text-gray-900 dark:text-white font-medium">[Photo attached]</span>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={item.question_key} className="flex justify-between text-sm border-b border-gray-50 dark:border-gray-700/50 pb-1">
+                      <span className="text-gray-500 dark:text-gray-400">{item.question_label}</span>
+                      <span className="text-gray-900 dark:text-white font-medium text-right ml-4">{String(item.answer)}</span>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button onClick={() => setAnswersVisit(null)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg">Close</button>
             </div>
           </div>
         </div>

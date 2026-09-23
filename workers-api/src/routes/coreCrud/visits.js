@@ -2,15 +2,27 @@ import { Hono } from 'hono';
 import { authMiddleware, requireRole } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../field-ops/config.js';
-import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto } from '../../lib/photoAi.js';
+import { rewriteR2Url, PHOTO_URL_SQL, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, persistClientPhoto, offloadProductAuditPhotos, PRODUCT_AUDIT_AI_STATUS } from '../../lib/photoAi.js';
 import { validateSAIdNumber, validateGoldrushId, extractGoldrushId, goldrushIdExists, ensureCaptureFailures } from '../../lib/goldrush.js';
-import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
+import { agentHoursBlocked, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
+import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../services/excludedStore.js';
+import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
+import { resolveVisitTimes } from '../../services/visitTiming.js';
 
 const app = new Hono();
 
+// How close counts as standing at an excluded store. Deliberately much tighter than the
+// 200m revisit radius, and deliberately not read from revisit_radius_meters: the
+// do-not-visit list holds 12,739 shop positions across Johannesburg, and at 200m an
+// average point has 9 other listed shops around it (87 in the worst township high
+// street). A radius that wide would stop an agent standing at a perfectly visitable
+// shop next door. Township shopfronts are metres apart and phone GPS lands within
+// 10-50m, so this is about as tight as it can be without missing the store itself.
+const DEFAULT_EXCLUSION_RADIUS_M = 60;
+
 // Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
 app.get('/visits/hours-status', authMiddleware, async (c) => {
-  const outside = isOutsideAgentHours();
+  const outside = agentHoursBlocked(c.env);
   return c.json({ allowed: !outside, error: outside ? AGENT_HOURS_ERROR : null });
 });
 
@@ -177,7 +189,7 @@ app.get('/visits/:id', async (c) => {
 });
 
 app.post('/visits', async (c) => {
-  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
+  if (agentHoursBlocked(c.env)) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -466,17 +478,145 @@ app.post('/visits/check-store-revisit', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
-  const { customer_id } = body;
+  const { customer_id, company_id } = body;
   if (!customer_id) return c.json({ error: 'customer_id is required' }, 400);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // The 30-day cooldown is a default, not a universal rule — a company can
+  // override it (e.g. prospecting flows that need frequent follow-ups on a
+  // newly-added store). 0 or negative disables the cooldown entirely.
+  let cooldownDays = 30;
+  if (company_id) {
+    const company = await db.prepare('SELECT revisit_cooldown_days FROM field_companies WHERE id = ? AND tenant_id = ?').bind(company_id, tenantId).first();
+    if (company && company.revisit_cooldown_days !== null && company.revisit_cooldown_days !== undefined) {
+      cooldownDays = company.revisit_cooldown_days;
+    }
+  }
+  if (cooldownDays <= 0) {
+    return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
+  }
+
+  const cooldownStart = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const recentVisit = await db.prepare(
     "SELECT id, visit_date, agent_id FROM visits WHERE tenant_id = ? AND customer_id = ? AND visit_date >= ? AND status != 'cancelled' ORDER BY visit_date DESC LIMIT 1"
-  ).bind(tenantId, customer_id, thirtyDaysAgo).first();
+  ).bind(tenantId, customer_id, cooldownStart).first();
   if (recentVisit) {
     const daysSince = Math.floor((Date.now() - new Date(recentVisit.visit_date).getTime()) / (1000 * 60 * 60 * 24));
-    return c.json({ can_visit: false, last_visit: recentVisit, days_since: daysSince, message: `This store was visited ${daysSince} day(s) ago. Must wait 30 days between visits.` });
+    return c.json({ can_visit: false, last_visit: recentVisit, days_since: daysSince, message: `This store was visited ${daysSince} day(s) ago. Must wait ${cooldownDays} days between visits.` });
   }
   return c.json({ can_visit: true, message: 'Store is eligible for a visit' });
+});
+
+// Check whether a store name matches a company's imported "existing customer" list
+// (e.g. Diplomat's calling base of already-serviced stores). Such stores should not
+// be surveyed again under that company's questionnaire. Only blocks when the given
+// company has an existing-customer list loaded — a no-op for every other company.
+app.post('/visits/check-existing-customer', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const body = await c.req.json();
+  const { company_id, customer_name } = body;
+  if (!company_id || !customer_name) return c.json({ is_existing: false });
+  const normalized = normalizeStoreName(customer_name);
+  if (!normalized) return c.json({ is_existing: false });
+  const match = await db.prepare(
+    'SELECT customer_name FROM company_existing_customers WHERE tenant_id = ? AND company_id = ? AND normalized_name = ?'
+  ).bind(tenantId, company_id, normalized).first();
+  if (match) {
+    return c.json({ is_existing: true, matched_name: match.customer_name, message: `This is an existing customer (${match.customer_name}) and cannot be visited.` });
+  }
+  return c.json({ is_existing: false });
+});
+
+// Same do-not-visit list as above, asked the other way round: not "is this store
+// name excluded?" but "is the agent standing at an excluded store?". The name check
+// can only run once a store has been picked or typed, which is several steps after
+// check-in; this one runs the moment GPS is captured, so an agent at a store their
+// company already services is turned away before filling anything in.
+//
+// The excluded list has no coordinates, so listed stores are located through the
+// tenant's customer records: any customer within the radius whose normalized name
+// is on the list means the agent is there. A listed store with no customer record
+// can't be placed on a map at all — the name check still covers that case.
+app.post('/visits/check-location-excluded', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const body = await c.req.json();
+    const lat = Number(body.latitude);
+    const lng = Number(body.longitude);
+    // The list is per-company, so without a company there is nothing to check against.
+    if (!body.company_id || !Number.isFinite(lat) || !Number.isFinite(lng)) return c.json({ is_excluded: false });
+
+    const radius = Number(body.radius_meters) > 0 ? Number(body.radius_meters) : DEFAULT_EXCLUSION_RADIUS_M;
+
+    // Straight positional lookup against the list's own coordinates. It used to find a
+    // listed store only when that store also existed as a customer record with GPS, which
+    // was 827 of 16,347; the list now carries its own coordinates for 12,739 of them.
+    const box = boundingBox(lat, lng, radius);
+    const nearby = await db.prepare(
+      `SELECT id, customer_name AS name, address, latitude, longitude
+         FROM company_existing_customers
+        WHERE tenant_id = ? AND company_id = ?
+          AND latitude IS NOT NULL AND longitude IS NOT NULL
+          AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?
+        LIMIT 100`
+    ).bind(tenantId, body.company_id, box.minLat, box.maxLat, box.minLng, box.maxLng).all();
+
+    // Every row here is on the do-not-visit list by definition, so anything genuinely
+    // within the radius is a block — no name comparison involved.
+    const inRadius = storesWithinRadius(lat, lng, nearby.results || [], radius);
+    if (inRadius.length === 0) return c.json({ is_excluded: false, radius_meters: radius });
+
+    const hit = inRadius[0];
+    const distance = Math.round(hit.distance_meters);
+    return c.json({
+      is_excluded: true,
+      store_name: hit.name,
+      matched_name: hit.name,
+      distance_meters: distance,
+      radius_meters: radius,
+      nearby_excluded_count: inRadius.length,
+      message: `You are ${distance}m from ${hit.name}, which is on this company's do-not-visit list. A visit cannot be captured here.`
+    });
+  } catch (e) {
+    // Fail open: a lookup that errors must not strand an agent who is somewhere legitimate.
+    console.error('check-location-excluded failed:', e);
+    return c.json({ is_excluded: false });
+  }
+});
+
+// Shelf analysis results for a visit's product-audit photos. requireRole('manager')
+// covers Manager plus every admin-equivalent (admin, backoffice_admin, general_manager)
+// and super_admin via roleAllows — agents cannot read their own scores back.
+// ?photo_id= narrows it to a single photo.
+app.get('/visits/:visitId/shelf-analysis', authMiddleware, requireRole('manager'), async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const { visitId } = c.req.param();
+    const { photo_id } = c.req.query();
+
+    let sql = `SELECT spa.id, spa.visit_id, spa.photo_id, spa.product, spa.shelf_level, spa.visibility_score,
+                      spa.obstructions, spa.estimated_facings, spa.notes, spa.confidence, spa.status,
+                      spa.created_at, spa.analysed_at, ${PHOTO_URL_SQL('vp')} as photo_url
+                 FROM shelf_photo_analysis spa
+                 LEFT JOIN visit_photos vp ON vp.id = spa.photo_id
+                WHERE spa.tenant_id = ? AND spa.visit_id = ?`;
+    const params = [tenantId, visitId];
+    if (photo_id) { sql += ' AND spa.photo_id = ?'; params.push(photo_id); }
+    sql += ' ORDER BY spa.created_at ASC';
+
+    const rows = await db.prepare(sql).bind(...params).all();
+    const analyses = (rows.results || []).map(r => ({
+      ...r,
+      // Stored as a JSON string; hand the client the array it expects.
+      obstructions: (() => { try { return JSON.parse(r.obstructions || '[]'); } catch { return []; } })(),
+      photo_url: rewriteR2Url(r.photo_url, c.req.url),
+    }));
+    return c.json({ success: true, data: analyses });
+  } catch (e) {
+    return c.json({ success: false, message: e.message }, 500);
+  }
 });
 
 // Check for duplicate individual (ID number, phone, or goldrush player ID)
@@ -529,7 +669,7 @@ app.post('/visits/check-photo-duplicate', authMiddleware, async (c) => {
 });
 // Create visit with full workflow data (individual or store)
 app.post('/visits/workflow', authMiddleware, async (c) => {
-  if (isOutsideAgentHours()) return c.json({ error: AGENT_HOURS_ERROR }, 403);
+  if (agentHoursBlocked(c.env)) return c.json({ error: AGENT_HOURS_ERROR }, 403);
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -659,13 +799,16 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     }
 
     // 1. Create the visit record (try with company_id column first, fallback without)
+    // The wizard's GPS fix is the check-in; this submit is the check-out. The gap
+    // is the visit's time on site (see services/visitTiming.js for the guards).
+    const times = resolveVisitTimes(body, now);
     const companyId = body.company_id || null;
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
     try {
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, visit_target_type, check_in_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, visit_target_type, check_in_time, check_out_time, latitude, longitude, brand_id, company_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-        body.visit_target_type || 'customer', body.visit_target_type || 'customer', now,
+        body.visit_target_type || 'customer', body.visit_target_type || 'customer', times.check_in_time, times.check_out_time,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
         brandId, companyId,
         body.individual_first_name || null, body.individual_last_name || null,
@@ -676,9 +819,9 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       ).run();
     } catch {
       // Fallback: company_id column may not exist yet
-      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
+      await db.prepare(`INSERT INTO visits (id, tenant_id, agent_id, customer_id, visit_date, visit_type, check_in_time, check_out_time, latitude, longitude, brand_id, individual_name, individual_surname, individual_id_number, individual_phone, purpose, notes, questionnaire_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`).bind(
         visitId, tenantId, body.agent_id || userId, customerId, visitDate,
-        body.visit_target_type || 'customer', now,
+        body.visit_target_type || 'customer', times.check_in_time, times.check_out_time,
         body.checkin_latitude ?? null, body.checkin_longitude ?? null,
         brandId,
         body.individual_first_name || null, body.individual_last_name || null,
@@ -723,6 +866,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       // Link visit to individual with custom field values
       // Merge custom_question_values (e.g. goldrush_id) into custom_field_values so they are stored together
       const mergedCustomFields = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      // Same as the store path below: photos nested inside a product-audit answer
+      // go to R2 before the row is written, never as base64 in D1.
+      for (const [key, val] of Object.entries(mergedCustomFields)) {
+        mergedCustomFields[key] = await offloadProductAuditPhotos(db, c.env.UPLOADS, val, { tenantId, visitId, userId, reqUrl: c.req.url });
+      }
       const viId = crypto.randomUUID();
       await db.prepare('INSERT INTO visit_individuals (id, tenant_id, visit_id, individual_id, custom_field_values) VALUES (?, ?, ?, ?, ?)').bind(
         viId, tenantId, visitId, individualId, JSON.stringify(mergedCustomFields)
@@ -781,6 +929,24 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     // 2b. For store visits, save custom_field_values + custom_question_values as a visit_response
     if (body.visit_target_type === 'store') {
       const mergedStoreCustom = { ...(body.custom_field_values || {}), ...(body.custom_question_values || {}) };
+      // Product-audit photos live inside a JSON answer, so they have to be moved to
+      // R2 *before* this row is written — the whole-value offload further down runs
+      // after the INSERT, which would mean storing every product's base64 in D1 first.
+      // Each stored photo is also queued for shelf analysis; the model runs after the
+      // response goes back, so the agent never waits for it.
+      const queuedShelfAnalyses = [];
+      for (const [key, val] of Object.entries(mergedStoreCustom)) {
+        mergedStoreCustom[key] = await offloadProductAuditPhotos(db, c.env.UPLOADS, val, {
+          tenantId, visitId, userId, reqUrl: c.req.url,
+          onPhotoStored: async ({ photoId, r2Key, product }) => {
+            const analysisId = await queueShelfAnalysis(db, { tenantId, visitId, photoId, product });
+            if (analysisId) queuedShelfAnalyses.push({ analysisId, photoId, r2Key });
+          },
+        });
+      }
+      if (queuedShelfAnalyses.length > 0) {
+        try { c.executionCtx.waitUntil(runQueuedShelfAnalyses(c.env, queuedShelfAnalyses)); } catch { /* the cron drain picks up whatever stays pending */ }
+      }
       if (Object.keys(mergedStoreCustom).length > 0) {
         const cqrId = crypto.randomUUID();
         await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES (?, ?, ?, ?, ?)').bind(
@@ -848,6 +1014,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
 
     // 4. Save photos with GPS, hash, and board placement data (with deduplication)
     const stepPhotoIds = [];
+    // Bulk product shots from the product_photos step. Each is queued for shelf
+    // analysis (with no product name — the agent doesn't label them) and stored
+    // with the same ai_analysis_status the offloaded audit photos use, so the
+    // generic AI drain doesn't spend a second vision call on it.
+    const productPhotoAnalyses = [];
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       for (const photo of body.photos) {
         // Skip duplicate photos by hash
@@ -857,26 +1028,37 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
         }
         const photoId = crypto.randomUUID();
         const stored = await persistClientPhoto(c.env.UPLOADS, photo, visitId, photoId, c.req.url);
+        const isProductPhoto = photo.photo_type === 'product';
+        const aiStatus = isProductPhoto ? PRODUCT_AUDIT_AI_STATUS : 'pending';
         try {
-          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, board_placement_location, board_placement_position, board_condition, sample_board_id, uploaded_by, ai_analysis_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
             photoId, tenantId, visitId, photo.photo_type || 'board',
             stored.r2_key, stored.r2_url,
             photo.gps_latitude ?? null, photo.gps_longitude ?? null,
             photo.captured_at || now, photo.photo_hash || null,
             photo.board_placement_location || null, photo.board_placement_position || null,
-            photo.board_condition || null, photo.sample_board_id || null, userId
+            photo.board_condition || null, photo.sample_board_id || null, userId, aiStatus
           ).run();
         } catch {
           // Fallback: board placement columns may not exist yet
-          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+          await db.prepare(`INSERT INTO visit_photos (id, tenant_id, visit_id, photo_type, r2_key, r2_url, gps_latitude, gps_longitude, captured_at, photo_hash, uploaded_by, ai_analysis_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
             photoId, tenantId, visitId, photo.photo_type || 'board',
             stored.r2_key, stored.r2_url,
             photo.gps_latitude ?? null, photo.gps_longitude ?? null,
-            photo.captured_at || now, photo.photo_hash || null, userId
+            photo.captured_at || now, photo.photo_hash || null, userId, aiStatus
           ).run();
         }
         stepPhotoIds.push(photoId);
+        if (isProductPhoto && stored.r2_key && !stored.r2_key.startsWith('data:')) {
+          try {
+            const analysisId = await queueShelfAnalysis(db, { tenantId, visitId, photoId, product: null });
+            if (analysisId) productPhotoAnalyses.push({ analysisId, photoId, r2Key: stored.r2_key });
+          } catch (queueErr) { console.error('Product photo shelf-analysis queue failed:', queueErr); }
+        }
       }
+    }
+    if (productPhotoAnalyses.length > 0) {
+      try { c.executionCtx.waitUntil(runQueuedShelfAnalyses(c.env, productPhotoAnalyses)); } catch { /* the cron drain picks up whatever stays pending */ }
     }
 
     // 5. Trigger AI analysis for uploaded body.photos only (custom question photos are handled in steps 2a/2c with aiEnabledKeys)
