@@ -13,6 +13,29 @@ import {
 import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
 import { captureCharts } from '../../../utils/capture-chart'
+import { parseProductAudit, type LegacyProductEntry } from '../../../utils/product-audit'
+
+// One "Label: value" line in the visit-answers modal; renders nothing for a blank.
+function AnswerRow({ label, value }: { label: string; value?: string }) {
+  if (!value) return null
+  return <div><span className="text-gray-400">{label}:</span> <span className="text-gray-700 dark:text-gray-300">{value}</span></div>
+}
+
+// Per-product answers from the retired one-page-per-product audit, flattened
+// into one cell so the pilot visits captured with it still export readably.
+function legacyNotes(e?: LegacyProductEntry): string {
+  if (!e) return ''
+  const parts: string[] = []
+  if (e.reps) parts.push(`Rep visits: ${e.reps}${e.reps_why_not ? ` (${e.reps_why_not})` : ''}`)
+  if (e.delivery) parts.push(`Delivery: ${e.delivery}${e.delivery_source ? ` (${e.delivery_source})` : ''}`)
+  if (e.challenge) parts.push(`Challenge: ${e.challenge}`)
+  if (e.similar) parts.push(`Similar: ${e.similar}`)
+  if (e.comments) parts.push(`Comments: ${e.comments}`)
+  if (e.photo) parts.push(`Photo: ${e.photo}`)
+  return parts.join(' | ')
+}
+
+const fmtClock = (iso?: string | null) => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
 // ── Insights types ──
 interface YesNoBucket { key: string; yes: number; no: number; other: number }
@@ -47,6 +70,7 @@ interface GoldrushStore {
   other_ad_brands: string; board_installed: string
   ai_status: string; ai_board_detected: boolean; ai_photos_analyzed: number; ai_share_of_voice: number
   ai_brand: string; ai_condition: string; ai_visibility: string; ai_board_type: string; ai_description: string; ai_insights?: string[]
+  check_in_time?: string | null; check_out_time?: string | null; duration_minutes?: number | null
 }
 interface StellrVisit {
   id: string; visit_date: string; status: string; store_name: string; store_address: string
@@ -476,30 +500,41 @@ export default function StoreInsights() {
   }
 
   // Diplomat has none of Goldrush's board/advertising/AI concepts, so its export
-  // matches what the Detail Report table actually shows — plus a flattened
-  // per-product row pulled from each visit's product_audit answers, since that's
-  // the actual audit data the questionnaire exists to capture.
+  // matches what the Detail Report table actually shows, then the store audit:
+  // the store-level answers and time on site repeated on one row per product,
+  // with that product's stock answer. Pilot visits captured with the retired
+  // per-product audit keep their extra answers in a trailing notes column.
   const exportDiplomatToExcel = async () => {
     setExporting(true)
     try {
       if (filtered.length === 0) { toast.error('No data to export'); return }
-      const headers = ['Store Name', 'Store Address', 'Agent', 'Visit Date', 'Product', 'In Stock', 'Why Not', 'Similar Product', 'Rep Visits', 'Why No Rep Visit', 'Delivery', 'Delivery Source', 'Biggest Challenge', 'Product Photo', 'Comments']
+      const headers = [
+        'Store Name', 'Store Address', 'Agent', 'Visit Date', 'Check-in', 'Check-out', 'Minutes on Site',
+        'Rep Visits', 'Deliveries', 'How They Get Stock', 'What Is Delivered / How', 'Biggest Challenge', 'Other Delivery Issues',
+        'Product', 'In Stock', 'Why Not', 'Legacy Notes',
+      ]
       const rows: (string | undefined)[][] = []
       for (const s of filtered) {
-        let entries: Array<Record<string, string>> = []
+        let audit = parseProductAudit(undefined)
         try {
           const res = await apiClient.get(`/field-ops/reports/visit-answers/${s.id}`)
           const items = (res.data?.data || []) as VisitAnswer[]
           const auditItem = items.find(it => it.field_type === 'product_audit')
-          if (auditItem) entries = typeof auditItem.answer === 'string' ? JSON.parse(auditItem.answer) : (auditItem.answer as any) || []
-        } catch { entries = [] }
-        const base = [s.store_name || '', s.store_address || '', s.agent_name || '', s.visit_date || '']
-        if (entries.length === 0) {
-          rows.push([...base, '', '', '', '', '', '', '', '', '', '', ''])
-        } else {
-          for (const e of entries) {
-            rows.push([...base, e.product || '', e.stock || '', e.why_not || '', e.similar || '', e.reps || '', e.reps_why_not || '', e.delivery || '', e.delivery_source || '', e.challenge || '', e.photo || '', e.comments || ''])
-          }
+          if (auditItem) audit = parseProductAudit(auditItem.answer)
+        } catch { /* no answers — the visit still exports its header row */ }
+        const st = audit.store
+        const base = [
+          s.store_name || '', s.store_address || '', s.agent_name || '', s.visit_date || '',
+          fmtClock(s.check_in_time), fmtClock(s.check_out_time), s.duration_minutes != null ? String(s.duration_minutes) : '',
+          st.rep_visits, st.deliveries, st.delivery_method, st.delivered_products, st.biggest_challenge, st.other_delivery_issues,
+        ]
+        if (audit.products.length === 0) {
+          rows.push([...base, '', '', '', ''])
+          continue
+        }
+        const legacyByProduct = new Map(audit.legacy.map(e => [e.product, e]))
+        for (const p of audit.products) {
+          rows.push([...base, p.product, p.stock, p.why_not, legacyNotes(legacyByProduct.get(p.product))])
         }
       }
       downloadCsv(headers, rows, `diplomat-store-report-${new Date().toISOString().slice(0, 10)}.csv`)
@@ -913,6 +948,7 @@ export default function StoreInsights() {
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Store</th>
                         {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Goldrush ID</th>}
                         <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Agent</th>
+                        {isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Time on Site</th>}
                         {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Stock Source</th>}
                         {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Competitors</th>}
                         {!isDiplomat && <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">Advertising</th>}
@@ -927,7 +963,7 @@ export default function StoreInsights() {
                     </thead>
                     <tbody>
                       {filtered.length === 0 ? (
-                        <tr><td colSpan={(isDiplomat ? 5 : 11) + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No store records found' : 'No records match your search'}</td></tr>
+                        <tr><td colSpan={(isDiplomat ? 6 : 11) + extraStoreColumns.length} className="py-12 text-center text-gray-400">{stores.length === 0 ? 'No store records found' : 'No records match your search'}</td></tr>
                       ) : filtered.map((store) => (
                         <tr key={store.id} className="group border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                           <td className="py-3 px-4">
@@ -961,6 +997,11 @@ export default function StoreInsights() {
                             </td>
                           )}
                           <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.agent_name || '—'}</td>
+                          {isDiplomat && (
+                            <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap" title={store.check_in_time ? `${fmtClock(store.check_in_time)} → ${fmtClock(store.check_out_time)}` : undefined}>
+                              {store.duration_minutes != null ? `${store.duration_minutes} min` : '—'}
+                            </td>
+                          )}
                           {!isDiplomat && <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.stock_source || '—'}</td>}
                           {!isDiplomat && <td className="py-3 px-4 text-gray-600 dark:text-gray-300 whitespace-nowrap">{store.competitors_in_store || '—'}</td>}
                           {!isDiplomat && (
@@ -1148,35 +1189,54 @@ export default function StoreInsights() {
               ) : (
                 visitAnswers.map(item => {
                   if (item.field_type === 'product_audit') {
-                    let entries: Array<Record<string, string>> = []
-                    try { entries = typeof item.answer === 'string' ? JSON.parse(item.answer) : (Array.isArray(item.answer) ? item.answer as any : []) } catch { entries = [] }
+                    const a = parseProductAudit(item.answer)
+                    const legacyByProduct = new Map(a.legacy.map(e => [e.product, e]))
+                    const hasStoreAnswers = !!(a.store.rep_visits || a.store.deliveries || a.store.biggest_challenge || a.store.other_delivery_issues)
                     return (
                       <div key={item.question_key}>
                         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{item.question_label}</h4>
-                        <div className="space-y-3">
-                          {entries.map((e, i) => (
-                            <div key={i} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="font-medium text-gray-900 dark:text-white text-sm">{e.product}</span>
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${e.stock === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>Stock: {e.stock}</span>
+                        {hasStoreAnswers && (
+                          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-3 space-y-1 text-xs">
+                            <div className="font-medium text-gray-900 dark:text-white text-sm mb-1">Store</div>
+                            <AnswerRow label="Rep visits" value={a.store.rep_visits} />
+                            <AnswerRow label="Deliveries" value={a.store.deliveries} />
+                            <AnswerRow label="How they get stock" value={a.store.delivery_method} />
+                            <AnswerRow label="What is delivered / how" value={a.store.delivered_products} />
+                            <AnswerRow label="Biggest challenge" value={a.store.biggest_challenge} />
+                            <AnswerRow label="Other delivery issues" value={a.store.other_delivery_issues} />
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {a.products.map((p) => {
+                            const legacy = legacyByProduct.get(p.product)
+                            return (
+                              <div key={p.product} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-medium text-gray-900 dark:text-white text-sm">{p.product}</span>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${p.stock === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>Stock: {p.stock}</span>
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  <AnswerRow label="Why not" value={p.why_not} />
+                                  {legacy && (
+                                    <>
+                                      <AnswerRow label="Rep visits" value={legacy.reps} />
+                                      <AnswerRow label="Why no rep" value={legacy.reps_why_not} />
+                                      <AnswerRow label="Delivery" value={legacy.delivery} />
+                                      <AnswerRow label="Stock source" value={legacy.delivery_source} />
+                                      <AnswerRow label="Biggest challenge" value={legacy.challenge} />
+                                      <AnswerRow label="Similar product" value={legacy.similar} />
+                                      <AnswerRow label="Comments" value={legacy.comments} />
+                                      {legacy.photo && (
+                                        <a href={legacy.photo} target="_blank" rel="noreferrer" className="block mt-1.5">
+                                          <img src={legacy.photo} alt={p.product} className="w-24 h-24 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                                        </a>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                              <div className="space-y-1 text-xs">
-                                {e.why_not && <div><span className="text-gray-400">Why not:</span> <span className="text-gray-700 dark:text-gray-300">{e.why_not}</span></div>}
-                                {e.similar && <div><span className="text-gray-400">Similar product:</span> <span className="text-gray-700 dark:text-gray-300">{e.similar}</span></div>}
-                                {e.reps && <div><span className="text-gray-400">Rep visits:</span> <span className="text-gray-700 dark:text-gray-300">{e.reps}</span></div>}
-                                {e.reps_why_not && <div><span className="text-gray-400">Why no rep:</span> <span className="text-gray-700 dark:text-gray-300">{e.reps_why_not}</span></div>}
-                                {e.delivery && <div><span className="text-gray-400">Delivery:</span> <span className="text-gray-700 dark:text-gray-300">{e.delivery}</span></div>}
-                                {e.delivery_source && <div><span className="text-gray-400">Stock source:</span> <span className="text-gray-700 dark:text-gray-300">{e.delivery_source}</span></div>}
-                                {e.challenge && <div><span className="text-gray-400">Biggest challenge:</span> <span className="text-gray-700 dark:text-gray-300">{e.challenge}</span></div>}
-                                {e.comments && <div><span className="text-gray-400">Comments:</span> <span className="text-gray-700 dark:text-gray-300">{e.comments}</span></div>}
-                                {e.photo && (
-                                  <a href={e.photo} target="_blank" rel="noreferrer" className="block mt-1.5">
-                                    <img src={e.photo} alt={e.product} className="w-24 h-24 object-cover rounded border border-gray-200 dark:border-gray-700" />
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )
