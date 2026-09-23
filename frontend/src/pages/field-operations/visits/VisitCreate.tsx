@@ -228,16 +228,20 @@ const isDiplomatCompany = (c?: { name?: string; code?: string } | null) =>
 // product-stock audit and has none of the board/signage concepts the other store
 // flows collect. photo_type is what the API stores and what the AI analyser keys
 // its prompt off, so 'store_front' gets the storefront prompt.
+// The inside shot takes as many angles as the shop needs — one frame from the doorway
+// covers a spaza, not a supermarket. One is required, the rest are the agent's call.
 const DIPLOMAT_PHOTO_SLOTS = [
   {
     key: 'store_front',
     label: 'Outside the store',
     hint: 'Stand back from the entrance so the shopfront and any signage are in frame.',
+    multiple: false,
   },
   {
     key: 'store_layout',
-    label: 'Store layout, from the door',
-    hint: 'Stand in the doorway and photograph the inside of the shop, showing how it is laid out.',
+    label: 'Inside the store, from the door',
+    hint: 'Stand in the doorway and photograph the inside of the shop. For a bigger store, add more angles until the layout is covered.',
+    multiple: true,
   },
 ] as const
 
@@ -1183,6 +1187,9 @@ export default function VisitCreate() {
           slot,
         }
         if (!slot) return [...prev, entry]
+        // A slot that takes several angles appends; a single-photo slot is replaced,
+        // so re-taking it doesn't leave the old frame behind.
+        if (DIPLOMAT_PHOTO_SLOTS.find(s => s.key === slot)?.multiple) return [...prev, entry]
         const existing = prev.findIndex(p => p.slot === slot)
         if (existing === -1) return [...prev, entry]
         const next = [...prev]
@@ -2960,7 +2967,8 @@ export default function VisitCreate() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {isDiplomatStoreVisit ? (
-            <>Take both photos of the store. Duplicate photos are not allowed.
+            <>One photo of the outside, and at least one from the door showing the layout —
+            add more angles if the store is big. Duplicate photos are not allowed.
             <strong> Both are required.</strong></>
           ) : visitTargetType === 'individual' ? (
             <>Provide the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — either take a photo with your camera or upload a saved screenshot from your gallery. The customer&apos;s name and Goldrush ID are read from the image and pre-filled on the Details step. A blurry image, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>An image is required to complete this capture.</strong></>
@@ -3042,33 +3050,67 @@ export default function VisitCreate() {
         {isDiplomatStoreVisit && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {DIPLOMAT_PHOTO_SLOTS.map((slot, idx) => {
-              const taken = photos.find(p => p.slot === slot.key)
+              const taken = photos.filter(p => p.slot === slot.key)
+              const hasAny = taken.length > 0
               return (
                 <Grid item xs={12} sm={6} key={slot.key}>
-                  <Card variant="outlined" sx={{ height: '100%', borderColor: taken ? 'success.main' : undefined }}>
+                  <Card variant="outlined" sx={{ height: '100%', borderColor: hasAny ? 'success.main' : undefined }}>
                     <CardContent>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Typography variant="subtitle2" sx={{ flex: 1 }}>{idx + 1}. {slot.label}</Typography>
-                        {taken && <Chip size="small" color="success" icon={<CheckIcon />} label="Taken" />}
+                        {hasAny && (
+                          <Chip
+                            size="small" color="success" icon={<CheckIcon />}
+                            label={slot.multiple ? `${taken.length} photo${taken.length === 1 ? '' : 's'}` : 'Taken'}
+                          />
+                        )}
                       </Box>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
                         {slot.hint}
                       </Typography>
-                      {taken && (
-                        <img
-                          src={taken.dataUrl}
-                          alt={slot.label}
-                          style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
-                        />
+
+                      {slot.multiple ? (
+                        taken.length > 0 && (
+                          <Grid container spacing={1} sx={{ mb: 1 }}>
+                            {taken.map(photo => (
+                              <Grid item xs={6} key={photo.hash}>
+                                <Box sx={{ position: 'relative' }}>
+                                  <img
+                                    src={photo.dataUrl}
+                                    alt={slot.label}
+                                    style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, display: 'block' }}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    aria-label="Remove photo"
+                                    sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(255,0,0,0.7)', color: 'white', '&:hover': { bgcolor: 'red' } }}
+                                    onClick={() => removePhoto(photos.findIndex(p => p.hash === photo.hash))}
+                                  >
+                                    ✕
+                                  </IconButton>
+                                </Box>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        )
+                      ) : (
+                        hasAny && (
+                          <img
+                            src={taken[0].dataUrl}
+                            alt={slot.label}
+                            style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
+                          />
+                        )
                       )}
+
                       <Button
                         fullWidth
-                        variant={taken ? 'outlined' : 'contained'}
+                        variant={hasAny ? 'outlined' : 'contained'}
                         component="label"
                         startIcon={<CameraIcon />}
-                        color={showValidation && !taken ? 'error' : 'primary'}
+                        color={showValidation && !hasAny ? 'error' : 'primary'}
                       >
-                        {taken ? 'Retake' : 'Take photo'}
+                        {slot.multiple ? (hasAny ? 'Add another angle' : 'Take photo') : (hasAny ? 'Retake' : 'Take photo')}
                         <input
                           type="file" hidden accept="image/*" capture="environment"
                           onChange={(e) => handlePhotoCapture(e, slot.key)}
