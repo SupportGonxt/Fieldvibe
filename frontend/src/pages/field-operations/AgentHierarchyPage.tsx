@@ -260,6 +260,102 @@ export default function AgentHierarchyPage() {
   ]
   const allManagers = managers.map((m: any) => ({ value: m.id, label: `${m.first_name} ${m.last_name}` }))
 
+  // Shared by team leads under a manager and unassigned team leads, so agents can be
+  // edited or removed from either.
+  function renderTeamLeadAgents(tl: any) {
+    return (
+    <div className="ml-8 mt-1 space-y-1">
+      {(tl.agents || []).map((agent: any) => (
+        <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20 flex-wrap">
+          <User className="w-4 h-4 text-green-600 flex-shrink-0" />
+          <span className={`truncate ${agent.status === 'archived' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{agent.first_name} {agent.last_name}</span>
+          {agent.status === 'archived' && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Archived</span>}
+          {/* Agent company badges */}
+          {(agent.companies || []).map((company: { id: string; name: string; code: string; link_id: string }) => (
+            <span key={company.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-800/30 text-green-700 dark:text-green-300">
+              <Building2 className="w-2.5 h-2.5" />
+              {company.name}
+              <button onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate({ linkId: company.link_id, role: 'agent' }) }} className="ml-0.5 text-green-400 hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
+            </span>
+          ))}
+          {assigningCompanyTo?.id === agent.id && assigningCompanyTo?.role === 'agent' ? (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <SearchableSelect options={allCompanies.filter((c: { id: string }) => !(agent.companies || []).some((ac: { id: string }) => ac.id === c.id)).map((c: { id: string; name: string }) => ({ value: c.id, label: c.name }))} value={selectedCompany || null} onChange={(val) => setSelectedCompany(val || '')} placeholder="Company" />
+              <button onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ personId: agent.id, companyId: selectedCompany, role: 'agent' }) }} disabled={!selectedCompany || assignCompanyMutation.isPending} className="text-green-600 text-xs font-medium px-1 disabled:opacity-50">Add</button>
+              <button onClick={() => { setAssigningCompanyTo(null); setSelectedCompany('') }} className="text-gray-400 text-xs px-1">Cancel</button>
+            </div>
+          ) : (
+            allCompanies.length > 0 && (
+              <button onClick={(e) => { e.stopPropagation(); setAssigningCompanyTo({ id: agent.id, role: 'agent' }); setSelectedCompany('') }} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-dashed border-green-300 dark:border-green-700" title="Assign company">
+                <Plus className="w-2.5 h-2.5" /> Co.
+              </button>
+            )
+          )}
+          {editingUser === agent.id ? (
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1">
+                <Mail className="w-3 h-3 text-gray-400" />
+                <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
+              </div>
+              <div className="flex items-center gap-1">
+                <Phone className="w-3 h-3 text-gray-400" />
+                <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-24 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
+              </div>
+              <div className="flex items-center gap-1">
+                <KeyRound className="w-3 h-3 text-gray-400" />
+                <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="PIN" className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
+              </div>
+              <button onClick={() => saveQuickEdit(agent.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save"><Check className="w-3.5 h-3.5" /></button>
+              <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ) : (
+          <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); startQuickEdit(agent) }}
+              className="text-gray-400 hover:text-green-600 p-1 rounded"
+              title="Quick edit email, phone, PIN"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setReassigningUser({ id: agent.id, type: 'agent', name: `${agent.first_name} ${agent.last_name}` })}
+              className="text-gray-400 hover:text-green-600 p-1 rounded"
+              title="Reassign to another team lead"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => assignMutation.mutate({ userId: agent.id, data: { team_lead_id: null } })}
+              className="text-gray-400 hover:text-red-500 p-1 rounded"
+              title="Unassign from team lead"
+            >
+              <Unlink className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setArchiveConfirm({ id: agent.id, name: `${agent.first_name} ${agent.last_name}`, role: 'Agent', isArchived: agent.status === 'archived' })}
+              className={`p-1 rounded ${agent.status === 'archived' ? 'text-amber-500 hover:text-green-600' : 'text-gray-400 hover:text-amber-500'}`}
+              title={agent.status === 'archived' ? 'Unarchive agent' : 'Archive agent'}
+            >
+              {agent.status === 'archived' ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={() => setDeleteConfirm({ id: agent.id, name: `${agent.first_name} ${agent.last_name}`, role: 'Agent' })}
+              className="text-gray-400 hover:text-red-500 p-1 rounded"
+              title="Remove agent"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          )}
+        </div>
+      ))}
+      {(tl.agents || []).length === 0 && (
+        <p className="text-sm text-gray-400 pl-7 py-1">No agents assigned</p>
+      )}
+    </div>
+    )
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -526,97 +622,7 @@ export default function AgentHierarchyPage() {
                       </button>
                     </div>
 
-                    {expandedTeamLeads.has(tl.id) && (
-                      <div className="ml-8 mt-1 space-y-1">
-                        {(tl.agents || []).map((agent: any) => (
-                          <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-900/20 flex-wrap">
-                            <User className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            <span className={`truncate ${agent.status === 'archived' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{agent.first_name} {agent.last_name}</span>
-                            {agent.status === 'archived' && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Archived</span>}
-                            {/* Agent company badges */}
-                            {(agent.companies || []).map((company: { id: string; name: string; code: string; link_id: string }) => (
-                              <span key={company.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-800/30 text-green-700 dark:text-green-300">
-                                <Building2 className="w-2.5 h-2.5" />
-                                {company.name}
-                                <button onClick={(e) => { e.stopPropagation(); unassignCompanyMutation.mutate({ linkId: company.link_id, role: 'agent' }) }} className="ml-0.5 text-green-400 hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
-                              </span>
-                            ))}
-                            {assigningCompanyTo?.id === agent.id && assigningCompanyTo?.role === 'agent' ? (
-                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                <SearchableSelect options={allCompanies.filter((c: { id: string }) => !(agent.companies || []).some((ac: { id: string }) => ac.id === c.id)).map((c: { id: string; name: string }) => ({ value: c.id, label: c.name }))} value={selectedCompany || null} onChange={(val) => setSelectedCompany(val || '')} placeholder="Company" />
-                                <button onClick={() => { if (selectedCompany) assignCompanyMutation.mutate({ personId: agent.id, companyId: selectedCompany, role: 'agent' }) }} disabled={!selectedCompany || assignCompanyMutation.isPending} className="text-green-600 text-xs font-medium px-1 disabled:opacity-50">Add</button>
-                                <button onClick={() => { setAssigningCompanyTo(null); setSelectedCompany('') }} className="text-gray-400 text-xs px-1">Cancel</button>
-                              </div>
-                            ) : (
-                              allCompanies.length > 0 && (
-                                <button onClick={(e) => { e.stopPropagation(); setAssigningCompanyTo({ id: agent.id, role: 'agent' }); setSelectedCompany('') }} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-dashed border-green-300 dark:border-green-700" title="Assign company">
-                                  <Plus className="w-2.5 h-2.5" /> Co.
-                                </button>
-                              )
-                            )}
-                            {editingUser === agent.id ? (
-                              <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center gap-1">
-                                  <Mail className="w-3 h-3 text-gray-400" />
-                                  <input type="email" value={editFields.email} onChange={(e) => setEditFields(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Phone className="w-3 h-3 text-gray-400" />
-                                  <input type="tel" value={editFields.phone} onChange={(e) => setEditFields(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-24 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <KeyRound className="w-3 h-3 text-gray-400" />
-                                  <input type="text" value={editFields.pin} onChange={(e) => setEditFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} placeholder="PIN" className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-bg text-gray-900 dark:text-white" />
-                                </div>
-                                <button onClick={() => saveQuickEdit(agent.id)} disabled={quickEditMutation.isPending} className="text-green-600 hover:text-green-700 p-1" title="Save"><Check className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-red-500 p-1" title="Cancel"><X className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ) : (
-                            <div className="ml-auto flex items-center gap-1 flex-shrink-0">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); startQuickEdit(agent) }}
-                                className="text-gray-400 hover:text-green-600 p-1 rounded"
-                                title="Quick edit email, phone, PIN"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setReassigningUser({ id: agent.id, type: 'agent', name: `${agent.first_name} ${agent.last_name}` })}
-                                className="text-gray-400 hover:text-green-600 p-1 rounded"
-                                title="Reassign to another team lead"
-                              >
-                                <ArrowRightLeft className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => assignMutation.mutate({ userId: agent.id, data: { team_lead_id: null } })}
-                                className="text-gray-400 hover:text-red-500 p-1 rounded"
-                                title="Unassign from team lead"
-                              >
-                                <Unlink className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setArchiveConfirm({ id: agent.id, name: `${agent.first_name} ${agent.last_name}`, role: 'Agent', isArchived: agent.status === 'archived' })}
-                                className={`p-1 rounded ${agent.status === 'archived' ? 'text-amber-500 hover:text-green-600' : 'text-gray-400 hover:text-amber-500'}`}
-                                title={agent.status === 'archived' ? 'Unarchive agent' : 'Archive agent'}
-                              >
-                                {agent.status === 'archived' ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirm({ id: agent.id, name: `${agent.first_name} ${agent.last_name}`, role: 'Agent' })}
-                                className="text-gray-400 hover:text-red-500 p-1 rounded"
-                                title="Remove agent"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            )}
-                          </div>
-                        ))}
-                        {(tl.agents || []).length === 0 && (
-                          <p className="text-sm text-gray-400 pl-7 py-1">No agents assigned</p>
-                        )}
-                      </div>
-                    )}
+                    {expandedTeamLeads.has(tl.id) && renderTeamLeadAgents(tl)}
                   </div>
                 ))}
                 {(manager.team_leads || []).length === 0 && (
@@ -634,10 +640,15 @@ export default function AgentHierarchyPage() {
             <h4 className="text-sm font-medium text-gray-500 uppercase mb-2">Unassigned Team Leads</h4>
             <div className="space-y-2">
               {unassignedTeamLeads.map((tl: any) => (
-                <div key={tl.id} className="flex items-center gap-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                  <Shield className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                  <span className={`truncate ${tl.status === 'archived' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{tl.first_name} {tl.last_name}</span>
-                  {tl.status === 'archived' && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Archived</span>}
+                <div key={tl.id}>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                  <button onClick={() => toggleTeamLead(tl.id)} className="flex items-center gap-3 flex-1 min-w-0">
+                    {expandedTeamLeads.has(tl.id) ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
+                    <Shield className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                    <span className={`truncate ${tl.status === 'archived' ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{tl.first_name} {tl.last_name}</span>
+                    {tl.status === 'archived' && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">Archived</span>}
+                    <span className="text-sm text-gray-500 ml-auto flex-shrink-0">{tl.agents?.length || 0} agents</span>
+                  </button>
                   {assigningUser === tl.id ? (
                     <div className="ml-auto flex items-center gap-2 flex-shrink-0">
                       <SearchableSelect
@@ -676,6 +687,8 @@ export default function AgentHierarchyPage() {
                       </button>
                     </div>
                   )}
+                </div>
+                  {expandedTeamLeads.has(tl.id) && renderTeamLeadAgents(tl)}
                 </div>
               ))}
             </div>

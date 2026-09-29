@@ -754,7 +754,11 @@ app.get('/field-ops/hierarchy', authMiddleware, async (c) => {
         agents: (agents.results || []).filter(a => a.team_lead_id === tl.id).map(a => ({ ...a, companies: getPersonCompanies(a.id) }))
       }))
     }));
-    const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id).map(tl => ({ ...tl, companies: getPersonCompanies(tl.id) }));
+    const unassignedTeamLeads = (teamLeads.results || []).filter(tl => !tl.manager_id).map(tl => ({
+      ...tl,
+      companies: getPersonCompanies(tl.id),
+      agents: (agents.results || []).filter(a => a.team_lead_id === tl.id).map(a => ({ ...a, companies: getPersonCompanies(a.id) }))
+    }));
     const unassignedAgents = (agents.results || []).filter(a => !a.team_lead_id).map(a => ({ ...a, companies: getPersonCompanies(a.id) }));
     return c.json({ hierarchy, unassigned_team_leads: unassignedTeamLeads, unassigned_agents: unassignedAgents, all_companies: companiesList, total_managers: (managers.results || []).length, total_team_leads: (teamLeads.results || []).length, total_agents: (agents.results || []).length });
   } catch {
