@@ -16,9 +16,11 @@ const app = new Hono();
 // do-not-visit list holds 12,739 shop positions across Johannesburg, and at 200m an
 // average point has 9 other listed shops around it (87 in the worst township high
 // street). A radius that wide would stop an agent standing at a perfectly visitable
-// shop next door. Township shopfronts are metres apart and phone GPS lands within
-// 10-50m, so this is about as tight as it can be without missing the store itself.
-const DEFAULT_EXCLUSION_RADIUS_M = 60;
+// shop next door. Township shopfronts are metres apart, and even 60m still blocked
+// agents at neighbouring shops, so the block only fires when the agent is essentially
+// on the listed store's recorded position. Phone GPS drifts 10-50m, so an agent inside
+// a listed store can sometimes read as outside 5m — that trade-off is intentional.
+const DEFAULT_EXCLUSION_RADIUS_M = 5;
 
 // Lets the wizard check before an agent starts a visit, instead of only failing at final submit.
 app.get('/visits/hours-status', authMiddleware, async (c) => {
