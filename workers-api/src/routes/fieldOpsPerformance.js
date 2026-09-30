@@ -432,7 +432,19 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       headers = ['Team Lead', 'Agents', 'Visits', 'Individual', 'Store', 'Target (Indiv)', 'Target (Store)'];
       const allTeamLeads = await db.prepare("SELECT id, first_name, last_name FROM users WHERE tenant_id = ? AND role = 'team_lead' AND is_active = 1").bind(tenantId).all();
       const allAgents = await db.prepare("SELECT id, first_name, last_name, team_lead_id FROM users WHERE tenant_id = ? AND role IN ('agent', 'field_agent') AND is_active = 1").bind(tenantId).all();
-      
+      // company_id used to be ignored here, so picking a company still exported every
+      // team in the tenant. Scope like the Excel export: agents via agent_company_links,
+      // and a team lead if they're linked or lead at least one linked agent.
+      if (company_id) {
+        const companyLinks = await db.prepare(
+          "SELECT agent_id FROM agent_company_links WHERE tenant_id = ? AND company_id = ? AND is_active = 1"
+        ).bind(tenantId, company_id).all();
+        const linked = new Set((companyLinks.results || []).map(r => r.agent_id));
+        allAgents.results = (allAgents.results || []).filter(a => linked.has(a.id));
+        allTeamLeads.results = (allTeamLeads.results || []).filter(tl =>
+          linked.has(tl.id) || allAgents.results.some(a => a.team_lead_id === tl.id));
+      }
+
       const [allVisits, allIndivVisits, allStoreVisits] = await Promise.all([
         db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY agent_id").bind(tenantId, startD, endD).all(),
         db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? GROUP BY agent_id").bind(tenantId, startD, endD).all(),
@@ -630,12 +642,25 @@ app.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
         )
       : (allTeamLeads.results || []);
     const effectiveTLSet = new Set(effectiveTLResults.map(tl => tl.id));
-    const managers = (allManagers.results || []).map(m => {
-      const tls = effectiveTLResults.filter(t => t.manager_id === m.id);
-      const directAgents = filteredAgentResults.filter(a => a.manager_id === m.id && (!a.team_lead_id || a.team_lead_id === ''));
+    // The sheets hang everything off a manager, so a team lead with no manager_id (or one
+    // pointing at an excluded/inactive/non-'manager' user) and an agent whose team lead
+    // isn't in the list used to vanish from the export entirely — e.g. Diplomat's team
+    // leads, which the on-screen view (built from team leads, not managers) still showed.
+    // Collect them under a synthetic "No Manager Assigned" bucket instead.
+    const managerIdSet = new Set((allManagers.results || []).map(m => m.id));
+    const UNASSIGNED_MGR_ID = '__unassigned__';
+    const tlManagerOf = (tl) => managerIdSet.has(tl.manager_id) ? tl.manager_id : UNASSIGNED_MGR_ID;
+    const isDirectAgentOf = (a, mgrId) => {
+      if (a.team_lead_id && effectiveTLSet.has(a.team_lead_id)) return false;
+      return mgrId === UNASSIGNED_MGR_ID ? !managerIdSet.has(a.manager_id) : a.manager_id === mgrId;
+    };
+    const managerRows = [...(allManagers.results || []), { id: UNASSIGNED_MGR_ID, first_name: 'No Manager', last_name: 'Assigned' }];
+    const managers = managerRows.map(m => {
+      const tls = effectiveTLResults.filter(t => tlManagerOf(t) === m.id);
+      const directAgents = filteredAgentResults.filter(a => isDirectAgentOf(a, m.id));
       const allMgrIds = [];
       // Only include manager's own visits if they are in the company filter
-      if (!exportCompanyUserIds || exportCompanyUserIds.has(m.id)) allMgrIds.push(m.id);
+      if (m.id !== UNASSIGNED_MGR_ID && (!exportCompanyUserIds || exportCompanyUserIds.has(m.id))) allMgrIds.push(m.id);
       const teamLeads = tls.map(tl => {
         const agents = filteredAgentResults.filter(a => a.team_lead_id === tl.id);
         // Include TL's own visits only if TL is in the company filter
@@ -645,7 +670,7 @@ app.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
       });
       allMgrIds.push(...directAgents.map(a => a.id));
       const dAgents = directAgents.map(a => ({ ...a, name: a.first_name + ' ' + a.last_name, ...sumIds([a.id]), ...sumTargets([a.id]) }));
-      return { ...m, name: m.first_name + ' ' + m.last_name, teamLeads, directAgents: dAgents, ...sumIds(allMgrIds), ...sumTargets(allMgrIds), totalTLs: tls.length, totalAgents: filteredAgentResults.filter(a => tls.some(t => t.id === a.team_lead_id) || (a.manager_id === m.id)).length };
+      return { ...m, name: m.first_name + ' ' + m.last_name, teamLeads, directAgents: dAgents, ...sumIds(allMgrIds), ...sumTargets(allMgrIds), totalTLs: tls.length, totalAgents: teamLeads.reduce((s, tl) => s + tl.agents.length, 0) + dAgents.length };
     }).filter(m => m.teamLeads.length > 0 || m.directAgents.length > 0);
     // Grand totals — only sum IDs that belong to the selected company
     const grandAgentIds = filteredAgentResults.map(a => a.id);
