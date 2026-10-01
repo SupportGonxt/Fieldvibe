@@ -37,6 +37,7 @@ import {
   isStoreAnswersComplete, isStockCheckComplete, stockSummary, type ProductAudit,
 } from '../../../utils/product-audit'
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
+import { compressPhoto, compressDataUrl } from '../../../utils/photo-compression'
 
 // Haversine distance between two GPS coordinates in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -1292,10 +1293,16 @@ export default function VisitCreate() {
   // is added. No per-photo duplicate round trip to the server (it drops exact
   // duplicates by hash on save) — just a local dedupe so one shot isn't listed twice.
   const handleProductPhotosUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const MAX_PRODUCT_PHOTOS = 30
     const files = Array.from(event.target.files || [])
     // Reset so picking the same files again after a remove still fires onChange.
     event.target.value = ''
     if (files.length === 0) return
+    const currentProductCount = photos.filter(p => p.photoType === PRODUCT_PHOTO_TYPE).length
+    if (currentProductCount >= MAX_PRODUCT_PHOTOS) {
+      toast.error(`Maximum ${MAX_PRODUCT_PHOTOS} product photos allowed. Remove some before adding more.`)
+      return
+    }
     setPhotoDuplicateWarning(null)
     setProductPhotosBusy(true)
     let added = 0
@@ -1304,15 +1311,24 @@ export default function VisitCreate() {
       const seen = new Set(photos.map(p => p.hash))
       for (const file of files) {
         try {
-          const raw = await new Promise<string>((resolve, reject) => {
+          // Camera shots arrive as full-resolution raw files (8–12 MB on modern phones).
+          // Reading the raw file as a data URL first (FileReader → base64 → Image → canvas)
+          // forces the full decoded bitmap (~48 MB for a 12 MP shot) onto the main thread
+          // before any compression, causing OOM on low-end devices ("memory full").
+          // Instead: compress via browser-image-compression with useWebWorker:true so the
+          // large bitmap is handled off-thread, then read only the small result as a data
+          // URL. Gallery files are already compressed by the OS but benefit from the same
+          // path — the library skips re-encoding when the file is already small enough.
+          const { compressed } = await compressPhoto(file, { maxSizeMB: 0.5, maxWidth: 800, quality: 0.6 })
+          const dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
             reader.onload = () => resolve(reader.result as string)
             reader.onerror = () => reject(new Error('Could not read image'))
-            reader.readAsDataURL(file)
+            reader.readAsDataURL(compressed)
           })
-          const dataUrl = await compressImage(raw)
           const hash = await generatePhotoHash(dataUrl)
           if (seen.has(hash)) { skipped++; continue }
+          if (currentProductCount + added >= MAX_PRODUCT_PHOTOS) { skipped++; continue }
           seen.add(hash)
           setPhotos(prev => [...prev, { dataUrl, hash, gps: gpsLocation, timestamp: new Date().toISOString(), photoType: PRODUCT_PHOTO_TYPE }])
           added++
