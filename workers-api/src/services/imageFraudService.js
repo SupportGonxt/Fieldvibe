@@ -56,7 +56,7 @@ export async function readStatusBar(env, img) {
       messages: [
         { role: 'system', content: 'You read phone status bars. Reply with ONLY one JSON object, no prose.' },
         { role: 'user', content: [
-          { type: 'text', text: 'This is the top strip of a phone screenshot. Read the clock time and the battery percentage shown in the status bar. Reply exactly as {"time":"HH:MM","battery":"NN"}. Use null for anything not clearly readable. Never guess.' },
+          { type: 'text', text: 'This is the top strip of a phone screenshot. First decide whether it shows the phone status bar (a clock plus signal/battery icons) or something else such as a browser address bar. Then read the clock time and battery percentage. Reply exactly as {"status_bar":true,"time":"HH:MM","battery":"NN"}. If there is no status bar set status_bar to false and time and battery to null. Use null for anything not clearly readable. Never guess.' },
           { type: 'image_url', image_url: { url: statusBarCropDataUrl(img) } },
         ] },
       ],
@@ -65,6 +65,7 @@ export async function readStatusBar(env, img) {
     });
     const raw = res?.response ?? res?.result?.response ?? '';
     const obj = typeof raw === 'object' && raw ? raw : (() => { const t = String(raw); const a = t.indexOf('{'), b = t.lastIndexOf('}'); try { return a >= 0 ? JSON.parse(t.slice(a, b + 1)) : {}; } catch { return {}; } })();
+    if (obj.status_bar === false || obj.status_bar === 'false') return { clock: null, battery: null };
     const bat = obj.battery == null ? null : String(obj.battery).replace(/\D/g, '');
     return { clock: normaliseClock(obj.time), battery: bat && Number(bat) <= 100 ? bat : null };
   } catch (e) {
@@ -104,7 +105,7 @@ export async function checkGoldrushPhoto(env, { tenantId, dataUrl, typedId = nul
     const img = decodeJpeg(bytes);
     const analysis = analyzeImage(img);
     const sig = fingerprintSignature(analysis.fingerprint);
-    const sb = analysis.fullScreen && analysis.fpContrast >= 40 ? await readStatusBar(env, img) : { clock: null, battery: null };
+    const sb = analysis.fullScreen && analysis.statusBarLike && analysis.fpContrast >= 40 ? await readStatusBar(env, img) : { clock: null, battery: null };
     const statusMatches = await findStatusMatches(env.DB, tenantId, analysis.fingerprint, sb, nowIso);
     const frontier = await recentIdFrontier(env.DB, tenantId, nowIso);
     const result = evaluate({ analysis, statusMatches, now: nowIso, typedId, extractedId, frontier });

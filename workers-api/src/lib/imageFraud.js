@@ -136,6 +136,38 @@ export function fingerprintContrast(fp) {
   return mx - mn;
 }
 
+// Share of the strip's centre band that differs from its background. A phone status bar
+// has an empty middle (clock left, icons right); a browser URL bar left at the top of a
+// cropped screenshot fills it. Back-test: genuine status bars 0.00 median, URL-bar crops
+// 0.53 — without this the vision model "reads" a clock (12:00, 100%) that is not there.
+export const STATUS_BAR_CENTRE_MAX = 0.15;
+export function centreFill(fp) {
+  const edge = [];
+  for (let y = 0; y < FP_H; y++) for (const x of [0, 1, 2, FP_W - 3, FP_W - 2, FP_W - 1]) edge.push(fp[y * FP_W + x]);
+  edge.sort((a, b) => a - b);
+  const bg = edge[edge.length >> 1];
+  let n = 0, k = 0;
+  for (let y = Math.floor(FP_H * 0.2); y < Math.ceil(FP_H * 0.8); y++) {
+    for (let x = Math.floor(FP_W * 0.38); x < Math.ceil(FP_W * 0.62); x++) { n++; if (Math.abs(fp[y * FP_W + x] - bg) > 18) k++; }
+  }
+  return k / n;
+}
+
+// Share of strong ink in the clock zone (left of the strip). A status bar has clock
+// digits there; a light browser URL bar left after cropping has only a faint pill edge.
+export const CLOCK_INK_MIN = 0.03;
+export function clockInk(fp) {
+  const edge = [];
+  for (let y = 0; y < FP_H; y++) for (const x of [0, 1, 2, FP_W - 3, FP_W - 2, FP_W - 1]) edge.push(fp[y * FP_W + x]);
+  edge.sort((a, b) => a - b);
+  const bg = edge[edge.length >> 1];
+  let n = 0, k = 0;
+  for (let y = Math.floor(FP_H * 0.2); y < Math.ceil(FP_H * 0.8); y++) {
+    for (let x = Math.floor(FP_W * 0.04); x < Math.ceil(FP_W * 0.28); x++) { n++; if (Math.abs(fp[y * FP_W + x] - bg) > 60) k++; }
+  }
+  return k / n;
+}
+
 export const fpToBase64 = (fp) => { let s = ''; for (const v of fp) s += String.fromCharCode(v); return btoa(s); };
 export const fpFromBase64 = (b64) => { const s = atob(b64); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
 
@@ -309,7 +341,7 @@ export function analyzeImage(img) {
   const dom = dominantBody(img);
   return {
     width: img.width, height: img.height, fullScreen: img.height / img.width >= MIN_SCREEN_RATIO,
-    fingerprint: fp, fpContrast: fingerprintContrast(fp),
+    fingerprint: fp, fpContrast: fingerprintContrast(fp), statusBarLike: centreFill(fp) < STATUS_BAR_CENTRE_MAX && clockInk(fp) >= CLOCK_INK_MIN,
     bg, bgClass: bgClass(bg), dominant: dom,
     green: bgClass(bg) === 'green' || (dom[1] - dom[0] > 20 && dom[1] >= dom[2]),
     typography: t, indicators: typographyIndicators(t),
@@ -333,7 +365,7 @@ export function evaluate({ analysis, statusMatches = [], now = new Date().toISOS
   const flags = [];
   const a = analysis;
   if (a && a.green) flags.push({ code: 'GREEN_THEME', level: 'definite', detail: 'Page background is green; Goldrush has no green theme' });
-  if (a && a.fullScreen && a.fpContrast >= 40 && statusMatches.length >= 2) {
+  if (a && a.fullScreen && a.statusBarLike !== false && a.fpContrast >= 40 && statusMatches.length >= 2) {
     const dates = new Set([now.slice(0, 10), ...statusMatches.map(m => (m.visit_date || m.captured_at || '').slice(0, 10))]);
     const mins = [now, ...statusMatches.map(m => m.captured_at)].filter(Boolean).map(t => Date.parse(t)).filter(Number.isFinite);
     const spread = mins.length ? (Math.max(...mins) - Math.min(...mins)) / 60000 : 0;
