@@ -3,6 +3,7 @@ import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { generatePerformanceSummaries } from '../cron/jobs.js';
 import { validate } from '../validate.js';
+import { NOT_AI_FAKE_SQL } from '../services/funnelService.js';
 
 const app = new Hono();
 
@@ -460,7 +461,8 @@ app.get('/individual-visits-report', authMiddleware, async (c) => {
     LEFT JOIN users u ON u.id = v.agent_id
     LEFT JOIN field_companies fc ON fc.id = COALESCE(v.company_id, v.brand_id)
     LEFT JOIN questionnaires q ON q.id = v.questionnaire_id
-    WHERE v.tenant_id = ? AND v.visit_type = 'individual'`;
+    WHERE v.tenant_id = ? AND v.visit_type = 'individual'
+      AND ${NOT_AI_FAKE_SQL('v.id')}`;
     const params = [tenantId];
     if (company_id) { query += ' AND (v.company_id = ? OR v.brand_id = ?)'; params.push(company_id, company_id); }
     if (start_date) { query += ' AND v.visit_date >= ?'; params.push(start_date); }

@@ -9,8 +9,15 @@ export const CONVERTED_SQL = (a = 'vi') =>
 export const VERIFIED_SQL = (a = 'vi') =>
   `json_extract(${a}.custom_field_values,'$.verification_status') = 'qualified'`;
 
+// Definite AI-fake Goldrush check-ins: the AI check writes a capture_failures row whose
+// error_photo_mismatch starts with 'AI check:'. Those visits must never count in any
+// total / KPI / leaderboard / incentive. Other capture failures are NOT excluded here.
+export const NOT_AI_FAKE_SQL = (visitIdExpr) =>
+  `NOT EXISTS (SELECT 1 FROM capture_failures cf_ai WHERE cf_ai.visit_id = ${visitIdExpr} AND cf_ai.error_photo_mismatch LIKE 'AI check:%')`;
+
 export const NOT_REJECTED_SQL = (a = 'vi') =>
-  `COALESCE(json_extract(${a}.custom_field_values,'$.verification_status'),'provisional') != 'rejected'`;
+  `COALESCE(json_extract(${a}.custom_field_values,'$.verification_status'),'provisional') != 'rejected'` +
+  ` AND ${NOT_AI_FAKE_SQL(`${a}.visit_id`)}`;
 
 export function isConverted(cfv) {
   let obj = cfv;

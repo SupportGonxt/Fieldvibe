@@ -13,6 +13,7 @@ const TARGET_CONCURRENCY = 8;
 import { authMiddleware, requireSuperAdmin } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { getScale } from './field-ops/config.js';
+import { NOT_AI_FAKE_SQL } from '../services/funnelService.js';
 
 const app = new Hono();
 
@@ -677,10 +678,10 @@ app.get('/api/agent/performance', authMiddleware, async (c) => {
         const rowAgentId = t.agent_id || userId;
         try {
           const [liveVisits, liveRegs, liveConvs, typeBreakdown] = await Promise.all([
-            db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ?" + companyFilter).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
+            db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ? AND " + NOT_AI_FAKE_SQL('visits.id') + companyFilter).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
             db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date < ?" + companyFilter).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
-            db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date < ?" + (companyFilter ? " AND v.company_id = ?" : "")).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
-            db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ?" + companyFilter + " GROUP BY visit_type").bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).all().catch(() => ({ results: [] })),
+            db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date < ? AND " + NOT_AI_FAKE_SQL('v.id') + (companyFilter ? " AND v.company_id = ?" : "")).bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).first().catch(() => ({ count: 0 })),
+            db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ? AND " + NOT_AI_FAKE_SQL('visits.id') + companyFilter + " GROUP BY visit_type").bind(rowAgentId, tenantId, monthStartDate, perfNextMonth, ...companyBinds).all().catch(() => ({ results: [] })),
           ]);
           let storeVisits = 0, individualVisits = 0;
           for (const row of (typeBreakdown.results || [])) {

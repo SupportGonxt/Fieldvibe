@@ -6,6 +6,7 @@ import { resolveAgentTargetMapBatch } from '../lib/calendar.js';
 import { reportIndexMiddleware } from '../lib/reportIndexes.js';
 import { teamMemberScope } from '../lib/agentScope.js';
 import { mapLimit } from '../lib/aggregates.js';
+import { NOT_AI_FAKE_SQL } from '../services/funnelService.js';
 
 // Fan-out caps for the per-person drill-down rows. Each row is 4 D1 round trips
 // and the worker runs in Cape Town while the D1 primary is in WNAM, so walking a
@@ -346,10 +347,10 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
     if (role === 'agent' || role === 'field_agent') {
       headers = ['Metric', 'Value', 'Target', 'Achievement %'];
       const [visits, conversions, targets, individualVisits, storeVisits] = await Promise.all([
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(userId, tenantId, startD, endD).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(userId, tenantId, startD, endD).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(userId, tenantId, startD, endD).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND " + NOT_AI_FAKE_SQL('v.id') ).bind(userId, tenantId, startD, endD).first(),
         db.prepare("SELECT * FROM daily_targets WHERE agent_id = ? AND tenant_id = ? AND target_date = ?").bind(userId, tenantId, today.toISOString().split('T')[0]).first(),
-        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(userId, tenantId, startD, endD).first(),
+        db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(userId, tenantId, startD, endD).first(),
         db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(userId, tenantId, startD, endD).first()
       ]);
       
@@ -395,8 +396,8 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       const scope = teamMemberScope(tenantId, userId);
       
       const [totalVisits, totalIndivVisits, totalStoreVisits] = await Promise.all([
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND agent_id IN " + scope.sql + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND agent_id IN " + scope.sql + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND agent_id IN " + scope.sql + " AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND agent_id IN " + scope.sql + " AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all(),
         db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date <= ? AND agent_id IN " + scope.sql + " GROUP BY agent_id").bind(tenantId, startD, endD, ...scope.binds).all()
       ]);
       
@@ -446,8 +447,8 @@ app.get('/field-ops/performance/export', authMiddleware, async (c) => {
       }
 
       const [allVisits, allIndivVisits, allStoreVisits] = await Promise.all([
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY agent_id").bind(tenantId, startD, endD).all(),
-        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? GROUP BY agent_id").bind(tenantId, startD, endD).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY agent_id").bind(tenantId, startD, endD).all(),
+        db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY agent_id").bind(tenantId, startD, endD).all(),
         db.prepare("SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date <= ? GROUP BY agent_id").bind(tenantId, startD, endD).all()
       ]);
       
@@ -609,8 +610,8 @@ app.get('/field-ops/performance/export-excel', authMiddleware, async (c) => {
       ? (allTeamLeads.results || []).filter(tl => exportCompanyUserIds.has(tl.id))
       : (allTeamLeads.results || []);
     const [allVisits, allIndivV, allStoreV] = await Promise.all([
-      db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
-      db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date BETWEEN ? AND ? GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
+      db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_date BETWEEN ? AND ? AND ${NOT_AI_FAKE_SQL('visits.id')} GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
+      db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date BETWEEN ? AND ? AND ${NOT_AI_FAKE_SQL('visits.id')} GROUP BY agent_id`).bind(tenantId, startD, endD).all(),
       db.prepare(`SELECT agent_id, COUNT(*) as count FROM visits WHERE tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date BETWEEN ? AND ? GROUP BY agent_id`).bind(tenantId, startD, endD).all()
     ]);
     const vMap = Object.fromEntries((allVisits.results || []).map(r => [r.agent_id, r.count]));
@@ -855,19 +856,19 @@ app.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
         // See lib/agentScope.js.
         const scope = teamMemberScope(tenantId, tl.id);
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...scope.binds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND ${NOT_AI_FAKE_SQL('visits.id')}`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND ${NOT_AI_FAKE_SQL('visits.id')}`).bind(...scope.binds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...scope.binds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN ${scope.sql} AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...scope.binds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN ${scope.sql} AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND ${NOT_AI_FAKE_SQL('v.id')}`).bind(...scope.binds, tenantId, startD, endD).first()
         ]);
         return { id: tl.id, agent_id: tl.id, agent_name: tl.first_name + ' ' + tl.last_name, email: tl.email, role: 'team_lead', agents_count: (teamAgentIds.results || []).length, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 };
       }));
       subordinates.push(...await mapLimit(directAgents.results || [], ROW_CONCURRENCY, async (agent) => {
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND " + NOT_AI_FAKE_SQL('v.id') ).bind(agent.id, tenantId, startD, endD).first()
         ]);
         return { id: agent.id, agent_id: agent.id, agent_name: agent.first_name + ' ' + agent.last_name, email: agent.email, role: 'agent', visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 };
       }));
@@ -877,10 +878,10 @@ app.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
       const agentPerf = [];
       agentPerf.push(...await mapLimit(teamAgents.results || [], ROW_CONCURRENCY, async (agent) => {
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND " + NOT_AI_FAKE_SQL('v.id') ).bind(agent.id, tenantId, startD, endD).first()
         ]);
         return { id: agent.id, agent_id: agent.id, agent_name: agent.first_name + ' ' + agent.last_name, email: agent.email, visits: v?.count || 0, individual_visits: iv?.count || 0, individuals: iv?.count || 0, store_visits: sv?.count || 0, conversions: cv?.count || 0 };
       }));
@@ -889,8 +890,8 @@ app.get('/field-ops/drill-down/:userId', authMiddleware, async (c) => {
       // Drill down into individual agent
       const [visits, individualVisits, dailyVisits] = await Promise.all([
         db.prepare("SELECT v.*, c.name as customer_name FROM visits v LEFT JOIN customers c ON v.customer_id = c.id WHERE v.agent_id = ? AND v.tenant_id = ? AND v.visit_date BETWEEN ? AND ? ORDER BY v.visit_date DESC LIMIT 50").bind(targetUserId, tenantId, startD, endD).all(),
-        db.prepare("SELECT * FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? ORDER BY created_at DESC LIMIT 50").bind(targetUserId, tenantId, startD, endD).all(),
-        db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all()
+        db.prepare("SELECT * FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND " + NOT_AI_FAKE_SQL('visits.id') + " ORDER BY created_at DESC LIMIT 50").bind(targetUserId, tenantId, startD, endD).all(),
+        db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all()
       ]);
       return c.json({ user, visits: visits.results || [], individuals: individualVisits.results || [], daily_visits: dailyVisits.results || [], period: { start: startD, end: endD, type: period || 'custom' } });
     }
@@ -948,20 +949,20 @@ app.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
         // See lib/agentScope.js.
         const scope = teamMemberScope(tenantId, tl.id);
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ?`).bind(...scope.binds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND ${NOT_AI_FAKE_SQL('visits.id')}`).bind(...scope.binds, tenantId, startD, endD).first(),
+          db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND ${NOT_AI_FAKE_SQL('visits.id')}`).bind(...scope.binds, tenantId, startD, endD).first(),
           db.prepare(`SELECT COUNT(*) as count FROM visits WHERE agent_id IN ${scope.sql} AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'`).bind(...scope.binds, tenantId, startD, endD).first(),
-          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN ${scope.sql} AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?`).bind(...scope.binds, tenantId, startD, endD).first()
+          db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id IN ${scope.sql} AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND ${NOT_AI_FAKE_SQL('v.id')}`).bind(...scope.binds, tenantId, startD, endD).first()
         ]);
         const ivCount = iv?.count || 0; const cvCount = cv?.count || 0;
         return [tl.first_name + ' ' + tl.last_name, 'Team Lead', v?.count || 0, ivCount, sv?.count || 0, cvCount, ivCount > 0 ? Math.round((cvCount / ivCount) * 100) + '%' : '0%'];
       }));
       data.push(...await mapLimit(directAgents.results || [], ROW_CONCURRENCY, async (agent) => {
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND " + NOT_AI_FAKE_SQL('v.id') ).bind(agent.id, tenantId, startD, endD).first()
         ]);
         const ivCount = iv?.count || 0; const cvCount = cv?.count || 0;
         return [agent.first_name + ' ' + agent.last_name, 'Agent', v?.count || 0, ivCount, sv?.count || 0, cvCount, ivCount > 0 ? Math.round((cvCount / ivCount) * 100) + '%' : '0%'];
@@ -972,10 +973,10 @@ app.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
       
       data.push(...await mapLimit(teamAgents.results || [], ROW_CONCURRENCY, async (agent) => {
         const [v, iv, sv, cv] = await Promise.all([
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ?").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual'").bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
+          db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'individual' AND " + NOT_AI_FAKE_SQL('visits.id') ).bind(agent.id, tenantId, startD, endD).first(),
           db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND LOWER(visit_type) = 'store'").bind(agent.id, tenantId, startD, endD).first(),
-          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ?").bind(agent.id, tenantId, startD, endD).first()
+          db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND " + NOT_AI_FAKE_SQL('v.id') ).bind(agent.id, tenantId, startD, endD).first()
         ]);
         const vCount = v?.count || 0;
         const ivCount = iv?.count || 0;
@@ -986,10 +987,10 @@ app.get('/field-ops/drill-down/:userId/export', authMiddleware, async (c) => {
       }));
     } else {
       headers = ['Date', 'Visits', 'Individual', 'Store', 'Conversions'];
-      const dailyVisits = await db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
-      const dailyIndivs = await db.prepare("SELECT visit_date as day, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
+      const dailyVisits = await db.prepare("SELECT visit_date, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date BETWEEN ? AND ? AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
+      const dailyIndivs = await db.prepare("SELECT visit_date as day, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'individual' AND visit_date >= ? AND visit_date <= ? AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
       const dailyStores = await db.prepare("SELECT visit_date as day, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND visit_date <= ? GROUP BY visit_date ORDER BY visit_date").bind(targetUserId, tenantId, startD, endD).all();
-      const dailyConvs = await db.prepare("SELECT DATE(created_at) as day, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? GROUP BY day ORDER BY day").bind(targetUserId, tenantId, startD, endD).all();
+      const dailyConvs = await db.prepare("SELECT DATE(created_at) as day, COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes') AND v.visit_date >= ? AND v.visit_date <= ? AND " + NOT_AI_FAKE_SQL('v.id') + " GROUP BY day ORDER BY day").bind(targetUserId, tenantId, startD, endD).all();
       
       const visitMap = Object.fromEntries((dailyVisits.results || []).map(r => [r.visit_date, r.count]));
       const indivMap = Object.fromEntries((dailyIndivs.results || []).map(r => [r.day, r.count]));

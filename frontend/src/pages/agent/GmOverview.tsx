@@ -4,8 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Loader2, TrendingUp, TrendingDown, Users, Phone, Award, UserX,
   AlertTriangle, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight,
-  Minus, Briefcase, Headphones,
-} from 'lucide-react'
+  Minus, Briefcase, Headphones, ShieldAlert } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { canViewAllCompanies } from '../../lib/capabilities'
@@ -282,6 +281,12 @@ export default function GmOverview() {
               <div className="h-full rounded-full bg-primary" style={{ width: `${callPct}%` }} />
             </div>
           </div>
+        </div>
+
+        {/* AI Check — fake / AI-generated Goldrush screenshots */}
+        <div onClick={() => navigate('/agent/ai-check')} className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4 cursor-pointer active:bg-white/[0.06]">
+          <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-red-400" /><h2 className="text-sm font-semibold text-token">AI Check</h2></div>
+          <p className="text-xs text-token-faint mt-1">Fake Goldrush screenshots: flagged, and removed from all totals</p>
         </div>
 
         {/* Teams */}

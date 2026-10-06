@@ -8,6 +8,7 @@ import { agentHoursBlocked, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 import { resolveVisitTimes } from '../../services/visitTiming.js';
+import { checkGoldrushPhoto, persistGoldrushCheck, publicFraudResult, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
 
 const app = new Hono();
 
@@ -780,6 +781,23 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       }
     }
 
+    // Goldrush screenshot fraud rules (AI check). Runs after every up-front rejection so
+    // only captures that will be saved are analysed. Never blocks the capture: a definite
+    // fake is saved, flagged, excluded from totals and the agent is told.
+    const goldrushPhoto = Array.isArray(body.photos)
+      ? body.photos.find(p => p && p.photo_type === 'goldrush_individual' && typeof (p.photo_url || p.r2_url) === 'string' && (p.photo_url || p.r2_url).startsWith('data:'))
+      : null;
+    const goldrushCheck = goldrushPhoto
+      ? await checkGoldrushPhoto(c.env, { tenantId, dataUrl: goldrushPhoto.photo_url || goldrushPhoto.r2_url, typedId: incomingGoldrush || null, extractedId: body.goldrush_extracted_id || null, nowIso: now })
+      : null;
+    if (goldrushCheck?.isFake) {
+      const reason = `${FAKE_CAPTURE_REASON}: ${goldrushCheck.flags.filter(f => f.level === 'definite').map(f => f.code).join(', ')}`;
+      // Shares the validation-failure row when there is one, so the capture is logged once.
+      if (goldrushValidationWarnings) goldrushValidationWarnings.photo_mismatch = reason;
+      else goldrushValidationWarnings = { photo_mismatch: reason };
+    }
+    let goldrushPhotoId = null;
+
     // 0. If store visit with store_name but no customer_id, auto-create customer
     let customerId = body.customer_id || null;
     if (body.visit_target_type === 'store' && !customerId && body.store_name) {
@@ -1029,6 +1047,7 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
           continue;
         }
         const photoId = crypto.randomUUID();
+        if (photo === goldrushPhoto) goldrushPhotoId = photoId;
         const stored = await persistClientPhoto(c.env.UPLOADS, photo, visitId, photoId, c.req.url);
         const isProductPhoto = photo.photo_type === 'product';
         const aiStatus = isProductPhoto ? PRODUCT_AUDIT_AI_STATUS : 'pending';
@@ -1083,10 +1102,20 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     // Log validation failures now that we have the visit_id (excluded from individual reports)
     if (logGoldrushFailure) await logGoldrushFailure(visitId);
 
+    if (goldrushCheck) {
+      await persistGoldrushCheck(c.env, {
+        tenantId, visitId, photoId: goldrushPhotoId, agentId: body.agent_id || userId,
+        companyId: body.company_id || body.companyId || null, visitDate,
+        goldrushId: incomingGoldrush || null, nowIso: now, check: goldrushCheck,
+      });
+    }
+    const fraud = publicFraudResult(goldrushCheck);
+
     return c.json({
       data: { id: visitId, individual_id: individualId, status: 'completed', visit_date: visitDate },
       message: 'Visit created successfully',
-      ...(goldrushValidationWarnings ? { validation_warnings: goldrushValidationWarnings } : {})
+      ...(goldrushValidationWarnings ? { validation_warnings: goldrushValidationWarnings } : {}),
+      ...(fraud ? { fraud } : {})
     }, 201);
   } catch (err) {
     return c.json({ error: 'Failed to create visit: ' + (err.message || err) }, 500);

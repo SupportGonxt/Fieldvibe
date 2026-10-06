@@ -12,7 +12,7 @@ import {
   trendSignals, peerSignals, signalAtRiskGate, signalHitGateEarly,
 } from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
-import { isConverted } from '../services/funnelService.js';
+import { isConverted, NOT_AI_FAKE_SQL } from '../services/funnelService.js';
 
 // ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
 // GM daily digest — emails every general_manager the day's overview + an in-app notification.
@@ -122,10 +122,10 @@ async function generatePerformanceSummaries(db, force = false) {
           const agentFilter = agentIds.length === 1 ? 'agent_id = ?' : `agent_id IN (${agentPh})`;
 
           // Get today's visits count
-          const todayVisits = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN LOWER(visit_type) = 'individual' THEN 1 ELSE 0 END) as individual_count, SUM(CASE WHEN LOWER(visit_type) = 'store' THEN 1 ELSE 0 END) as store_count FROM visits WHERE tenant_id = ? AND ${agentFilter} AND visit_date = ?`).bind(tenantId, ...agentIds, today).first().catch(() => ({ total: 0, individual_count: 0, store_count: 0 }));
+          const todayVisits = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN LOWER(visit_type) = 'individual' THEN 1 ELSE 0 END) as individual_count, SUM(CASE WHEN LOWER(visit_type) = 'store' THEN 1 ELSE 0 END) as store_count FROM visits WHERE tenant_id = ? AND ${agentFilter} AND visit_date = ? AND ${NOT_AI_FAKE_SQL('visits.id')}`).bind(tenantId, ...agentIds, today).first().catch(() => ({ total: 0, individual_count: 0, store_count: 0 }));
 
           // Get month-to-date visits
-          const monthVisits = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN LOWER(visit_type) = 'individual' THEN 1 ELSE 0 END) as individual_count, SUM(CASE WHEN LOWER(visit_type) = 'store' THEN 1 ELSE 0 END) as store_count FROM visits WHERE tenant_id = ? AND ${agentFilter} AND visit_date >= ? AND visit_date < ?`).bind(tenantId, ...agentIds, monthStart, nextMonth).first().catch(() => ({ total: 0, individual_count: 0, store_count: 0 }));
+          const monthVisits = await db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN LOWER(visit_type) = 'individual' THEN 1 ELSE 0 END) as individual_count, SUM(CASE WHEN LOWER(visit_type) = 'store' THEN 1 ELSE 0 END) as store_count FROM visits WHERE tenant_id = ? AND ${agentFilter} AND visit_date >= ? AND visit_date < ? AND ${NOT_AI_FAKE_SQL('visits.id')}`).bind(tenantId, ...agentIds, monthStart, nextMonth).first().catch(() => ({ total: 0, individual_count: 0, store_count: 0 }));
 
           // Get monthly targets
           const monthTargets = await db.prepare(`SELECT COALESCE(SUM(target_visits), 0) as target_visits, COALESCE(SUM(target_registrations), 0) as target_stores FROM monthly_targets WHERE tenant_id = ? AND ${agentFilter} AND target_month = ?`).bind(tenantId, ...agentIds, currentMonth).first().catch(() => ({ target_visits: 0, target_stores: 0 }));

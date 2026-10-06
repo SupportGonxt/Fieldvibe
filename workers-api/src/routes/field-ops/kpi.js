@@ -10,7 +10,7 @@ import { requireRole } from '../../middleware/auth.js';
 import { AGENT_ROLES, computeIncentive } from '../../services/incentiveService.js';
 import { severityOf } from '../../services/issueEngine.js';
 import { coachingNoteRow, doNote, doNudge } from './issues.js';
-import { CONVERTED_SQL } from '../../services/funnelService.js';
+import { CONVERTED_SQL, NOT_AI_FAKE_SQL } from '../../services/funnelService.js';
 import { mapLimit } from '../../lib/aggregates.js';
 
 // Fan-out caps for the roster. Nested, so the worst case is LEAD x ROW
@@ -70,6 +70,7 @@ async function dailyRows(db, tenantId, agentIds, sinceDate) {
                            FROM visit_photos vp WHERE vp.visit_id = v.id) IS NOT NULL THEN 1 ELSE 0 END) quality_n
      FROM visits v
      WHERE v.tenant_id=? AND v.agent_id IN (${ids.map(() => '?').join(',')}) AND v.visit_date>=? AND v.status='completed'
+       AND ${NOT_AI_FAKE_SQL('v.id')}
      GROUP BY v.visit_date
      ORDER BY v.visit_date`
   ).bind(tenantId, ...ids, sinceDate).all()).results ?? [];

@@ -476,6 +476,7 @@ const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/
 const IndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/IndividualInsights'))
 const StoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/StoreInsights'))
 const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operations/reports/CaptureFailuresReport'))
+const AiCheckPage = lazyWithRetry(() => import('./pages/field-operations/reports/AiCheckPage'))
 const EscalationReport = lazyWithRetry(() => import('./pages/field-operations/reports/EscalationReport'))
 
 // T-21: Suspense fallback for lazy-loaded pages
@@ -1173,6 +1174,7 @@ function App() {
             <Route path="field-operations/reports/goldrush-individuals/insights" element={<PageLoader><IndividualInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-stores/insights" element={<PageLoader><StoreInsights /></PageLoader>} />
             <Route path="field-operations/reports/goldrush-upload-failures" element={<PageLoader><CaptureFailuresReport /></PageLoader>} />
+            <Route path="field-operations/ai-check" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><AiCheckPage /></PageLoader></ProtectedRoute>} />
             <Route path="field-operations/reports/escalations" element={<PageLoader><EscalationReport /></PageLoader>} />
             <Route path="field-operations/portal-setup" element={<ProtectedRoute requiredRole="admin"><PageLoader><PortalSetup /></PageLoader></ProtectedRoute>} />
 
@@ -1208,6 +1210,7 @@ function App() {
             <Route path="earnings" element={<PageLoader><MyEarnings /></PageLoader>} />
             <Route path="pnl" element={<PageLoader><GMPnl /></PageLoader>} />
             <Route path="overview" element={<PageLoader><GmOverview /></PageLoader>} />
+            <Route path="ai-check" element={<ProtectedRoute requiredRole="general_manager"><PageLoader><AiCheckPage /></PageLoader></ProtectedRoute>} />
             <Route path="gm-targets" element={<PageLoader><GmTargetsPage /></PageLoader>} />
             <Route path="visits/:id" element={<PageLoader><VisitDetail /></PageLoader>} />
             <Route path="visits/:id/edit" element={<PageLoader><VisitEdit /></PageLoader>} />

@@ -104,7 +104,7 @@ beforeAll(() => {
   expect(missing.filter(m => !m.startsWith('survey_responses'))).toEqual([]);
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS capture_failures (id TEXT PRIMARY KEY, tenant_id TEXT, visit_id TEXT,
-      identifier_value TEXT, visit_date TEXT, agent_id TEXT);
+      identifier_value TEXT, visit_date TEXT, agent_id TEXT, error_photo_mismatch TEXT);
     CREATE VIEW IF NOT EXISTS goldrush_upload_failures AS SELECT *, identifier_value AS goldrush_id FROM capture_failures;
   `);
 

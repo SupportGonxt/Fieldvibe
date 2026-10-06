@@ -39,6 +39,9 @@ import {
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 import { compressPhoto, compressDataUrl } from '../../../utils/photo-compression'
 
+// Shown when the AI check flags a Goldrush screenshot as a definite fake (server sends the same text)
+const FAKE_IMAGE_MESSAGE = 'This image has been detected as fake and fraudulent. You have been flagged.'
+
 // Haversine distance between two GPS coordinates in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000 // Earth radius in meters
@@ -298,7 +301,11 @@ export default function VisitCreate() {
     hasBtag?: boolean | null
     urlVisible?: boolean | null
     blurry?: boolean | null
+    // AI check verdict for the photo (Goldrush screenshot fraud rules)
+    fraud?: { flagged: boolean; message: string | null; verdict: string; reasons: string[] } | null
   }>({ status: 'idle' })
+  // Set when the server flags the submitted screenshot as a definite fake
+  const [fraudMessage, setFraudMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -1096,7 +1103,9 @@ export default function VisitCreate() {
         hasBtag: !!res.data?.extracted_btag,
         urlVisible: res.data?.url_visible === true ? true : res.data?.url_visible === false ? false : null,
         blurry: res.data?.photo_blurry === true ? true : res.data?.photo_blurry === false ? false : null,
+        fraud: res.data?.fraud || null,
       })
+      if (res.data?.fraud?.flagged) toast.error(res.data.fraud.message || FAKE_IMAGE_MESSAGE, 15000)
     } catch {
       // Extraction failure reads as "nothing found" — the missing ID hard-blocks
       // (retake only), same as a photo where no ID could be read.
@@ -1790,6 +1799,12 @@ export default function VisitCreate() {
       // B-Tag / URL-bar checks removed for Goldrush captures — the photo is no longer
       // assessed for the B-Tag URL, so nothing is flagged in the capture report.
 
+      // The ID the server read off the photo lets the AI check tell an impossible
+      // (not yet issued) Goldrush ID shown in the screenshot from a typo.
+      if (photoExtraction.status === 'done' && photoExtraction.extractedId) {
+        payload.goldrush_extracted_id = photoExtraction.extractedId
+      }
+
       if (photos.length > 0) {
         payload.photos = photos.map(p => ({
           photo_url: p.dataUrl,
@@ -1816,6 +1831,11 @@ export default function VisitCreate() {
       queryClient.invalidateQueries({ queryKey: ['field-ops-hourly'] })
       queryClient.invalidateQueries({ queryKey: ['field-ops-daily'] })
 
+      const fraud = (result as { fraud?: { flagged?: boolean; message?: string | null } } | undefined)?.fraud
+      if (fraud?.flagged) {
+        setFraudMessage(fraud.message || FAKE_IMAGE_MESSAGE)
+        toast.error(fraud.message || FAKE_IMAGE_MESSAGE, 15000)
+      }
       const warnings = result?.validation_warnings as { id_number?: string; goldrush_id?: string } | undefined
       if (warnings && Object.keys(warnings).length > 0) {
         // Visit was saved but has data issues — show inline warnings, don't auto-navigate
@@ -3335,6 +3355,13 @@ export default function VisitCreate() {
               </Alert>
             )
           }
+          if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) {
+            return (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                <strong>{photoExtraction.fraud.message || FAKE_IMAGE_MESSAGE}</strong>
+              </Alert>
+            )
+          }
           // 'idle' with a photo present means extraction never ran — same warnings
           // as a failed read, so a system photo is never accepted unchecked.
           const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
@@ -3784,6 +3811,9 @@ export default function VisitCreate() {
             </Button>
           }
         >
+          {fraudMessage && (
+            <Box sx={{ mb: 1, fontWeight: 700, color: 'error.main' }}>{fraudMessage}</Box>
+          )}
           <strong>Visit saved — but there are data errors your team lead can see:</strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
             {validationWarnings.id_number && <li>SA ID Number: {validationWarnings.id_number}</li>}

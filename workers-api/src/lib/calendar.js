@@ -1,4 +1,5 @@
 // Working-days calendar + target-rule helpers. Moved verbatim from index.js.
+import { NOT_AI_FAKE_SQL } from '../services/funnelService.js';
 // ==================== WORKING CALENDAR HELPERS ====================
 // Resolve the effective working_days_config for a given agent/company (agent override > company config > global default)
 async function resolveWorkingDaysConfig(db, tenantId, companyId, agentId) {
@@ -224,8 +225,8 @@ async function generateTargetsFromRules(db, tenantId, agentId, monthStartDate, r
       // Get live actuals in parallel
       let storeVisits = 0, individualVisits = 0, actualConvs = 0;
       const [tb, lc] = await Promise.all([
-        db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ? AND company_id = ? GROUP BY visit_type").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).all().catch(() => ({ results: [] })),
-        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date < ? AND v.company_id = ?").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).first().catch(() => ({ count: 0 })),
+        db.prepare("SELECT visit_type, COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date < ? AND company_id = ? AND " + NOT_AI_FAKE_SQL('visits.id') + " GROUP BY visit_type").bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).all().catch(() => ({ results: [] })),
+        db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date < ? AND v.company_id = ? AND " + NOT_AI_FAKE_SQL('v.id')).bind(agentId, tenantId, monthStartDate, genNextMonth, ctr.company_id).first().catch(() => ({ count: 0 })),
       ]);
       for (const row of (tb.results || [])) {
         if ((row.visit_type || '').toLowerCase() === 'store') storeVisits = row.count || 0;

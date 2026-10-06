@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { checkGoldrushPhoto, publicFraudResult, recordFlag } from '../services/imageFraudService.js';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -1029,9 +1030,9 @@ app.post('/field-ops/monthly-targets/:id/recalculate', authMiddleware, requireRo
     let companyFilter = '';
     const baseParams = [target.agent_id, tenantId, startDate, endDate];
     if (target.company_id) { companyFilter = ' AND company_id = ?'; }
-    const visits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(...baseParams, ...(target.company_id ? [target.company_id] : [])).first();
+    const visits = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND visit_date >= ? AND visit_date <= ? AND NOT EXISTS (SELECT 1 FROM capture_failures cf_ai WHERE cf_ai.visit_id = visits.id AND cf_ai.error_photo_mismatch LIKE 'AI check:%')" + (target.company_id ? " AND v.company_id = ?" : '')).bind(...baseParams, ...(target.company_id ? [target.company_id] : [])).first();
     const regs = await db.prepare("SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ? AND LOWER(visit_type) = 'store' AND visit_date >= ? AND created_at <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
-    const convs = await db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ?" + (target.company_id ? " AND v.company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
+    const convs = await db.prepare("SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.agent_id = ? AND v.tenant_id = ? AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND v.visit_date >= ? AND v.visit_date <= ? AND NOT EXISTS (SELECT 1 FROM capture_failures cf_ai WHERE cf_ai.visit_id = v.id AND cf_ai.error_photo_mismatch LIKE 'AI check:%')" + (target.company_id ? " AND v.company_id = ?" : '')).bind(target.agent_id, tenantId, startDate, endDate, ...(target.company_id ? [target.company_id] : [])).first();
     await db.prepare('UPDATE monthly_targets SET actual_visits = ?, actual_conversions = ?, actual_registrations = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(visits?.count || 0, convs?.count || 0, regs?.count || 0, id).run();
     // Calculate commission based on achievement
     const achievementPct = target.target_visits > 0 ? ((visits?.count || 0) / target.target_visits) * 100 : 0;
@@ -2284,7 +2285,20 @@ Output JSON only.`;
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
     }
-    return c.json({ success: true, extracted_id: extractedId, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, extracted_btag: extractedBtag, url_visible: urlVisible, photo_blurry: photoBlurry, confidence });
+    // AI check: the screenshot fraud rule set. The ID read from the photo stands in for
+    // the typed ID here, so an ID Goldrush has not issued yet is caught before submit.
+    // Definite fakes are recorded as attempts for the AI Check page; the visit itself is
+    // flagged again (and excluded) by /visits/workflow if the agent submits it anyway.
+    let fraud = null;
+    try {
+      const nowIso = new Date().toISOString();
+      const check = await checkGoldrushPhoto(c.env, { tenantId: c.get('tenantId'), dataUrl: photo_data, typedId: extractedId, extractedId, nowIso });
+      fraud = publicFraudResult(check);
+      if (check.isFake) {
+        await recordFlag(c.env.DB, { tenantId: c.get('tenantId'), agentId: c.get('userId'), visitDate: nowIso.slice(0, 10), goldrushId: extractedId, stage: 'precheck', check });
+      }
+    } catch (fraudErr) { console.error('Goldrush fraud pre-check failed:', fraudErr); }
+    return c.json({ success: true, extracted_id: extractedId, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, extracted_btag: extractedBtag, url_visible: urlVisible, photo_blurry: photoBlurry, confidence, ...(fraud ? { fraud } : {}) });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);
     return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Verification failed' });

@@ -4,8 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode, GraduationCap,
-} from 'lucide-react'
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode, GraduationCap, ShieldAlert } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { canViewAllCompanies } from '../../lib/capabilities'
@@ -346,6 +345,17 @@ export default function GmOverviewPage() {
         <Kpi icon={Users} tone={field.activeAgents ? 'green' : 'red'} label="Agents active"
           value={`${field.activeAgents}/${field.totalAgents}`} sub="active today" />
       </div>
+
+      {/* AI Check — fake / AI-generated Goldrush screenshots, excluded from every total above */}
+      <Link to="/field-operations/ai-check" className="card block hover:bg-surface-secondary transition-colors">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-red-600" />
+            <h2 className="font-semibold">AI Check</h2></div>
+          <span className="flex items-center gap-1 text-sm text-content-secondary">
+            Fake screenshots flagged and removed from totals <ChevronRight className="w-4 h-4" />
+          </span>
+        </div>
+      </Link>
 
       {/* Performance cockpit — tenant-wide underperformance signals, links to team drill */}
       {signals && (

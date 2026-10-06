@@ -114,6 +114,7 @@ export const navigation: NavigationItem[] = [
       // ── Review ──
       { name: 'Team Cockpit', href: '/field-operations/team-cockpit', permission: null, description: 'Team performance roster + one-tap remediation', group: 'Review' },
       { name: 'Photo Review', href: '/field-operations/photo-review', permission: null, description: 'Review, approve or reject agent-uploaded photos', group: 'Review' },
+      { name: 'AI Check', href: '/field-operations/ai-check', permission: null, requiresRole: 'general_manager', description: 'Fake / AI-generated Goldrush screenshots, flagged and excluded from totals', group: 'Review' },
 
       // ── Reports ──
       { name: 'Field Ops Report', href: '/reports/operations/field-ops', permission: 'view_field_reports', description: 'Comprehensive field ops analytics, check-ins, stores, individuals & export', group: 'Reports' },

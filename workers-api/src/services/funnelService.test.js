@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CONVERTED_SQL, VERIFIED_SQL, NOT_REJECTED_SQL,
+  CONVERTED_SQL, VERIFIED_SQL, NOT_REJECTED_SQL, NOT_AI_FAKE_SQL,
   isConverted, sastDay, waterfall,
 } from './funnelService.js';
 
@@ -15,6 +15,13 @@ describe('SQL fragments', () => {
   });
   it('not-rejected defaults missing status to provisional', () => {
     expect(NOT_REJECTED_SQL('vi')).toContain("COALESCE(json_extract(vi.custom_field_values,'$.verification_status'),'provisional') != 'rejected'");
+  });
+  it('not-ai-fake excludes only AI-check capture failures for the given visit id', () => {
+    expect(NOT_AI_FAKE_SQL('v.id')).toBe(
+      "NOT EXISTS (SELECT 1 FROM capture_failures cf_ai WHERE cf_ai.visit_id = v.id AND cf_ai.error_photo_mismatch LIKE 'AI check:%')");
+  });
+  it('not-rejected also drops definite AI fakes via the individual row visit_id', () => {
+    expect(NOT_REJECTED_SQL('vi')).toContain(` AND ${NOT_AI_FAKE_SQL('vi.visit_id')}`);
   });
 });
 

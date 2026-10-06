@@ -30,6 +30,7 @@
     "@hono/zod-validator": "^0.7.6",
     "bcryptjs": "^3.0.3",
     "hono": "^4.11.3",
+    "jpeg-js": "^0.4.4",
     "uuid": "^13.0.0",
     "zod": "^4.3.5"
   },

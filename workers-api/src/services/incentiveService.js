@@ -8,6 +8,7 @@
  */
 import { getScale, getConfig } from '../routes/field-ops/config.js';
 import { subtreeAgentIds } from './hierarchyService.js';
+import { NOT_AI_FAKE_SQL } from './funnelService.js';
 
 // A tier's gate targets, keyed by metric_key. Tolerant of the legacy {amount, signups, deposits}
 // shape so pre-refactor seeded rows and new {amount, targets:{…}} rows both read correctly.
@@ -139,7 +140,8 @@ export async function agentCount(db, tenantId, agentId, period, status, endCap) 
       AND gd.subject_key = COALESCE(json_extract(vi.custom_field_values,'$.goldrush_id_entry'),
                                     json_extract(vi.custom_field_values,'$.goldrush_id'))
      WHERE v.tenant_id = ? AND v.agent_id = ?
-       AND vi.created_at >= ? AND vi.created_at < ? ${statusClause}`
+       AND vi.created_at >= ? AND vi.created_at < ? ${statusClause}
+       AND ${NOT_AI_FAKE_SQL('v.id')}`
   ).bind(tenantId, agentId, start, end).first();
   return { count: row?.c || 0, converted: row?.converted || 0, deposits: row?.deposits || 0 };
 }
