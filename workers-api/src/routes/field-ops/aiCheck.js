@@ -49,7 +49,9 @@ app.get('/ai-check/summary', requireRole('admin', 'general_manager'), async (c) 
     FROM visits v LEFT JOIN users u ON u.id = v.agent_id
     WHERE v.tenant_id = ? AND v.visit_date BETWEEN ? AND ?
       AND v.agent_id NOT LIKE 'agent-test-%'
-      AND EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.photo_type = 'goldrush_individual')
+      AND (EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.photo_type = 'goldrush_individual')
+        -- July check-ins predate the goldrush_individual tag; count any visit the AI check analysed
+        OR EXISTS (SELECT 1 FROM image_fingerprints fp WHERE fp.visit_id = v.id))
   `).bind(tenantId, start, end).all();
   const flags = await db.prepare(`
     SELECT f.visit_id, f.verdict, f.flags, f.detail, f.stage, f.source, f.goldrush_id, f.created_at
@@ -86,7 +88,7 @@ app.get('/ai-check/summary', requireRole('admin', 'general_manager'), async (c) 
   for (let i = 0; i < flaggedIds.length; i += 50) {
     const chunk = flaggedIds.slice(i, i + 50).map(r => r.id);
     const ph = await db.prepare(
-      `SELECT visit_id, r2_key FROM visit_photos WHERE photo_type = 'goldrush_individual' AND visit_id IN (${chunk.map(() => '?').join(',')})`
+      `SELECT visit_id, r2_key FROM visit_photos WHERE photo_type IN ('goldrush_individual', 'general') AND visit_id IN (${chunk.map(() => '?').join(',')})`
     ).bind(...chunk).all();
     for (const p of (ph.results || [])) photos.set(p.visit_id, p.r2_key && !p.r2_key.startsWith('data:') ? rewriteR2Url('/api/uploads/' + p.r2_key, c.req.url) : null);
   }
