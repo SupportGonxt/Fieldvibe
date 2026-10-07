@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, Users, Phone, DollarSign, UserCheck, Target,
   RefreshCw, AlertTriangle, Award, UserX, Activity, ChevronRight,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode, GraduationCap, ShieldAlert } from 'lucide-react'
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Headphones, QrCode, GraduationCap, ShieldAlert, MapPin } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { canViewAllCompanies } from '../../lib/capabilities'
@@ -19,15 +19,15 @@ import BoPerformanceCard from '../../components/field-ops/BoPerformanceCard'
 
 type Period = 'day' | 'week' | 'month' | 'custom'
 
-interface Leader { id: string; name: string; signups: number; converted: number }
+interface Leader { id: string; name: string; visits?: number; signups: number; converted: number }
 interface Agent { id: string; name: string; phone?: string; today?: number; last_activity?: string }
 interface Company { id: string; name: string }
 interface Team {
   id: string; name: string; managerId: string | null; agents: number; activeAgents: number
-  signups: number; converted: number; conversionRate: number
-  prev: { signups: number; converted: number }
+  visits?: number; signups: number; converted: number; conversionRate: number
+  prev: { visits?: number; signups: number; converted: number }
 }
-interface Manager { id: string; name: string; teamLeads: number; agents: number; signups: number; converted: number; lastSeen: string | null }
+interface Manager { id: string; name: string; teamLeads: number; agents: number; visits?: number; signups: number; converted: number; lastSeen: string | null }
 interface BoAdmin { id: string; name: string; calls: number; answered: number; reached: number; durationS: number; lastSeen: string | null }
 interface Risk { id: string; severity: 'high' | 'medium'; label: string; detail: string }
 interface Overview {
@@ -37,8 +37,8 @@ interface Overview {
   window: { start: string; end: string; prevStart: string; prevEnd: string; today: string; isCurrent: boolean }
   money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean; prevRevenue: number }
   funnel: {
-    signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number
-    prev: { signups: number; converted: number; qualified?: number; conversionRate: number }
+    visits?: number; signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number
+    prev: { visits?: number; signups: number; converted: number; qualified?: number; conversionRate: number }
   }
   field: { activeAgents: number; totalAgents: number; leastActive: Agent[]; unassignedAgents: number }
   leaders: Leader[]
@@ -201,7 +201,12 @@ export default function GmOverviewPage() {
 
   const { money, funnel, field, leaders, calls, teams, management, risks, companies } = data
   const callPct = calls.target ? Math.round((calls.contacted / calls.target) * 100) : 0
-  const maxTeamSignups = Math.max(1, ...(teams || []).map(t => t.signups))
+  // Store-visit companies (Diplomat, Stellr) log no sign-ups, so rank teams by
+  // visits whenever nobody in view has a sign-up — otherwise every bar reads 0.
+  const teamByVisits = !(teams || []).some(t => t.signups > 0)
+  const teamValue = (t: Team) => (teamByVisits ? t.visits ?? 0 : t.signups)
+  const teamPrev = (t: Team) => (teamByVisits ? t.prev.visits ?? 0 : t.prev.signups)
+  const maxTeamValue = Math.max(1, ...(teams || []).map(teamValue))
 
   return (
     <div className="space-y-6">
@@ -334,7 +339,9 @@ export default function GmOverviewPage() {
       )}
 
       {/* Funnel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Kpi icon={MapPin} label="Visits" value={formatNumber(funnel.visits ?? 0)} sub="store + individual"
+          delta={<Delta now={funnel.visits ?? 0} prev={funnel.prev.visits ?? 0} suffix={PREV_LABEL[period]} />} />
         <Kpi icon={UserCheck} label="Sign-ups" value={formatNumber(funnel.signups)}
           delta={<Delta now={funnel.signups} prev={funnel.prev.signups} suffix={PREV_LABEL[period]} />} />
         <Kpi icon={Target} tone="green" label="Converted" value={formatNumber(funnel.converted)}
@@ -413,15 +420,15 @@ export default function GmOverviewPage() {
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-medium text-sm truncate">{t.name}</span>
                   <div className="flex items-center gap-3 shrink-0">
-                    <Delta now={t.signups} prev={t.prev.signups} suffix={PREV_LABEL[period]} />
-                    <span className="text-sm font-semibold tabular-nums">{formatNumber(t.signups)}</span>
+                    <Delta now={teamValue(t)} prev={teamPrev(t)} suffix={PREV_LABEL[period]} />
+                    <span className="text-sm font-semibold tabular-nums">{formatNumber(teamValue(t))}</span>
                   </div>
                 </div>
                 <div className="mt-2 h-1.5 rounded-full bg-white overflow-hidden">
-                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${(t.signups / maxTeamSignups) * 100}%` }} />
+                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${(teamValue(t) / maxTeamValue) * 100}%` }} />
                 </div>
                 <p className="text-xs text-content-secondary mt-1.5">
-                  {t.activeAgents}/{t.agents} agents active · {formatNumber(t.converted)} converted ({t.conversionRate}%)
+                  {t.activeAgents}/{t.agents} agents active · {formatNumber(t.visits ?? 0)} visits · {formatNumber(t.signups)} sign-ups · {formatNumber(t.converted)} converted ({t.conversionRate}%)
                 </p>
               </li>
             ))}
@@ -455,7 +462,7 @@ export default function GmOverviewPage() {
                           </span>
                         </div>
                         <p className="text-xs text-content-secondary mt-1">
-                          {m.teamLeads} team lead{m.teamLeads === 1 ? '' : 's'} · {m.agents} agents · {formatNumber(m.signups)} sign-ups · {formatNumber(m.converted)} converted
+                          {m.teamLeads} team lead{m.teamLeads === 1 ? '' : 's'} · {m.agents} agents · {formatNumber(m.visits ?? 0)} visits · {formatNumber(m.signups)} sign-ups · {formatNumber(m.converted)} converted
                         </p>
                       </button>
                       {isOpen && (
@@ -466,9 +473,9 @@ export default function GmOverviewPage() {
                             <div key={t.id} className="flex items-center justify-between gap-3">
                               <div className="min-w-0">
                                 <span className="text-sm truncate block">{t.name}</span>
-                                <span className="text-xs text-content-secondary">{t.activeAgents}/{t.agents} active · {formatNumber(t.converted)} converted ({t.conversionRate}%)</span>
+                                <span className="text-xs text-content-secondary">{t.activeAgents}/{t.agents} active · {formatNumber(t.visits ?? 0)} visits · {formatNumber(t.converted)} converted ({t.conversionRate}%)</span>
                               </div>
-                              <span className="text-sm font-semibold tabular-nums shrink-0">{formatNumber(t.signups)}</span>
+                              <span className="text-sm font-semibold tabular-nums shrink-0">{formatNumber(teamValue(t))}</span>
                             </div>
                           ))}
                         </div>
@@ -510,7 +517,7 @@ export default function GmOverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <h2 className="font-semibold mb-3 flex items-center gap-2"><Award className="w-4 h-4 text-emerald-600" /> Top performers</h2>
-          {leaders.length === 0 ? <p className="text-sm text-content-secondary">No sign-ups yet this period.</p> : (
+          {leaders.length === 0 ? <p className="text-sm text-content-secondary">No visits yet this period.</p> : (
             <ul className="space-y-2">
               {leaders.map((l, i) => (
                 <li key={l.id} className="flex items-center justify-between p-2.5 bg-surface-secondary rounded-lg">
@@ -518,7 +525,7 @@ export default function GmOverviewPage() {
                     <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center">{i + 1}</span>
                     <span className="font-medium">{l.name}</span>
                   </div>
-                  <span className="text-sm text-content-secondary">{formatNumber(l.signups)} sign-ups · {formatNumber(l.converted)} conv.</span>
+                  <span className="text-sm text-content-secondary">{l.signups > 0 ? `${formatNumber(l.signups)} sign-ups · ${formatNumber(l.converted)} conv.` : `${formatNumber(l.visits ?? 0)} visits`}</span>
                 </li>
               ))}
             </ul>

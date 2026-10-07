@@ -21,18 +21,18 @@ import BoPerformanceCard from '../../components/field-ops/BoPerformanceCard'
 // Costs/net only resolve on the monthly period (costsAvailable flag).
 
 export type Period = 'day' | 'week' | 'month'
-type Leader = { id: string; name: string; signups: number; converted: number }
+type Leader = { id: string; name: string; visits?: number; signups: number; converted: number }
 type FieldAgent = { id: string; name: string; today?: number }
 type Company = { id: string; name: string }
 type Team = {
   id: string; name: string; managerId: string | null
   agents: number; activeAgents: number
-  signups: number; converted: number; conversionRate: number
-  prev: { signups: number; converted: number }
+  visits?: number; signups: number; converted: number; conversionRate: number
+  prev: { visits?: number; signups: number; converted: number }
 }
 type Manager = {
   id: string; name: string; teamLeads: number; agents: number
-  signups: number; converted: number; lastSeen: string | null
+  visits?: number; signups: number; converted: number; lastSeen: string | null
 }
 type BoAdmin = {
   id: string; name: string; calls: number; answered: number
@@ -45,7 +45,7 @@ export type Overview = {
   companies: Company[]
   window: { start: string; end: string; prevStart: string; prevEnd: string; today: string; isCurrent: boolean }
   money: { revenue: number; incentiveCost: number | null; salaryCost: number | null; net: number | null; costsAvailable: boolean; prevRevenue: number }
-  funnel: { signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number; prev: { signups: number; converted: number; qualified?: number; conversionRate: number } }
+  funnel: { visits?: number; signups: number; converted: number; qualified: number; commissionPerDeposit: number; conversionRate: number; prev: { visits?: number; signups: number; converted: number; qualified?: number; conversionRate: number } }
   field: { activeAgents: number; totalAgents: number; leastActive: FieldAgent[]; unassignedAgents: number }
   leaders: Leader[]
   calls: { contacted: number; target: number }
@@ -138,7 +138,12 @@ export default function GmOverview() {
 
   const { money, funnel, field, leaders, calls, teams, management, risks, companies } = data
   const callPct = calls.target ? Math.min(Math.round((calls.contacted / calls.target) * 100), 100) : 0
-  const maxTeamSignups = Math.max(1, ...teams.map((t) => t.signups))
+  // Store-visit companies (Diplomat, Stellr) log no sign-ups, so rank teams by
+  // visits whenever nobody in view has a sign-up — otherwise every bar reads 0.
+  const teamByVisits = !teams.some((t) => t.signups > 0)
+  const teamValue = (t: Team) => (teamByVisits ? t.visits ?? 0 : t.signups)
+  const teamPrev = (t: Team) => (teamByVisits ? t.prev.visits ?? 0 : t.prev.signups)
+  const maxTeamValue = Math.max(1, ...teams.map(teamValue))
   // Carry the company scope into P&L so it opens on the same company the GM is viewing.
   const goPnl = () => navigate(`/agent/pnl${company ? `?company_id=${company}` : ''}`)
 
@@ -261,6 +266,9 @@ export default function GmOverview() {
 
         {/* Funnel stats */}
         <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="col-span-2">
+            <Stat label="Visits" value={funnel.visits ?? 0} sub="store + individual visits" delta={<Delta now={funnel.visits ?? 0} prev={funnel.prev.visits ?? 0} />} />
+          </div>
           <Stat label="Sign-ups" value={funnel.signups} sub={`${funnel.qualified} qualified`} delta={<Delta now={funnel.signups} prev={funnel.prev.signups} />} onClick={goPnl} />
           <Stat label="Converted" value={funnel.converted} sub={`${funnel.conversionRate}% rate`} delta={<Delta now={funnel.converted} prev={funnel.prev.converted} />} onClick={goPnl} />
         </div>
@@ -299,15 +307,15 @@ export default function GmOverview() {
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-token truncate mr-2">{t.name}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-sm font-semibold text-token tabular-nums">{t.signups}</span>
-                      <Delta now={t.signups} prev={t.prev.signups} />
+                      <span className="text-sm font-semibold text-token tabular-nums">{teamValue(t)}</span>
+                      <Delta now={teamValue(t)} prev={teamPrev(t)} />
                     </div>
                   </div>
                   <div className="h-1 rounded-full bg-white/10 overflow-hidden mb-1">
-                    <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.round((t.signups / maxTeamSignups) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.round((teamValue(t) / maxTeamValue) * 100)}%` }} />
                   </div>
                   <div className="text-xs text-token-faint tabular-nums">
-                    {t.activeAgents}/{t.agents} agents active · {t.converted} converted ({t.conversionRate}%)
+                    {t.activeAgents}/{t.agents} agents active · {t.visits ?? 0} visits · {t.signups} sign-ups · {t.converted} converted ({t.conversionRate}%)
                   </div>
                 </div>
               ))}
@@ -333,7 +341,7 @@ export default function GmOverview() {
                     >
                       <div className="min-w-0 mr-2">
                         <div className="text-sm text-token truncate">{m.name}</div>
-                        <div className="text-xs text-token-faint tabular-nums">{m.teamLeads} team leads · {m.agents} agents · {m.signups} sign-ups</div>
+                        <div className="text-xs text-token-faint tabular-nums">{m.teamLeads} team leads · {m.agents} agents · {m.visits ?? 0} visits · {m.signups} sign-ups</div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <span className={`text-xs ${seen.stale ? 'text-amber-400' : 'text-token-faint'}`}>{seen.text}</span>
@@ -348,9 +356,9 @@ export default function GmOverview() {
                           <div key={t.id} onClick={() => navigate(`/agent/team-detail/${t.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
                             <div className="min-w-0 mr-2">
                               <div className="text-sm text-token truncate">{t.name}</div>
-                              <div className="text-xs text-token-faint tabular-nums">{t.activeAgents}/{t.agents} active · {t.converted} converted ({t.conversionRate}%)</div>
+                              <div className="text-xs text-token-faint tabular-nums">{t.activeAgents}/{t.agents} active · {t.visits ?? 0} visits · {t.converted} converted ({t.conversionRate}%)</div>
                             </div>
-                            <span className="text-sm font-semibold text-token tabular-nums flex-shrink-0">{t.signups}</span>
+                            <span className="text-sm font-semibold text-token tabular-nums flex-shrink-0">{teamValue(t)}</span>
                           </div>
                         ))}
                       </div>
@@ -391,7 +399,7 @@ export default function GmOverview() {
         {/* Top performers */}
         <div className="bg-white/[0.03] border border-token rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-primary" /><h2 className="text-sm font-semibold text-token">Top performers</h2></div>
-          {leaders.length === 0 ? <p className="text-xs text-token-faint">No sign-ups yet this period.</p> : (
+          {leaders.length === 0 ? <p className="text-xs text-token-faint">No visits yet this period.</p> : (
             <div className="space-y-2">
               {leaders.map((l, i) => (
                 <div key={l.id} onClick={() => navigate(`/agent/agent-detail/${l.id}`)} className="flex items-center justify-between cursor-pointer active:opacity-70">
@@ -399,7 +407,7 @@ export default function GmOverview() {
                     <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
                     <span className="text-sm text-token">{l.name}</span>
                   </div>
-                  <span className="text-xs text-token-faint tabular-nums">{l.signups} · {l.converted} conv.</span>
+                  <span className="text-xs text-token-faint tabular-nums">{l.signups > 0 ? `${l.signups} · ${l.converted} conv.` : `${l.visits ?? 0} visits`}</span>
                 </div>
               ))}
             </div>

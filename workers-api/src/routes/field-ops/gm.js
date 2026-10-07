@@ -8,7 +8,7 @@ import { requireRole } from '../../middleware/auth.js';
 import { computeIncentive, AGENT_ROLES } from '../../services/incentiveService.js';
 import { getConfig } from './config.js';
 import { ensureIssues } from './issues.js';
-import { CONVERTED_SQL, NOT_REJECTED_SQL } from '../../services/funnelService.js';
+import { CONVERTED_SQL, NOT_REJECTED_SQL, NOT_AI_FAKE_SQL } from '../../services/funnelService.js';
 import { mapLimit } from '../../lib/aggregates.js';
 
 // Incentive engine fan-out cap. computeIncentive is several D1 round trips and
@@ -25,6 +25,8 @@ const NOT_REJECTED = NOT_REJECTED_SQL('vi');
 
 // Test agents (seeded demo data) pollute every KPI — same convention as portal.
 const NOT_TEST_V = `AND v.agent_id NOT LIKE 'agent-test-%'`;
+// Visit-level counts (activity) skip AI-flagged fake check-ins, same as sign-ups.
+const NOT_FAKE_V = `AND ${NOT_AI_FAKE_SQL('v.id')}`;
 const NOT_TEST_U = (alias) => `AND ${alias}.id NOT LIKE 'agent-test-%'`;
 
 function nextMonthStart(period) {
@@ -147,6 +149,20 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
   ).bind(tenantId, prevStart, prevEnd, companyId, companyId).first().catch(() => null);
   const prevSignups = prevAgg?.signups || 0, prevConverted = prevAgg?.converted || 0, prevQualified = prevAgg?.qualified || 0;
 
+  // Visits — the activity measure for every company. Sign-ups only exist for
+  // individual visits (Goldrush); store-visit companies (Diplomat, Stellr) do
+  // their work as visits with no visit_individuals row, so a sign-ups-only view
+  // reads as "nobody working". visit_date always equals date(created_at), so
+  // windowing on created_at keeps visits on the same clock as sign-ups.
+  const visitAgg = await db.prepare(
+    `SELECT SUM(CASE WHEN v.created_at >= ? AND v.created_at < ? THEN 1 ELSE 0 END) visits,
+       SUM(CASE WHEN v.created_at >= ? AND v.created_at < ? THEN 1 ELSE 0 END) prev_visits
+     FROM visits v
+     WHERE v.tenant_id = ? AND v.created_at >= ? AND v.created_at < ? ${CO_V} ${NOT_TEST_V} ${NOT_FAKE_V}`
+  ).bind(start, end, prevStart, prevEnd, tenantId, minDate(start, prevStart), end, companyId, companyId)
+    .first().catch(() => null);
+  const visits = visitAgg?.visits || 0, prevVisits = visitAgg?.prev_visits || 0;
+
   // 14-day daily revenue trend, ending on the window's last displayed day (today for a
   // current window, the anchored day otherwise). Same table/filters as the agg query above;
   // deposits = verified-qualified signups per day, revenue = deposits × rate.
@@ -191,23 +207,26 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     } catch { /* keep costs null on failure */ }
   }
 
-  // Leaders (period-scoped signup leaderboard, top 5).
+  // Leaders (period-scoped, top 5): sign-ups first, then visits, so store-visit
+  // companies (no sign-ups) still rank their agents by the work they did.
   const { results: leaders } = await db.prepare(
-    `SELECT v.agent_id id, u.first_name||' '||u.last_name name, COUNT(*) signups,
+    `SELECT v.agent_id id, u.first_name||' '||u.last_name name,
+       COUNT(DISTINCT v.id) visits, COUNT(vi.id) signups,
        SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted
-     FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id JOIN users u ON u.id = v.agent_id
+     FROM visits v JOIN users u ON u.id = v.agent_id
+     LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND ${NOT_REJECTED}
      WHERE v.tenant_id = ? AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
-       AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED} ${CO_V} ${NOT_TEST_V}
-     GROUP BY v.agent_id ORDER BY signups DESC LIMIT 5`
+       AND v.created_at >= ? AND v.created_at < ? ${CO_V} ${NOT_TEST_V} ${NOT_FAKE_V}
+     GROUP BY v.agent_id ORDER BY signups DESC, visits DESC LIMIT 5`
   ).bind(tenantId, ...AGENT_ROLES, start, end, companyId, companyId).all().catch(() => ({ results: [] }));
 
   // Field force: active-today + roster (least active first, top 5 quiet).
+  // Active = any visit today (store or individual), not just a sign-up.
   const { results: roster } = await db.prepare(
     `SELECT u.id, u.first_name||' '||u.last_name name, u.phone,
-       COUNT(CASE WHEN date(vi.created_at)=? THEN 1 END) today, MAX(vi.created_at) last_activity
+       COUNT(CASE WHEN date(v.created_at)=? THEN 1 END) today, MAX(v.created_at) last_activity
      FROM users u
-     LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = u.tenant_id ${CO_V}
-     LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND ${NOT_REJECTED}
+     LEFT JOIN visits v ON v.agent_id = u.id AND v.tenant_id = u.tenant_id ${CO_V} ${NOT_FAKE_V}
      WHERE u.tenant_id = ? AND u.is_active = 1 AND u.role IN (${AGENT_ROLES.map(() => '?').join(',')})
        AND (u.agent_type IS NULL OR u.agent_type IN ('field_ops','both')) ${NOT_TEST_U('u')} ${CO_ACL('u')}
      GROUP BY u.id ORDER BY today ASC, last_activity ASC`
@@ -244,7 +263,8 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     const { results: teamRows } = await db.prepare(
       `SELECT tl.id, TRIM(tl.first_name||' '||COALESCE(tl.last_name,'')) name, tl.manager_id,
          COUNT(DISTINCT a.id) agents,
-         COUNT(DISTINCT CASE WHEN vi.id IS NOT NULL THEN a.id END) active_agents,
+         COUNT(DISTINCT CASE WHEN v.id IS NOT NULL THEN a.id END) active_agents,
+         COUNT(DISTINCT v.id) visits,
          COUNT(vi.id) signups,
          SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted
        FROM users tl
@@ -253,18 +273,18 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
          AND (a.agent_type IS NULL OR a.agent_type IN ('field_ops','both')) ${NOT_TEST_U('a')}
          ${CO_ACL('a')}
        LEFT JOIN visits v ON v.agent_id = a.id AND v.tenant_id = tl.tenant_id ${CO_V}
-       LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
-         AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED}
+         AND v.created_at >= ? AND v.created_at < ? ${NOT_FAKE_V}
+       LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND ${NOT_REJECTED}
        WHERE tl.tenant_id = ? AND tl.role = 'team_lead' AND tl.is_active = 1 ${CO_ACL('tl')}
-       GROUP BY tl.id ORDER BY signups DESC, agents DESC`
+       GROUP BY tl.id ORDER BY signups DESC, visits DESC, agents DESC`
     ).bind(...AGENT_ROLES, companyId, companyId, companyId, companyId, start, end, tenantId, companyId, companyId).all();
     const { results: prevTeamRows } = await db.prepare(
-      `SELECT a.team_lead_id tid, COUNT(vi.id) signups,
+      `SELECT a.team_lead_id tid, COUNT(DISTINCT v.id) visits, COUNT(vi.id) signups,
          SUM(CASE WHEN ${CONVERTED_SQL('vi')} THEN 1 ELSE 0 END) converted
        FROM users a
        JOIN visits v ON v.agent_id = a.id AND v.tenant_id = a.tenant_id ${CO_V}
-       JOIN visit_individuals vi ON vi.visit_id = v.id
-         AND vi.created_at >= ? AND vi.created_at < ? AND ${NOT_REJECTED}
+         AND v.created_at >= ? AND v.created_at < ? ${NOT_FAKE_V}
+       LEFT JOIN visit_individuals vi ON vi.visit_id = v.id AND ${NOT_REJECTED}
        WHERE a.tenant_id = ? AND a.team_lead_id IS NOT NULL ${NOT_TEST_U('a')}
        GROUP BY a.team_lead_id`
     ).bind(companyId, companyId, prevStart, prevEnd, tenantId).all().catch(() => ({ results: [] }));
@@ -275,9 +295,9 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       return {
         id: t.id, name: t.name, managerId: t.manager_id,
         agents: t.agents || 0, activeAgents: t.active_agents || 0,
-        signups: sign, converted: conv,
+        visits: t.visits || 0, signups: sign, converted: conv,
         conversionRate: sign ? round1((conv / sign) * 100) : 0,
-        prev: { signups: p?.signups || 0, converted: p?.converted || 0 },
+        prev: { visits: p?.visits || 0, signups: p?.signups || 0, converted: p?.converted || 0 },
       };
     });
   } catch { teams = []; }
@@ -342,6 +362,7 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       return {
         id: m.id, name: m.name, teamLeads: m.team_leads || 0,
         agents: own.reduce((s, t) => s + t.agents, 0),
+        visits: own.reduce((s, t) => s + t.visits, 0),
         signups: own.reduce((s, t) => s + t.signups, 0),
         converted: own.reduce((s, t) => s + t.converted, 0),
         lastSeen: m.last_activity_at || m.last_login || null,
@@ -394,17 +415,17 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
       detail: `${signups} vs ${prevSignups} previous period`,
     });
   }
-  const quietTeams = teams.filter((t) => t.agents > 0 && t.signups === 0);
+  const quietTeams = teams.filter((t) => t.agents > 0 && t.visits === 0);
   if (quietTeams.length > 0) {
     risks.push({
-      id: 'quiet-teams', severity: 'medium', label: `${quietTeams.length} team(s) with zero signups`,
+      id: 'quiet-teams', severity: 'medium', label: `${quietTeams.length} team(s) with zero visits`,
       detail: quietTeams.slice(0, 3).map((t) => t.name).join(', ') + (quietTeams.length > 3 ? '…' : ''),
     });
   }
   if (isCurrent && totalAgents > 0 && (totalAgents - activeAgents) / totalAgents > 0.5) {
     risks.push({
       id: 'idle-agents', severity: 'medium', label: 'Over half the field force inactive today',
-      detail: `${totalAgents - activeAgents} of ${totalAgents} agents with no signups today`,
+      detail: `${totalAgents - activeAgents} of ${totalAgents} agents with no visits today`,
     });
   }
   if (unassignedAgents > 0) {
@@ -437,10 +458,10 @@ export async function buildGmOverview(db, tenantId, companyId, period, anchor = 
     money: { ...money, prevRevenue: round1(prevQualified * rate) },
     trend,
     funnel: {
-      signups, converted, qualified, commissionPerDeposit: rate,
+      visits, signups, converted, qualified, commissionPerDeposit: rate,
       conversionRate: signups ? round1((converted / signups) * 100) : 0,
       prev: {
-        signups: prevSignups, converted: prevConverted, qualified: prevQualified,
+        visits: prevVisits, signups: prevSignups, converted: prevConverted, qualified: prevQualified,
         conversionRate: prevSignups ? round1((prevConverted / prevSignups) * 100) : 0,
       },
     },
