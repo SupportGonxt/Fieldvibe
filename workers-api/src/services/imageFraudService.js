@@ -165,7 +165,11 @@ export async function recordFlag(db, { tenantId, visitId = null, photoId = null,
 // After the visit and photo rows exist: store the fingerprint, record the verdict,
 // exclude a definite fake, and — when this upload completes a frozen-status-bar group —
 // flag the earlier check-ins in that group too.
-export async function persistGoldrushCheck(env, { tenantId, visitId, photoId, agentId, companyId, visitDate, goldrushId, nowIso, check }) {
+//
+// A blocked upload (definite fake rejected before save) passes visitId null and stage
+// 'blocked': no visit to exclude, but the fingerprint still feeds the frozen-status-bar
+// history and earlier check-ins sharing the strip are still flagged.
+export async function persistGoldrushCheck(env, { tenantId, visitId, photoId, agentId, companyId, visitDate, goldrushId, nowIso, check, stage = 'upload' }) {
   if (!check || check.verdict === 'error') return;
   const db = env.DB;
   try {
@@ -174,8 +178,8 @@ export async function persistGoldrushCheck(env, { tenantId, visitId, photoId, ag
     ).bind(crypto.randomUUID(), tenantId, visitId, photoId, agentId, visitDate, nowIso, goldrushId,
       fpToBase64(check.sig), fpToBase64(check.analysis.fingerprint), check.verdict,
       check.sb?.clock || null, check.sb?.battery || null).run();
-    if (check.verdict !== 'pass') await recordFlag(db, { tenantId, visitId, photoId, agentId, visitDate, goldrushId, stage: 'upload', check });
-    if (check.isFake) {
+    if (check.verdict !== 'pass') await recordFlag(db, { tenantId, visitId, photoId, agentId, visitDate, goldrushId, stage, check });
+    if (check.isFake && visitId) {
       await excludeVisit(db, { tenantId, visitId, companyId, agentId, visitDate, goldrushId, reason: `${FAKE_CAPTURE_REASON}: ${check.flags.filter(f => f.level === 'definite').map(f => f.code).join(', ')}` });
     }
     if (check.flags.some(f => f.code === 'REUSED_STATUS_BAR')) {
@@ -183,7 +187,7 @@ export async function persistGoldrushCheck(env, { tenantId, visitId, photoId, ag
         if (!m.visit_id) continue;
         const flagged = await db.prepare("SELECT 1 FROM image_fraud_flags WHERE visit_id = ? AND verdict = 'definite' LIMIT 1").bind(m.visit_id).first();
         if (flagged) continue;
-        const prior = { verdict: 'definite', flags: [{ code: 'REUSED_STATUS_BAR', level: 'definite', detail: `Phone status bar identical to later check-in ${visitId}` }] };
+        const prior = { verdict: 'definite', flags: [{ code: 'REUSED_STATUS_BAR', level: 'definite', detail: visitId ? `Phone status bar identical to later check-in ${visitId}` : 'Phone status bar identical to a later upload that was blocked as fake' }] };
         await recordFlag(db, { tenantId, visitId: m.visit_id, agentId: m.agent_id, visitDate: m.visit_date, stage: 'retro', check: prior });
         await excludeVisit(db, { tenantId, visitId: m.visit_id, companyId, agentId: m.agent_id, visitDate: m.visit_date, reason: `${FAKE_CAPTURE_REASON}: REUSED_STATUS_BAR` });
         await db.prepare("UPDATE image_fingerprints SET verdict = 'definite' WHERE visit_id = ?").bind(m.visit_id).run();

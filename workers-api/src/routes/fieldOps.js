@@ -2287,8 +2287,8 @@ Output JSON only.`;
     }
     // AI check: the screenshot fraud rule set. The ID read from the photo stands in for
     // the typed ID here, so an ID Goldrush has not issued yet is caught before submit.
-    // Definite fakes are recorded as attempts for the AI Check page; the visit itself is
-    // flagged again (and excluded) by /visits/workflow if the agent submits it anyway.
+    // Definite fakes are recorded as attempts for the AI Check page and block the Photo
+    // step; /visits/workflow re-checks and rejects the photo if it is submitted anyway.
     let fraud = null;
     try {
       const nowIso = new Date().toISOString();

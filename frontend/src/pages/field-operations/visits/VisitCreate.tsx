@@ -41,6 +41,8 @@ import { compressPhoto, compressDataUrl } from '../../../utils/photo-compression
 
 // Shown when the AI check flags a Goldrush screenshot as a definite fake (server sends the same text)
 const FAKE_IMAGE_MESSAGE = 'This image has been detected as fake and fraudulent. You have been flagged.'
+// AI check verdict for a Goldrush photo; flagged = definite fake, which blocks the capture
+type PhotoFraud = { flagged: boolean; message: string | null; verdict: string; reasons: string[] }
 
 // Haversine distance between two GPS coordinates in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -302,10 +304,8 @@ export default function VisitCreate() {
     urlVisible?: boolean | null
     blurry?: boolean | null
     // AI check verdict for the photo (Goldrush screenshot fraud rules)
-    fraud?: { flagged: boolean; message: string | null; verdict: string; reasons: string[] } | null
+    fraud?: PhotoFraud | null
   }>({ status: 'idle' })
-  // Set when the server flags the submitted screenshot as a definite fake
-  const [fraudMessage, setFraudMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -1065,6 +1065,8 @@ export default function VisitCreate() {
   // the same values).
   useEffect(() => {
     if (photoExtraction.status !== 'done') return
+    // A photo the AI check flagged as fake must be retaken — nothing is taken from it.
+    if (photoExtraction.fraud?.flagged) return
     if (photoExtraction.extractedId) {
       applyExtractedGoldrushId(photoExtraction.extractedId)
     }
@@ -1087,14 +1089,19 @@ export default function VisitCreate() {
         photo_data: photoDataUrl,
       })
       const extracted = res.data?.extracted_id ? String(res.data.extracted_id) : null
-      if (extracted) applyExtractedGoldrushId(extracted)
+      // Nothing is taken from an image the AI check flagged as fake — otherwise the
+      // persisted Goldrush ID would let a reloaded draft past the photo block.
+      const flagged = !!res.data?.fraud?.flagged
+      if (extracted && !flagged) applyExtractedGoldrushId(extracted)
       // Pre-fill the customer's name on the Details step and in the Consumer
       // Name/Surname company questions (still editable there, unlike the Goldrush ID)
       const firstName = res.data?.extracted_first_name ? String(res.data.extracted_first_name).trim() : ''
       const lastName = res.data?.extracted_last_name ? String(res.data.extracted_last_name).trim() : ''
-      if (firstName) setIndividualFirstName(firstName)
-      if (lastName) setIndividualLastName(lastName)
-      if (firstName || lastName) applyExtractedConsumerName(firstName, lastName)
+      if (!flagged) {
+        if (firstName) setIndividualFirstName(firstName)
+        if (lastName) setIndividualLastName(lastName)
+        if (firstName || lastName) applyExtractedConsumerName(firstName, lastName)
+      }
       setPhotoExtraction({
         status: 'done',
         extractedId: extracted,
@@ -1546,6 +1553,8 @@ export default function VisitCreate() {
           if (photoExtraction.status === 'checking') return false
           // Hard errors — no acknowledgement path, the photo must be retaken.
           if (photoExtraction.blurry === true) return false
+          // The AI check flagged the image as fake/AI-generated — blocked, retake only.
+          if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) return false
           // Accept a fresh extraction this session OR an already-captured Goldrush ID
           // (a restored draft drops the transient photoExtraction state but keeps the ID).
           if (!photoExtraction.extractedId && !/^\d{9}$/.test(currentGoldrushId())) return false
@@ -1587,6 +1596,7 @@ export default function VisitCreate() {
         if (!isGoldrushIndividualCapture()) return 'Please complete this step before continuing.'
         if (photoExtraction.status === 'checking') return 'Please wait — the photo is still being checked.'
         if (photoExtraction.blurry === true) return 'The photo is too blurry to read. Retake the photo before continuing.'
+        if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) return `${photoExtraction.fraud.message || FAKE_IMAGE_MESSAGE} Retake a real photo of the Goldrush system screen before continuing.`
         if (photoExtraction.status !== 'done' || !photoExtraction.extractedId) return 'No Goldrush ID could be read from the photo. Retake the photo before continuing.'
         return 'Please complete this step before continuing.'
       }
@@ -1603,6 +1613,8 @@ export default function VisitCreate() {
   const goldrushPhotoIncomplete = (): boolean => {
     if (!isGoldrushIndividualCapture()) return false
     if (!activeSteps.some(s => s.step_key === 'photo')) return false
+    // A flagged fake never counts as a system photo, even with an ID already filled in.
+    if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) return true
     // This session captured a sharp photo that yielded the ID.
     if (
       photos.length > 0 &&
@@ -1831,11 +1843,6 @@ export default function VisitCreate() {
       queryClient.invalidateQueries({ queryKey: ['field-ops-hourly'] })
       queryClient.invalidateQueries({ queryKey: ['field-ops-daily'] })
 
-      const fraud = (result as { fraud?: { flagged?: boolean; message?: string | null } } | undefined)?.fraud
-      if (fraud?.flagged) {
-        setFraudMessage(fraud.message || FAKE_IMAGE_MESSAGE)
-        toast.error(fraud.message || FAKE_IMAGE_MESSAGE, 15000)
-      }
       const warnings = result?.validation_warnings as { id_number?: string; goldrush_id?: string } | undefined
       if (warnings && Object.keys(warnings).length > 0) {
         // Visit was saved but has data issues — show inline warnings, don't auto-navigate
@@ -1847,6 +1854,16 @@ export default function VisitCreate() {
         navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
       }
     } catch (err: unknown) {
+      // The server rejected the system photo as fake (AI check) — nothing was saved.
+      // Lock the photo so Review stays blocked until the agent retakes it.
+      const fraud = (err as { response?: { data?: { fraud?: PhotoFraud } } })?.response?.data?.fraud
+      if (fraud?.flagged) {
+        setPhotoExtraction(prev => ({ ...prev, status: 'done', fraud }))
+        const message = fraud.message || FAKE_IMAGE_MESSAGE
+        setError(`${message} This visit was not saved. Go back to the Photo step and retake a real photo of the Goldrush system screen.`)
+        toast.error(message, 15000)
+        return
+      }
       // FIX: Properly extract error messages from axios response objects (fixes mobile save bug)
       const message = extractErrorMessage(err)
       setError(message)
@@ -3355,10 +3372,17 @@ export default function VisitCreate() {
               </Alert>
             )
           }
+          const retakeOnlyAction = (
+            <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
+              Retake Photo
+            </Button>
+          )
+          // AI check flagged the image as fake/AI-generated — hard block, retake only.
           if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) {
             return (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                <strong>{photoExtraction.fraud.message || FAKE_IMAGE_MESSAGE}</strong>
+              <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
+                <strong>{photoExtraction.fraud.message || FAKE_IMAGE_MESSAGE}</strong> You cannot
+                continue with this image — retake a real photo of the Goldrush system screen.
               </Alert>
             )
           }
@@ -3366,11 +3390,6 @@ export default function VisitCreate() {
           // as a failed read, so a system photo is never accepted unchecked.
           const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
           const isBlurry = photoExtraction.status === 'done' && photoExtraction.blurry === true
-          const retakeOnlyAction = (
-            <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
-              Retake Photo
-            </Button>
-          )
           // A blurry photo makes every other read unreliable — show only the
           // blur error and force a retake before anything else is assessed.
           if (isBlurry) {
@@ -3811,9 +3830,6 @@ export default function VisitCreate() {
             </Button>
           }
         >
-          {fraudMessage && (
-            <Box sx={{ mb: 1, fontWeight: 700, color: 'error.main' }}>{fraudMessage}</Box>
-          )}
           <strong>Visit saved — but there are data errors your team lead can see:</strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
             {validationWarnings.id_number && <li>SA ID Number: {validationWarnings.id_number}</li>}

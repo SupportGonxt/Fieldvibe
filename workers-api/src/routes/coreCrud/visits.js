@@ -782,8 +782,9 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     }
 
     // Goldrush screenshot fraud rules (AI check). Runs after every up-front rejection so
-    // only captures that will be saved are analysed. Never blocks the capture: a definite
-    // fake is saved, flagged, excluded from totals and the agent is told.
+    // only captures that would be saved are analysed. A definite fake (AI-generated or
+    // edited screenshot) is rejected before anything is written: the attempt is recorded
+    // for the AI Check page and the agent must retake a real photo.
     const goldrushPhoto = Array.isArray(body.photos)
       ? body.photos.find(p => p && p.photo_type === 'goldrush_individual' && typeof (p.photo_url || p.r2_url) === 'string' && (p.photo_url || p.r2_url).startsWith('data:'))
       : null;
@@ -791,10 +792,12 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       ? await checkGoldrushPhoto(c.env, { tenantId, dataUrl: goldrushPhoto.photo_url || goldrushPhoto.r2_url, typedId: incomingGoldrush || null, extractedId: body.goldrush_extracted_id || null, nowIso: now })
       : null;
     if (goldrushCheck?.isFake) {
-      const reason = `${FAKE_CAPTURE_REASON}: ${goldrushCheck.flags.filter(f => f.level === 'definite').map(f => f.code).join(', ')}`;
-      // Shares the validation-failure row when there is one, so the capture is logged once.
-      if (goldrushValidationWarnings) goldrushValidationWarnings.photo_mismatch = reason;
-      else goldrushValidationWarnings = { photo_mismatch: reason };
+      await persistGoldrushCheck(c.env, {
+        tenantId, visitId: null, photoId: null, agentId: body.agent_id || userId,
+        companyId: body.company_id || body.companyId || null, visitDate,
+        goldrushId: incomingGoldrush || null, nowIso: now, check: goldrushCheck, stage: 'blocked',
+      });
+      return c.json({ error: goldrushCheck.message || FAKE_CAPTURE_REASON, fraud: publicFraudResult(goldrushCheck) }, 422);
     }
     let goldrushPhotoId = null;
 

@@ -77,7 +77,7 @@ app.get('/ai-check/summary', requireRole('admin', 'general_manager'), async (c) 
 
   const attempts = await db.prepare(`
     SELECT agent_id, agent_name, COUNT(*) AS n FROM image_fraud_flags
-    WHERE tenant_id = ? AND stage = 'precheck' AND verdict = 'definite' AND visit_date BETWEEN ? AND ?
+    WHERE tenant_id = ? AND stage IN ('precheck', 'blocked') AND verdict = 'definite' AND visit_date BETWEEN ? AND ?
     GROUP BY agent_id, agent_name ORDER BY n DESC
   `).bind(tenantId, start, end).all();
 
