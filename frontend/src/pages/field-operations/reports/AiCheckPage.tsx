@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
-import { AlertTriangle, ShieldAlert, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ShieldAlert, RefreshCw, X } from 'lucide-react'
 
 // AI Check — Goldrush screenshot fraud statistics (GM + admins only).
 // Definite fakes are excluded from every other report; they are counted only here.
@@ -30,16 +31,22 @@ interface Summary {
   by_month: Tally[]
   flag_counts: Record<string, number>
   precheck_attempts: { agent_id: string; agent_name: string | null; n: number }[]
-  recent: {
-    visit_id: string
-    visit_date: string
-    agent: string
-    verdict: Verdict
-    goldrush_id: string | null
-    reasons: string
-    source: string
-    photo_url: string | null
-  }[]
+  recent: FlaggedCheckIn[]
+}
+
+interface FlaggedCheckIn {
+  visit_id: string
+  visit_date: string
+  agent: string
+  verdict: Verdict
+  // What the rules said, before any manual review
+  rule_verdict: Verdict
+  goldrush_id: string | null
+  reasons: string
+  source: string
+  photo_url: string | null
+  // Latest manual decision from the Review button; overrides the rule verdict
+  review: { decision: 'fake' | 'genuine'; by: string | null; at: string; detail: string | null } | null
 }
 
 const SEGMENTS: { key: Verdict; label: string; color: string }[] = [
@@ -63,6 +70,7 @@ const FLAG_LABELS: Record<string, string> = {
   ID_MISMATCH: 'Screenshot ID differs from typed ID',
   DUPLICATE_ID: 'Goldrush ID used more than once',
   FUTURE_ID_ENTERED: 'Typed ID beyond issued range (typo?)',
+  MANUAL_REVIEW: 'Confirmed fake on manual review',
 }
 
 const Bar: React.FC<{ t: Tally }> = ({ t }) => (
@@ -114,6 +122,21 @@ const AiCheckPage: React.FC = () => {
   const [startDate, setStartDate] = useState(() => new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10))
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<FlaggedCheckIn | null>(null)
+  const [note, setNote] = useState('')
+  const queryClient = useQueryClient()
+
+  const review = useMutation({
+    mutationFn: async (vars: { visit_id: string; decision: 'fake' | 'genuine'; note: string }) =>
+      (await apiClient.post('/field-ops/ai-check/review', vars)).data,
+    onSuccess: (_d, vars) => {
+      toast.success(vars.decision === 'fake' ? 'Confirmed fake — excluded from totals' : 'Cleared as genuine — counted in totals again')
+      setReviewing(null)
+      setNote('')
+      queryClient.invalidateQueries({ queryKey: ['ai-check-summary'] })
+    },
+    onError: () => toast.error('Could not save the review. Try again.'),
+  })
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['ai-check-summary', startDate, endDate],
@@ -227,7 +250,7 @@ const AiCheckPage: React.FC = () => {
           <table className="min-w-[760px] w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-800 text-left text-xs text-gray-500 dark:border-gray-300 dark:text-gray-400">
-                <th className="py-2 pr-2">Photo</th><th className="px-2">Date</th><th className="px-2">Agent</th><th className="px-2">Goldrush ID</th><th className="px-2">Verdict</th><th className="px-2">Why</th>
+                <th className="py-2 pr-2">Photo</th><th className="px-2">Date</th><th className="px-2">Agent</th><th className="px-2">Goldrush ID</th><th className="px-2">Verdict</th><th className="px-2">Why</th><th className="px-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -243,14 +266,102 @@ const AiCheckPage: React.FC = () => {
                   <td className="whitespace-nowrap px-2 tabular-nums">{r.visit_date}</td>
                   <td className="px-2">{r.agent}</td>
                   <td className="px-2 tabular-nums">{r.goldrush_id || '—'}</td>
-                  <td className={`px-2 font-semibold ${r.verdict === 'definite' ? 'text-red-700 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>{r.verdict === 'definite' ? 'Definite' : 'Likely AI'}</td>
+                  <td className="px-2">
+                    {r.review ? (
+                      <>
+                        <span className={`font-semibold ${r.review.decision === 'fake' ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
+                          {r.review.decision === 'fake' ? 'Fake' : 'Genuine'}
+                        </span>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Reviewed{r.review.by ? ` by ${r.review.by}` : ''}</div>
+                      </>
+                    ) : (
+                      <span className={`font-semibold ${r.verdict === 'definite' ? 'text-red-700 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>{r.verdict === 'definite' ? 'Definite' : 'Likely AI'}</span>
+                    )}
+                  </td>
                   <td className="px-2 text-xs text-gray-600 dark:text-gray-300">{r.reasons}</td>
+                  <td className="px-2 py-1.5">
+                    <button
+                      onClick={() => { setReviewing(r); setNote('') }}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 dark:border-gray-600 dark:hover:bg-gray-800"
+                    >
+                      {r.review ? 'Change' : 'Review'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </section>
+
+      {reviewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => !review.isPending && setReviewing(null)}>
+          <div
+            role="dialog" aria-modal="true" aria-label="Review check-in"
+            className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-900"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-4 dark:border-gray-700">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Review check-in</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {reviewing.agent} · {reviewing.visit_date} · Goldrush ID {reviewing.goldrush_id || '—'}
+                </p>
+              </div>
+              <button onClick={() => setReviewing(null)} aria-label="Close" className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-800"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+              <div className="flex items-start justify-center rounded bg-gray-100 dark:bg-gray-800">
+                {reviewing.photo_url
+                  ? <img src={reviewing.photo_url} alt="Check-in screenshot" className="max-h-[60vh] w-auto rounded" />
+                  : <p className="p-6 text-sm text-gray-500">No photo stored for this check-in.</p>}
+              </div>
+              <div className="min-w-0 space-y-3 text-sm">
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">AI check verdict</div>
+                  <div className={`font-semibold ${reviewing.rule_verdict === 'likely' ? 'text-orange-600 dark:text-orange-400' : 'text-red-700 dark:text-red-400'}`}>
+                    {reviewing.rule_verdict === 'likely' ? 'Likely AI / edited' : 'Definite fake'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Why it was flagged</div>
+                  <p className="text-gray-700 dark:text-gray-300">{reviewing.reasons || '—'}</p>
+                </div>
+                {reviewing.review && (
+                  <div className="rounded border border-gray-200 p-2 dark:border-gray-700">
+                    <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Current decision</div>
+                    <p className="text-gray-700 dark:text-gray-300">{reviewing.review.detail}</p>
+                  </div>
+                )}
+                <label className="block">
+                  <span className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Note (optional)</span>
+                  <textarea
+                    value={note} onChange={e => setNote(e.target.value)} rows={3} maxLength={500}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm dark:border-gray-600 dark:bg-gray-800"
+                    placeholder="e.g. Checked against the Goldrush portal"
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 p-4 dark:border-gray-700">
+              <button
+                disabled={review.isPending}
+                onClick={() => review.mutate({ visit_id: reviewing.visit_id, decision: 'genuine', note })}
+                className="rounded-lg border border-green-700 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 dark:text-green-400 dark:hover:bg-green-950"
+              >
+                Genuine — count it
+              </button>
+              <button
+                disabled={review.isPending}
+                onClick={() => review.mutate({ visit_id: reviewing.visit_id, decision: 'fake', note })}
+                className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                Confirm fake — exclude it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lightbox && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(null)} role="dialog" aria-label="Photo">

@@ -36,6 +36,9 @@ export async function ensureImageFraudTables(db) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP)`,
     'CREATE INDEX IF NOT EXISTS idx_image_flags_tenant_date ON image_fraud_flags(tenant_id, visit_date)',
     'CREATE INDEX IF NOT EXISTS idx_image_flags_visit ON image_fraud_flags(visit_id)',
+    // Manual review on the AI Check page (source 'manual'): who decided.
+    'ALTER TABLE image_fraud_flags ADD COLUMN reviewed_by TEXT',
+    'ALTER TABLE image_fraud_flags ADD COLUMN reviewed_by_name TEXT',
   ];
   for (const s of stmts) {
     try { await db.prepare(s).run(); }
@@ -185,7 +188,7 @@ export async function persistGoldrushCheck(env, { tenantId, visitId, photoId, ag
     if (check.flags.some(f => f.code === 'REUSED_STATUS_BAR')) {
       for (const m of check.statusMatches) {
         if (!m.visit_id) continue;
-        const flagged = await db.prepare("SELECT 1 FROM image_fraud_flags WHERE visit_id = ? AND verdict = 'definite' LIMIT 1").bind(m.visit_id).first();
+        const flagged = await db.prepare("SELECT 1 FROM image_fraud_flags WHERE visit_id = ? AND (verdict = 'definite' OR source = 'manual') LIMIT 1").bind(m.visit_id).first();
         if (flagged) continue;
         const prior = { verdict: 'definite', flags: [{ code: 'REUSED_STATUS_BAR', level: 'definite', detail: visitId ? `Phone status bar identical to later check-in ${visitId}` : 'Phone status bar identical to a later upload that was blocked as fake' }] };
         await recordFlag(db, { tenantId, visitId: m.visit_id, agentId: m.agent_id, visitDate: m.visit_date, stage: 'retro', check: prior });

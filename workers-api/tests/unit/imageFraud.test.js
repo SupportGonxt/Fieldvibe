@@ -5,7 +5,7 @@ import {
   fpToBase64, fpFromBase64, idFrontier, evaluate, analyzeImage, decodeJpeg, dataUrlToBytes,
   FP_MATCH_THRESHOLD, FAKE_MESSAGE, normaliseClock, statusBarCropDataUrl,
 } from '../../src/lib/imageFraud.js';
-import { worstVerdict, tally } from '../../src/routes/field-ops/aiCheck.js';
+import { worstVerdict, visitVerdict, tally } from '../../src/routes/field-ops/aiCheck.js';
 
 // Synthetic Goldrush-like page: page colour, a yellow ID card, status-bar "clock" block.
 function page({ W = 360, H = 800, bg = [65, 65, 65], clockX = 20 } = {}) {
@@ -132,6 +132,16 @@ describe('AI Check aggregation', () => {
   it('picks the most severe verdict per check-in', () => {
     expect(worstVerdict(['review', 'definite', 'likely'])).toBe('definite');
     expect(worstVerdict([])).toBe('pass');
+  });
+  it('lets the latest manual review override the rule verdict', () => {
+    const rule = { source: 'ruleset', verdict: 'definite', created_at: '2026-10-01 08:00:00' };
+    expect(visitVerdict([rule])).toBe('definite');
+    expect(visitVerdict([rule, { source: 'manual', verdict: 'pass', created_at: '2026-10-02 08:00:00' }])).toBe('pass');
+    expect(visitVerdict([
+      { source: 'ruleset', verdict: 'likely', created_at: '2026-10-01 08:00:00' },
+      { source: 'manual', verdict: 'pass', created_at: '2026-10-02 08:00:00' },
+      { source: 'manual', verdict: 'definite', created_at: '2026-10-03 08:00:00' },
+    ])).toBe('definite');
   });
   it('counts definite fakes out of the reportable total', () => {
     const rows = [{ a: 'x', verdict: 'definite' }, { a: 'x', verdict: 'likely' }, { a: 'x', verdict: 'pass' }, { a: 'x', verdict: 'pass' }];
