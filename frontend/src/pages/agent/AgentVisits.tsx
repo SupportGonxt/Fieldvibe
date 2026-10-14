@@ -33,6 +33,7 @@ export default function AgentVisits() {
   // Server-side count of all matching visits — the list itself is capped at 200,
   // so visits.length under-reports for busy agents and team leads.
   const [totalVisits, setTotalVisits] = useState<number | null>(null)
+  const [typeCounts, setTypeCounts] = useState<Record<string, number> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const validFilters = ['all', 'completed', 'in_progress', 'pending', 'rejected_photos', 'rejected_goldrush'] as const
@@ -81,6 +82,7 @@ export default function AgentVisits() {
       const data = json.data || json
       const visitList = (Array.isArray(data) ? data : data?.results || data?.visits || []) as Visit[]
       setTotalVisits(typeof json?.total === 'number' ? json.total : null)
+      setTypeCounts(json?.type_counts && typeof json.type_counts === 'object' ? json.type_counts : null)
       const rejectedItems = Array.isArray(rejectedRes) ? rejectedRes : (rejectedRes as any)?.photos || []
       const rejectedIdSet = new Set(rejectedItems.map((p: any) => p.id || p.visit_id).filter(Boolean))
       const goldrushItems = (goldrushRes as any)?.data?.data || []
@@ -107,6 +109,7 @@ export default function AgentVisits() {
         if (dashData?.recent_visits && Array.isArray(dashData.recent_visits) && dashData.recent_visits.length > 0) {
           setVisits(dashData.recent_visits as Visit[])
           setTotalVisits(null)
+          setTypeCounts(null)
           setError(false)
           toast('Showing recent visits from dashboard', { icon: '\u2139\uFE0F' })
         } else {
@@ -153,9 +156,9 @@ export default function AgentVisits() {
     })
   }, [visits, filter, typeFilter, search])
 
-  // Count by type
-  const storeCount = useMemo(() => visits.filter(v => (v.visit_type || '').toLowerCase() === 'store').length, [visits])
-  const individualCount = useMemo(() => visits.filter(v => (v.visit_type || '').toLowerCase() === 'individual').length, [visits])
+  // Count by type — prefer the server's counts, since the loaded list is capped
+  const storeCount = useMemo(() => Math.max(typeCounts?.store ?? 0, visits.filter(v => (v.visit_type || '').toLowerCase() === 'store').length), [visits, typeCounts])
+  const individualCount = useMemo(() => Math.max(typeCounts?.individual ?? 0, visits.filter(v => (v.visit_type || '').toLowerCase() === 'individual').length), [visits, typeCounts])
   const rejectedVisitsCount = useMemo(() => visits.filter(v => v.has_rejected_photos).length, [visits])
   const rejectedGoldrushCount = useMemo(() => visits.filter(v => v.has_rejected_goldrush_id).length, [visits])
 

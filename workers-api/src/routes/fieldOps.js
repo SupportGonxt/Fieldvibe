@@ -100,7 +100,15 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
   if (date) { where += ' AND v.visit_date = ?'; params.push(date); }
   if (visit_type) { where += ' AND v.visit_type = ?'; params.push(visit_type); }
   if (company_id) { where += ' AND v.company_id = ?'; params.push(company_id); }
-  const total = await db.prepare('SELECT COUNT(*) as count FROM visits v ' + where).bind(...params).first();
+  // Count per visit type in one pass; the overall total is their sum. List views cap
+  // the rows they load, so they need these to show true Store/Individual counts.
+  const typeRows = await db.prepare('SELECT LOWER(v.visit_type) as visit_type, COUNT(*) as count FROM visits v ' + where + ' GROUP BY LOWER(v.visit_type)').bind(...params).all();
+  const typeCounts = {};
+  let totalCount = 0;
+  for (const r of (typeRows.results || [])) {
+    totalCount += r.count;
+    if (r.visit_type) typeCounts[r.visit_type] = r.count;
+  }
   let visits;
   try {
     visits = await db.prepare(`
@@ -161,7 +169,7 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
     } catch { /* list still renders without Goldrush IDs */ }
   }
   for (const v of rows) { if (v.thumbnail_url) v.thumbnail_url = rewriteR2Url(v.thumbnail_url, c.req.url); }
-  return c.json({ data: rows, total: total?.count || 0, page: parseInt(page), limit: parseInt(limit) });
+  return c.json({ data: rows, total: totalCount, type_counts: typeCounts, page: parseInt(page), limit: parseInt(limit) });
 });
 
 app.post('/field-operations/visits/:id/check-in', authMiddleware, async (c) => {
