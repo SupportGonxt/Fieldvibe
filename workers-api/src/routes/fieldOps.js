@@ -87,9 +87,10 @@ app.get('/field-operations/visits', authMiddleware, async (c) => {
       // Team lead drilling into a specific agent's visits
       where += ' AND v.agent_id = ?'; params.push(agent_id);
     } else {
-      // Team lead overview (agent_id absent or "me"): show all agents assigned to this team lead
-      where += ' AND v.agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1)';
-      params.push(tenantId, userId);
+      // Team lead overview (agent_id absent or "me"): the team lead's own visits plus
+      // those of all agents assigned to them
+      where += ' AND (v.agent_id = ? OR v.agent_id IN (SELECT id FROM users WHERE tenant_id = ? AND team_lead_id = ? AND is_active = 1))';
+      params.push(userId, tenantId, userId);
     }
   } else if (agent_id && agent_id !== 'me') {
     // Manager/admin viewing a specific agent
