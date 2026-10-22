@@ -129,6 +129,43 @@ export function worstCellDiff(a, b) {
   return worst;
 }
 const NEAR_DUP_MAX = 6;
+// Template edit: identical everywhere (status bar included) except a few cells (name/ID typed over).
+export function cellDiffs(a, b) {
+  const out = []; const cw = TW / GRID, ch = TH / GRID;
+  for (let gy = 0; gy < GRID; gy++) for (let gx = 0; gx < GRID; gx++) {
+    let s = 0;
+    for (let y = gy * ch; y < (gy + 1) * ch; y++) for (let x = gx * cw; x < (gx + 1) * cw; x++) s += Math.abs(a[y * TW + x] - b[y * TW + x]);
+    out.push(s / (cw * ch));
+  }
+  return out;
+}
+
+// Page-background flatness and ID-card colour. A real screenshot's page is one flat colour
+// (#414141) and the card exactly #FFB500; generated images drift in hue and carry noise.
+export function pagePixels(img) {
+  const { width: W, height: H, data } = img;
+  const lum = []; let r = 0, g = 0, b = 0;
+  const xs = Math.max(2, Math.floor(W * 0.012)); // same margin lib/imageFraud.js samples
+  for (let y = Math.floor(H * 0.4); y < Math.floor(H * 0.9); y += 2) for (let x = 0; x < xs; x++) {
+    const i = (y * W + x) * 4; r += data[i]; g += data[i + 1]; b += data[i + 2]; lum.push((data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000);
+  }
+  const n = lum.length || 1, mean = lum.reduce((a, c) => a + c, 0) / n;
+  const bgStd = Math.sqrt(lum.reduce((a, c) => a + (c - mean) ** 2, 0) / n);
+  const acc = [];
+  for (let y = 0; y < Math.floor(H * 0.45); y += 2) for (let x = 0; x < W; x += 2) {
+    const i = (y * W + x) * 4; const R = data[i], G = data[i + 1], B = data[i + 2];
+    if (R > 140 && R - B > 80 && G > 70 && G < R + 10) acc.push([R, G, B]);
+  }
+  const med = k => { const v = acc.map(p => p[k]).sort((a, c) => a - c); return v[v.length >> 1]; };
+  return { bgStd, bgRgb: [r / n, g / n, b / n], card: acc.length > 200 ? [med(0), med(1), med(2)] : null };
+}
+const PHONE_ASPECTS = [16 / 9, 18 / 9, 18.5 / 9, 19 / 9, 19.5 / 9, 20 / 9, 21 / 9, 2.16, 2.17, 2.1667];
+const PHONE_WIDTHS = [480, 540, 576, 600, 640, 720, 750, 768, 800, 828, 1080, 1125, 1170, 1179, 1242, 1280];
+
+const haversine = (la1, lo1, la2, lo2) => {
+  const R = Math.PI / 180, a = Math.sin((la2 - la1) * R / 2) ** 2 + Math.cos(la1 * R) * Math.cos(la2 * R) * Math.sin((lo2 - lo1) * R / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+};
 
 // ---------- main ----------
 const LEVEL = { definite: 3, likely: 2, review: 1, pass: 0 };
@@ -188,6 +225,7 @@ async function main() {
       v.w = img.width; v.h = img.height;
       v.analysis = analyzeImage(img);
       const t = thumb(img); v.thumb = t; v.hash = dhash(t);
+      v.px = pagePixels(img);
     } catch { undecodable++; v.undecodable = true; }
     finally { if (++done % 50 === 0) process.stderr.write(`\r  ${done}`); }
   });
@@ -210,7 +248,8 @@ async function main() {
         && fingerprintDistance(fpA, o.fpArr ||= fpFromBase64(o.fp)) < FP_MATCH_THRESHOLD);
     }
     const recent = withId.filter(o => o.t < tNow && o.t > tNow - 3 * 864e5).map(o => o.goldrush_id);
-    v.replay = evaluate({ analysis: v.analysis, statusMatches, now, typedId: v.goldrush_id, extractedId: null, frontier: idFrontier(recent) });
+    v.frontier = idFrontier(recent);
+    v.replay = evaluate({ analysis: v.analysis, statusMatches, now, typedId: v.goldrush_id, extractedId: null, frontier: v.frontier });
   }
 
   // ---- candidate rules ----
@@ -242,7 +281,69 @@ async function main() {
     // 6. Visit too short to register a real customer.
     const ci = Date.parse(v.check_in_time), co = Date.parse(v.check_out_time);
     if (Number.isFinite(ci) && Number.isFinite(co) && co >= ci && co - ci < 60e3) add(v, 'SHORT_VISIT', 'review', `visit lasted ${Math.round((co - ci) / 1000)}s`);
+    if (Number.isFinite(ci) && Number.isFinite(co) && co < ci) add(v, 'CHECKOUT_BEFORE_CHECKIN', 'review', 'check-out time is before check-in: device clock tampered');
+
+    // ---- extended pixel rules ----
+    if (v.px && v.analysis?.layoutFound) {
+      if (v.px.bgStd > 4) add(v, 'BG_NOT_FLAT', v.px.bgStd > 10 ? 'likely' : 'review', `page background not flat (std ${v.px.bgStd.toFixed(1)}; screenshots ~0–2): rendered/edited or photo of a screen`);
+      const [r, g, b] = v.px.bgRgb;
+      if (Math.max(Math.abs(r - 65), Math.abs(g - 65), Math.abs(b - 65)) > 10 && !v.analysis.green) add(v, 'BG_COLOUR_OFF', 'review', `page background rgb(${r.toFixed(0)},${g.toFixed(0)},${b.toFixed(0)}) vs golden #414141`);
+      if (v.px.card) {
+        const [cr, cg, cb] = v.px.card; const dist = Math.hypot(cr - 255, cg - 181, cb - 0);
+        if (dist > 30) add(v, 'CARD_COLOUR_OFF', dist > 60 ? 'likely' : 'review', `ID card rgb(${cr},${cg},${cb}) vs golden #FFB500 (distance ${dist.toFixed(0)})`);
+      }
+    }
+    if (v.analysis?.fullScreen) {
+      const ar = v.h / v.w;
+      if (Math.min(...PHONE_ASPECTS.map(a => Math.abs(a - ar))) > 0.03) add(v, 'ODD_ASPECT', 'review', `aspect ${ar.toFixed(3)} matches no phone screen`);
+      if (!PHONE_WIDTHS.includes(v.w) && !isAiCanvas(v.w, v.h)) add(v, 'ODD_WIDTH', 'review', `width ${v.w}px matches no phone screen`);
+    }
+    if (v.w && v.w < 480) add(v, 'LOW_RES', 'review', `only ${v.w}x${v.h}: forwarded/thumbnail copy, not a screenshot`);
+
+    // ---- time rules ----
+    const capT = sast(v.photo_captured_at || v.check_in_time || v.created_at);
+    if (capT) {
+      const hr = capT.getUTCHours();
+      if (hr >= 21 || hr < 6) add(v, 'OFF_HOURS', 'review', `captured ${capT.toISOString().slice(11, 16)} SAST`);
+      const created = sast(v.created_at);
+      if (created && Math.abs(created - capT) > 36 * 3600e3) add(v, 'LATE_SUBMIT', 'review', `submitted ${Math.round((created - capT) / 3600e3)}h after capture`);
+      if (created && capT - created > 10 * 60e3) add(v, 'CAPTURED_IN_FUTURE', 'likely', 'photo time is after the server received it: device clock tampered');
+    }
+    const pt = Date.parse(v.photo_captured_at), cit = Date.parse(v.check_in_time);
+    if (Number.isFinite(pt) && Number.isFinite(cit) && cit - pt > 15 * 60e3) add(v, 'PHOTO_BEFORE_CHECKIN', 'likely', `photo taken ${Math.round((cit - pt) / 60e3)} min before arriving: pre-made image`);
+
+    // ---- GPS rules ----
+    if (v.lat == null || v.lng == null || (Math.abs(v.lat) < 1e-6 && Math.abs(v.lng) < 1e-6)) add(v, 'GPS_MISSING', 'review', 'no GPS fix');
+    else {
+      if (v.lat > -22 || v.lat < -35.5 || v.lng < 16 || v.lng > 33.5) add(v, 'GPS_OUTSIDE_SA', 'likely', `GPS ${v.lat},${v.lng} is outside South Africa`);
+      const dec = x => (String(x).split('.')[1] || '').length;
+      if (dec(v.lat) <= 3 && dec(v.lng) <= 3) add(v, 'GPS_ROUNDED', 'review', `GPS ${v.lat},${v.lng} has ≤3 decimals: typed or spoofed`);
+    }
+
+    // ---- identity rules ----
+    const idn = String(v.id_number || '').trim();
+    if (/^\d{13}$/.test(idn)) {
+      const s = saId(idn, v.visit_date);
+      if (s.valid && s.age > 90) add(v, 'AGE_IMPLAUSIBLE', 'review', `SA ID implies age ${s.age}`);
+      if (/^(\d)\1{5}/.test(idn) || /(\d)\1{5}/.test(idn.slice(6))) add(v, 'ID_REPEATED_DIGITS', 'review', `SA ID ${idn} has long repeated-digit runs`);
+    }
+    const ph = String(v.phone || '').replace(/\D/g, '').replace(/^27/, '0');
+    if (ph) {
+      if (!/^0[6-8]\d{8}$/.test(ph)) add(v, 'PHONE_INVALID', 'review', `phone ${v.phone} is not a South African mobile number`);
+      if (/(\d)\1{5}/.test(ph) || /0123456|1234567|2345678|3456789|9876543/.test(ph)) add(v, 'PHONE_PATTERN', 'likely', `phone ${v.phone} is a keyboard/repeat pattern`);
+    }
+    const nm = `${v.first_name || ''} ${v.last_name || ''}`.trim().toLowerCase();
+    if (nm && (/\d|test|asdf|qwer|xxx|^(.)\1+$/.test(nm) || (v.first_name || '').trim().length < 2)) add(v, 'NAME_JUNK', 'review', `customer name "${nm}" looks invented`);
+    if (nm && v.agent && nm === String(v.agent).trim().toLowerCase()) add(v, 'SELF_SIGNUP', 'likely', 'customer name is the agent\'s own name');
+    const gid = String(v.goldrush_id || '').trim();
+    if (gid && !/^\d{9}$/.test(gid)) add(v, 'GOLDRUSH_ID_FORMAT', 'review', `Goldrush ID "${gid}" is not 9 digits`);
+    if (/^\d{9}$/.test(gid) && v.frontier && Number(gid) < v.frontier - 50_000_000) add(v, 'OLD_GOLDRUSH_ACCOUNT', 'review', `Goldrush ID ${gid} is far below IDs being issued now (~${v.frontier}): existing account, not a new sign-up`);
   }
+
+  // Same Goldrush ID on more than one check-in.
+  const byGid = new Map();
+  for (const v of visits) { const g = String(v.goldrush_id || '').trim(); if (g) (byGid.get(g) || byGid.set(g, []).get(g)).push(v); }
+  for (const [g, vs] of byGid) if (vs.length > 1) vs.forEach(v => add(v, 'DUPLICATE_GOLDRUSH_ID', 'definite', `Goldrush ID ${g} used on ${vs.length} check-ins`));
 
   // 7. Same picture submitted for different customers (re-encoded copies included).
   const withThumb = visits.filter(v => v.thumb);
@@ -259,7 +360,13 @@ async function main() {
       const key = a.visit_id < b.visit_id ? `${a.visit_id}|${b.visit_id}` : `${b.visit_id}|${a.visit_id}`;
       if (seenPair.has(key)) continue; seenPair.add(key);
       if (Math.abs(a.w / a.h - b.w / b.h) > 0.01) continue;
-      const d = worstCellDiff(a.thumb, b.thumb);
+      const cells = cellDiffs(a.thumb, b.thumb);
+      const d = Math.max(...cells);
+      const changed = cells.filter(x => x >= NEAR_DUP_MAX).length;
+      if (d >= NEAR_DUP_MAX && changed <= 3 && cells.slice(0, GRID).every(x => x < NEAR_DUP_MAX)) {
+        add(a, 'TEMPLATE_EDIT', 'likely', `same screenshot as visit ${b.visit_id} with only ${changed} region(s) changed (name/ID typed over)`);
+        add(b, 'TEMPLATE_EDIT', 'likely', `same screenshot as visit ${a.visit_id} with only ${changed} region(s) changed (name/ID typed over)`);
+      }
       if (d < NEAR_DUP_MAX) {
         add(a, 'DUPLICATE_PHOTO', 'definite', `same image as visit ${b.visit_id} (${b.agent}, ${b.visit_date})`);
         add(b, 'DUPLICATE_PHOTO', 'definite', `same image as visit ${a.visit_id} (${a.agent}, ${a.visit_date})`);
@@ -293,6 +400,29 @@ async function main() {
       if (k.length > 3) (names.get(k) || names.set(k, []).get(k)).push(v);
     }
     for (const [n, vs] of names) if (new Set(vs.map(v => v.id_number)).size > 1) vs.forEach(v => add(v, 'SAME_NAME_NEW_ID', 'review', `"${n}" registered ${vs.length}x with different ID numbers`));
+    // Generated SA IDs: same first 10 digits (DOB + sequence) with only the tail changed.
+    const idPrefix = new Map();
+    for (const v of list) { const id = String(v.id_number || '').trim(); if (/^\d{13}$/.test(id)) (idPrefix.get(id.slice(0, 10)) || idPrefix.set(id.slice(0, 10), []).get(id.slice(0, 10))).push(v); }
+    for (const [p, vs] of idPrefix) if (vs.length > 1) vs.forEach(v => add(v, 'SEQUENTIAL_SA_ID', 'likely', `${vs.length} customers share SA ID prefix ${p} (same agent)`));
+    const dob = new Map();
+    for (const v of list) { const id = String(v.id_number || '').trim(); if (/^\d{13}$/.test(id)) (dob.get(id.slice(0, 6)) || dob.set(id.slice(0, 6), []).get(id.slice(0, 6))).push(v); }
+    for (const [p, vs] of dob) if (vs.length >= 3) vs.forEach(v => add(v, 'DOB_CLUSTER', 'review', `${vs.length} of this agent's customers born on ${p}`));
+    // Travel speed between consecutive check-ins.
+    for (let i = 1; i < sorted.length; i++) {
+      const a = sorted[i - 1], b = sorted[i];
+      if ([a.lat, a.lng, b.lat, b.lng].some(x => x == null)) continue;
+      const km = haversine(a.lat, a.lng, b.lat, b.lng), hrs = (t(b) - t(a)) / 3600e3;
+      if (km > 5 && hrs > 0 && km / hrs > 150) add(b, 'GPS_TELEPORT', 'likely', `${km.toFixed(0)} km from previous check-in in ${Math.round(hrs * 60)} min`);
+    }
+    // Days far above this agent's own norm.
+    const perDay = new Map();
+    for (const v of list) (perDay.get(v.visit_date) || perDay.set(v.visit_date, []).get(v.visit_date)).push(v);
+    const counts = [...perDay.values()].map(x => x.length).sort((a, b) => a - b);
+    const med = counts[counts.length >> 1] || 0;
+    for (const [d, vs] of perDay) if (vs.length >= 15 && vs.length > 3 * med) vs.forEach(v => add(v, 'DAILY_SPIKE', 'review', `${vs.length} sign-ups on ${d} vs agent median ${med}/day`));
+    // Agent already has confirmed fakes: everything else they submitted deserves a look.
+    const fakes = list.filter(v => v.label === 'fake').length;
+    if (fakes >= 3) list.filter(v => v.label !== 'fake').forEach(v => add(v, 'AGENT_HAS_FAKES', 'review', `agent has ${fakes} confirmed fakes in the period`));
   }
 
   // 12. Identical GPS (real GPS jitters) for different customers.
@@ -347,6 +477,35 @@ async function main() {
     SEQUENTIAL_PHONE: 'Phone numbers one or two apart: made up in sequence.',
     SEQUENTIAL_GOLDRUSH_ID: 'Goldrush IDs consecutive for one agent: accounts mass-created together.',
     SAME_NAME_NEW_ID: 'Same person registered again under a different ID number.',
+    TEMPLATE_EDIT: 'Another check-in\'s screenshot (same status bar) with only the name/ID area changed: edited template.',
+    BG_NOT_FLAT: 'App backgrounds are one flat colour; noise/gradients come from AI rendering, editing or photographing a screen.',
+    BG_COLOUR_OFF: 'Page colour differs from the real app.',
+    CARD_COLOUR_OFF: 'ID-card yellow differs from the real app (#FFB500): generators get the brand colour slightly wrong.',
+    ODD_ASPECT: 'Full-height image whose shape matches no phone screen: cropped, stitched or generated.',
+    ODD_WIDTH: 'Width matches no phone screen: resized or generated.',
+    LOW_RES: 'Tiny image: a forwarded copy or thumbnail rather than a screenshot.',
+    CHECKOUT_BEFORE_CHECKIN: 'Visit times run backwards: device clock changed.',
+    OFF_HOURS: 'Sign-up at night: unusual for field registrations.',
+    LATE_SUBMIT: 'Submitted long after capture: time to prepare/edit the image.',
+    CAPTURED_IN_FUTURE: 'Photo time later than server receipt: device clock tampered.',
+    PHOTO_BEFORE_CHECKIN: 'Photo existed before the agent arrived: pre-made image.',
+    GPS_MISSING: 'No location fix: location services disabled to hide where the agent was.',
+    GPS_OUTSIDE_SA: 'Location outside South Africa: spoofed.',
+    GPS_ROUNDED: 'Coordinates too round for a real GPS fix: typed or spoofed.',
+    GPS_TELEPORT: 'Faster than 150 km/h between check-ins: spoofed location.',
+    AGE_IMPLAUSIBLE: 'Customer older than 90: invented ID.',
+    ID_REPEATED_DIGITS: 'ID with long repeated digit runs: invented.',
+    SEQUENTIAL_SA_ID: 'Customers whose SA IDs differ only in the last digits: generated from one template.',
+    DOB_CLUSTER: 'Many customers of one agent share a birth date: generated IDs.',
+    PHONE_INVALID: 'Not a valid SA mobile number.',
+    PHONE_PATTERN: 'Keyboard or repeated-digit phone number: invented.',
+    NAME_JUNK: 'Placeholder or junk customer name.',
+    SELF_SIGNUP: 'Agent registered themselves as the customer.',
+    GOLDRUSH_ID_FORMAT: 'Goldrush IDs are 9 digits.',
+    OLD_GOLDRUSH_ACCOUNT: 'Account was created long before the visit: not a new sign-up.',
+    DUPLICATE_GOLDRUSH_ID: 'One Goldrush account claimed on several check-ins.',
+    DAILY_SPIKE: 'Agent did far more sign-ups than their normal day.',
+    AGENT_HAS_FAKES: 'Agent already has 3+ confirmed fakes; their other check-ins are at higher risk.',
     GPS_REPEAT: 'Identical coordinates to 6 decimals on different days: GPS is spoofed or replayed.',
   };
   const ruleStats = new Map();
