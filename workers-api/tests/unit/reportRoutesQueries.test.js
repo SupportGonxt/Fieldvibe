@@ -21,6 +21,7 @@ import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import reportRoutes from '../../src/routes/reports.js';
 import fieldOpsPerformanceRoutes from '../../src/routes/fieldOpsPerformance.js';
+import { computeGoldrushIndividualInsights, computeGoldrushStoreInsights } from '../../src/cron/jobs.js';
 
 const TENANT = 'ten1', COMPANY = 'c1', LEAD = 'tl1', ADMIN = 'admin1';
 const JWT_SECRET = 'test-secret-not-a-real-key';
@@ -276,5 +277,15 @@ describe('goldrush reports: answers picked out in SQL, blobs never shipped', () 
     expect(status).toBe(200);
     expect(body.data.totals.with_stock).toBe(1);
     expect(body.data.adBrands).toEqual(expect.arrayContaining([{ name: 'X', count: 1 }, { name: 'Y', count: 1 }]));
+  });
+
+  it('weekly cron insights read picked answers too', async () => {
+    violations.length = 0;
+    const ind = await computeGoldrushIndividualInsights(makeD1(), TENANT, null, null, COMPANY);
+    const st = await computeGoldrushStoreInsights(makeD1(), TENANT, null, null, COMPANY);
+    expect(violations).toEqual([]);
+    expect(ind.totals.individuals).toBe(N_AGENTS);
+    expect(ind.competitors).toEqual(expect.arrayContaining([{ name: 'Betway', count: 1 }, { name: 'Hollywood', count: 1 }]));
+    expect(st.totals.with_stock).toBe(1);
   });
 });
