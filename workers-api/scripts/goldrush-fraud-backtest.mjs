@@ -3,7 +3,7 @@
 // over the last N days of Goldrush individual check-ins. READ-ONLY: SELECTs and R2 gets.
 //
 //   cd workers-api && npx wrangler login      # or CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
-//   node scripts/goldrush-fraud-backtest.mjs --days 31 --out ../../goldrush-backtest
+//   node scripts/goldrush-fraud-backtest.mjs --days 31 --out ../../goldrush-backtest [--players players.csv]
 //
 // Output (contains customer PII — keep it out of git): report.md, flags.csv, agents.csv,
 // photos/ (cache, safe to delete). Re-runs reuse the photo cache.
@@ -24,6 +24,9 @@ const DB = arg('db', 'fieldvibe-db');
 const BUCKET = arg('bucket', 'fieldvibe-uploads');
 const WRANGLER = process.env.WRANGLER_BIN || path.resolve('node_modules/.bin/wrangler');
 const CONCURRENCY = Number(arg('concurrency', 8));
+// Goldrush player export saved as CSV (Player ID in the first column): those IDs count as Goldrush-verified.
+const PLAYERS = arg('players', null);
+const playerIds = new Set(PLAYERS ? fs.readFileSync(PLAYERS, 'utf8').split('\n').map(l => l.split(',')[0].replace(/\D/g, '')).filter(Boolean) : []);
 const SAST_MS = 2 * 3600e3;
 const PHOTOS = path.join(OUT, 'photos');
 fs.mkdirSync(PHOTOS, { recursive: true });
@@ -168,7 +171,10 @@ const haversine = (la1, lo1, la2, lo2) => {
 };
 
 // ---------- main ----------
-const LEVEL = { definite: 3, likely: 2, review: 1, pass: 0 };
+const LEVEL = { definite: 3, likely: 2, review: 1, pass: 0, info: 0 };
+// These fired more often on players Goldrush accepted (players_4-10-2026: 625 matched check-ins) than on
+// check-ins missing from that list, so they track agent workflow, not fraud. Still reported, never scored.
+const INFO_ONLY = new Set(['CLOCK_STALE', 'TEMPLATE_EDIT', 'CAPTURED_IN_FUTURE', 'OFF_HOURS', 'SHORT_VISIT', 'NOT_GOLDRUSH_PAGE', 'GPS_REPEAT', 'BG_NOT_FLAT']);
 const worst = fl => fl.reduce((b, f) => (LEVEL[f.level] > LEVEL[b] ? f.level : b), 'pass');
 
 async function main() {
@@ -208,7 +214,7 @@ async function main() {
   for (const v of visits) {
     const fl = flagsByVisit.get(v.visit_id) || [];
     const manual = fl.filter(f => f.source === 'manual').at(-1);
-    v.label = manual ? (manual.verdict === 'definite' ? 'fake' : 'genuine') : (v.verification === 'qualified' ? 'verified' : null);
+    v.label = manual ? (manual.verdict === 'definite' ? 'fake' : 'genuine') : (v.verification === 'qualified' || playerIds.has(String(v.goldrush_id || '').replace(/\D/g, '')) ? 'verified' : null);
     v.dbVerdict = worst(fl.filter(f => f.source !== 'manual').map(f => ({ level: f.verdict })));
     v.dbCodes = [...new Set(fl.filter(f => f.source !== 'manual').flatMap(f => { try { return JSON.parse(f.flags || '[]'); } catch { return []; } }))];
     v.newFlags = [];
@@ -253,7 +259,7 @@ async function main() {
   }
 
   // ---- candidate rules ----
-  const add = (v, code, level, detail) => v.newFlags.push({ code, level, detail });
+  const add = (v, code, level, detail) => v.newFlags.push({ code, level: INFO_ONLY.has(code) ? 'info' : level, detail });
 
   for (const v of visits) {
     const f = fpByVisit.get(v.visit_id);
