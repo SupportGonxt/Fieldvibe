@@ -117,8 +117,8 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
 
 const FieldOpsComprehensiveReport: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01')
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [selectedCompany, setSelectedCompany] = useState<string>('')
 
   // Company selector (shared across all tabs)
