@@ -8,7 +8,7 @@ import { agentHoursBlocked, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 import { resolveVisitTimes } from '../../services/visitTiming.js';
-import { checkGoldrushPhoto, persistGoldrushCheck, publicFraudResult, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
+import { checkGoldrushPhoto, addCaptureSignals, persistGoldrushCheck, publicFraudResult, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
 
 const app = new Hono();
 
@@ -825,6 +825,17 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     // The wizard's GPS fix is the check-in; this submit is the check-out. The gap
     // is the visit's time on site (see services/visitTiming.js for the guards).
     const times = resolveVisitTimes(body, now);
+    // Behaviour checks (fake GPS, shared phone, speed, generated customer details, ID
+    // blocks, frozen battery) against this agent's history, before this visit is saved.
+    await addCaptureSignals(c.env, c.req.raw.cf, {
+      tenantId, agentId: body.agent_id || userId, deviceId: typeof body.device_id === 'string' ? body.device_id.slice(0, 64) : null, nowIso: now,
+      cur: {
+        at: times.check_in_time, lat: Number(body.checkin_latitude), lng: Number(body.checkin_longitude),
+        phone: body.individual_phone, idNumber: body.individual_id_number,
+        name: `${body.individual_first_name || ''} ${body.individual_last_name || ''}`.trim(), goldrushId: incomingGoldrush,
+      },
+      check: goldrushCheck,
+    });
     const companyId = body.company_id || null;
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
