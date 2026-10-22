@@ -373,9 +373,10 @@ async function main() {
         add(a, 'TEMPLATE_EDIT', 'likely', `same screenshot as visit ${b.visit_id} with only ${changed} region(s) changed (name/ID typed over)`);
         add(b, 'TEMPLATE_EDIT', 'likely', `same screenshot as visit ${a.visit_id} with only ${changed} region(s) changed (name/ID typed over)`);
       }
+      // review, not definite: 36 of 73 hits were players Goldrush accepted (players_4-10-2026).
       if (d < NEAR_DUP_MAX) {
-        add(a, 'DUPLICATE_PHOTO', 'definite', `same image as visit ${b.visit_id} (${b.agent}, ${b.visit_date})`);
-        add(b, 'DUPLICATE_PHOTO', 'definite', `same image as visit ${a.visit_id} (${a.agent}, ${a.visit_date})`);
+        add(a, 'DUPLICATE_PHOTO', 'review', `same image as visit ${b.visit_id} (${b.agent}, ${b.visit_date})`);
+        add(b, 'DUPLICATE_PHOTO', 'review', `same image as visit ${a.visit_id} (${a.agent}, ${a.visit_date})`);
       }
     }
   }
