@@ -67,7 +67,7 @@ app.get('/field-ops/reports/kpis', authMiddleware, async (c) => {
       db.prepare(`SELECT COUNT(DISTINCT v.agent_id) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v WHERE v.tenant_id = ? AND v.customer_id IS NOT NULL${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds),
-      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR LOWER(JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted'))='yes')${dateFilter}`).bind(...binds),
     ]);
 
     return c.json({ success: true, kpis: {
@@ -114,21 +114,25 @@ app.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
       dateBinds.push(endDate);
     }
 
-    // subqueryDateFilter: date-only (no agent IN clause — correlated via v2.agent_id = v.agent_id)
-    const subqueryDateFilter = dateFilter.replace(/v\./g, 'v2.');
+    // One pass: conversions are summed over the same visit rows being counted, instead of a
+    // per-agent correlated subquery that re-scanned (and re-parsed the JSON of) every one of
+    // the agent's individual visits. Both filters are agent-level, so the visit set per agent
+    // is the one the subquery used. COUNT(DISTINCT v.id) because a visit can carry more than
+    // one visit_individuals row (each still counts as a conversion, as before).
     const agents = await db.prepare(`
       SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
-        COUNT(*) as checkin_count,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.agent_id = v.agent_id AND v2.tenant_id = v.tenant_id AND (((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.consumer_converted'), '')) = 'yes')${subqueryDateFilter} AND ${NOT_AI_FAKE_SQL('v2.id')}) as conversions
+        COUNT(DISTINCT v.id) as checkin_count,
+        SUM(CASE WHEN vi.id IS NOT NULL AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR LOWER(JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted'))='yes') THEN 1 ELSE 0 END) as conversions
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
       WHERE v.tenant_id = ?${agentFilter}${dateFilter}
         AND ${NOT_AI_FAKE_SQL('v.id')}
         AND (u.email IS NULL OR u.email != 'luke.templeman@gonxt.tech')
       GROUP BY v.agent_id
       ORDER BY checkin_count DESC
       LIMIT 50
-    `).bind(...dateBinds, tenantId, ...agentBinds, ...dateBinds).all();
+    `).bind(tenantId, ...agentBinds, ...dateBinds).all();
 
     const data = (agents.results || []).map(a => ({
       ...a,
@@ -233,7 +237,7 @@ app.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
     // Batched: four independent counts, one round trip (was four serial awaits).
     const [total, converted, totalRegs, storeVisits] = await batchFirst(db, [
       db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ?${dateFilter}`).bind(...binds),
-      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR LOWER(JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted'))='yes')${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_type = 'store'${dateFilter}`).bind(...binds),
     ]);
@@ -1333,7 +1337,7 @@ app.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       LEFT JOIN (
         SELECT v2.customer_id, COUNT(*) as cnt
         FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id
-        WHERE v2.tenant_id = ? AND ((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes')${dateFilter.replace(/v\./g, 'v2.')}
+        WHERE v2.tenant_id = ? AND (JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes')${dateFilter.replace(/v\./g, 'v2.')}
           AND ${NOT_AI_FAKE_SQL('v2.id')}
         GROUP BY v2.customer_id
       ) conv ON conv.customer_id = c.id
@@ -1367,7 +1371,7 @@ app.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
         (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
         (SELECT vi2.custom_field_values FROM visit_individuals vi2 WHERE vi2.visit_id = v.id LIMIT 1) as custom_field_values,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses,
-        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v.id')}) as converted,
+        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v.id')}) as converted,
         v.notes as responses
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
@@ -1431,7 +1435,7 @@ app.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     const stats = await db.prepare(`
       SELECT COUNT(*) as total_checkins,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND ((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v2.id')}) as conversions
+        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND (JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v2.id')}) as conversions
       FROM visits WHERE customer_id = ? AND tenant_id = ?
     `).bind(shopId, tenantId, shopId, tenantId).first();
 
@@ -1474,7 +1478,7 @@ app.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
 
     const statsResult = await db.prepare(`
       SELECT COUNT(*) as total_customers,
-        SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
+        SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
         0 as already_betting
       FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}
     `).bind(...binds).first();

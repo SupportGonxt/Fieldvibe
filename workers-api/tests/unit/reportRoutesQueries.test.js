@@ -182,6 +182,17 @@ describe('report routes: bound-parameter arity and execution', () => {
     expect(body.data.every(r => r.agent_id?.startsWith('a'))).toBe(true);
   });
 
+  it('agent-performance counts check-ins and conversions in one pass with the same numbers', async () => {
+    violations.length = 0;
+    const { body } = await call(reportRoutes, '/field-ops/reports/agent-performance?company_id=c1&startDate=2026-08-01&endDate=2026-08-31');
+    expect(violations).toEqual([]);
+    for (const r of body.data) {
+      const i = Number(r.agent_id.slice(1));
+      expect(r.checkin_count).toBe(2); // individual + store visit, not inflated by the visit_individuals join
+      expect(r.conversions).toBe(i % 3 === 0 ? 1 : 0);
+    }
+  });
+
   it('checkins returns a page and a total from one batch', async () => {
     violations.length = 0;
     const { body } = await call(reportRoutes, '/field-ops/reports/checkins?company_id=c1&page=1&limit=20');
