@@ -46,6 +46,7 @@ import tradePromotionRoutes from './routes/tradePromotions.js';
 import activationsPosmRoutes from './routes/activationsPosm.js';
 import adminOpsRoutes from './routes/adminOps.js';
 // Cron jobs (invoked by the scheduled handler)
+import { drainBase64Backlog } from './lib/base64Backlog.js';
 import { generateGmDigest, generatePerformanceSummaries, checkInactiveAgents, reactToIssues, checkOverdueInvoices, syncUserActiveFlags, checkLowStock, checkStaleVanLoads, closeCommissionPeriod, generateAgingReport, sendWeeklyGoldrushReports, drainAiBacklog, reapStuckAiProcessing } from './cron/jobs.js';
 import { sendGoldrushTeamCockpitDigest } from './cron/teamCockpitDigest.js';
 import { drainShelfAnalysisBacklog, reapStuckShelfAnalyses } from './services/shelfAnalysis.js';
@@ -326,6 +327,11 @@ export default {
     const REACT_TO_ISSUES_CRONS = new Set(['30 6-15 * * *', '45 15 * * *']);
     if (REACT_TO_ISSUES_CRONS.has(event.cron)) {
       await reactToIssues(env.DB, env);
+      return;
+    }
+    // Own trigger for the same reason: each run spends ~1 R2 put + 3 D1 calls per photo.
+    if (event.cron === '*/20 0-3 * * *') {
+      await drainBase64Backlog(env);
       return;
     }
     const now = new Date();
