@@ -932,11 +932,12 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
             const indPhotoHash = await computePhotoHash(bytes);
-            if (await isPhotoHashDuplicate(db, tenantId, indPhotoHash)) {
-              const existingPhoto = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, indPhotoHash).first();
-              if (existingPhoto && existingPhoto.r2_url) mergedCustomFields[key] = existingPhoto.r2_url;
-              continue;
-            }
+            // Reuse an existing upload of the same image only when its URL is a real one: a
+            // legacy row's r2_url can itself be a data URL, which kept the base64 in this row.
+            const existingPhoto = await isPhotoHashDuplicate(db, tenantId, indPhotoHash)
+              ? await db.prepare("SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? AND r2_url NOT LIKE 'data:%' LIMIT 1").bind(tenantId, indPhotoHash).first()
+              : null;
+            if (existingPhoto?.r2_url) { mergedCustomFields[key] = existingPhoto.r2_url; continue; }
             const indPhotoId = crypto.randomUUID();
             const indPhotoKey = `photos/${tenantId}/${visitId}/${indPhotoId}.jpg`;
             const bucket = c.env.UPLOADS;
@@ -1009,9 +1010,12 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
             for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
             // Compute hash for deduplication
             const cqPhotoHash = await computePhotoHash(bytes);
-            if (await isPhotoHashDuplicate(db, tenantId, cqPhotoHash)) {
-              const existingCqPhoto = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, cqPhotoHash).first();
-              if (existingCqPhoto && existingCqPhoto.r2_url) mergedStoreCustom[key] = existingCqPhoto.r2_url;
+            // Same rule as individual photos above: only reuse a real URL, else upload.
+            const existingCqPhoto = await isPhotoHashDuplicate(db, tenantId, cqPhotoHash)
+              ? await db.prepare("SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? AND r2_url NOT LIKE 'data:%' LIMIT 1").bind(tenantId, cqPhotoHash).first()
+              : null;
+            if (existingCqPhoto?.r2_url) {
+              mergedStoreCustom[key] = existingCqPhoto.r2_url;
               console.log(`Skipping duplicate photo (hash: ${cqPhotoHash}) for visit ${visitId}, key: ${key}`);
               continue;
             }

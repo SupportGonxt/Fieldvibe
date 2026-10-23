@@ -40,7 +40,7 @@ app.get('/portal/overview', portalAuthMiddleware, async (c) => {
     const cfgRow = await db.prepare('SELECT widgets FROM portal_dashboard_config WHERE company_id = ? AND tenant_id = ?').bind(companyId, tenantId).first();
     const widgets = cfgRow ? JSON.parse(cfgRow.widgets) : defaultDashboardConfig(companyId).widgets;
     const ind = await db.prepare(`SELECT COUNT(*) AS n,
-        SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted
+        SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted
       FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'
         AND v.agent_id NOT LIKE 'agent-test-%'`).bind(tenantId, companyId).first();
@@ -207,7 +207,7 @@ app.post('/portal/ask', portalAuthMiddleware, async (c) => {
       data = { total_individuals: row?.n || 0 };
     } else if (intent === 'qualification_rate') {
       const row = await db.prepare(`SELECT COUNT(*) AS n,
-          SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted
+          SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) AS converted
         FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
         WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type)='individual'
           AND v.agent_id NOT LIKE 'agent-test-%'`).bind(tenantId, companyId).first();
