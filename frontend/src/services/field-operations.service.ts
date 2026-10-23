@@ -1,6 +1,16 @@
 import { ApiService } from './api.service'
 import { compressImageFile } from '../utils/photo-compression'
 
+// Stable per-browser id: the server flags one phone used by several agents. Null when
+// storage is blocked (private mode); the check is then skipped.
+function deviceId(): string | null {
+  try {
+    let id = localStorage.getItem('fv_device_id')
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('fv_device_id', id) }
+    return id
+  } catch { return null }
+}
+
 // "Active today" KPI shapes (backend: services/activityToday.js).
 export interface ActiveTodayPerson {
   id: string
@@ -1297,7 +1307,7 @@ class FieldOperationsService extends ApiService {
     notes?: string;
     purpose?: string;
   }) {
-    const response = await this.post('/visits/workflow', data)
+    const response = await this.post('/visits/workflow', { ...data, device_id: deviceId() })
     return response.data || response
   }
 

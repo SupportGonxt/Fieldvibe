@@ -75,3 +75,6 @@ e2e/playwright-report
 # and the workbook itself stays out of the repo.
 *.xlsx
 *.xls
+
+# Goldrush fraud back-test output (customer PII) — workers-api/scripts/goldrush-fraud-backtest.mjs
+goldrush-backtest-out/
