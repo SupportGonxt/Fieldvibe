@@ -1,7 +1,7 @@
 /**
  * Photo verification reviews — Goldrush individual photos that failed verification
- * three times (services/goldrushPhotoAttempts.js). The agent is locked out of Goldrush
- * photos until Back Office or the GM decides, on the AI Check page:
+ * three times (services/goldrushPhotoAttempts.js). That visit is locked (the agent can
+ * still do other individual visits) until Back Office or the GM decides, on the AI Check page:
  *
  * - approve (real): the last photo is accepted with the Goldrush ID and name the
  *   reviewer confirms; the agent's capture page picks it up and the visit can be submitted.

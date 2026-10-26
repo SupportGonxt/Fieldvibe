@@ -325,6 +325,9 @@ export default function VisitCreate() {
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
   const submitIdRef = useRef<string | null>(null)
+  // This visit's Goldrush photo attempts, retake delay and review lock are tracked under
+  // this id, so a lock holds only this visit and a new visit starts with fresh attempts.
+  const captureIdRef = useRef<string>(crypto.randomUUID())
   // Track which company+visitType combo has had custom data loaded to avoid redundant fetches
   const loadedCustomDataKeyRef = useRef<string>('')
   const loadDetailsInvocationRef = useRef(0)
@@ -1109,6 +1112,8 @@ export default function VisitCreate() {
     try {
       const res = await apiClient.post('/field-ops/verify-goldrush-photo', {
         photo_data: photoDataUrl,
+        capture_id: captureIdRef.current,
+        company_id: selectedCompany || undefined,
         ...(fileAgeMs != null ? { file_age_ms: fileAgeMs } : {}),
       })
       const verification: PhotoVerification = res.data?.verification || { verified: false, unavailable: true, message: 'We couldn’t check this photo right now. Please take it again.' }
@@ -1233,7 +1238,7 @@ export default function VisitCreate() {
   // (both are per agent, so starting a fresh visit doesn't reset them).
   const refreshPhotoGate = useCallback(async () => {
     try {
-      const res = await apiClient.get('/field-ops/goldrush-photo/status')
+      const res = await apiClient.get(`/field-ops/goldrush-photo/status?capture_id=${captureIdRef.current}`)
       setPhotoLocked(!!res.data?.locked)
       const wait = Number(res.data?.retry_after) || 0
       setRetryNow(Date.now())
@@ -1260,6 +1265,40 @@ export default function VisitCreate() {
   }, [photoRetryAt])
   const retrySecondsLeft = photoRetryAt ? Math.max(0, Math.ceil((photoRetryAt - retryNow) / 1000)) : 0
   const photoCaptureBlocked = goldrushCapture && (photoLocked || retrySecondsLeft > 0)
+
+  // Continue a visit Back Office approved after three failed photo attempts
+  // (?resume=<review id>): same capture id, company and the approved photo, so the
+  // agent picks up where they stopped instead of starting over.
+  const resumeId = searchParams.get('resume')
+  const [resumeCompanyId, setResumeCompanyId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!resumeId) return
+    let cancelled = false
+    apiClient.get(`/field-ops/goldrush-photo/resume/${resumeId}`).then(res => {
+      const d = res.data
+      if (cancelled || !d?.success) return
+      if (d.capture_id) captureIdRef.current = d.capture_id
+      if (d.company_id) setResumeCompanyId(d.company_id)
+      setPhotos([{ dataUrl: d.photo_data, hash: d.photo_hash, gps: null, timestamp: new Date().toISOString() }])
+      if (d.first_name) setIndividualFirstName(d.first_name)
+      if (d.last_name) setIndividualLastName(d.last_name)
+      setPhotoExtraction({
+        status: 'done',
+        extractedId: d.goldrush_id || null,
+        extractedFirstName: d.first_name || null,
+        extractedLastName: d.last_name || null,
+        hasBtag: null, urlVisible: null, blurry: false,
+        verification: { verified: true, approved_on_review: true },
+      })
+      setPhotoLocked(false)
+      toast.success('Your photo was approved. Continue with this visit.')
+    }).catch(err => { if (!cancelled) toast.error(extractErrorMessage(err)) })
+    return () => { cancelled = true }
+  }, [resumeId])
+  // Company auto-selection runs when the companies load; the resumed visit's company wins.
+  useEffect(() => {
+    if (resumeCompanyId && companies.some(c => c.id === resumeCompanyId)) setSelectedCompany(resumeCompanyId)
+  }, [resumeCompanyId, companies])
 
   // Locked agent taps "Check review status": an approved photo that is still on this
   // visit is re-verified (the server now accepts it); a rejected one is cleared so a
@@ -1906,6 +1945,7 @@ export default function VisitCreate() {
       if (photoExtraction.status === 'done' && photoExtraction.extractedId) {
         payload.goldrush_extracted_id = photoExtraction.extractedId
       }
+      if (isGoldrushIndividualCapture()) payload.goldrush_capture_id = captureIdRef.current
 
       if (photos.length > 0) {
         payload.photos = photos.map(p => ({
@@ -3385,17 +3425,21 @@ export default function VisitCreate() {
           </Button>
         </Box>
 
+        {/* Only this visit is locked — the agent can leave it and start another one. */}
         {goldrushCapture && photoLocked && (
-          <Alert
-            severity="error"
-            sx={{ mb: 2 }}
-            action={
-              <Button size="small" color="inherit" variant="outlined" onClick={checkPhotoReview} disabled={checkingReview} sx={{ minWidth: 130 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {PHOTO_LOCKED_MESSAGE}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
+              <Button size="small" color="inherit" variant="outlined" onClick={checkPhotoReview} disabled={checkingReview}>
                 {checkingReview ? 'Checking…' : 'Check review'}
               </Button>
-            }
-          >
-            {PHOTO_LOCKED_MESSAGE}
+              <Button
+                size="small" color="inherit" variant="outlined"
+                onClick={() => navigate(window.location.pathname.startsWith('/agent/') ? '/agent/visits' : '/field-operations/visits')}
+              >
+                Start another visit
+              </Button>
+            </Box>
           </Alert>
         )}
 

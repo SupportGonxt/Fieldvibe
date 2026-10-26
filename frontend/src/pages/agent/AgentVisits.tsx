@@ -5,6 +5,7 @@ import { MapPin, Clock, CheckCircle, Search, ChevronRight, Calendar, XCircle, St
 import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { toast } from 'react-hot-toast'
+import UnfinishedGoldrushVisits from '../../components/agent/UnfinishedGoldrushVisits'
 
 interface Visit {
   id: string
@@ -280,6 +281,8 @@ export default function AgentVisits() {
 
       {/* List */}
       <div className="px-5 pt-4">
+        {/* Goldrush visits held by a photo review: waiting, or approved to continue */}
+        <UnfinishedGoldrushVisits />
         {loading ? (
           <div className="flex flex-col items-center py-12 gap-3">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

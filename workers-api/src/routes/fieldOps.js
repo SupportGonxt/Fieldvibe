@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { checkGoldrushPhoto, recordFlag } from '../services/imageFraudService.js';
-import { attemptState, hashDataUrl, lockedVerification, photoChecks, recordFail, recordPass, reviewForPhoto, LOCKED_MESSAGE } from '../services/goldrushPhotoAttempts.js';
+import { attemptState, cleanCaptureId, ensurePhotoAttemptTables, hashDataUrl, loadAttemptPhoto, lockedVerification, photoChecks, readProfileCircle, recordFail, recordPass, reviewForPhoto, LOCKED_MESSAGE } from '../services/goldrushPhotoAttempts.js';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -2193,16 +2193,18 @@ app.get('/field-ops/presence/anomalies', authMiddleware, async (c) => {
 });
 // Goldrush individual photos get three attempts (services/goldrushPhotoAttempts.js).
 // The agent only ever sees `verification` (verified / attempt / message / lock); why a
-// photo failed is stored for the Team Lead / Back Office review screen only.
+// photo failed is stored for the Back Office / GM review on the AI Check page only.
 app.get('/field-ops/goldrush-photo/status', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const agentId = c.get('userId');
-  const state = await attemptState(db, { tenantId, agentId });
+  // Attempts and the lock belong to one visit: the capture id its capture page made.
+  const captureId = cleanCaptureId(c.req.query('capture_id'));
+  const state = await attemptState(db, { tenantId, agentId, captureId });
   // The latest decided review lets a capture page that is waiting pick up the outcome.
   const decided = await db.prepare(
-    "SELECT id, status, photo_hash, reviewed_at FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND status != 'pending' ORDER BY reviewed_at DESC LIMIT 1"
-  ).bind(tenantId, agentId).first();
+    "SELECT id, status, photo_hash, reviewed_at FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND capture_id IS ? AND status != 'pending' ORDER BY reviewed_at DESC LIMIT 1"
+  ).bind(tenantId, agentId, captureId).first();
   return c.json({
     success: true,
     locked: !!state.pending,
@@ -2213,9 +2215,48 @@ app.get('/field-ops/goldrush-photo/status', authMiddleware, async (c) => {
   });
 });
 
+// The agent's Goldrush visits held by a photo review: waiting for a decision, or
+// approved and not yet submitted (unfinished — the agent continues them).
+app.get('/field-ops/goldrush-photo/unfinished', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  await ensurePhotoAttemptTables(db);
+  const since = new Date(Date.now() - 14 * 864e5).toISOString();
+  const rows = await db.prepare(
+    `SELECT id, status, first_name, last_name, goldrush_id, created_at, reviewed_at FROM goldrush_photo_reviews
+     WHERE tenant_id = ? AND agent_id = ? AND created_at >= ?
+       AND (status = 'pending' OR (status = 'approved' AND visit_id IS NULL))
+     ORDER BY created_at DESC LIMIT 20`
+  ).bind(c.get('tenantId'), c.get('userId'), since).all();
+  return c.json({ success: true, visits: rows.results || [] });
+});
+
+// Everything the capture page needs to reopen an approved visit: its capture id,
+// company, the approved photo and the details the reviewer confirmed.
+app.get('/field-ops/goldrush-photo/resume/:id', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  await ensurePhotoAttemptTables(db);
+  const review = await db.prepare(
+    "SELECT * FROM goldrush_photo_reviews WHERE id = ? AND tenant_id = ? AND agent_id = ? AND status = 'approved' AND visit_id IS NULL"
+  ).bind(c.req.param('id'), c.get('tenantId'), c.get('userId')).first();
+  if (!review) return c.json({ success: false, message: 'This visit has already been finished or is not approved.' }, 404);
+  const photoData = await loadAttemptPhoto(c.env, review.photo_key);
+  if (!photoData) return c.json({ success: false, message: 'The approved photo could not be loaded.' }, 404);
+  // Approval is matched by photo hash; keep it on the exact data URL handed back here.
+  const hash = await hashDataUrl(photoData);
+  if (hash !== review.photo_hash) await db.prepare('UPDATE goldrush_photo_reviews SET photo_hash = ? WHERE id = ?').bind(hash, review.id).run();
+  return c.json({
+    success: true,
+    review_id: review.id, capture_id: review.capture_id, company_id: review.company_id,
+    goldrush_id: review.goldrush_id, first_name: review.first_name, last_name: review.last_name,
+    photo_data: photoData, photo_hash: hash,
+  });
+});
+
 app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
   try {
-    const { photo_data, file_age_ms } = await c.req.json();
+    const { photo_data, file_age_ms, capture_id, company_id } = await c.req.json();
+    const captureId = cleanCaptureId(capture_id);
+    const companyId = typeof company_id === 'string' && company_id ? company_id : null;
     // The OCR pass extracts the 9-digit Goldrush ID, the customer's name, the letters in
     // the profile circle and the btag from the URL bar, plus quality signals
     // (photo_blurry, url_visible). Quality signals are tri-state: true/false only when
@@ -2235,7 +2276,7 @@ app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
     if (review?.status === 'approved') {
       return c.json({ success: true, ...empty, extracted_id: review.goldrush_id, extracted_first_name: review.first_name, extracted_last_name: review.last_name, confidence: 'high', verification: { verified: true, approved_on_review: true } });
     }
-    const state = await attemptState(c.env.DB, { tenantId, agentId, nowIso });
+    const state = await attemptState(c.env.DB, { tenantId, agentId, captureId, nowIso });
     if (state.pending) return c.json({ success: true, ...empty, confidence: 'low', verification: lockedVerification(state.pending) });
     if (state.retryAfter > 0) {
       return c.json({ success: true, ...empty, confidence: 'low', verification: { verified: false, locked: false, waiting: true, attempts_left: state.attemptsLeft, retry_after: state.retryAfter, message: `Please wait ${state.retryAfter} seconds before taking the photo again.` } });
@@ -2274,6 +2315,8 @@ Rules:
 - confidence: "high", "medium", or "low"
 
 Output JSON only.`;
+    // Read the profile circle and the name under it alongside the main OCR pass.
+    const profilePromise = readProfileCircle(c.env, photo_data);
     let extractedId = null, confidence = 'low', extractedBtag = null, urlVisible = null;
     let photoBlurry = null, extractedFirstName = null, extractedLastName = null, avatarLetters = null;
     // True once the model's reply was parsed — only then can a missing ID or a blurry
@@ -2351,20 +2394,22 @@ Output JSON only.`;
         reasons.push({ code: 'AI_FLAG', detail: `AI check: ${check.flags.filter(f => f.level === 'definite').map(f => f.detail).join('; ')}` });
       }
     } catch (fraudErr) { console.error('Goldrush fraud pre-check failed:', fraudErr); }
+    // The focused profile-header read wins; the general pass is the fallback.
+    const profile = await profilePromise;
+    const circle = profile.letters || avatarLetters;
+    const profileName = profile.name || [extractedFirstName, extractedLastName].filter(Boolean).join(' ') || null;
     reasons.push(...await photoChecks(c.env.DB, {
       tenantId, hash, extractedId, blurry: photoBlurry, aiRead, fileAgeMs: Number(file_age_ms),
-      avatar: avatarLetters, firstName: extractedFirstName, lastName: extractedLastName,
+      avatar: circle, name: profileName,
     }));
+    const seen = { extractedId, firstName: extractedFirstName, lastName: extractedLastName, avatarLetters: circle, profileName };
     if (reasons.length) {
-      const verification = await recordFail(c.env, {
-        tenantId, agentId, hash, dataUrl: photo_data, reasons, nowIso,
-        extractedId, firstName: extractedFirstName, lastName: extractedLastName,
-      });
+      const verification = await recordFail(c.env, { tenantId, agentId, captureId, companyId, hash, dataUrl: photo_data, reasons, nowIso, ...seen });
       // Nothing read off a failed photo goes back to the agent.
       return c.json({ success: true, ...empty, confidence: 'low', verification });
     }
     if (!aiRead) return c.json({ success: true, ...empty, confidence: 'unreadable', verification: unavailable });
-    await recordPass(c.env.DB, { tenantId, agentId, hash, extractedId, firstName: extractedFirstName, lastName: extractedLastName, nowIso });
+    await recordPass(c.env.DB, { tenantId, agentId, captureId, companyId, hash, nowIso, ...seen });
     return c.json({ success: true, extracted_id: extractedId, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, extracted_btag: extractedBtag, url_visible: urlVisible, photo_blurry: photoBlurry, confidence, verification: { verified: true } });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);

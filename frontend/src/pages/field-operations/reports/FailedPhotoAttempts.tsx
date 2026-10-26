@@ -4,7 +4,8 @@ import toast from 'react-hot-toast'
 import { apiClient } from '../../../services/api.service'
 
 // AI Check section: Goldrush visits flagged after three failed photo attempts.
-// The agent is locked out of Goldrush photos until Back Office or the GM decides here:
+// That visit is locked (the agent can still do other individual visits) until Back
+// Office or the GM decides here:
 // approve if the photo is real (the visit can then be submitted), reject if it is fake.
 // This is the only place that shows why each attempt failed — the agent only ever saw
 // the same three generic messages. Team Leads do not review.
@@ -57,7 +58,7 @@ const ReviewCard: React.FC<{ review: Review; onPhoto: (url: string) => void }> =
         decision, note, goldrush_id: goldrushId, first_name: firstName, last_name: lastName,
       })).data,
     onSuccess: (_d, decision) => {
-      toast.success(decision === 'approve' ? 'Approved as real — the agent can submit this visit' : 'Rejected as fake — the agent must take a new photo')
+      toast.success(decision === 'approve' ? 'Approved as real — the agent will be asked to continue this visit' : 'Rejected as fake — the agent must take a new photo')
       queryClient.invalidateQueries({ queryKey: ['photo-verification-reviews'] })
     },
     onError: (err: unknown) => {
@@ -171,7 +172,7 @@ const FailedPhotoAttempts: React.FC<{ startDate: string; endDate: string; onPhot
     <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Visits flagged after 3 failed photo attempts</h2>
       <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-        The agent cannot take another photo for the visit until it is decided here. Approve if the photo is real, reject if it is fake.
+        The agent cannot take another photo for that visit until it is decided here; they can carry on with other visits. Approve if the photo is real, reject if it is fake.
         Waiting visits are always listed; decided ones follow the period above.
       </p>
       <div className="mb-3 flex flex-wrap gap-2">

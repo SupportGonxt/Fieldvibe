@@ -1,22 +1,22 @@
-// Goldrush individual photo attempts: three tries, then the Team Lead reviews.
+// Goldrush individual photo attempts: three tries per visit, then Back Office reviews.
 //
 // Every failed verification of a Goldrush system photo — AI check flag, no or wrong
 // Goldrush ID, initials in the profile circle, duplicate image or ID, blurry photo,
 // not a live camera capture — counts as one attempt. The agent gets the same three
 // messages whatever failed, so they never learn which check caught them; the real
-// reasons are stored here and shown only on the Team Lead / Back Office review screen.
+// reasons are stored here and shown only on the AI Check page.
 //
-// Attempts are counted per agent, not per draft, so discarding the visit and starting
-// a new one does not reset the count. A passing photo closes the open attempts; the
-// third failure opens a review and locks the agent's Goldrush photos until it is decided.
+// Attempts, the retake delay and the lock belong to one visit (the capture id the
+// capture page creates when it opens). The third failure sends that visit for review
+// and locks only that visit: the agent can start other individual visits meanwhile.
+// A passing photo closes the visit's open attempts.
 import { goldrushIdExists } from '../lib/goldrush.js';
 import { isPhotoHashDuplicate } from '../lib/photoAi.js';
 
 export const MAX_ATTEMPTS = 3;
 // Short pause between attempts so a retake is a deliberate new photo, not a burst.
 export const RETRY_DELAY_SECONDS = 30;
-// Failed attempts older than this no longer count toward a lock (an abandoned visit
-// from yesterday should not cost today's first attempt).
+// Failed attempts older than this no longer count toward a lock.
 const OPEN_WINDOW_HOURS = 12;
 // A camera capture hands the page a file created moments ago; a gallery pick is older.
 export const LIVE_CAPTURE_MAX_AGE_MS = 10 * 60 * 1000;
@@ -61,12 +61,26 @@ export async function ensurePhotoAttemptTables(db) {
     'CREATE INDEX IF NOT EXISTS idx_gr_reviews_agent ON goldrush_photo_reviews(tenant_id, agent_id, status)',
     'CREATE INDEX IF NOT EXISTS idx_gr_reviews_tl ON goldrush_photo_reviews(tenant_id, team_lead_id, status)',
     'CREATE INDEX IF NOT EXISTS idx_gr_reviews_hash ON goldrush_photo_reviews(tenant_id, photo_hash)',
+    // The visit (capture page session) the attempts and the lock belong to.
+    'ALTER TABLE goldrush_photo_attempts ADD COLUMN capture_id TEXT',
+    'ALTER TABLE goldrush_photo_reviews ADD COLUMN capture_id TEXT',
+    'CREATE INDEX IF NOT EXISTS idx_gr_attempts_capture ON goldrush_photo_attempts(tenant_id, agent_id, capture_id, open)',
+    'CREATE INDEX IF NOT EXISTS idx_gr_reviews_capture ON goldrush_photo_reviews(tenant_id, agent_id, capture_id, status)',
+    // The visit an approved photo was finally submitted on; NULL = still unfinished.
+    'ALTER TABLE goldrush_photo_reviews ADD COLUMN visit_id TEXT',
+    // What the profile-circle read saw, on passes too, so a photo that got through can be checked.
+    'ALTER TABLE goldrush_photo_attempts ADD COLUMN avatar_letters TEXT',
+    'ALTER TABLE goldrush_photo_attempts ADD COLUMN profile_name TEXT',
   ];
   for (const s of stmts) {
-    try { await db.prepare(s).run(); } catch (e) { console.error('ensurePhotoAttemptTables:', e.message); }
+    try { await db.prepare(s).run(); } catch (e) { if (!/duplicate column/i.test(e.message)) console.error('ensurePhotoAttemptTables:', e.message); }
   }
   converged = true;
 }
+
+// A capture id is a client-made UUID; anything else is treated as no id (an older
+// capture page), which shares one bucket per agent.
+export const cleanCaptureId = v => (typeof v === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(v) ? v : null);
 
 // Same hash the capture page puts in visit_photos.photo_hash: SHA-256 of the data URL text.
 export async function hashDataUrl(dataUrl) {
@@ -74,26 +88,59 @@ export async function hashDataUrl(dataUrl) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// OCR reads a round "O" as zero and an "I" as one often enough to matter here.
+const circleLetters = v => String(v || '').toUpperCase().replace(/0/g, 'O').replace(/1/g, 'I').replace(/[^A-Z]/g, '');
+
 // A real Goldrush profile shows the first two letters of the first name in the circle
-// ("Collen Nkuta" → CO). Fakes built by hand tend to put the initials there (CN).
-// Only a circle that reads as the initials — and not as the first two letters — fails;
-// any other misread is left alone so an OCR slip never costs a genuine agent an attempt.
-export function avatarLettersCheck({ avatar, firstName, lastName }) {
-  const letters = String(avatar || '').replace(/[^A-Za-z]/g, '').toUpperCase();
-  const first = String(firstName || '').replace(/[^A-Za-z]/g, '').toUpperCase();
-  const last = String(lastName || '').replace(/[^A-Za-z]/g, '').toUpperCase();
-  if (letters.length !== 2 || first.length < 2 || !last) return null;
-  const expected = first.slice(0, 2);
-  const initials = first[0] + last[0];
-  if (letters === expected || letters !== initials) return null;
+// ("Collen Nkuta" → CO). Any other letters — the initials (CN) or anything else — mean
+// the screen was made by hand. Both the letters and the name under the circle must be
+// readable to judge; when either is not, the check cannot say anything and passes.
+export function avatarLettersCheck({ avatar, name }) {
+  const letters = circleLetters(avatar);
+  const words = String(name || '').trim().split(/\s+/).map(w => w.replace(/[^A-Za-z]/g, '').toUpperCase()).filter(Boolean);
+  if (!letters || !words.length || words[0].length < 2) return null;
+  const expected = words[0].slice(0, 2);
+  if (letters === expected) return null;
+  const initials = words.length > 1 ? words[0][0] + words[words.length - 1][0] : null;
   return {
     code: 'AVATAR_INITIALS',
-    detail: `Profile circle shows "${letters}" (initials of ${firstName} ${lastName}); a real Goldrush profile shows "${expected}"`,
+    detail: `Profile circle shows "${letters}"${letters === initials ? ' (the initials)' : ''}; for "${String(name).trim()}" a real Goldrush profile shows "${expected}"`,
   };
 }
 
+const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
+
+// A focused read of the profile header: the letters in the avatar circle and the name
+// printed under it. Run on its own because the general OCR pass is busy with the ID and
+// URL bar and often returns no name, which left the circle check with nothing to compare.
+// Returns nulls when the model is unavailable or cannot read them.
+export async function readProfileCircle(env, dataUrl) {
+  if (!env.AI) return { letters: null, name: null };
+  try {
+    const res = await env.AI.run(VISION_MODEL, {
+      messages: [
+        { role: 'system', content: 'You copy text from images exactly as printed. Reply with ONLY one JSON object, no prose.' },
+        { role: 'user', content: [
+          { type: 'text', text: 'This shows a Goldrush player profile page. Near the top there is a round avatar circle with letters inside it, and the player\'s full name printed directly below the circle. Copy (1) the letters inside the circle and (2) the full name below the circle, exactly as printed. Never work the letters out from the name — copy what is in the circle even if it looks wrong. Reply exactly as {"circle_letters":"XX","name":"First Last"}. Use null for anything not clearly readable.' },
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ] },
+      ],
+      max_tokens: 60,
+      temperature: 0,
+    });
+    const raw = res?.response ?? res?.result?.response ?? '';
+    const obj = typeof raw === 'object' && raw ? raw : (() => { const t = String(raw); const a = t.indexOf('{'), b = t.lastIndexOf('}'); try { return a >= 0 ? JSON.parse(t.slice(a, b + 1)) : {}; } catch { return {}; } })();
+    const letters = circleLetters(obj.circle_letters);
+    const name = typeof obj.name === 'string' && /^[A-Za-zÀ-ſ' -]{2,60}$/.test(obj.name.trim()) ? obj.name.trim() : null;
+    return { letters: letters && letters.length <= 3 ? letters : null, name };
+  } catch (e) {
+    console.error('readProfileCircle failed:', e.message || e);
+    return { letters: null, name: null };
+  }
+}
+
 // Failures that come from the photo itself rather than the fraud rule set.
-export async function photoChecks(db, { tenantId, hash, extractedId, blurry, aiRead, fileAgeMs, avatar, firstName, lastName }) {
+export async function photoChecks(db, { tenantId, hash, extractedId, blurry, aiRead, fileAgeMs, avatar, name }) {
   const out = [];
   if (Number.isFinite(fileAgeMs) && fileAgeMs > LIVE_CAPTURE_MAX_AGE_MS) {
     out.push({ code: 'NOT_LIVE_CAPTURE', detail: `Image file was ${Math.round(fileAgeMs / 60000)} min old when it was added — not taken with the live camera` });
@@ -106,23 +153,23 @@ export async function photoChecks(db, { tenantId, hash, extractedId, blurry, aiR
   if (extractedId && await goldrushIdExists(db, tenantId, extractedId)) {
     out.push({ code: 'DUPLICATE_ID', detail: `Goldrush ID ${extractedId} is already on another visit` });
   }
-  const avatarFlag = avatarLettersCheck({ avatar, firstName, lastName });
+  const avatarFlag = avatarLettersCheck({ avatar, name });
   if (avatarFlag) out.push(avatarFlag);
   return out;
 }
 
 const openSince = nowIso => new Date(Date.parse(nowIso) - OPEN_WINDOW_HOURS * 3600e3).toISOString();
 
-// Where the agent stands: failed attempts still open, cooldown left, and any pending review.
-export async function attemptState(db, { tenantId, agentId, nowIso = new Date().toISOString() }) {
+// Where this visit stands: failed attempts still open, retake delay left, and its pending review.
+export async function attemptState(db, { tenantId, agentId, captureId = null, nowIso = new Date().toISOString() }) {
   await ensurePhotoAttemptTables(db);
   const fails = await db.prepare(
-    "SELECT created_at FROM goldrush_photo_attempts WHERE tenant_id = ? AND agent_id = ? AND open = 1 AND outcome = 'fail' AND created_at >= ? ORDER BY created_at DESC"
-  ).bind(tenantId, agentId, openSince(nowIso)).all();
+    "SELECT created_at FROM goldrush_photo_attempts WHERE tenant_id = ? AND agent_id = ? AND capture_id IS ? AND open = 1 AND outcome = 'fail' AND created_at >= ? ORDER BY created_at DESC"
+  ).bind(tenantId, agentId, captureId, openSince(nowIso)).all();
   const rows = fails.results || [];
   const pending = await db.prepare(
-    "SELECT id, photo_hash, created_at FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
-  ).bind(tenantId, agentId).first();
+    "SELECT id, photo_hash, created_at FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND capture_id IS ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
+  ).bind(tenantId, agentId, captureId).first();
   const lastFailAt = rows[0]?.created_at || null;
   const retryAfter = lastFailAt
     ? Math.max(0, Math.ceil(RETRY_DELAY_SECONDS - (Date.parse(nowIso) - Date.parse(lastFailAt)) / 1000))
@@ -135,12 +182,13 @@ export function lockedVerification(pending) {
   return { verified: false, locked: true, attempt: MAX_ATTEMPTS, attempts_left: 0, retry_after: 0, message: LOCKED_MESSAGE, review_id: pending?.id || null };
 }
 
-// A decided review for this exact photo by this agent (latest wins).
+// A decided review for this exact photo by this agent (latest wins). An approved photo
+// that has since been submitted on a visit no longer counts as approved.
 export async function reviewForPhoto(db, { tenantId, agentId, hash }) {
   if (!hash) return null;
   await ensurePhotoAttemptTables(db);
   return db.prepare(
-    "SELECT id, status, goldrush_id, first_name, last_name FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND photo_hash = ? AND status != 'pending' ORDER BY reviewed_at DESC LIMIT 1"
+    "SELECT id, status, goldrush_id, first_name, last_name FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND photo_hash = ? AND status != 'pending' AND visit_id IS NULL ORDER BY reviewed_at DESC LIMIT 1"
   ).bind(tenantId, agentId, hash).first();
 }
 
@@ -153,13 +201,25 @@ export async function lastOutcomeForPhoto(db, { tenantId, agentId, hash }) {
   return row?.outcome || null;
 }
 
-// A passing photo: log it and close the agent's open attempts.
-export async function recordPass(db, { tenantId, agentId, companyId = null, hash, stage = 'precheck', extractedId = null, firstName = null, lastName = null, nowIso = new Date().toISOString() }) {
+// A passing photo: log it and close the visit's open attempts.
+export async function recordPass(db, { tenantId, agentId, captureId = null, companyId = null, hash, stage = 'precheck', extractedId = null, firstName = null, lastName = null, avatarLetters = null, profileName = null, nowIso = new Date().toISOString() }) {
   await ensurePhotoAttemptTables(db);
-  await db.prepare("UPDATE goldrush_photo_attempts SET open = 0 WHERE tenant_id = ? AND agent_id = ? AND open = 1").bind(tenantId, agentId).run();
+  await db.prepare("UPDATE goldrush_photo_attempts SET open = 0 WHERE tenant_id = ? AND agent_id = ? AND capture_id IS ? AND open = 1").bind(tenantId, agentId, captureId).run();
   await db.prepare(
-    "INSERT INTO goldrush_photo_attempts (id, tenant_id, agent_id, company_id, photo_hash, outcome, stage, extracted_id, first_name, last_name, open, created_at) VALUES (?,?,?,?,?,'pass',?,?,?,?,0,?)"
-  ).bind(crypto.randomUUID(), tenantId, agentId, companyId, hash, stage, extractedId, firstName, lastName, nowIso).run();
+    "INSERT INTO goldrush_photo_attempts (id, tenant_id, agent_id, capture_id, company_id, photo_hash, outcome, stage, extracted_id, first_name, last_name, avatar_letters, profile_name, open, created_at) VALUES (?,?,?,?,?,?,'pass',?,?,?,?,?,?,0,?)"
+  ).bind(crypto.randomUUID(), tenantId, agentId, captureId, companyId, hash, stage, extractedId, firstName, lastName, avatarLetters, profileName, nowIso).run();
+}
+
+// The stored attempt photo back as the data URL it was uploaded as, so a visit
+// resumed after approval submits the very photo that was approved.
+export async function loadAttemptPhoto(env, photoKey) {
+  if (!photoKey || !env.UPLOADS) return null;
+  const obj = await env.UPLOADS.get(photoKey);
+  if (!obj) return null;
+  const bytes = new Uint8Array(await obj.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return `data:${obj.httpMetadata?.contentType || 'image/jpeg'};base64,${btoa(bin)}`;
 }
 
 async function storeAttemptPhoto(env, tenantId, attemptId, dataUrl) {
@@ -184,17 +244,17 @@ async function userName(db, id) {
 }
 
 // A failed photo: store it with the real reasons, count the attempt and, on the third,
-// open the review that locks the agent. Returns what the agent's screen shows.
-export async function recordFail(env, { tenantId, agentId, companyId = null, hash, dataUrl, stage = 'precheck', reasons, extractedId = null, firstName = null, lastName = null, nowIso = new Date().toISOString() }) {
+// open the review that locks this visit. Returns what the agent's screen shows.
+export async function recordFail(env, { tenantId, agentId, captureId = null, companyId = null, hash, dataUrl, stage = 'precheck', reasons, extractedId = null, firstName = null, lastName = null, avatarLetters = null, profileName = null, nowIso = new Date().toISOString() }) {
   const db = env.DB;
-  const state = await attemptState(db, { tenantId, agentId, nowIso });
+  const state = await attemptState(db, { tenantId, agentId, captureId, nowIso });
   if (state.pending) return lockedVerification(state.pending);
   const id = crypto.randomUUID();
   const photoKey = await storeAttemptPhoto(env, tenantId, id, dataUrl);
   await db.prepare(
-    "INSERT INTO goldrush_photo_attempts (id, tenant_id, agent_id, company_id, photo_hash, outcome, stage, reasons, detail, extracted_id, first_name, last_name, photo_key, open, created_at) VALUES (?,?,?,?,?,'fail',?,?,?,?,?,?,?,1,?)"
-  ).bind(id, tenantId, agentId, companyId, hash, stage, JSON.stringify(reasons.map(r => r.code)),
-    reasons.map(r => r.detail).join(' | ') || null, extractedId, firstName, lastName, photoKey, nowIso).run();
+    "INSERT INTO goldrush_photo_attempts (id, tenant_id, agent_id, capture_id, company_id, photo_hash, outcome, stage, reasons, detail, extracted_id, first_name, last_name, avatar_letters, profile_name, photo_key, open, created_at) VALUES (?,?,?,?,?,?,'fail',?,?,?,?,?,?,?,?,?,1,?)"
+  ).bind(id, tenantId, agentId, captureId, companyId, hash, stage, JSON.stringify(reasons.map(r => r.code)),
+    reasons.map(r => r.detail).join(' | ') || null, extractedId, firstName, lastName, avatarLetters, profileName, photoKey, nowIso).run();
   const attempt = state.used + 1;
   if (attempt < MAX_ATTEMPTS) {
     return { verified: false, locked: false, attempt, attempts_left: MAX_ATTEMPTS - attempt, retry_after: RETRY_DELAY_SECONDS, message: ATTEMPT_MESSAGES[attempt - 1] };
@@ -203,28 +263,28 @@ export async function recordFail(env, { tenantId, agentId, companyId = null, has
   const agent = await userName(db, agentId);
   const tl = await userName(db, agent.teamLeadId);
   await db.prepare(
-    "INSERT INTO goldrush_photo_reviews (id, tenant_id, agent_id, agent_name, team_lead_id, team_lead_name, company_id, status, photo_hash, photo_key, goldrush_id, first_name, last_name, created_at) VALUES (?,?,?,?,?,?,?,'pending',?,?,?,?,?,?)"
-  ).bind(reviewId, tenantId, agentId, agent.name, agent.teamLeadId, tl.name, companyId, hash, photoKey, extractedId, firstName, lastName, nowIso).run();
+    "INSERT INTO goldrush_photo_reviews (id, tenant_id, agent_id, capture_id, agent_name, team_lead_id, team_lead_name, company_id, status, photo_hash, photo_key, goldrush_id, first_name, last_name, created_at) VALUES (?,?,?,?,?,?,?,?,'pending',?,?,?,?,?,?)"
+  ).bind(reviewId, tenantId, agentId, captureId, agent.name, agent.teamLeadId, tl.name, companyId, hash, photoKey, extractedId, firstName, lastName, nowIso).run();
   await db.prepare(
-    "UPDATE goldrush_photo_attempts SET open = 0, review_id = ? WHERE tenant_id = ? AND agent_id = ? AND open = 1 AND outcome = 'fail' AND created_at >= ?"
-  ).bind(reviewId, tenantId, agentId, openSince(nowIso)).run();
+    "UPDATE goldrush_photo_attempts SET open = 0, review_id = ? WHERE tenant_id = ? AND agent_id = ? AND capture_id IS ? AND open = 1 AND outcome = 'fail' AND created_at >= ?"
+  ).bind(reviewId, tenantId, agentId, captureId, openSince(nowIso)).run();
   return lockedVerification({ id: reviewId });
 }
 
 // Gate for /visits/workflow: the photo being submitted must not bypass the attempts.
 // Returns { approved } for a photo cleared on review, { verification } to reject the
 // submit, or {} to carry on with the normal checks.
-export async function submitGate(env, { tenantId, agentId, companyId = null, dataUrl, nowIso }) {
+export async function submitGate(env, { tenantId, agentId, captureId = null, companyId = null, dataUrl, nowIso }) {
   const db = env.DB;
   const hash = await hashDataUrl(dataUrl);
   const review = await reviewForPhoto(db, { tenantId, agentId, hash });
   if (review?.status === 'approved') return { hash, approved: review };
-  const state = await attemptState(db, { tenantId, agentId, nowIso });
+  const state = await attemptState(db, { tenantId, agentId, captureId, nowIso });
   if (state.pending) return { hash, verification: lockedVerification(state.pending) };
   const code = review?.status === 'rejected' ? 'REJECTED_PHOTO'
     : (await lastOutcomeForPhoto(db, { tenantId, agentId, hash })) === 'fail' ? 'FAILED_PHOTO_SUBMITTED' : null;
   if (code) {
-    const verification = await recordFail(env, { tenantId, agentId, companyId, hash, dataUrl, stage: 'submit', reasons: [{ code, detail: REASON_LABELS[code] }], nowIso });
+    const verification = await recordFail(env, { tenantId, agentId, captureId, companyId, hash, dataUrl, stage: 'submit', reasons: [{ code, detail: REASON_LABELS[code] }], nowIso });
     return { hash, verification };
   }
   return { hash };

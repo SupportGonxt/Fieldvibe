@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { makeD1 } from './helpers/d1sqlite.js';
 import {
   avatarLettersCheck, photoChecks, attemptState, recordFail, recordPass, submitGate, hashDataUrl,
+  loadAttemptPhoto, reviewForPhoto,
   ATTEMPT_MESSAGES, LOCKED_MESSAGE, RETRY_DELAY_SECONDS, LIVE_CAPTURE_MAX_AGE_MS,
 } from '../../src/services/goldrushPhotoAttempts.js';
 
@@ -13,33 +14,48 @@ const db = makeD1(`
   INSERT INTO users VALUES ('tl1', 'Thandi', 'Lead', NULL);
 `);
 const puts = [];
-const env = { DB: db, UPLOADS: { put: async (key) => { puts.push(key); } } };
+const store = new Map();
+const env = {
+  DB: db,
+  UPLOADS: {
+    put: async (key, bytes, opts) => { puts.push(key); store.set(key, { bytes, contentType: opts?.httpMetadata?.contentType }); },
+    get: async (key) => {
+      const o = store.get(key);
+      return o ? { arrayBuffer: async () => o.bytes.buffer.slice(o.bytes.byteOffset, o.bytes.byteOffset + o.bytes.byteLength), httpMetadata: { contentType: o.contentType } } : null;
+    },
+  },
+};
 const PHOTO = 'data:image/jpeg;base64,/9j/AAAA';
 const at = (base, s) => new Date(Date.parse(base) + s * 1000).toISOString();
-const fail = (agentId, nowIso, dataUrl = PHOTO) => recordFail(env, {
-  tenantId: 't1', agentId, hash: `h-${agentId}-${nowIso}`, dataUrl, nowIso,
+const fail = (agentId, nowIso, captureId = 'cap-1', dataUrl = PHOTO) => recordFail(env, {
+  tenantId: 't1', agentId, captureId, hash: `h-${agentId}-${nowIso}`, dataUrl, nowIso,
   reasons: [{ code: 'AI_FLAG', detail: 'AI check: green page' }],
 });
 
 describe('avatarLettersCheck', () => {
   it('passes the first two letters of the first name', () => {
-    expect(avatarLettersCheck({ avatar: 'CO', firstName: 'Collen', lastName: 'Nkuta' })).toBeNull();
+    expect(avatarLettersCheck({ avatar: 'CO', name: 'Collen Nkuta' })).toBeNull();
+    expect(avatarLettersCheck({ avatar: 'co', name: 'collen nkuta' })).toBeNull();
+  });
+  it('reads a zero in the circle as the letter O', () => {
+    expect(avatarLettersCheck({ avatar: 'C0', name: 'Collen Nkuta' })).toBeNull();
   });
   it('flags initials in the circle', () => {
-    const f = avatarLettersCheck({ avatar: 'CN', firstName: 'Collen', lastName: 'Nkuta' });
+    const f = avatarLettersCheck({ avatar: 'CN', name: 'Collen Nkuta' });
     expect(f.code).toBe('AVATAR_INITIALS');
+    expect(f.detail).toContain('(the initials)');
     expect(f.detail).toContain('"CO"');
   });
-  it('ignores case and stray characters', () => {
-    expect(avatarLettersCheck({ avatar: ' c.n ', firstName: 'collen', lastName: 'nkuta' })?.code).toBe('AVATAR_INITIALS');
+  it('flags any other wrong letters', () => {
+    expect(avatarLettersCheck({ avatar: 'XQ', name: 'Collen Nkuta' })?.code).toBe('AVATAR_INITIALS');
+    expect(avatarLettersCheck({ avatar: 'C', name: 'Collen Nkuta' })?.code).toBe('AVATAR_INITIALS');
   });
   it('leaves a name whose first two letters are its initials alone', () => {
-    expect(avatarLettersCheck({ avatar: 'SA', firstName: 'Sam', lastName: 'Akeyo' })).toBeNull();
+    expect(avatarLettersCheck({ avatar: 'SA', name: 'Sam Akeyo' })).toBeNull();
   });
-  it('does not fail an unreadable or unrelated read', () => {
-    expect(avatarLettersCheck({ avatar: 'XQ', firstName: 'Collen', lastName: 'Nkuta' })).toBeNull();
-    expect(avatarLettersCheck({ avatar: null, firstName: 'Collen', lastName: 'Nkuta' })).toBeNull();
-    expect(avatarLettersCheck({ avatar: 'CN', firstName: 'Collen', lastName: null })).toBeNull();
+  it('cannot judge without both the letters and the name', () => {
+    expect(avatarLettersCheck({ avatar: null, name: 'Collen Nkuta' })).toBeNull();
+    expect(avatarLettersCheck({ avatar: 'CN', name: null })).toBeNull();
   });
 });
 
@@ -76,6 +92,9 @@ describe('attempts', () => {
     expect(linked.n).toBe(3);
     // Locked: another failure is not counted and the message stays the lock message.
     expect(await fail('a1', at(t0, 200))).toMatchObject({ locked: true, message: LOCKED_MESSAGE });
+    // Only that visit is locked: another visit starts with fresh attempts.
+    expect(await attemptState(db, { tenantId: 't1', agentId: 'a1', captureId: 'cap-2', nowIso: at(t0, 200) })).toMatchObject({ attemptsLeft: 3, retryAfter: 0, pending: null });
+    expect(await fail('a1', at(t0, 210), 'cap-2')).toMatchObject({ locked: false, attempt: 1, message: ATTEMPT_MESSAGES[0] });
     expect(puts.filter(k => k.startsWith('goldrush-attempts/t1/')).length).toBeGreaterThanOrEqual(3);
   });
 
@@ -85,20 +104,20 @@ describe('attempts', () => {
 
   it('enforces the delay between attempts', async () => {
     await fail('a2', t0);
-    expect((await attemptState(db, { tenantId: 't1', agentId: 'a2', nowIso: at(t0, 10) })).retryAfter).toBe(RETRY_DELAY_SECONDS - 10);
-    expect((await attemptState(db, { tenantId: 't1', agentId: 'a2', nowIso: at(t0, RETRY_DELAY_SECONDS) })).retryAfter).toBe(0);
+    expect((await attemptState(db, { tenantId: 't1', agentId: 'a2', captureId: 'cap-1', nowIso: at(t0, 10) })).retryAfter).toBe(RETRY_DELAY_SECONDS - 10);
+    expect((await attemptState(db, { tenantId: 't1', agentId: 'a2', captureId: 'cap-1', nowIso: at(t0, RETRY_DELAY_SECONDS) })).retryAfter).toBe(0);
   });
 
   it('a passing photo closes the open attempts', async () => {
     await fail('a3', t0);
     await fail('a3', at(t0, 40));
-    await recordPass(db, { tenantId: 't1', agentId: 'a3', hash: 'good', nowIso: at(t0, 80) });
-    expect((await attemptState(db, { tenantId: 't1', agentId: 'a3', nowIso: at(t0, 120) })).attemptsLeft).toBe(3);
+    await recordPass(db, { tenantId: 't1', agentId: 'a3', captureId: 'cap-1', hash: 'good', nowIso: at(t0, 80) });
+    expect((await attemptState(db, { tenantId: 't1', agentId: 'a3', captureId: 'cap-1', nowIso: at(t0, 120) })).attemptsLeft).toBe(3);
   });
 
   it('old failures stop counting after the open window', async () => {
     await fail('a4', t0);
-    expect((await attemptState(db, { tenantId: 't1', agentId: 'a4', nowIso: at(t0, 13 * 3600) })).attemptsLeft).toBe(3);
+    expect((await attemptState(db, { tenantId: 't1', agentId: 'a4', captureId: 'cap-1', nowIso: at(t0, 13 * 3600) })).attemptsLeft).toBe(3);
   });
 });
 
@@ -108,8 +127,8 @@ describe('submitGate', () => {
   it('rejects a photo that already failed, as a new attempt', async () => {
     const dataUrl = 'data:image/jpeg;base64,/9j/BBBB';
     const hash = await hashDataUrl(dataUrl);
-    await recordFail(env, { tenantId: 't1', agentId: 'b1', hash, dataUrl, nowIso: t0, reasons: [{ code: 'NO_ID', detail: 'x' }] });
-    const gate = await submitGate(env, { tenantId: 't1', agentId: 'b1', dataUrl, nowIso: at(t0, 60) });
+    await recordFail(env, { tenantId: 't1', agentId: 'b1', captureId: 'cap-1', hash, dataUrl, nowIso: t0, reasons: [{ code: 'NO_ID', detail: 'x' }] });
+    const gate = await submitGate(env, { tenantId: 't1', agentId: 'b1', captureId: 'cap-1', dataUrl, nowIso: at(t0, 60) });
     expect(gate.verification).toMatchObject({ attempt: 2, message: ATTEMPT_MESSAGES[1] });
   });
 
@@ -118,10 +137,10 @@ describe('submitGate', () => {
     const hash = await hashDataUrl(dataUrl);
     await fail('b2', t0);
     await fail('b2', at(t0, 40));
-    await recordFail(env, { tenantId: 't1', agentId: 'b2', hash, dataUrl, nowIso: at(t0, 80), reasons: [{ code: 'AI_FLAG', detail: 'x' }] });
-    expect((await submitGate(env, { tenantId: 't1', agentId: 'b2', dataUrl, nowIso: at(t0, 100) })).verification).toMatchObject({ locked: true });
+    await recordFail(env, { tenantId: 't1', agentId: 'b2', captureId: 'cap-1', hash, dataUrl, nowIso: at(t0, 80), reasons: [{ code: 'AI_FLAG', detail: 'x' }] });
+    expect((await submitGate(env, { tenantId: 't1', agentId: 'b2', captureId: 'cap-1', dataUrl, nowIso: at(t0, 100) })).verification).toMatchObject({ locked: true });
     await db.prepare("UPDATE goldrush_photo_reviews SET status = 'approved', reviewed_at = ?, goldrush_id = '123456789' WHERE agent_id = 'b2'").bind(at(t0, 200)).run();
-    const gate = await submitGate(env, { tenantId: 't1', agentId: 'b2', dataUrl, nowIso: at(t0, 300) });
+    const gate = await submitGate(env, { tenantId: 't1', agentId: 'b2', captureId: 'cap-1', dataUrl, nowIso: at(t0, 300) });
     expect(gate.approved).toMatchObject({ status: 'approved', goldrush_id: '123456789' });
     expect(gate.verification).toBeUndefined();
   });
@@ -129,5 +148,25 @@ describe('submitGate', () => {
   it('lets an unseen photo carry on to the normal checks', async () => {
     const gate = await submitGate(env, { tenantId: 't1', agentId: 'b3', dataUrl: 'data:image/jpeg;base64,/9j/DDDD', nowIso: t0 });
     expect(gate).toEqual({ hash: await hashDataUrl('data:image/jpeg;base64,/9j/DDDD') });
+  });
+});
+
+describe('resuming an approved visit', () => {
+  const t0 = '2026-10-26T10:00:00.000Z';
+
+  it('hands back the exact photo that was approved, until it is used on a visit', async () => {
+    const dataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U';
+    const hash = await hashDataUrl(dataUrl);
+    await fail('c1', t0, 'cap-r');
+    await fail('c1', at(t0, 40), 'cap-r');
+    await recordFail(env, { tenantId: 't1', agentId: 'c1', captureId: 'cap-r', hash, dataUrl, nowIso: at(t0, 80), reasons: [{ code: 'NO_ID', detail: 'x' }] });
+    const review = await db.prepare("SELECT * FROM goldrush_photo_reviews WHERE agent_id = 'c1'").first();
+    expect(review.capture_id).toBe('cap-r');
+    expect(await loadAttemptPhoto(env, review.photo_key)).toBe(dataUrl);
+
+    await db.prepare("UPDATE goldrush_photo_reviews SET status = 'approved', reviewed_at = ? WHERE id = ?").bind(at(t0, 200), review.id).run();
+    expect(await reviewForPhoto(db, { tenantId: 't1', agentId: 'c1', hash })).toMatchObject({ status: 'approved' });
+    await db.prepare("UPDATE goldrush_photo_reviews SET visit_id = 'v-done' WHERE id = ?").bind(review.id).run();
+    expect(await reviewForPhoto(db, { tenantId: 't1', agentId: 'c1', hash })).toBeNull();
   });
 });

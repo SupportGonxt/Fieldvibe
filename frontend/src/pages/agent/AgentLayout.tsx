@@ -7,6 +7,7 @@ import FirstLoginTour from './FirstLoginTour'
 import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat'
 import PresenceConsentNotice from '../../components/PresenceConsentNotice'
 import PageErrorBoundary from '../../components/ui/PageErrorBoundary'
+import { ApprovedVisitPrompt } from '../../components/agent/UnfinishedGoldrushVisits'
 
 // Incoming-call ring (push subscribe + SW messages + poll fallback) is global
 // now — IncomingCallRinger, mounted in App — so it also reaches BO/desktop
@@ -124,6 +125,8 @@ export default function AgentLayout() {
     <div className="min-h-screen bg-bg flex flex-col">
       <FirstLoginTour />
       <PresenceConsentNotice role={user?.role} />
+      {/* A Goldrush visit whose photo Back Office approved: offer to continue it */}
+      <ApprovedVisitPrompt />
 
       {/* Sub-page header with back button */}
       {onSubPage && (

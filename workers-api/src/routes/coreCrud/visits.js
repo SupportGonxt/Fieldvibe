@@ -9,7 +9,7 @@ import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../servi
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 import { resolveVisitTimes } from '../../services/visitTiming.js';
 import { checkGoldrushPhoto, persistGoldrushCheck, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
-import { submitGate, recordFail } from '../../services/goldrushPhotoAttempts.js';
+import { submitGate, recordFail, cleanCaptureId } from '../../services/goldrushPhotoAttempts.js';
 
 const app = new Hono();
 
@@ -784,7 +784,7 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
 
     // Goldrush photo attempts and screenshot fraud rules (AI check). Runs after every
     // up-front rejection so only captures that would be saved are analysed. Nothing is
-    // written for a rejected photo: an agent locked for review, a photo that already
+    // written for a rejected photo: a visit locked for review, a photo that already
     // failed verification, or a definite fake (counted as one of the agent's attempts)
     // gets the same agent-facing message as the Photo step, never the reason.
     const goldrushPhoto = Array.isArray(body.photos)
@@ -792,7 +792,8 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       : null;
     const goldrushDataUrl = goldrushPhoto ? goldrushPhoto.photo_url || goldrushPhoto.r2_url : null;
     const goldrushCompanyId = body.company_id || body.companyId || null;
-    const gate = goldrushPhoto ? await submitGate(c.env, { tenantId, agentId: userId, companyId: goldrushCompanyId, dataUrl: goldrushDataUrl, nowIso: now }) : {};
+    const goldrushCaptureId = cleanCaptureId(body.goldrush_capture_id);
+    const gate = goldrushPhoto ? await submitGate(c.env, { tenantId, agentId: userId, captureId: goldrushCaptureId, companyId: goldrushCompanyId, dataUrl: goldrushDataUrl, nowIso: now }) : {};
     if (gate.verification) return c.json({ error: gate.verification.message, verification: gate.verification }, 422);
     // A photo cleared on review is not re-judged by the rules it already failed.
     const goldrushCheck = goldrushPhoto && !gate.approved
@@ -805,7 +806,7 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
         goldrushId: incomingGoldrush || null, nowIso: now, check: goldrushCheck, stage: 'blocked',
       });
       const verification = await recordFail(c.env, {
-        tenantId, agentId: userId, companyId: goldrushCompanyId, hash: gate.hash, dataUrl: goldrushDataUrl, stage: 'submit', nowIso: now,
+        tenantId, agentId: userId, captureId: goldrushCaptureId, companyId: goldrushCompanyId, hash: gate.hash, dataUrl: goldrushDataUrl, stage: 'submit', nowIso: now,
         reasons: [{ code: 'AI_FLAG', detail: `${FAKE_CAPTURE_REASON}: ${goldrushCheck.flags.filter(f => f.level === 'definite').map(f => f.detail).join('; ')}` }],
         extractedId: incomingGoldrush || null, firstName: body.individual_first_name || null, lastName: body.individual_last_name || null,
       });
@@ -1116,6 +1117,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
 
     // Log validation failures now that we have the visit_id (excluded from individual reports)
     if (logGoldrushFailure) await logGoldrushFailure(visitId);
+
+    // An approved photo is now on a saved visit: that unfinished visit is done.
+    if (gate.approved) {
+      await db.prepare('UPDATE goldrush_photo_reviews SET visit_id = ? WHERE id = ?').bind(visitId, gate.approved.id).run();
+    }
 
     if (goldrushCheck) {
       await persistGoldrushCheck(c.env, {
