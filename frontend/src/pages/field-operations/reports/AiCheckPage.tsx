@@ -67,6 +67,7 @@ const FLAG_LABELS: Record<string, string> = {
   PLACEHOLDER_TEXT: 'Placeholder text in name',
   FONT_MISMATCH: 'Font does not match golden (3+ checks)',
   THEME_COLOUR: 'Navy/black page + font deviation',
+  CARD_COLOUR: 'ID card not Goldrush mustard yellow',
   GLYPH_ARTIFACT: 'AI glyph artifact in name',
   FONT_DEVIATION: 'Font deviation (2 checks)',
   ID_MISMATCH: 'Screenshot ID differs from typed ID',

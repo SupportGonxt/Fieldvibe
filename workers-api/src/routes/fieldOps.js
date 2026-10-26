@@ -2391,7 +2391,12 @@ Output JSON only.`;
       const check = await checkGoldrushPhoto(c.env, { tenantId, dataUrl: photo_data, typedId: extractedId, extractedId, nowIso });
       if (check.isFake) {
         await recordFlag(c.env.DB, { tenantId, agentId, visitDate: nowIso.slice(0, 10), goldrushId: extractedId, stage: 'precheck', check });
-        reasons.push({ code: 'AI_FLAG', detail: `AI check: ${check.flags.filter(f => f.level === 'definite').map(f => f.detail).join('; ')}` });
+        // The card colour gets its own reason on the review screens; the rest are the AI check.
+        const definite = check.flags.filter(f => f.level === 'definite');
+        const colour = definite.find(f => f.code === 'CARD_COLOUR');
+        const other = definite.filter(f => f.code !== 'CARD_COLOUR');
+        if (colour) reasons.push({ code: 'CARD_COLOUR', detail: colour.detail });
+        if (other.length) reasons.push({ code: 'AI_FLAG', detail: `AI check: ${other.map(f => f.detail).join('; ')}` });
       }
     } catch (fraudErr) { console.error('Goldrush fraud pre-check failed:', fraudErr); }
     // The focused profile-header read wins; the general pass is the fallback.

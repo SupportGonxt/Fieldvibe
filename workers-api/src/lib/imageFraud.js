@@ -12,6 +12,7 @@
 //                                check-ins on different days / >15 min apart
 //             GREEN_THEME        green page — Goldrush has no green theme
 //             FUTURE_ID          the ID shown in the photo had not been issued yet
+//             CARD_COLOUR        the ID card is not Goldrush mustard yellow
 //   likely    FONT_MISMATCH      3+ of 5 typography checks fail vs golden
 //             THEME_COLOUR       navy/teal-black or black page plus 2 typography fails
 //   review    FONT_DEVIATION     2 typography fails
@@ -23,7 +24,15 @@ import { Buffer as NodeBuffer } from 'node:buffer';
 // only exposes as a node:buffer import under this compatibility date.
 if (typeof globalThis.Buffer === 'undefined') globalThis.Buffer = NodeBuffer;
 
-export const RULESET_VERSION = '2026-10-06.1';
+export const RULESET_VERSION = '2026-10-26.1';
+
+// Goldrush mustard (#FFB500) is hue ~42.6°. Measured on real check-ins (screenshots and a
+// live camera photo of a phone screen): 41.4°–47.1°, saturation 0.76–0.99. The window
+// leaves room for camera white balance while failing gold/lemon (#FFD700 = 50.6°) and
+// orange (#FF8C00 = 32.9°) cards, and washed-out pale ones.
+export const CARD_HUE_MIN = 37;
+export const CARD_HUE_MAX = 50;
+export const CARD_SAT_MIN = 0.55;
 
 export const FAKE_MESSAGE = 'This image has been detected as fake and fraudulent. You have been flagged.';
 
@@ -329,9 +338,31 @@ export function typographyIndicators(t, th = THRESHOLDS) {
   return ind;
 }
 
+export function hsv([r, g, b]) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) h = mx === r ? 60 * (((g - b) / d) % 6) : mx === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+  return { h: (h + 360) % 360, s: mx ? d / mx : 0, v: mx / 255 };
+}
+
+// Median colour of the ID card (the accent pixels in its rows).
+function cardColour(img, lay) {
+  if (!lay) return null;
+  const { width: W, data } = img;
+  const px = [];
+  for (let y = lay.cardTop; y < lay.cardBot; y++) for (let x = 0; x < W; x += 2) {
+    const i = (y * W + x) * 4;
+    if (isAccent(data[i], data[i + 1], data[i + 2])) px.push([data[i], data[i + 1], data[i + 2]]);
+  }
+  if (px.length < 20) return null;
+  const rgb = median3(px);
+  return { rgb, ...hsv(rgb) };
+}
+
 // Everything that can be said about one image on its own.
 export function analyzeImage(img) {
   const lay = findLayout(img);
+  const card = cardColour(img, lay);
   const t = typography(img, lay);
   const fp = statusBarFingerprint(img);
   // background beside the first balance card (fallback: 45% down the page)
@@ -345,7 +376,7 @@ export function analyzeImage(img) {
     bg, bgClass: bgClass(bg), dominant: dom,
     green: bgClass(bg) === 'green' || (dom[1] - dom[0] > 20 && dom[1] >= dom[2]),
     typography: t, indicators: typographyIndicators(t),
-    layoutFound: !!lay,
+    layoutFound: !!lay, card,
   };
 }
 
@@ -365,6 +396,11 @@ export function evaluate({ analysis, statusMatches = [], now = new Date().toISOS
   const flags = [];
   const a = analysis;
   if (a && a.green) flags.push({ code: 'GREEN_THEME', level: 'definite', detail: 'Page background is green; Goldrush has no green theme' });
+  if (a && a.card && (a.card.h < CARD_HUE_MIN || a.card.h > CARD_HUE_MAX || a.card.s < CARD_SAT_MIN)) {
+    const [r, g, b] = a.card.rgb;
+    const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+    flags.push({ code: 'CARD_COLOUR', level: 'definite', detail: `ID card colour ${hex} (hue ${a.card.h.toFixed(0)}°, saturation ${a.card.s.toFixed(2)}) is not Goldrush mustard yellow #FFB500` });
+  }
   if (a && a.fullScreen && a.statusBarLike !== false && a.fpContrast >= 40 && statusMatches.length >= 2) {
     const dates = new Set([now.slice(0, 10), ...statusMatches.map(m => (m.visit_date || m.captured_at || '').slice(0, 10))]);
     const mins = [now, ...statusMatches.map(m => m.captured_at)].filter(Boolean).map(t => Date.parse(t)).filter(Number.isFinite);

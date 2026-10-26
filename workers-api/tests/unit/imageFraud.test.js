@@ -8,14 +8,29 @@ import {
 import { worstVerdict, visitVerdict, tally } from '../../src/routes/field-ops/aiCheck.js';
 
 // Synthetic Goldrush-like page: page colour, a yellow ID card, status-bar "clock" block.
-function page({ W = 360, H = 800, bg = [65, 65, 65], clockX = 20 } = {}) {
+function page({ W = 360, H = 800, bg = [65, 65, 65], clockX = 20, card = [255, 181, 0] } = {}) {
   const data = new Uint8Array(W * H * 4);
   for (let i = 0; i < W * H; i++) { data[i * 4] = bg[0]; data[i * 4 + 1] = bg[1]; data[i * 4 + 2] = bg[2]; data[i * 4 + 3] = 255; }
   const fill = (x0, y0, x1, y1, c) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * W + x) * 4; data[i] = c[0]; data[i + 1] = c[1]; data[i + 2] = c[2]; } };
   fill(clockX, 6, clockX + 30, 18, [230, 230, 230]);      // status bar clock
-  fill(20, 130, W - 20, 190, [255, 181, 0]);             // ID card
+  fill(20, 130, W - 20, 190, card);             // ID card
   return { width: W, height: H, data };
 }
+
+describe('ID card colour', () => {
+  const codes = card => evaluate({ analysis: analyzeImage(page({ card })) }).flags.map(f => f.code);
+  it('passes Goldrush mustard, including a camera-shifted shade', () => {
+    expect(codes([255, 181, 0])).not.toContain('CARD_COLOUR');
+    expect(codes([229, 168, 18])).not.toContain('CARD_COLOUR');
+  });
+  it('flags gold, orange and washed-out cards as definite fakes', () => {
+    for (const c of [[255, 215, 0], [255, 140, 0], [240, 200, 120]]) {
+      const ev = evaluate({ analysis: analyzeImage(page({ card: c })) });
+      expect(ev.flags.map(f => f.code)).toContain('CARD_COLOUR');
+      expect(ev.isFake).toBe(true);
+    }
+  });
+});
 
 describe('background classes', () => {
   it('recognises the golden grey, green and navy pages', () => {
