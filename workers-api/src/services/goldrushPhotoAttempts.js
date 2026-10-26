@@ -15,7 +15,7 @@ import { isPhotoHashDuplicate } from '../lib/photoAi.js';
 
 export const MAX_ATTEMPTS = 3;
 // Short pause between attempts so a retake is a deliberate new photo, not a burst.
-export const RETRY_DELAY_SECONDS = 30;
+export const RETRY_DELAY_SECONDS = 10;
 // Failed attempts older than this no longer count toward a lock.
 const OPEN_WINDOW_HOURS = 12;
 // A camera capture hands the page a file created moments ago; a gallery pick is older.
