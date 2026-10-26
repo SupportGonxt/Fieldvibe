@@ -131,8 +131,8 @@ export default function StoreInsights() {
   const [data, setData] = useState<StoreInsightsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [insStartDate, setInsStartDate] = useState('')
-  const [insEndDate, setInsEndDate] = useState('')
+  const [insStartDate, setInsStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01')
+  const [insEndDate, setInsEndDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [pdfWorking, setPdfWorking] = useState(false)
   const visitsRef = useRef<HTMLDivElement>(null)
   const sovRef = useRef<HTMLDivElement>(null)
@@ -314,8 +314,8 @@ export default function StoreInsights() {
   ] : [], [data])
 
   // ── Detail state ──
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01')
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [search, setSearch] = useState('')
   const [exporting, setExporting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -439,7 +439,7 @@ export default function StoreInsights() {
       const res = await apiClient.get(`/field-ops/reports/goldrush-stores${dateParams}${companyParam}`)
       return { rows: (res.data?.data || []) as GoldrushStore[], truncated: !!res.data?.truncated }
     },
-    enabled: !isStellr,
+    enabled: !isStellr && activeTab === 'detail',
     staleTime: 1000 * 60 * 5,
   })
   const stores = storesResult?.rows ?? []

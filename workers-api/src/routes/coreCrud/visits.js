@@ -8,7 +8,7 @@ import { agentHoursBlocked, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 import { resolveVisitTimes } from '../../services/visitTiming.js';
-import { checkGoldrushPhoto, persistGoldrushCheck, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
+import { checkGoldrushPhoto, addCaptureSignals, persistGoldrushCheck, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
 import { submitGate, recordFail, cleanCaptureId } from '../../services/goldrushPhotoAttempts.js';
 
 const app = new Hono();
@@ -838,6 +838,17 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
     // The wizard's GPS fix is the check-in; this submit is the check-out. The gap
     // is the visit's time on site (see services/visitTiming.js for the guards).
     const times = resolveVisitTimes(body, now);
+    // Behaviour checks (fake GPS, shared phone, speed, generated customer details, ID
+    // blocks, frozen battery) against this agent's history, before this visit is saved.
+    await addCaptureSignals(c.env, c.req.raw.cf, {
+      tenantId, agentId: body.agent_id || userId, deviceId: typeof body.device_id === 'string' ? body.device_id.slice(0, 64) : null, nowIso: now,
+      cur: {
+        at: times.check_in_time, lat: Number(body.checkin_latitude), lng: Number(body.checkin_longitude),
+        phone: body.individual_phone, idNumber: body.individual_id_number,
+        name: `${body.individual_first_name || ''} ${body.individual_last_name || ''}`.trim(), goldrushId: incomingGoldrush,
+      },
+      check: goldrushCheck,
+    });
     const companyId = body.company_id || null;
     // brand_id has FK to brands table - do NOT put company_id into brand_id
     const brandId = body.brand_id || null;
@@ -934,11 +945,12 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
             const indPhotoHash = await computePhotoHash(bytes);
-            if (await isPhotoHashDuplicate(db, tenantId, indPhotoHash)) {
-              const existingPhoto = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, indPhotoHash).first();
-              if (existingPhoto && existingPhoto.r2_url) mergedCustomFields[key] = existingPhoto.r2_url;
-              continue;
-            }
+            // Reuse an existing upload of the same image only when its URL is a real one: a
+            // legacy row's r2_url can itself be a data URL, which kept the base64 in this row.
+            const existingPhoto = await isPhotoHashDuplicate(db, tenantId, indPhotoHash)
+              ? await db.prepare("SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? AND r2_url NOT LIKE 'data:%' LIMIT 1").bind(tenantId, indPhotoHash).first()
+              : null;
+            if (existingPhoto?.r2_url) { mergedCustomFields[key] = existingPhoto.r2_url; continue; }
             const indPhotoId = crypto.randomUUID();
             const indPhotoKey = `photos/${tenantId}/${visitId}/${indPhotoId}.jpg`;
             const bucket = c.env.UPLOADS;
@@ -1011,9 +1023,12 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
             for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
             // Compute hash for deduplication
             const cqPhotoHash = await computePhotoHash(bytes);
-            if (await isPhotoHashDuplicate(db, tenantId, cqPhotoHash)) {
-              const existingCqPhoto = await db.prepare('SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? LIMIT 1').bind(tenantId, cqPhotoHash).first();
-              if (existingCqPhoto && existingCqPhoto.r2_url) mergedStoreCustom[key] = existingCqPhoto.r2_url;
+            // Same rule as individual photos above: only reuse a real URL, else upload.
+            const existingCqPhoto = await isPhotoHashDuplicate(db, tenantId, cqPhotoHash)
+              ? await db.prepare("SELECT r2_url FROM visit_photos WHERE tenant_id = ? AND photo_hash = ? AND r2_url NOT LIKE 'data:%' LIMIT 1").bind(tenantId, cqPhotoHash).first()
+              : null;
+            if (existingCqPhoto?.r2_url) {
+              mergedStoreCustom[key] = existingCqPhoto.r2_url;
               console.log(`Skipping duplicate photo (hash: ${cqPhotoHash}) for visit ${visitId}, key: ${key}`);
               continue;
             }

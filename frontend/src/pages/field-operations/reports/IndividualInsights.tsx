@@ -125,8 +125,8 @@ export default function IndividualInsights() {
   const [data, setData] = useState<Insights | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [insStartDate, setInsStartDate] = useState('')
-  const [insEndDate, setInsEndDate] = useState('')
+  const [insStartDate, setInsStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01')
+  const [insEndDate, setInsEndDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [pdfWorking, setPdfWorking] = useState(false)
   const visitsOverTimeRef = useRef<HTMLDivElement>(null)
   const competitorsRef = useRef<HTMLDivElement>(null)
@@ -349,6 +349,7 @@ export default function IndividualInsights() {
     },
     staleTime: 60000,
     gcTime: 5 * 60 * 1000,
+    enabled: activeTab === 'individuals',
   })
   const individuals = individualsResult?.rows ?? []
   const individualsTruncated = individualsResult?.truncated ?? false

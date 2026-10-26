@@ -47,8 +47,8 @@ function isPhotoUrl(val: string): boolean {
 }
 
 const StellrReport: React.FC = () => {
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 8) + '01')
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [search, setSearch] = useState('')
   const [exporting, setExporting] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<string>('')

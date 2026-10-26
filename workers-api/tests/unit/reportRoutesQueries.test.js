@@ -21,6 +21,7 @@ import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import reportRoutes from '../../src/routes/reports.js';
 import fieldOpsPerformanceRoutes from '../../src/routes/fieldOpsPerformance.js';
+import { computeGoldrushIndividualInsights, computeGoldrushStoreInsights } from '../../src/cron/jobs.js';
 
 const TENANT = 'ten1', COMPANY = 'c1', LEAD = 'tl1', ADMIN = 'admin1';
 const JWT_SECRET = 'test-secret-not-a-real-key';
@@ -181,6 +182,17 @@ describe('report routes: bound-parameter arity and execution', () => {
     expect(body.data.every(r => r.agent_id?.startsWith('a'))).toBe(true);
   });
 
+  it('agent-performance counts check-ins and conversions in one pass with the same numbers', async () => {
+    violations.length = 0;
+    const { body } = await call(reportRoutes, '/field-ops/reports/agent-performance?company_id=c1&startDate=2026-08-01&endDate=2026-08-31');
+    expect(violations).toEqual([]);
+    for (const r of body.data) {
+      const i = Number(r.agent_id.slice(1));
+      expect(r.checkin_count).toBe(2); // individual + store visit, not inflated by the visit_individuals join
+      expect(r.conversions).toBe(i % 3 === 0 ? 1 : 0);
+    }
+  });
+
   it('checkins returns a page and a total from one batch', async () => {
     violations.length = 0;
     const { body } = await call(reportRoutes, '/field-ops/reports/checkins?company_id=c1&page=1&limit=20');
@@ -228,5 +240,63 @@ describe('field-ops performance: bound-parameter arity and execution', () => {
     const { status, body } = await call(fieldOpsPerformanceRoutes, '/field-ops/performance/export?period=month', 'team_lead', LEAD);
     expect(violations).toEqual([]);
     expect(status, `body: ${JSON.stringify(body)?.slice(0, 400)}`).toBe(200);
+  });
+});
+
+describe('goldrush reports: answers picked out in SQL, blobs never shipped', () => {
+  beforeAll(() => {
+    const ins = (sql, ...a) => sqlite.prepare(sql).run(...a);
+    // a0: questionnaire answers incl. array values; custom field carries a base64 photo + an http photo.
+    ins("UPDATE visit_individuals SET custom_field_values = ? WHERE id = 'vi0'", JSON.stringify({
+      goldrush_id_entry: '123456789', consumer_converted: 'Yes', goldrush_id_rejected: true,
+      id_passport_photo: 'data:image/jpeg;base64,' + 'A'.repeat(5000), shop_exterior_photo: 'https://cdn.example/p.jpg',
+    }));
+    ins("INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES ('vr0', ?, 'v0-0', NULL, ?)", TENANT,
+      JSON.stringify({ likes_goldrush: 'Yes', which_products_interest_you: ['Slots', 'Sports'], competitor_company: 'Betway, Hollywood' }));
+    // a1: malformed blob must not abort the whole query.
+    ins("UPDATE visit_individuals SET custom_field_values = '{not json' WHERE id = 'vi1'");
+    ins("INSERT INTO visit_responses (id, tenant_id, visit_id, visit_type, responses) VALUES ('vrs1', ?, 'v1-1', 'store_custom_questions', ?)", TENANT,
+      JSON.stringify({ stocks_product: 'Yes', other_ad_brands: ['X', 'Y'] }));
+  });
+
+  it('individuals list returns picked answers without base64 data', async () => {
+    violations.length = 0;
+    const { status, body } = await call(reportRoutes, '/field-ops/reports/goldrush-individuals?company_id=c1');
+    expect(violations).toEqual([]);
+    expect(status).toBe(200);
+    expect(JSON.stringify(body)).not.toContain('base64');
+    const r = body.data.find(x => x.visit_id === 'v0-0');
+    expect(r).toMatchObject({ goldrush_id: '123456789', goldrush_id_rejected: true, converted: 1, likes_goldrush: 'Yes', has_photos: true, thumbnail_url: 'https://cdn.example/p.jpg' });
+    expect(body.data.find(x => x.visit_id === 'v1-0')).toMatchObject({ goldrush_id: '', has_photos: false });
+  });
+
+  it('individuals insights aggregates array and comma answers', async () => {
+    violations.length = 0;
+    const { status, body } = await call(reportRoutes, '/field-ops/reports/goldrush-individuals/insights?company_id=c1');
+    expect(violations).toEqual([]);
+    expect(status).toBe(200);
+    expect(body.data.totals.individuals).toBe(N_AGENTS);
+    expect(body.data.productInterest).toEqual(expect.arrayContaining([{ name: 'Slots', count: 1 }, { name: 'Sports', count: 1 }]));
+    expect(body.data.competitors).toEqual(expect.arrayContaining([{ name: 'Betway', count: 1 }, { name: 'Hollywood', count: 1 }]));
+    expect(body.data.satisfaction.likes_goldrush.yes).toBe(1);
+  });
+
+  it('stores insights reads store answers', async () => {
+    violations.length = 0;
+    const { status, body } = await call(reportRoutes, '/field-ops/reports/goldrush-stores/insights?company_id=c1');
+    expect(violations).toEqual([]);
+    expect(status).toBe(200);
+    expect(body.data.totals.with_stock).toBe(1);
+    expect(body.data.adBrands).toEqual(expect.arrayContaining([{ name: 'X', count: 1 }, { name: 'Y', count: 1 }]));
+  });
+
+  it('weekly cron insights read picked answers too', async () => {
+    violations.length = 0;
+    const ind = await computeGoldrushIndividualInsights(makeD1(), TENANT, null, null, COMPANY);
+    const st = await computeGoldrushStoreInsights(makeD1(), TENANT, null, null, COMPANY);
+    expect(violations).toEqual([]);
+    expect(ind.totals.individuals).toBe(N_AGENTS);
+    expect(ind.competitors).toEqual(expect.arrayContaining([{ name: 'Betway', count: 1 }, { name: 'Hollywood', count: 1 }]));
+    expect(st.totals.with_stock).toBe(1);
   });
 });

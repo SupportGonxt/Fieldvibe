@@ -10,6 +10,7 @@ import {
   normaliseClock, statusBarCropDataUrl,
 } from '../lib/imageFraud.js';
 import { ensureCaptureFailures } from '../lib/goldrush.js';
+import { captureSignals } from '../lib/captureSignals.js';
 
 const HISTORY_DAYS = 90;
 const FRONTIER_DAYS = 3;
@@ -29,6 +30,10 @@ export async function ensureImageFraudTables(db) {
     'ALTER TABLE image_fingerprints ADD COLUMN sb_clock TEXT',
     'ALTER TABLE image_fingerprints ADD COLUMN sb_battery TEXT',
     'CREATE INDEX IF NOT EXISTS idx_image_fp_clock ON image_fingerprints(tenant_id, sb_clock)',
+    // Per-browser id sent by the field app: one phone used by several agents.
+    'ALTER TABLE image_fingerprints ADD COLUMN device_id TEXT',
+    'CREATE INDEX IF NOT EXISTS idx_image_fp_device ON image_fingerprints(tenant_id, device_id, captured_at)',
+    'CREATE INDEX IF NOT EXISTS idx_image_fp_agent ON image_fingerprints(tenant_id, agent_id, captured_at)',
     `CREATE TABLE IF NOT EXISTS image_fraud_flags (
       id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, visit_id TEXT, photo_id TEXT, agent_id TEXT,
       agent_name TEXT, visit_date TEXT, goldrush_id TEXT, stage TEXT NOT NULL, verdict TEXT NOT NULL,
@@ -120,6 +125,48 @@ export async function checkGoldrushPhoto(env, { tenantId, dataUrl, typedId = nul
   }
 }
 
+// Behaviour checks (lib/captureSignals.js) for a check-in about to be saved. Stored on
+// check.signals, not check.flags: they are recorded for the AI Check page but never
+// returned to the agent, so the response does not teach which behaviour is watched.
+export async function addCaptureSignals(env, cf, { tenantId, agentId, deviceId, nowIso, cur, check }) {
+  if (!check || check.verdict === 'error') return;
+  check.deviceId = deviceId || null;
+  try {
+    const db = env.DB;
+    const since = (days) => new Date(Date.parse(nowIso) - days * 864e5).toISOString();
+    const recent = (await db.prepare(
+      `SELECT COALESCE(v.check_in_time, v.created_at) at, v.latitude lat, v.longitude lng, v.individual_phone phone,
+              v.individual_id_number idNumber, TRIM(COALESCE(v.individual_name,'') || ' ' || COALESCE(v.individual_surname,'')) name,
+              (SELECT f.goldrush_id FROM image_fingerprints f WHERE f.visit_id = v.id LIMIT 1) goldrushId
+       FROM visits v WHERE v.tenant_id = ? AND v.agent_id = ? AND v.created_at >= ? AND COALESCE(v.check_in_time, v.created_at) <= ?
+       ORDER BY at DESC LIMIT 500`
+    ).bind(tenantId, agentId, since(30), cur.at).all()).results || [];
+    let device = null;
+    if (deviceId) {
+      const others = await db.prepare('SELECT COUNT(DISTINCT agent_id) n FROM image_fingerprints WHERE tenant_id = ? AND device_id = ? AND agent_id != ? AND captured_at >= ?')
+        .bind(tenantId, deviceId, agentId, since(7)).first();
+      const mine = (await db.prepare('SELECT DISTINCT device_id d FROM image_fingerprints WHERE tenant_id = ? AND agent_id = ? AND device_id IS NOT NULL AND captured_at >= ?')
+        .bind(tenantId, agentId, since(7)).all()).results || [];
+      device = { otherAgents: others?.n || 0, agentDevices: new Set([deviceId, ...mine.map(r => r.d)]).size };
+    }
+    const batteryToday = check.sb?.battery ? (await db.prepare(
+      'SELECT captured_at at, sb_battery battery FROM image_fingerprints WHERE tenant_id = ? AND agent_id = ? AND sb_battery IS NOT NULL AND captured_at >= ?'
+    ).bind(tenantId, agentId, since(0.5)).all()).results || [] : [];
+    const ip = { country: cf?.country || null, city: cf?.city || null, lat: Number(cf?.latitude), lng: Number(cf?.longitude) };
+    check.signals = captureSignals({ cur: { ...cur, battery: check.sb?.battery || null }, ip, recent, device, batteryToday });
+  } catch (e) {
+    console.error('addCaptureSignals failed:', e);
+  }
+}
+
+const SIGNAL_RANK = { review: 1, likely: 2, definite: 3 };
+// The photo verdict raised by any behaviour signal, for the AI Check record.
+export function withSignals(check) {
+  if (!check?.signals?.length) return check;
+  const verdict = check.signals.reduce((v, f) => (SIGNAL_RANK[f.level] > (SIGNAL_RANK[v] || 0) ? f.level : v), check.verdict);
+  return { ...check, verdict, flags: [...(check.flags || []), ...check.signals] };
+}
+
 async function agentInfo(db, agentId) {
   const a = await db.prepare('SELECT first_name, last_name, team_lead_id FROM users WHERE id = ?').bind(agentId).first();
   let tl = null;
@@ -166,11 +213,12 @@ export async function persistGoldrushCheck(env, { tenantId, visitId, photoId, ag
   const db = env.DB;
   try {
     await db.prepare(
-      'INSERT INTO image_fingerprints (id, tenant_id, visit_id, photo_id, agent_id, visit_date, captured_at, goldrush_id, sig, fp, verdict, sb_clock, sb_battery) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+      'INSERT INTO image_fingerprints (id, tenant_id, visit_id, photo_id, agent_id, visit_date, captured_at, goldrush_id, sig, fp, verdict, sb_clock, sb_battery, device_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     ).bind(crypto.randomUUID(), tenantId, visitId, photoId, agentId, visitDate, nowIso, goldrushId,
       fpToBase64(check.sig), fpToBase64(check.analysis.fingerprint), check.verdict,
-      check.sb?.clock || null, check.sb?.battery || null).run();
-    if (check.verdict !== 'pass') await recordFlag(db, { tenantId, visitId, photoId, agentId, visitDate, goldrushId, stage, check });
+      check.sb?.clock || null, check.sb?.battery || null, check.deviceId || null).run();
+    const recorded = withSignals(check);
+    if (recorded.verdict !== 'pass') await recordFlag(db, { tenantId, visitId, photoId, agentId, visitDate, goldrushId, stage, check: recorded });
     if (check.isFake && visitId) {
       await excludeVisit(db, { tenantId, visitId, companyId, agentId, visitDate, goldrushId, reason: `${FAKE_CAPTURE_REASON}: ${check.flags.filter(f => f.level === 'definite').map(f => f.code).join(', ')}` });
     }

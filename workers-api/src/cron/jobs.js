@@ -12,6 +12,7 @@ import {
   trendSignals, peerSignals, signalAtRiskGate, signalHitGateEarly,
 } from '../services/kpiSignals.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
+import { pickAnswers, asList, vrJoin, QUESTIONNAIRE } from '../lib/answerSql.js';
 import { isConverted, NOT_AI_FAKE_SQL } from '../services/funnelService.js';
 
 // ==================== PERFORMANCE SUMMARY MESSAGES (Hourly 8am-5pm SAST) ====================
@@ -827,14 +828,12 @@ async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDat
   if (startDate) { dateFilter += ' AND v.visit_date >= ?'; binds.push(startDate); }
   if (endDate)   { dateFilter += ' AND v.visit_date <= ?'; binds.push(endDate); }
   const rows = await db.prepare(
-    `SELECT v.id, v.visit_date, v.created_at, vi.custom_field_values,
-            (SELECT vr.responses FROM visit_responses vr
-               WHERE vr.visit_id = v.id
-                 AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')
-               LIMIT 1) as questionnaire_responses,
+    `SELECT v.id, v.visit_date, v.created_at,
+            ${pickAnswers(['converted', 'consumer_converted', 'goldrush_id', 'platform_suggestions', 'competitor_company', 'who_is_competitor'], ['vr.responses', 'vi.custom_field_values'])},
             u.first_name || ' ' || u.last_name as agent_name
        FROM visits v
        LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
+       ${vrJoin('vr', QUESTIONNAIRE)}
        LEFT JOIN users u ON v.agent_id = u.id
        WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'
          AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}
@@ -845,9 +844,7 @@ async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDat
   const byAgent = new Map();
   const competitorCounts = new Map();
   for (const r of list) {
-    let f = {};
-    try { if (r.custom_field_values) Object.assign(f, typeof r.custom_field_values === 'string' ? JSON.parse(r.custom_field_values) : r.custom_field_values); } catch {}
-    try { if (r.questionnaire_responses) Object.assign(f, typeof r.questionnaire_responses === 'string' ? JSON.parse(r.questionnaire_responses) : r.questionnaire_responses); } catch {}
+    const f = r; // answers are picked out as columns (questionnaire over custom fields)
     if (isConverted(f)) totals.converted += 1;
     if (f.goldrush_id && String(f.goldrush_id).trim()) totals.with_id += 1;
     if (f.platform_suggestions && String(f.platform_suggestions).trim()) totals.with_suggestion += 1;
@@ -857,7 +854,7 @@ async function computeGoldrushIndividualInsights(db, tenantId, startDate, endDat
       if (isConverted(f)) a.conversions += 1;
       byAgent.set(r.agent_name, a);
     }
-    const comp = f.competitor_company || f.who_is_competitor;
+    const comp = asList(f.competitor_company || f.who_is_competitor);
     if (comp) {
       if (Array.isArray(comp)) comp.forEach(x => { if (x) competitorCounts.set(x, (competitorCounts.get(x) || 0) + 1); });
       else String(comp).split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(x => competitorCounts.set(x, (competitorCounts.get(x) || 0) + 1));
@@ -879,14 +876,13 @@ async function computeGoldrushStoreInsights(db, tenantId, startDate, endDate, co
   if (endDate)   { dateFilter += ' AND v.visit_date <= ?'; binds.push(endDate); }
   const rows = await db.prepare(
     `SELECT v.id, v.customer_id, c.name as store_name,
-            (SELECT vr.responses FROM visit_responses vr
-               WHERE vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
-                 AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_responses,
+            ${pickAnswers(['stocks_product', 'has_advertising', 'board_installed', 'competitors_in_store'], ['vrs.responses'])},
             (SELECT MAX(vp.ai_share_of_voice) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_share_of_voice IS NOT NULL) as ai_max_sov,
             (SELECT AVG(vp.ai_compliance_score) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_compliance_score IS NOT NULL) as ai_avg_compliance,
             (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id) as photo_count,
             (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.ai_analysis_status = 'completed') as ai_done
        FROM visits v
+       ${vrJoin('vrs', "vr.tenant_id = v.tenant_id AND vr.visit_type = 'store_custom_questions'")}
        LEFT JOIN customers c ON v.customer_id = c.id
        WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'${dateFilter}
        ORDER BY v.visit_date ASC LIMIT 20000`
@@ -900,8 +896,7 @@ async function computeGoldrushStoreInsights(db, tenantId, startDate, endDate, co
     if (r.ai_done > 0) totals.with_ai_completed += 1;
     if (r.ai_max_sov != null) sovList.push(Number(r.ai_max_sov));
     if (r.ai_avg_compliance != null) complianceList.push(Number(r.ai_avg_compliance));
-    let f = {};
-    try { if (r.store_responses) Object.assign(f, typeof r.store_responses === 'string' ? JSON.parse(r.store_responses) : r.store_responses); } catch {}
+    const f = r; // store answers are picked out as columns
     if (String(f.stocks_product).toLowerCase() === 'yes') totals.with_stock += 1;
     if (String(f.has_advertising).toLowerCase() === 'yes') totals.with_advertising += 1;
     if (String(f.board_installed).toLowerCase() === 'yes') totals.board_installed += 1;

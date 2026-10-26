@@ -8,6 +8,7 @@ import { parseStoreInsights } from '../services/goldrushVision.js';
 import { reportIndexMiddleware } from '../lib/reportIndexes.js';
 import { companyAgentScope } from '../lib/agentScope.js';
 import { NOT_AI_FAKE_SQL } from '../services/funnelService.js';
+import { safeJson, jv, pickAnswers, isHttp, asList, vrJoin, QUESTIONNAIRE } from '../lib/answerSql.js';
 
 const app = new Hono();
 
@@ -21,6 +22,12 @@ async function batchFirst(db, stmts) {
   const results = await db.batch(stmts);
   return results.map(r => (r?.results || [])[0] || null);
 }
+
+
+const INDIVIDUAL_LIST_KEYS = ['goldrush_id', 'goldrush_id_entry', 'consumer_converted', 'betting_elsewhere', 'competitor_company', 'used_goldrush_before', 'goldrush_comparison', 'likes_goldrush', 'platform_suggestions', 'gave_brand_info'];
+const INDIVIDUAL_PHOTO_KEYS = ['id_passport_photo', 'shop_exterior_photo', 'ad_board_photo', 'competitor_photo'];
+const INDIVIDUAL_INSIGHT_KEYS = ['converted', 'consumer_converted', 'goldrush_id', 'platform_suggestions', 'likes_goldrush', 'used_goldrush_before', 'betting_elsewhere', 'goldrush_comparison', 'gave_brand_info', 'is_the_customer_interested', 'competitor_company', 'who_is_competitor', 'which_products_interest_you'];
+const STORE_INSIGHT_KEYS = ['stocks_product', 'has_advertising', 'competitors_in_store', 'board_installed', 'who_is_competitor', 'stock_source', 'other_ad_brands'];
 
 function emptyIndividualInsights() {
   return { totals: { individuals: 0, converted: 0, with_id: 0, with_suggestion: 0, conversion_rate: 0 }, visitsOverTime: [], topAgents: [], satisfaction: {}, competitors: [], productInterest: [], suggestionsTop: [], geo: { with_gps: 0 } };
@@ -60,7 +67,7 @@ app.get('/field-ops/reports/kpis', authMiddleware, async (c) => {
       db.prepare(`SELECT COUNT(DISTINCT v.agent_id) as count FROM visits v WHERE v.tenant_id = ?${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(DISTINCT v.customer_id) as count FROM visits v WHERE v.tenant_id = ? AND v.customer_id IS NOT NULL${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds),
-      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR LOWER(JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted'))='yes')${dateFilter}`).bind(...binds),
     ]);
 
     return c.json({ success: true, kpis: {
@@ -107,21 +114,25 @@ app.get('/field-ops/reports/agent-performance', authMiddleware, async (c) => {
       dateBinds.push(endDate);
     }
 
-    // subqueryDateFilter: date-only (no agent IN clause — correlated via v2.agent_id = v.agent_id)
-    const subqueryDateFilter = dateFilter.replace(/v\./g, 'v2.');
+    // One pass: conversions are summed over the same visit rows being counted, instead of a
+    // per-agent correlated subquery that re-scanned (and re-parsed the JSON of) every one of
+    // the agent's individual visits. Both filters are agent-level, so the visit set per agent
+    // is the one the subquery used. COUNT(DISTINCT v.id) because a visit can carry more than
+    // one visit_individuals row (each still counts as a conversion, as before).
     const agents = await db.prepare(`
       SELECT v.agent_id, u.first_name || ' ' || u.last_name as agent_name,
-        COUNT(*) as checkin_count,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.agent_id = v.agent_id AND v2.tenant_id = v.tenant_id AND (((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi2.custom_field_values, '$.consumer_converted'), '')) = 'yes')${subqueryDateFilter} AND ${NOT_AI_FAKE_SQL('v2.id')}) as conversions
+        COUNT(DISTINCT v.id) as checkin_count,
+        SUM(CASE WHEN vi.id IS NOT NULL AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR LOWER(JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted'))='yes') THEN 1 ELSE 0 END) as conversions
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN visit_individuals vi ON vi.visit_id = v.id
       WHERE v.tenant_id = ?${agentFilter}${dateFilter}
         AND ${NOT_AI_FAKE_SQL('v.id')}
         AND (u.email IS NULL OR u.email != 'luke.templeman@gonxt.tech')
       GROUP BY v.agent_id
       ORDER BY checkin_count DESC
       LIMIT 50
-    `).bind(...dateBinds, tenantId, ...agentBinds, ...dateBinds).all();
+    `).bind(tenantId, ...agentBinds, ...dateBinds).all();
 
     const data = (agents.results || []).map(a => ({
       ...a,
@@ -226,7 +237,7 @@ app.get('/field-ops/reports/conversion-stats', authMiddleware, async (c) => {
     // Batched: four independent counts, one round trip (was four serial awaits).
     const [total, converted, totalRegs, storeVisits] = await batchFirst(db, [
       db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ?${dateFilter}`).bind(...binds),
-      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes')${dateFilter}`).bind(...binds),
+      db.prepare(`SELECT COUNT(*) as count FROM visit_individuals vi JOIN visits v ON vi.visit_id = v.id WHERE v.tenant_id = ? AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id) AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR LOWER(JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted'))='yes')${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(*) as count FROM visits v WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}`).bind(...binds),
       db.prepare(`SELECT COUNT(*) as count FROM visits WHERE tenant_id = ? AND visit_type = 'store'${dateFilter}`).bind(...binds),
     ]);
@@ -282,29 +293,42 @@ app.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     const limitRaw = parseInt(c.req.query('limit') || '5000', 10);
     const rowCap = Math.min(Math.max(Number.isNaN(limitRaw) ? 5000 : limitRaw, 1), 10000);
 
-    // DEBUG: Log what we received and what filter we're applying
-    console.log(`[GoldrushIndividuals] Query params - startDate: "${startDate}", endDate: "${endDate}"`);
-    console.log(`[GoldrushIndividuals] Applying dateFilter: "${dateFilter}"`);
-    console.log(`[GoldrushIndividuals] Total binds: ${binds.length}, values: [${binds.map(b => typeof b === 'string' ? `"${b}"` : b).join(', ')}]`);
+    // Custom company questions with field_type='image' can hold a photo too.
+    let customImageKeys = [];
+    try {
+      const imgQs = await db.prepare("SELECT question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND field_type = 'image' AND is_active = 1").bind(tenantId, goldrushId).all();
+      // Keys are spliced into JSON paths, so only plain identifiers.
+      customImageKeys = (imgQs.results || []).map(q => q.question_key).filter(k => /^\w+$/.test(k || ''));
+    } catch (e) { /* ignore */ }
 
-    // Get all individual registrations for Goldrush with agent name, custom field values, and survey responses
-    // Custom questions (like goldrush_id) are stored in visit_individuals.custom_field_values
-    // Survey/questionnaire responses are stored in visit_responses.responses
-    // Use correlated subqueries to avoid duplicate rows (same pattern as line 2762)
+    // Custom fields win over survey responses, as the old JS merge did.
+    const src = ['vi.custom_field_values', 'vr.responses'];
+    const fixedPhotos = INDIVIDUAL_PHOTO_KEYS.map(k => jv(k, src));
+    const customPhotos = customImageKeys.map(k => jv(k, src));
+    const answerPhotoUrl = `COALESCE(${[...fixedPhotos, ...customPhotos].map(x => `CASE WHEN ${isHttp(x)} THEN ${x} END`).join(', ')})`;
+    const hasPhotos = [...fixedPhotos.map(x => `COALESCE(${x}, '') != ''`), ...customPhotos.map(x => `${x} LIKE 'data:image%' OR ${isHttp(x)}`)].join(' OR ');
+    const cfv = safeJson('vi.custom_field_values');
+
+    // Custom questions (like goldrush_id) live in visit_individuals.custom_field_values,
+    // questionnaire answers in visit_responses.responses; only the named answers are read.
     // Exclude test users (agent-test-*, demo accounts, and @fieldvibe.test emails)
     const result = await db.prepare(`
       SELECT v.id, i.first_name, i.last_name, i.id_number, i.phone, i.email,
         (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
-        JSON_EXTRACT(vi.custom_field_values, '$.product_app_player_id') as product_app_player_id,
-        (CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted,
-        JSON_EXTRACT(vi.custom_field_values, '$.conversion_date') as conversion_date,
+        JSON_EXTRACT(${cfv}, '$.product_app_player_id') as product_app_player_id,
+        (CASE WHEN (JSON_EXTRACT(${cfv},'$.converted')=1 OR JSON_EXTRACT(${cfv},'$.consumer_converted')='Yes') THEN 1 ELSE 0 END) as converted,
+        JSON_EXTRACT(${cfv}, '$.conversion_date') as conversion_date,
         v.notes, v.latitude as gps_latitude, v.longitude as gps_longitude,
         v.created_at, v.id as visit_id,
         u.first_name || ' ' || u.last_name as agent_name,
-        vi.custom_field_values,
-        (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses
+        ${pickAnswers(INDIVIDUAL_LIST_KEYS, src)},
+        (json_type(${cfv}, '$.goldrush_id_rejected') = 'true' OR json_extract(${cfv}, '$.goldrush_id_rejected') = 'true') as goldrush_id_rejected,
+        json_extract(${cfv}, '$.goldrush_id_rejection_reason') as goldrush_id_rejection_reason,
+        ${answerPhotoUrl} as answer_photo_url,
+        (${hasPhotos}) as has_photos
       FROM visits v
       LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
+      ${vrJoin('vr', QUESTIONNAIRE)}
       LEFT JOIN individuals i ON vi.individual_id = i.id
       LEFT JOIN users u ON v.agent_id = u.id
       WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'
@@ -317,81 +341,10 @@ app.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
     `).bind(...binds, rowCap).all();
     const truncated = (result.results || []).length === rowCap;
 
-    // Look up custom company questions with field_type='image' to extract photos from custom question responses
-    let customImageKeys = [];
-    try {
-      const imgQs = await db.prepare("SELECT question_key FROM company_custom_questions WHERE tenant_id = ? AND company_id = ? AND field_type = 'image' AND is_active = 1").bind(tenantId, goldrushId).all();
-      customImageKeys = (imgQs.results || []).map(q => q.question_key);
-    } catch (e) { /* ignore */ }
-
-    // Parse both custom field values and questionnaire responses to extract goldrush_id and other fields
-    // Custom questions (goldrush_id, etc.) are keyed by question_key in custom_field_values
-    // Survey responses may also contain relevant data keyed by question UUID or key
+    const reqUrl = c.req.url;
     const data = (result.results || []).map(row => {
-      let goldrush_id = '';
-      let consumer_converted = '';
-      let betting_elsewhere = '';
-      let competitor_company = '';
-      let used_goldrush_before = '';
-      let goldrush_comparison = '';
-      let likes_goldrush = '';
-      let platform_suggestions = '';
-      let gave_brand_info = '';
-      let goldrush_id_rejected = false;
-      let goldrush_id_rejection_reason = '';
-      let id_passport_photo = '';
-      let shop_exterior_photo = '';
-      let ad_board_photo = '';
-      let competitor_photo = '';
-      let custom_question_photo = '';
-      try {
-        // Parse custom field values (from visit_individuals - where custom questions like goldrush_id are stored)
-        let customFields = {};
-        if (row.custom_field_values) {
-          customFields = typeof row.custom_field_values === 'string'
-            ? JSON.parse(row.custom_field_values)
-            : row.custom_field_values;
-        }
-        // Parse survey/questionnaire responses (from visit_responses)
-        let surveyResponses = {};
-        if (row.questionnaire_responses) {
-          surveyResponses = typeof row.questionnaire_responses === 'string'
-            ? JSON.parse(row.questionnaire_responses)
-            : row.questionnaire_responses;
-        }
-        // Merge both sources - custom fields take priority (they contain the question_key-based values)
-        const responses = { ...surveyResponses, ...customFields };
-        goldrush_id = responses.goldrush_id || responses.goldrush_id_entry || '';
-        consumer_converted = responses.consumer_converted || '';
-        betting_elsewhere = responses.betting_elsewhere || '';
-        competitor_company = responses.competitor_company || '';
-        used_goldrush_before = responses.used_goldrush_before || '';
-        goldrush_comparison = responses.goldrush_comparison || '';
-        likes_goldrush = responses.likes_goldrush || '';
-        platform_suggestions = responses.platform_suggestions || '';
-        gave_brand_info = responses.gave_brand_info || '';
-        goldrush_id_rejected = customFields.goldrush_id_rejected === true || customFields.goldrush_id_rejected === 'true';
-        goldrush_id_rejection_reason = customFields.goldrush_id_rejection_reason || '';
-        // Extract questionnaire image URLs from Goldrush Individual Visit process steps
-        id_passport_photo = responses.id_passport_photo || '';
-        shop_exterior_photo = responses.shop_exterior_photo || '';
-        ad_board_photo = responses.ad_board_photo || '';
-        competitor_photo = responses.competitor_photo || '';
-        // Also check custom company question image fields (field_type='image')
-        for (const key of customImageKeys) {
-          const val = responses[key];
-          if (val && typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) {
-            custom_question_photo = val;
-            break;
-          }
-        }
-      } catch (e) { /* ignore parse errors */ }
-
-      // Use visit_photos (R2 URLs) first; for base64 photos from custom questions, only flag their existence
-      const isUrl = (v) => v && typeof v === 'string' && (v.startsWith('http://') || v.startsWith('https://'));
-      const reqUrl = c.req.url;
-      const photo_url = rewriteR2Url(row.thumbnail_url, reqUrl) || (isUrl(id_passport_photo) ? rewriteR2Url(id_passport_photo, reqUrl) : null) || (isUrl(shop_exterior_photo) ? rewriteR2Url(shop_exterior_photo, reqUrl) : null) || (isUrl(ad_board_photo) ? rewriteR2Url(ad_board_photo, reqUrl) : null) || (isUrl(competitor_photo) ? rewriteR2Url(competitor_photo, reqUrl) : null) || (isUrl(custom_question_photo) ? rewriteR2Url(custom_question_photo, reqUrl) : null) || null;
-      const has_photos = !!(id_passport_photo || shop_exterior_photo || ad_board_photo || competitor_photo || custom_question_photo);
+      const consumer_converted = row.consumer_converted || '';
+      const photo_url = rewriteR2Url(row.thumbnail_url, reqUrl) || rewriteR2Url(row.answer_photo_url, reqUrl) || null;
 
       return {
         id: row.id,
@@ -402,9 +355,9 @@ app.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         phone: row.phone,
         email: row.email,
         product_app_player_id: row.product_app_player_id,
-        goldrush_id,
-        goldrush_id_rejected,
-        goldrush_id_rejection_reason,
+        goldrush_id: row.goldrush_id || row.goldrush_id_entry || '',
+        goldrush_id_rejected: !!row.goldrush_id_rejected,
+        goldrush_id_rejection_reason: row.goldrush_id_rejection_reason || '',
         converted: row.converted === 1 ? 1 : (consumer_converted === 'Yes' ? 1 : 0),
         conversion_date: row.conversion_date,
         agent_name: row.agent_name,
@@ -412,16 +365,16 @@ app.get('/field-ops/reports/goldrush-individuals', authMiddleware, async (c) => 
         gps_longitude: row.gps_longitude,
         created_at: row.created_at,
         notes: row.notes,
-        gave_brand_info,
+        gave_brand_info: row.gave_brand_info || '',
         thumbnail_url: photo_url,
-        has_photos,
+        has_photos: !!row.has_photos,
         consumer_converted,
-        betting_elsewhere,
-        competitor_company,
-        used_goldrush_before,
-        goldrush_comparison,
-        likes_goldrush,
-        platform_suggestions,
+        betting_elsewhere: row.betting_elsewhere || '',
+        competitor_company: row.competitor_company || '',
+        used_goldrush_before: row.used_goldrush_before || '',
+        goldrush_comparison: row.goldrush_comparison || '',
+        likes_goldrush: row.likes_goldrush || '',
+        platform_suggestions: row.platform_suggestions || '',
       };
     });
 
@@ -1088,13 +1041,10 @@ app.get('/field-ops/reports/goldrush-individuals/insights', authMiddleware, asyn
     const rows = await db.prepare(
       `SELECT v.id, v.visit_date, v.created_at, v.latitude as lat, v.longitude as lng,
               u.first_name || ' ' || u.last_name as agent_name,
-              vi.custom_field_values,
-              (SELECT vr.responses FROM visit_responses vr
-                 WHERE vr.visit_id = v.id
-                   AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions')
-                 LIMIT 1) as questionnaire_responses
+              ${pickAnswers(INDIVIDUAL_INSIGHT_KEYS, ['vr.responses', 'vi.custom_field_values'])}
          FROM visits v
          LEFT JOIN visit_individuals vi ON v.id = vi.visit_id
+         ${vrJoin('vr', QUESTIONNAIRE)}
          LEFT JOIN users u ON v.agent_id = u.id
          WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'individual'
            AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}
@@ -1130,15 +1080,8 @@ app.get('/field-ops/reports/goldrush-individuals/insights', authMiddleware, asyn
       if (!k) return;
       map.set(k, (map.get(k) || 0) + 1);
     }
-    function mergeJson(a, b) {
-      const out = {};
-      try { if (a) Object.assign(out, typeof a === 'string' ? JSON.parse(a) : a); } catch {}
-      try { if (b) Object.assign(out, typeof b === 'string' ? JSON.parse(b) : b); } catch {}
-      return out;
-    }
-
     for (const r of list) {
-      const f = mergeJson(r.custom_field_values, r.questionnaire_responses);
+      const f = r; // answers are already picked out as columns (questionnaire over custom fields)
       const day = (r.visit_date || (r.created_at || '').slice(0, 10)) || '';
       if (day) {
         const d = byDate.get(day) || { date: day, visits: 0, conversions: 0 };
@@ -1165,14 +1108,14 @@ app.get('/field-ops/reports/goldrush-individuals/insights', authMiddleware, asyn
       bumpRadio(giveBrandInfo, f.gave_brand_info);
       bumpRadio(isInterested, f.is_the_customer_interested);
       // Competitor company is sometimes a string, sometimes comma-joined.
-      const comp = f.competitor_company || f.who_is_competitor;
+      const comp = asList(f.competitor_company || f.who_is_competitor);
       if (comp) {
         if (Array.isArray(comp)) comp.forEach(c => bumpMap(competitorCounts, c));
         else if (typeof comp === 'string') {
           comp.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(c => bumpMap(competitorCounts, c));
         }
       }
-      const prod = f.which_products_interest_you;
+      const prod = asList(f.which_products_interest_you);
       if (prod) {
         if (Array.isArray(prod)) prod.forEach(p => bumpMap(productInterestCounts, p));
         else if (typeof prod === 'string') prod.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(p => bumpMap(productInterestCounts, p));
@@ -1225,12 +1168,7 @@ app.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c)
       `SELECT v.id, v.visit_date, v.created_at, v.customer_id,
               c.name as store_name,
               u.first_name || ' ' || u.last_name as agent_name,
-              (SELECT vr.responses FROM visit_responses vr
-                 WHERE vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
-                   AND vr.visit_type = 'store_custom_questions' LIMIT 1) as store_responses,
-              (SELECT vr.responses FROM visit_responses vr
-                 WHERE vr.visit_id = v.id AND vr.tenant_id = v.tenant_id
-                   AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses,
+              ${pickAnswers(STORE_INSIGHT_KEYS, ['vrq.responses', 'vrs.responses'])},
               (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id) as photo_count,
               (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_analysis_status = 'completed') as ai_done,
               (SELECT COUNT(*) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_analysis_status = 'failed') as ai_failed,
@@ -1238,6 +1176,8 @@ app.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c)
               (SELECT AVG(vp.ai_compliance_score) FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_compliance_score IS NOT NULL) as ai_avg_compliance,
               (SELECT GROUP_CONCAT(vp.ai_brands_detected, '|') FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.ai_brands_detected IS NOT NULL) as ai_brands_concat
          FROM visits v
+         ${vrJoin('vrs', "vr.tenant_id = v.tenant_id AND vr.visit_type = 'store_custom_questions'")}
+         ${vrJoin('vrq', `vr.tenant_id = v.tenant_id AND ${QUESTIONNAIRE}`)}
          LEFT JOIN customers c ON v.customer_id = c.id
          LEFT JOIN users u ON v.agent_id = u.id
          WHERE v.tenant_id = ? AND v.company_id = ? AND LOWER(v.visit_type) = 'store'${dateFilter}
@@ -1279,15 +1219,8 @@ app.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c)
       if (!k) return;
       map.set(k, (map.get(k) || 0) + 1);
     }
-    function mergeJson(a, b) {
-      const out = {};
-      try { if (a) Object.assign(out, typeof a === 'string' ? JSON.parse(a) : a); } catch {}
-      try { if (b) Object.assign(out, typeof b === 'string' ? JSON.parse(b) : b); } catch {}
-      return out;
-    }
-
     for (const r of list) {
-      const f = mergeJson(r.store_responses, r.questionnaire_responses);
+      const f = r; // answers are already picked out as columns (questionnaire over store answers)
       const day = (r.visit_date || (r.created_at || '').slice(0, 10)) || '';
 
       if (day) {
@@ -1306,14 +1239,14 @@ app.get('/field-ops/reports/goldrush-stores/insights', authMiddleware, async (c)
       if (String(f.has_advertising).toLowerCase() === 'yes') totals.with_advertising += 1;
       if (String(f.board_installed).toLowerCase() === 'yes') totals.board_installed += 1;
       if (String(f.competitors_in_store).toLowerCase() === 'yes') totals.with_competitors += 1;
-      const comp = f.who_is_competitor;
+      const comp = asList(f.who_is_competitor);
       if (comp) {
         if (Array.isArray(comp)) comp.forEach(x => bumpMap(competitorBrandCounts, x));
         else String(comp).split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(x => bumpMap(competitorBrandCounts, x));
       }
-      if (f.stock_source) bumpMap(stockSourceCounts, f.stock_source);
+      if (f.stock_source) bumpMap(stockSourceCounts, asList(f.stock_source));
       if (f.other_ad_brands) {
-        const ab = f.other_ad_brands;
+        const ab = asList(f.other_ad_brands);
         if (Array.isArray(ab)) ab.forEach(x => bumpMap(adBrandCounts, x));
         else String(ab).split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(x => bumpMap(adBrandCounts, x));
       }
@@ -1404,7 +1337,7 @@ app.get('/field-ops/reports/shops-analytics', authMiddleware, async (c) => {
       LEFT JOIN (
         SELECT v2.customer_id, COUNT(*) as cnt
         FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id
-        WHERE v2.tenant_id = ? AND ((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes')${dateFilter.replace(/v\./g, 'v2.')}
+        WHERE v2.tenant_id = ? AND (JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes')${dateFilter.replace(/v\./g, 'v2.')}
           AND ${NOT_AI_FAKE_SQL('v2.id')}
         GROUP BY v2.customer_id
       ) conv ON conv.customer_id = c.id
@@ -1438,7 +1371,7 @@ app.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
         (SELECT '/api/uploads/'||vp.r2_key FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL LIMIT 1) as thumbnail_url,
         (SELECT vi2.custom_field_values FROM visit_individuals vi2 WHERE vi2.visit_id = v.id LIMIT 1) as custom_field_values,
         (SELECT vr.responses FROM visit_responses vr WHERE vr.visit_id = v.id AND (vr.visit_type IS NULL OR vr.visit_type != 'store_custom_questions') LIMIT 1) as questionnaire_responses,
-        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v.id')}) as converted,
+        (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM visit_individuals vi WHERE vi.visit_id = v.id AND vi.tenant_id = v.tenant_id AND (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v.id')}) as converted,
         v.notes as responses
       FROM visits v
       LEFT JOIN users u ON v.agent_id = u.id
@@ -1502,7 +1435,7 @@ app.get('/field-ops/reports/shops/:shopId', authMiddleware, async (c) => {
     const stats = await db.prepare(`
       SELECT COUNT(*) as total_checkins,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
-        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND ((JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v2.id')}) as conversions
+        (SELECT COUNT(*) FROM visit_individuals vi2 JOIN visits v2 ON vi2.visit_id = v2.id WHERE v2.customer_id = ? AND v2.tenant_id = ? AND (JSON_EXTRACT(vi2.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi2.custom_field_values,'$.consumer_converted')='Yes') AND ${NOT_AI_FAKE_SQL('v2.id')}) as conversions
       FROM visits WHERE customer_id = ? AND tenant_id = ?
     `).bind(shopId, tenantId, shopId, tenantId).first();
 
@@ -1545,7 +1478,7 @@ app.get('/field-ops/reports/customers-analytics', authMiddleware, async (c) => {
 
     const statsResult = await db.prepare(`
       SELECT COUNT(*) as total_customers,
-        SUM(CASE WHEN ((JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
+        SUM(CASE WHEN (JSON_EXTRACT(vi.custom_field_values,'$.converted')=1 OR JSON_EXTRACT(vi.custom_field_values,'$.consumer_converted')='Yes') OR LOWER(COALESCE(JSON_EXTRACT(vi.custom_field_values, '$.consumer_converted'), '')) = 'yes' THEN 1 ELSE 0 END) as converted,
         0 as already_betting
       FROM visits v LEFT JOIN visit_individuals vi ON v.id = vi.visit_id WHERE v.tenant_id = ? AND LOWER(v.visit_type) = 'individual' AND NOT EXISTS (SELECT 1 FROM goldrush_upload_failures guf WHERE guf.visit_id = v.id)${dateFilter}
     `).bind(...binds).first();
