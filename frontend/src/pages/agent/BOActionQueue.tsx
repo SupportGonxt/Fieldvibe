@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Banknote, Bell, Camera, CloudOff, ChevronRight, CheckCircle2, Loader2, Wallet } from 'lucide-react'
+import { Banknote, Bell, Camera, CloudOff, ChevronRight, CheckCircle2, Loader2, ShieldAlert, Wallet } from 'lucide-react'
 import { apiClient } from '../../services/api.service'
 import { photoReviewService } from '../../services/insights.service'
 
@@ -36,6 +36,7 @@ export default function BOActionQueue() {
   const [pendingPhotos, setPendingPhotos] = useState(0)
   const [uploadFails, setUploadFails] = useState(0)
   const [pendingCommissions, setPendingCommissions] = useState(0)
+  const [photoReviews, setPhotoReviews] = useState(0)
 
   useEffect(() => {
     let live = true
@@ -47,7 +48,8 @@ export default function BOActionQueue() {
       photoReviewService.getAdminReview({ page: '1', limit: '1', review_status: 'pending' }).catch(() => null),
       apiClient.get(`/field-ops/reports/goldrush-upload-failures?startDate=${weekAgo}&endDate=${today}`).catch(() => null),
       apiClient.get('/commission-earnings?status=pending&limit=1').catch(() => null),
-    ]).then(([dep, st, rev, uf, ce]) => {
+      apiClient.get('/field-ops/photo-verification/reviews?status=pending').catch(() => null),
+    ]).then(([dep, st, rev, uf, ce, pv]) => {
       if (!live) return
       const rows: DepositRow[] = dep?.data?.deposits || []
       setUnmatched(rows.filter((r) => !r.matched).length)
@@ -55,6 +57,7 @@ export default function BOActionQueue() {
       setPendingPhotos(rev?.pagination?.total || 0)
       setUploadFails(uf?.data?.total || uf?.data?.data?.length || 0)
       setPendingCommissions(ce?.data?.data?.pagination?.total || 0)
+      setPhotoReviews(pv?.data?.total || 0)
       setLoading(false)
     })
     return () => { live = false }
@@ -68,6 +71,12 @@ export default function BOActionQueue() {
       key: 'deposits', tone: 'bad', icon: Banknote,
       label: 'Deposits unmatched',
       hint: 'Chase the signup or remove the row', to: '/agent/deposits',
+    })
+  if (photoReviews > 0)
+    actions.push({
+      key: 'photo-verification', tone: 'bad', icon: ShieldAlert,
+      label: 'Goldrush photos to verify',
+      hint: 'Failed 3 times — approve if real, reject if fake', to: '/agent/ai-check',
     })
   if (uploadFails > 0)
     actions.push({
@@ -138,6 +147,7 @@ export default function BOActionQueue() {
       <div className="flex gap-2 mt-2">
         {[
           { label: 'Photos', to: '/agent/photo-review' },
+          { label: 'AI Check', to: '/agent/ai-check' },
           { label: 'Uploads', to: '/agent/upload-failures' },
           { label: 'Commissions', to: '/agent/commissions' },
           { label: 'KYC', to: '/agent/kyc' },

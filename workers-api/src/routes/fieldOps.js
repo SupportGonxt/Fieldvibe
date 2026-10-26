@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { checkGoldrushPhoto, publicFraudResult, recordFlag } from '../services/imageFraudService.js';
+import { checkGoldrushPhoto, recordFlag } from '../services/imageFraudService.js';
+import { attemptState, hashDataUrl, lockedVerification, photoChecks, recordFail, recordPass, reviewForPhoto, LOCKED_MESSAGE } from '../services/goldrushPhotoAttempts.js';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -2190,23 +2191,60 @@ app.get('/field-ops/presence/anomalies', authMiddleware, async (c) => {
   const flaggedCount = agents.filter((a) => a.status !== 'ok').length;
   return c.json({ success: true, date, flaggedCount, agents });
 });
+// Goldrush individual photos get three attempts (services/goldrushPhotoAttempts.js).
+// The agent only ever sees `verification` (verified / attempt / message / lock); why a
+// photo failed is stored for the Team Lead / Back Office review screen only.
+app.get('/field-ops/goldrush-photo/status', authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  const agentId = c.get('userId');
+  const state = await attemptState(db, { tenantId, agentId });
+  // The latest decided review lets a capture page that is waiting pick up the outcome.
+  const decided = await db.prepare(
+    "SELECT id, status, photo_hash, reviewed_at FROM goldrush_photo_reviews WHERE tenant_id = ? AND agent_id = ? AND status != 'pending' ORDER BY reviewed_at DESC LIMIT 1"
+  ).bind(tenantId, agentId).first();
+  return c.json({
+    success: true,
+    locked: !!state.pending,
+    attempts_left: state.pending ? 0 : state.attemptsLeft,
+    retry_after: state.pending ? 0 : state.retryAfter,
+    message: state.pending ? LOCKED_MESSAGE : null,
+    last_review: decided || null,
+  });
+});
+
 app.post('/field-ops/verify-goldrush-photo', authMiddleware, async (c) => {
   try {
-    const { photo_data } = await c.req.json();
-    // The OCR pass extracts the 9-digit Goldrush ID, the customer's name and the btag
-    // from the URL bar, plus quality signals (photo_blurry, url_visible). The caller
-    // pre-fills the Details step from these and hard-blocks on blurry / URL-not-visible.
-    // Quality signals are tri-state: true/false only when the model actually judged the
-    // image — null when the AI call failed, so an outage degrades to a warning instead
-    // of hard-blocking every capture.
+    const { photo_data, file_age_ms } = await c.req.json();
+    // The OCR pass extracts the 9-digit Goldrush ID, the customer's name, the letters in
+    // the profile circle and the btag from the URL bar, plus quality signals
+    // (photo_blurry, url_visible). Quality signals are tri-state: true/false only when
+    // the model actually judged the image — null when the AI call failed.
     if (!photo_data) {
       return c.json({ success: false, error: 'Missing photo_data' }, 400);
     }
     const base64Match = photo_data.match(/^data:image\/[^;]+;base64,(.+)$/s);
     if (!base64Match) return c.json({ success: false, error: 'Invalid photo format' }, 400);
+    const tenantId = c.get('tenantId');
+    const agentId = c.get('userId');
+    const nowIso = new Date().toISOString();
+    const hash = await hashDataUrl(photo_data);
+    const empty = { extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null };
+    // A photo cleared on review goes through with the details the reviewer confirmed.
+    const review = await reviewForPhoto(c.env.DB, { tenantId, agentId, hash });
+    if (review?.status === 'approved') {
+      return c.json({ success: true, ...empty, extracted_id: review.goldrush_id, extracted_first_name: review.first_name, extracted_last_name: review.last_name, confidence: 'high', verification: { verified: true, approved_on_review: true } });
+    }
+    const state = await attemptState(c.env.DB, { tenantId, agentId, nowIso });
+    if (state.pending) return c.json({ success: true, ...empty, confidence: 'low', verification: lockedVerification(state.pending) });
+    if (state.retryAfter > 0) {
+      return c.json({ success: true, ...empty, confidence: 'low', verification: { verified: false, locked: false, waiting: true, attempts_left: state.attemptsLeft, retry_after: state.retryAfter, message: `Please wait ${state.retryAfter} seconds before taking the photo again.` } });
+    }
+    // The model could not look at the photo: not the agent's fault, so no attempt is used.
+    const unavailable = { verified: false, locked: false, unavailable: true, attempts_left: state.attemptsLeft, retry_after: 0, message: 'We couldn’t check this photo right now. Please take it again.' };
     const imageBytes = Uint8Array.from(atob(base64Match[1]), ch => ch.charCodeAt(0));
     if (imageBytes.length > 4_000_000) {
-      return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Image too large' });
+      return c.json({ success: true, ...empty, confidence: 'unreadable', reason: 'Image too large', verification: unavailable });
     }
     const prompt = `This is an image of the Goldrush gaming/betting system opened in a browser — either a photo taken with a phone camera of a screen, or a screenshot taken on the device itself. Treat both the same: read what is shown in the browser.
 
@@ -2220,13 +2258,16 @@ Task 4 — URL bar visibility: Is the browser address bar clearly visible AND re
 
 Task 5 — B-Tag URL: Only if the address bar is clearly readable: check if the URL contains "goldrush.co.za" AND has a "btag=" query parameter. The btag number can be ANY length — short tags are valid (e.g. goldrush.co.za/?btag=25 or goldrush.co.za/?btag=123456789). Extract the btag number if present.
 
+Task 6 — Profile circle: On the profile screen there is a round avatar circle containing letters, just above the customer's name. Copy exactly the letters printed inside that circle, character for character, as they appear. Do not work them out from the name.
+
 Return ONLY a JSON object, no prose, no markdown:
-{"photo_blurry": false, "extracted_id": "123456789", "extracted_first_name": "John", "extracted_last_name": "Smith", "url_visible": true, "extracted_btag": "123456789", "confidence": "high"}
+{"photo_blurry": false, "extracted_id": "123456789", "extracted_first_name": "John", "extracted_last_name": "Smith", "avatar_letters": "AB", "url_visible": true, "extracted_btag": "123456789", "confidence": "high"}
 
 Rules:
 - photo_blurry: true when the image is too blurry or out of focus to read the on-screen text with certainty
 - extracted_id: the 9-digit player ID, or null if not found
 - extracted_first_name / extracted_last_name: the customer's name exactly as shown on screen, or null when not clearly readable
+- avatar_letters: the letters inside the profile circle exactly as printed, or null when there is no circle or the letters are not clearly readable
 - url_visible: false when the address bar is cropped out, obscured, or too blurry to read with certainty
 - extracted_btag: the btag number string from the URL bar; MUST be null when url_visible is false or no btag= parameter is readable
 - NEVER guess: if a value is not clearly readable in the image, return null for it
@@ -2234,7 +2275,10 @@ Rules:
 
 Output JSON only.`;
     let extractedId = null, confidence = 'low', extractedBtag = null, urlVisible = null;
-    let photoBlurry = null, extractedFirstName = null, extractedLastName = null;
+    let photoBlurry = null, extractedFirstName = null, extractedLastName = null, avatarLetters = null;
+    // True once the model's reply was parsed — only then can a missing ID or a blurry
+    // verdict count against the agent (an AI outage must never burn their attempts).
+    let aiRead = false;
     // Names come from OCR of a photographed screen — accept only plausible name strings
     // so a hallucinated sentence or JSON fragment never lands in the name fields.
     const cleanName = (v) => {
@@ -2281,6 +2325,8 @@ Output JSON only.`;
           : parsed.photo_blurry === false || parsed.photo_blurry === 'false' ? false : null;
         extractedFirstName = cleanName(parsed.extracted_first_name);
         extractedLastName = cleanName(parsed.extracted_last_name);
+        avatarLetters = typeof parsed.avatar_letters === 'string' && /^[A-Za-z]{1,3}$/.test(parsed.avatar_letters.trim()) ? parsed.avatar_letters.trim() : null;
+        aiRead = true;
         // B-Tags have no fixed length — real referral URLs as short as ?btag=25
         // exist, so any non-empty digit run counts (a >=6 gate here rejected valid
         // short tags and hard-blocked those captures as "no B-Tag").
@@ -2296,21 +2342,33 @@ Output JSON only.`;
     }
     // AI check: the screenshot fraud rule set. The ID read from the photo stands in for
     // the typed ID here, so an ID Goldrush has not issued yet is caught before submit.
-    // Definite fakes are recorded as attempts for the AI Check page and block the Photo
-    // step; /visits/workflow re-checks and rejects the photo if it is submitted anyway.
-    let fraud = null;
+    // Definite fakes are also recorded for the AI Check page.
+    const reasons = [];
     try {
-      const nowIso = new Date().toISOString();
-      const check = await checkGoldrushPhoto(c.env, { tenantId: c.get('tenantId'), dataUrl: photo_data, typedId: extractedId, extractedId, nowIso });
-      fraud = publicFraudResult(check);
+      const check = await checkGoldrushPhoto(c.env, { tenantId, dataUrl: photo_data, typedId: extractedId, extractedId, nowIso });
       if (check.isFake) {
-        await recordFlag(c.env.DB, { tenantId: c.get('tenantId'), agentId: c.get('userId'), visitDate: nowIso.slice(0, 10), goldrushId: extractedId, stage: 'precheck', check });
+        await recordFlag(c.env.DB, { tenantId, agentId, visitDate: nowIso.slice(0, 10), goldrushId: extractedId, stage: 'precheck', check });
+        reasons.push({ code: 'AI_FLAG', detail: `AI check: ${check.flags.filter(f => f.level === 'definite').map(f => f.detail).join('; ')}` });
       }
     } catch (fraudErr) { console.error('Goldrush fraud pre-check failed:', fraudErr); }
-    return c.json({ success: true, extracted_id: extractedId, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, extracted_btag: extractedBtag, url_visible: urlVisible, photo_blurry: photoBlurry, confidence, ...(fraud ? { fraud } : {}) });
+    reasons.push(...await photoChecks(c.env.DB, {
+      tenantId, hash, extractedId, blurry: photoBlurry, aiRead, fileAgeMs: Number(file_age_ms),
+      avatar: avatarLetters, firstName: extractedFirstName, lastName: extractedLastName,
+    }));
+    if (reasons.length) {
+      const verification = await recordFail(c.env, {
+        tenantId, agentId, hash, dataUrl: photo_data, reasons, nowIso,
+        extractedId, firstName: extractedFirstName, lastName: extractedLastName,
+      });
+      // Nothing read off a failed photo goes back to the agent.
+      return c.json({ success: true, ...empty, confidence: 'low', verification });
+    }
+    if (!aiRead) return c.json({ success: true, ...empty, confidence: 'unreadable', verification: unavailable });
+    await recordPass(c.env.DB, { tenantId, agentId, hash, extractedId, firstName: extractedFirstName, lastName: extractedLastName, nowIso });
+    return c.json({ success: true, extracted_id: extractedId, extracted_first_name: extractedFirstName, extracted_last_name: extractedLastName, extracted_btag: extractedBtag, url_visible: urlVisible, photo_blurry: photoBlurry, confidence, verification: { verified: true } });
   } catch (e) {
     console.error('verify-goldrush-photo error:', e);
-    return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Verification failed' });
+    return c.json({ success: true, extracted_id: null, extracted_first_name: null, extracted_last_name: null, extracted_btag: null, url_visible: null, photo_blurry: null, confidence: 'unreadable', reason: 'Verification failed', verification: { verified: false, locked: false, unavailable: true, retry_after: 0, message: 'We couldn’t check this photo right now. Please take it again.' } });
   }
 });
 

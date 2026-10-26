@@ -8,7 +8,8 @@ import { agentHoursBlocked, AGENT_HOURS_ERROR } from '../../lib/agentHours.js';
 import { normalizeStoreName, boundingBox, storesWithinRadius } from '../../services/excludedStore.js';
 import { queueShelfAnalysis, runQueuedShelfAnalyses } from '../../services/shelfAnalysis.js';
 import { resolveVisitTimes } from '../../services/visitTiming.js';
-import { checkGoldrushPhoto, persistGoldrushCheck, publicFraudResult, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
+import { checkGoldrushPhoto, persistGoldrushCheck, FAKE_CAPTURE_REASON } from '../../services/imageFraudService.js';
+import { submitGate, recordFail } from '../../services/goldrushPhotoAttempts.js';
 
 const app = new Hono();
 
@@ -781,23 +782,34 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
       }
     }
 
-    // Goldrush screenshot fraud rules (AI check). Runs after every up-front rejection so
-    // only captures that would be saved are analysed. A definite fake (AI-generated or
-    // edited screenshot) is rejected before anything is written: the attempt is recorded
-    // for the AI Check page and the agent must retake a real photo.
+    // Goldrush photo attempts and screenshot fraud rules (AI check). Runs after every
+    // up-front rejection so only captures that would be saved are analysed. Nothing is
+    // written for a rejected photo: an agent locked for review, a photo that already
+    // failed verification, or a definite fake (counted as one of the agent's attempts)
+    // gets the same agent-facing message as the Photo step, never the reason.
     const goldrushPhoto = Array.isArray(body.photos)
       ? body.photos.find(p => p && p.photo_type === 'goldrush_individual' && typeof (p.photo_url || p.r2_url) === 'string' && (p.photo_url || p.r2_url).startsWith('data:'))
       : null;
-    const goldrushCheck = goldrushPhoto
-      ? await checkGoldrushPhoto(c.env, { tenantId, dataUrl: goldrushPhoto.photo_url || goldrushPhoto.r2_url, typedId: incomingGoldrush || null, extractedId: body.goldrush_extracted_id || null, nowIso: now })
+    const goldrushDataUrl = goldrushPhoto ? goldrushPhoto.photo_url || goldrushPhoto.r2_url : null;
+    const goldrushCompanyId = body.company_id || body.companyId || null;
+    const gate = goldrushPhoto ? await submitGate(c.env, { tenantId, agentId: userId, companyId: goldrushCompanyId, dataUrl: goldrushDataUrl, nowIso: now }) : {};
+    if (gate.verification) return c.json({ error: gate.verification.message, verification: gate.verification }, 422);
+    // A photo cleared on review is not re-judged by the rules it already failed.
+    const goldrushCheck = goldrushPhoto && !gate.approved
+      ? await checkGoldrushPhoto(c.env, { tenantId, dataUrl: goldrushDataUrl, typedId: incomingGoldrush || null, extractedId: body.goldrush_extracted_id || null, nowIso: now })
       : null;
     if (goldrushCheck?.isFake) {
       await persistGoldrushCheck(c.env, {
         tenantId, visitId: null, photoId: null, agentId: body.agent_id || userId,
-        companyId: body.company_id || body.companyId || null, visitDate,
+        companyId: goldrushCompanyId, visitDate,
         goldrushId: incomingGoldrush || null, nowIso: now, check: goldrushCheck, stage: 'blocked',
       });
-      return c.json({ error: goldrushCheck.message || FAKE_CAPTURE_REASON, fraud: publicFraudResult(goldrushCheck) }, 422);
+      const verification = await recordFail(c.env, {
+        tenantId, agentId: userId, companyId: goldrushCompanyId, hash: gate.hash, dataUrl: goldrushDataUrl, stage: 'submit', nowIso: now,
+        reasons: [{ code: 'AI_FLAG', detail: `${FAKE_CAPTURE_REASON}: ${goldrushCheck.flags.filter(f => f.level === 'definite').map(f => f.detail).join('; ')}` }],
+        extractedId: incomingGoldrush || null, firstName: body.individual_first_name || null, lastName: body.individual_last_name || null,
+      });
+      return c.json({ error: verification.message, verification }, 422);
     }
     let goldrushPhotoId = null;
 
@@ -1112,13 +1124,11 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
         goldrushId: incomingGoldrush || null, nowIso: now, check: goldrushCheck,
       });
     }
-    const fraud = publicFraudResult(goldrushCheck);
 
     return c.json({
       data: { id: visitId, individual_id: individualId, status: 'completed', visit_date: visitDate },
       message: 'Visit created successfully',
       ...(goldrushValidationWarnings ? { validation_warnings: goldrushValidationWarnings } : {}),
-      ...(fraud ? { fraud } : {})
     }, 201);
   } catch (err) {
     return c.json({ error: 'Failed to create visit: ' + (err.message || err) }, 500);

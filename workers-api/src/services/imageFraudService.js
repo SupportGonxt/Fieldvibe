@@ -120,17 +120,6 @@ export async function checkGoldrushPhoto(env, { tenantId, dataUrl, typedId = nul
   }
 }
 
-export function publicFraudResult(check) {
-  if (!check || check.verdict === 'error') return null;
-  return {
-    flagged: !!check.isFake,
-    verdict: check.verdict,
-    message: check.isFake ? FAKE_MESSAGE : null,
-    reasons: (check.flags || []).map(f => f.detail),
-    ruleset: RULESET_VERSION,
-  };
-}
-
 async function agentInfo(db, agentId) {
   const a = await db.prepare('SELECT first_name, last_name, team_lead_id FROM users WHERE id = ?').bind(agentId).first();
   let tl = null;

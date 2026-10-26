@@ -39,10 +39,20 @@ import {
 import { idError, isNationalIdKey, type IdType } from '../../../utils/sa-id'
 import { compressPhoto, compressDataUrl } from '../../../utils/photo-compression'
 
-// Shown when the AI check flags a Goldrush screenshot as a definite fake (server sends the same text)
-const FAKE_IMAGE_MESSAGE = 'This image has been detected as fake and fraudulent. You have been flagged.'
-// AI check verdict for a Goldrush photo; flagged = definite fake, which blocks the capture
-type PhotoFraud = { flagged: boolean; message: string | null; verdict: string; reasons: string[] }
+// Server verdict on the Goldrush system photo. A failed photo uses one of three attempts;
+// the third sends the visit to the Team Lead and locks capture until it is reviewed.
+// The message is the same whatever check failed — the reason is never sent to the agent.
+type PhotoVerification = {
+  verified: boolean
+  locked?: boolean
+  waiting?: boolean
+  unavailable?: boolean
+  attempts_left?: number
+  retry_after?: number
+  message?: string
+  approved_on_review?: boolean
+}
+const PHOTO_LOCKED_MESSAGE = 'This visit couldn’t be verified and has been sent to your Team Lead for review. You can’t submit another photo for this visit until the review is done.'
 
 // Haversine distance between two GPS coordinates in meters
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -303,9 +313,14 @@ export default function VisitCreate() {
     hasBtag?: boolean | null
     urlVisible?: boolean | null
     blurry?: boolean | null
-    // AI check verdict for the photo (Goldrush screenshot fraud rules)
-    fraud?: PhotoFraud | null
+    // Server verification of the photo (attempts, AI check, initials, duplicates)
+    verification?: PhotoVerification | null
   }>({ status: 'idle' })
+  // Goldrush photo attempts: when the next retake is allowed (ms epoch), and whether
+  // capture is locked pending the Team Lead's review. Both come from the server.
+  const [photoRetryAt, setPhotoRetryAt] = useState<number | null>(null)
+  const [photoLocked, setPhotoLocked] = useState(false)
+  const [retryNow, setRetryNow] = useState(() => Date.now())
   const [submitting, setSubmitting] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [stepDataLoading, setStepDataLoading] = useState(false)
@@ -1065,8 +1080,8 @@ export default function VisitCreate() {
   // the same values).
   useEffect(() => {
     if (photoExtraction.status !== 'done') return
-    // A photo the AI check flagged as fake must be retaken — nothing is taken from it.
-    if (photoExtraction.fraud?.flagged) return
+    // Nothing is taken from a photo that failed verification.
+    if (!photoExtraction.verification?.verified) return
     if (photoExtraction.extractedId) {
       applyExtractedGoldrushId(photoExtraction.extractedId)
     }
@@ -1076,32 +1091,37 @@ export default function VisitCreate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customQuestions, customFields, photoExtraction])
 
-  // Extract the customer name and Goldrush ID from the captured photo in the
-  // background and pre-fill the Details step. A blurry photo or an unread
-  // Goldrush ID hard-blocks the step (retake only). A missing B-Tag or
-  // unreadable URL bar only flags the visit in the capture-failures report.
-  const extractGoldrushIdFromPhoto = async (photoDataUrl: string) => {
+  // A failed / locked verification from the server: start the retake countdown or lock capture.
+  const applyVerificationGate = (v: PhotoVerification | null | undefined) => {
+    if (!v || v.verified) return
+    if (v.locked) setPhotoLocked(true)
+    if (v.retry_after && v.retry_after > 0) { setRetryNow(Date.now()); setPhotoRetryAt(Date.now() + v.retry_after * 1000) }
+  }
+
+  // Verify the captured photo on the server and pre-fill the Details step from it.
+  // A photo that fails any check (AI check, unreadable or duplicate Goldrush ID,
+  // initials in the profile circle, blurry, not a live capture…) uses one of the
+  // agent's three attempts and nothing is taken from it.
+  const extractGoldrushIdFromPhoto = async (photoDataUrl: string, fileAgeMs?: number) => {
     setPhotoExtraction({ status: 'checking' })
     // Any duplicate flagged against the previous photo's ID is now stale
     setDuplicateCheck(null)
     try {
       const res = await apiClient.post('/field-ops/verify-goldrush-photo', {
         photo_data: photoDataUrl,
+        ...(fileAgeMs != null ? { file_age_ms: fileAgeMs } : {}),
       })
-      const extracted = res.data?.extracted_id ? String(res.data.extracted_id) : null
-      // Nothing is taken from an image the AI check flagged as fake — otherwise the
-      // persisted Goldrush ID would let a reloaded draft past the photo block.
-      const flagged = !!res.data?.fraud?.flagged
-      if (extracted && !flagged) applyExtractedGoldrushId(extracted)
+      const verification: PhotoVerification = res.data?.verification || { verified: false, unavailable: true, message: 'We couldn’t check this photo right now. Please take it again.' }
+      const verified = verification.verified === true
+      const extracted = verified && res.data?.extracted_id ? String(res.data.extracted_id) : null
+      if (extracted) applyExtractedGoldrushId(extracted)
       // Pre-fill the customer's name on the Details step and in the Consumer
       // Name/Surname company questions (still editable there, unlike the Goldrush ID)
-      const firstName = res.data?.extracted_first_name ? String(res.data.extracted_first_name).trim() : ''
-      const lastName = res.data?.extracted_last_name ? String(res.data.extracted_last_name).trim() : ''
-      if (!flagged) {
-        if (firstName) setIndividualFirstName(firstName)
-        if (lastName) setIndividualLastName(lastName)
-        if (firstName || lastName) applyExtractedConsumerName(firstName, lastName)
-      }
+      const firstName = verified && res.data?.extracted_first_name ? String(res.data.extracted_first_name).trim() : ''
+      const lastName = verified && res.data?.extracted_last_name ? String(res.data.extracted_last_name).trim() : ''
+      if (firstName) setIndividualFirstName(firstName)
+      if (lastName) setIndividualLastName(lastName)
+      if (firstName || lastName) applyExtractedConsumerName(firstName, lastName)
       setPhotoExtraction({
         status: 'done',
         extractedId: extracted,
@@ -1110,13 +1130,15 @@ export default function VisitCreate() {
         hasBtag: !!res.data?.extracted_btag,
         urlVisible: res.data?.url_visible === true ? true : res.data?.url_visible === false ? false : null,
         blurry: res.data?.photo_blurry === true ? true : res.data?.photo_blurry === false ? false : null,
-        fraud: res.data?.fraud || null,
+        verification,
       })
-      if (res.data?.fraud?.flagged) toast.error(res.data.fraud.message || FAKE_IMAGE_MESSAGE, 15000)
+      if (verified) setPhotoLocked(false)
+      applyVerificationGate(verification)
+      if (!verified && verification.message) toast.error(verification.message, 15000)
     } catch {
-      // Extraction failure reads as "nothing found" — the missing ID hard-blocks
-      // (retake only), same as a photo where no ID could be read.
-      setPhotoExtraction({ status: 'done', extractedId: null, hasBtag: null, urlVisible: null, blurry: null })
+      // The check itself failed (network): no attempt was used, but the photo is not
+      // verified, so the agent has to take it again.
+      setPhotoExtraction({ status: 'done', extractedId: null, hasBtag: null, urlVisible: null, blurry: null, verification: { verified: false, unavailable: true, message: 'We couldn’t check this photo right now. Please take it again.' } })
     }
   }
 
@@ -1207,13 +1229,77 @@ export default function VisitCreate() {
     visitTargetType === 'individual' &&
     (isGoldrushCompany(companies.find(c => c.id === selectedCompany)) || customQuestions.some(q => isGoldrushIdKey(q.question_key)))
 
+  // Goldrush capture: pick up an existing lock or retake delay when the visit opens
+  // (both are per agent, so starting a fresh visit doesn't reset them).
+  const refreshPhotoGate = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/field-ops/goldrush-photo/status')
+      setPhotoLocked(!!res.data?.locked)
+      const wait = Number(res.data?.retry_after) || 0
+      setRetryNow(Date.now())
+      setPhotoRetryAt(wait > 0 ? Date.now() + wait * 1000 : null)
+      return res.data as { locked: boolean; last_review: { status: string; photo_hash: string | null } | null } | undefined
+    } catch {
+      return undefined
+    }
+  }, [])
+  const goldrushCapture = isGoldrushIndividualCapture()
+  useEffect(() => {
+    if (goldrushCapture) refreshPhotoGate()
+  }, [goldrushCapture, refreshPhotoGate])
+
+  // Tick the retake countdown once a second while it runs.
+  useEffect(() => {
+    if (!photoRetryAt) return
+    const t = setInterval(() => {
+      const now = Date.now()
+      setRetryNow(now)
+      if (now >= photoRetryAt) setPhotoRetryAt(null)
+    }, 1000)
+    return () => clearInterval(t)
+  }, [photoRetryAt])
+  const retrySecondsLeft = photoRetryAt ? Math.max(0, Math.ceil((photoRetryAt - retryNow) / 1000)) : 0
+  const photoCaptureBlocked = goldrushCapture && (photoLocked || retrySecondsLeft > 0)
+
+  // Locked agent taps "Check review status": an approved photo that is still on this
+  // visit is re-verified (the server now accepts it); a rejected one is cleared so a
+  // new photo can be taken.
+  const [checkingReview, setCheckingReview] = useState(false)
+  const checkPhotoReview = async () => {
+    setCheckingReview(true)
+    try {
+      const status = await refreshPhotoGate()
+      if (!status) { toast.error('Could not check the review. Try again.'); return }
+      if (status.locked) { toast.info('Your Team Lead has not reviewed this visit yet.'); return }
+      const current = photos.find(p => !p.photoType)
+      if (status.last_review?.status === 'approved' && current && current.hash === status.last_review.photo_hash) {
+        toast.success('Your Team Lead approved this photo.')
+        await extractGoldrushIdFromPhoto(current.dataUrl)
+        return
+      }
+      if (current) removePhoto(photos.indexOf(current))
+      toast.info(status.last_review?.status === 'rejected'
+        ? 'Your Team Lead did not accept the photo. Take a new photo with the live camera.'
+        : 'The review is done. Take a new photo with the live camera.')
+    } finally {
+      setCheckingReview(false)
+    }
+  }
+
   // Capture photo
   // `slot` names a required shot (Diplomat's two store photos). A slot capture
   // replaces whatever that slot already holds, so re-taking one doesn't pile up
   // photos; without a slot the photo is appended, which is the existing behaviour.
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>, slot?: string) => {
     const file = event.target.files?.[0]
+    // Reset so the same capture can fire onChange again after a retake.
+    event.target.value = ''
     if (!file) return
+    const goldrush = isGoldrushIndividualCapture()
+    if (goldrush && photoCaptureBlocked) return
+    // A live camera capture is a file created moments ago; the server treats an old
+    // file as a gallery pick. 0 / missing means the browser didn't say.
+    const fileAgeMs = file.lastModified ? Math.max(0, Date.now() - file.lastModified) : undefined
 
     setPhotoDuplicateWarning(null)
 
@@ -1230,8 +1316,10 @@ export default function VisitCreate() {
       const dataUrl = await compressImage(rawDataUrl)
       const hash = await generatePhotoHash(dataUrl)
 
-      // Check for duplicate on server
-      try {
+      // Check for duplicate on server. Goldrush system photos skip this: the server's
+      // verification counts a duplicate as a failed attempt, with the same message as
+      // every other failure.
+      if (!goldrush) try {
         const dupCheck = await fieldOperationsService.checkPhotoDuplicate(hash)
         if (dupCheck?.is_duplicate) {
           setPhotoDuplicateWarning(dupCheck.message || 'This photo has already been submitted. Please take a new photo.')
@@ -1263,6 +1351,9 @@ export default function VisitCreate() {
           timestamp: new Date().toISOString(),
           slot,
         }
+        // One Goldrush system photo per visit: a new capture replaces the last one, so
+        // a photo that failed verification is never submitted alongside its retake.
+        if (goldrush) return [entry]
         if (!slot) return [...prev, entry]
         // A slot that takes several angles appends; a single-photo slot is replaced,
         // so re-taking it doesn't leave the old frame behind.
@@ -1273,7 +1364,7 @@ export default function VisitCreate() {
         next[existing] = entry
         return next
       })
-      toast.success('Photo captured successfully')
+      if (!goldrush) toast.success('Photo captured successfully')
 
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -1294,8 +1385,8 @@ export default function VisitCreate() {
 
       // Goldrush individuals: extract the customer name + Goldrush ID from the
       // photo to pre-fill the Details step that follows
-      if (isGoldrushIndividualCapture()) {
-        extractGoldrushIdFromPhoto(dataUrl)
+      if (goldrush) {
+        extractGoldrushIdFromPhoto(dataUrl, fileAgeMs)
       }
      } catch (err) {
        console.error('Photo processing failed:', err)
@@ -1551,10 +1642,9 @@ export default function VisitCreate() {
           // 'idle' means extraction never started for the captured photo — treat it
           // like a failed read rather than letting the photo through unchecked.
           if (photoExtraction.status === 'checking') return false
-          // Hard errors — no acknowledgement path, the photo must be retaken.
-          if (photoExtraction.blurry === true) return false
-          // The AI check flagged the image as fake/AI-generated — blocked, retake only.
-          if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) return false
+          if (photoLocked) return false
+          // Failed verification — no acknowledgement path, the photo must be retaken.
+          if (photoExtraction.status === 'done' && !photoExtraction.verification?.verified) return false
           // Accept a fresh extraction this session OR an already-captured Goldrush ID
           // (a restored draft drops the transient photoExtraction state but keeps the ID).
           if (!photoExtraction.extractedId && !/^\d{9}$/.test(currentGoldrushId())) return false
@@ -1595,9 +1685,9 @@ export default function VisitCreate() {
         if (photos.length === 0) return 'A photo is required before continuing.'
         if (!isGoldrushIndividualCapture()) return 'Please complete this step before continuing.'
         if (photoExtraction.status === 'checking') return 'Please wait — the photo is still being checked.'
-        if (photoExtraction.blurry === true) return 'The photo is too blurry to read. Retake the photo before continuing.'
-        if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) return `${photoExtraction.fraud.message || FAKE_IMAGE_MESSAGE} Retake a real photo of the Goldrush system screen before continuing.`
-        if (photoExtraction.status !== 'done' || !photoExtraction.extractedId) return 'No Goldrush ID could be read from the photo. Retake the photo before continuing.'
+        if (photoLocked) return PHOTO_LOCKED_MESSAGE
+        if (photoExtraction.status === 'done' && !photoExtraction.verification?.verified) return photoExtraction.verification?.message || 'Take the photo again with the live camera before continuing.'
+        if (photoExtraction.status !== 'done' || !photoExtraction.extractedId) return 'Take the photo again with the live camera before continuing.'
         return 'Please complete this step before continuing.'
       }
       case 'qr': return 'Waiting for a scan — at least one person must scan the QR code before you can continue.'
@@ -1613,14 +1703,14 @@ export default function VisitCreate() {
   const goldrushPhotoIncomplete = (): boolean => {
     if (!isGoldrushIndividualCapture()) return false
     if (!activeSteps.some(s => s.step_key === 'photo')) return false
-    // A flagged fake never counts as a system photo, even with an ID already filled in.
-    if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) return true
-    // This session captured a sharp photo that yielded the ID.
+    // A photo that failed verification never counts, even with an ID already filled in.
+    if (photoLocked) return true
+    if (photoExtraction.status === 'done' && !photoExtraction.verification?.verified) return true
+    // This session captured a photo that passed verification and yielded the ID.
     if (
       photos.length > 0 &&
       photoExtraction.status === 'done' &&
-      !!photoExtraction.extractedId &&
-      photoExtraction.blurry !== true
+      !!photoExtraction.extractedId
     ) return false
     // Restored-draft path: an app reload mid-visit drops the transient
     // photoExtraction state (and can drop the photo blob on a localStorage quota
@@ -1854,13 +1944,14 @@ export default function VisitCreate() {
         navigate(isAgentContext ? '/agent/visits' : '/field-operations/visits')
       }
     } catch (err: unknown) {
-      // The server rejected the system photo as fake (AI check) — nothing was saved.
-      // Lock the photo so Review stays blocked until the agent retakes it.
-      const fraud = (err as { response?: { data?: { fraud?: PhotoFraud } } })?.response?.data?.fraud
-      if (fraud?.flagged) {
-        setPhotoExtraction(prev => ({ ...prev, status: 'done', fraud }))
-        const message = fraud.message || FAKE_IMAGE_MESSAGE
-        setError(`${message} This visit was not saved. Go back to the Photo step and retake a real photo of the Goldrush system screen.`)
+      // The server rejected the system photo (failed verification, or capture locked for
+      // review) — nothing was saved. Mark the photo unverified so Review stays blocked.
+      const verification = (err as { response?: { data?: { verification?: PhotoVerification } } })?.response?.data?.verification
+      if (verification && !verification.verified) {
+        setPhotoExtraction(prev => ({ ...prev, status: 'done', extractedId: null, verification }))
+        applyVerificationGate(verification)
+        const message = verification.message || PHOTO_LOCKED_MESSAGE
+        setError(verification.locked ? message : `${message} Go back to the Photo step to take the photo again.`)
         toast.error(message, 15000)
         return
       }
@@ -3118,7 +3209,7 @@ export default function VisitCreate() {
             add more angles if the store is big. Duplicate photos are not allowed.
             <strong> Both are required.</strong></>
           ) : visitTargetType === 'individual' ? (
-            <>Provide the individual&apos;s Goldrush system screen showing the 9-digit Goldrush ID — either take a photo with your camera or upload a saved screenshot from your gallery. The customer&apos;s name and Goldrush ID are read from the image and pre-filled on the Details step. A blurry image, or one where the Goldrush ID can&apos;t be read, must be retaken. <strong>An image is required to complete this capture.</strong></>
+            <>Take a photo of the individual&apos;s Goldrush system screen with the live camera, with the 9-digit Goldrush ID fully visible. The customer&apos;s name and Goldrush ID are read from the photo and pre-filled on the Details step. You have 3 attempts to take a photo that can be verified. <strong>A photo is required to complete this capture.</strong></>
           ) : visitTargetType === 'survey' ? (
             <>Take a photo of the shop. Duplicate photos are not allowed. <strong>At least one photo is required.</strong></>
           ) : (
@@ -3272,13 +3363,18 @@ export default function VisitCreate() {
         )}
 
         <Box sx={{ mb: 3, textAlign: 'center', display: isDiplomatStoreVisit ? 'none' : 'block' }}>
+          {/* Goldrush system photos are live camera captures only — there is no gallery
+              upload, and capture is held during the retake delay or a pending review. */}
           <Button
             variant="contained"
             component="label"
             startIcon={<CameraIcon />}
             size="large"
+            disabled={photoCaptureBlocked || (goldrushCapture && photoExtraction.status === 'checking')}
           >
-            {visitTargetType === 'individual' ? 'Capture System Photo' : visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
+            {visitTargetType === 'individual'
+              ? (goldrushCapture && retrySecondsLeft > 0 && !photoLocked ? `Take Photo Again (${retrySecondsLeft}s)` : 'Capture System Photo')
+              : visitTargetType === 'survey' ? 'Take Shop Photo' : 'Take Photo'}
             <input
               type="file"
               hidden
@@ -3287,25 +3383,21 @@ export default function VisitCreate() {
               onChange={handlePhotoCapture}
             />
           </Button>
-          {visitTargetType === 'individual' && (
-            <Box sx={{ mt: 1.5 }}>
-              <Button
-                variant="outlined"
-                component="label"
-                startIcon={<UploadIcon />}
-              >
-                Upload System Photo
-                {/* No capture attr — opens the gallery/file picker. accept excludes
-                    HEIC so iPhones transcode to JPEG (canvas can't decode HEIC and
-                    the extraction model would see nothing). */}
-                <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={handlePhotoCapture} />
-              </Button>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Or upload a saved screenshot or photo from your gallery. Uploaded images go through the same checks as camera captures.
-              </Typography>
-            </Box>
-          )}
         </Box>
+
+        {goldrushCapture && photoLocked && (
+          <Alert
+            severity="error"
+            sx={{ mb: 2 }}
+            action={
+              <Button size="small" color="inherit" variant="outlined" onClick={checkPhotoReview} disabled={checkingReview} sx={{ minWidth: 130 }}>
+                {checkingReview ? 'Checking…' : 'Check review'}
+              </Button>
+            }
+          >
+            {PHOTO_LOCKED_MESSAGE}
+          </Alert>
+        )}
 
         {photoDuplicateWarning && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -3359,60 +3451,41 @@ export default function VisitCreate() {
           </Grid>
         )}
 
-        {/* Extraction feedback — a blurry photo or an unread Goldrush ID is a
-            hard error (retake only). A missing B-Tag or hidden URL bar is a
-            warning only: the visit can proceed and submit, but is flagged in
-            the capture-failures report. */}
+        {/* Verification feedback. A failed photo shows only the attempt message from
+            the server — the same text whatever check failed — and can be retaken once
+            the short delay has passed. The lock after the third attempt shows above. */}
         {(() => {
-          if (!isGoldrushIndividualCapture() || photos.length === 0) return null
+          if (!goldrushCapture || photos.length === 0 || photoLocked) return null
           if (photoExtraction.status === 'checking') {
             return (
               <Alert severity="info" sx={{ mt: 2 }}>
-                Checking the photo for the customer name and Goldrush ID…
+                Checking the photo…
               </Alert>
             )
           }
-          const retakeOnlyAction = (
-            <Button size="small" color="inherit" variant="outlined" onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
-              Retake Photo
-            </Button>
-          )
-          // AI check flagged the image as fake/AI-generated — hard block, retake only.
-          if (photoExtraction.status === 'done' && photoExtraction.fraud?.flagged) {
+          const verification = photoExtraction.status === 'done' ? photoExtraction.verification : null
+          if (verification?.verified && photoExtraction.extractedId) {
             return (
-              <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                <strong>{photoExtraction.fraud.message || FAKE_IMAGE_MESSAGE}</strong> You cannot
-                continue with this image — retake a real photo of the Goldrush system screen.
+              <Alert severity="success" sx={{ mt: 2 }}>
+                Photo verified — Goldrush ID {photoExtraction.extractedId} will be filled in on the Details step.
               </Alert>
             )
           }
-          // 'idle' with a photo present means extraction never ran — same warnings
-          // as a failed read, so a system photo is never accepted unchecked.
-          const extractedId = photoExtraction.status === 'done' ? photoExtraction.extractedId : null
-          const isBlurry = photoExtraction.status === 'done' && photoExtraction.blurry === true
-          // A blurry photo makes every other read unreliable — show only the
-          // blur error and force a retake before anything else is assessed.
-          if (isBlurry) {
-            return (
-              <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                <strong>This photo is too blurry.</strong> The on-screen text can&apos;t be read.
-                Hold the phone steady and retake the photo — you cannot continue with a blurry photo.
-              </Alert>
-            )
-          }
+          // 'idle' with a photo present means the check never ran (e.g. a restored draft);
+          // the captured ID on the visit still stands, so say nothing.
+          if (!verification) return null
           return (
-            <>
-              {extractedId ? (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  Goldrush ID {extractedId} read from the photo — it will be filled in on the Details step.
-                </Alert>
-              ) : (
-                <Alert severity="error" sx={{ mt: 2 }} action={retakeOnlyAction}>
-                  <strong>Couldn&apos;t read a Goldrush ID from this photo.</strong> Retake the photo
-                  with the 9-digit Goldrush ID clearly visible — you cannot continue without it.
-                </Alert>
-              )}
-            </>
+            <Alert
+              severity="error"
+              sx={{ mt: 2 }}
+              action={
+                <Button size="small" color="inherit" variant="outlined" disabled={retrySecondsLeft > 0} onClick={() => removePhoto(photos.length - 1)} sx={{ minWidth: 130 }}>
+                  {retrySecondsLeft > 0 ? `Retake (${retrySecondsLeft}s)` : 'Retake Photo'}
+                </Button>
+              }
+            >
+              {verification.message || 'Take the photo again with the live camera.'}
+            </Alert>
           )
         })()}
 
