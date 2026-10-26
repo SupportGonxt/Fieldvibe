@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { checkGoldrushPhoto, recordFlag } from '../services/imageFraudService.js';
-import { attemptState, cleanCaptureId, ensurePhotoAttemptTables, hashDataUrl, loadAttemptPhoto, lockedVerification, photoChecks, readProfileCircle, recordFail, recordPass, reviewForPhoto, LOCKED_MESSAGE } from '../services/goldrushPhotoAttempts.js';
+import { attemptState, cleanCaptureId, ensurePhotoAttemptTables, hashDataUrl, loadAttemptPhoto, lockedVerification, ownSavedVisit, photoChecks, readProfileCircle, recordFail, recordPass, reviewForPhoto, ALREADY_SAVED_MESSAGE, LOCKED_MESSAGE } from '../services/goldrushPhotoAttempts.js';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -2382,6 +2382,12 @@ Output JSON only.`;
       }
     } catch (aiErr) {
       console.error('Goldrush photo AI error:', aiErr);
+    }
+    // This visit page already saved a visit with this ID (the save got through but the
+    // reply was lost): tell the agent it is saved instead of failing an attempt.
+    const savedVisitId = await ownSavedVisit(c.env.DB, { tenantId, agentId, captureId, goldrushId: extractedId });
+    if (savedVisitId) {
+      return c.json({ success: true, ...empty, confidence: 'low', verification: { verified: false, already_saved: true, visit_id: savedVisitId, retry_after: 0, message: ALREADY_SAVED_MESSAGE } });
     }
     // AI check: the screenshot fraud rule set. The ID read from the photo stands in for
     // the typed ID here, so an ID Goldrush has not issued yet is caught before submit.

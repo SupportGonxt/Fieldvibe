@@ -51,6 +51,8 @@ type PhotoVerification = {
   retry_after?: number
   message?: string
   approved_on_review?: boolean
+  // This page already saved a visit with this Goldrush ID (the reply was lost) — not a failure
+  already_saved?: boolean
 }
 const PHOTO_LOCKED_MESSAGE = 'This visit couldn’t be verified and has been sent to your Team Lead for review. You can’t submit another photo for this visit until the review is done.'
 
@@ -1139,7 +1141,8 @@ export default function VisitCreate() {
       })
       if (verified) setPhotoLocked(false)
       applyVerificationGate(verification)
-      if (!verified && verification.message) toast.error(verification.message, 15000)
+      if (verification.already_saved) toast.success(verification.message || 'This visit has already been saved.', 8000)
+      else if (!verified && verification.message) toast.error(verification.message, 15000)
     } catch {
       // The check itself failed (network): no attempt was used, but the photo is not
       // verified, so the agent has to take it again.
@@ -3518,6 +3521,22 @@ export default function VisitCreate() {
           // 'idle' with a photo present means the check never ran (e.g. a restored draft);
           // the captured ID on the visit still stands, so say nothing.
           if (!verification) return null
+          if (verification.already_saved) {
+            return (
+              <Alert
+                severity="success"
+                sx={{ mt: 2 }}
+                action={
+                  <Button size="small" color="inherit" variant="outlined" sx={{ minWidth: 130 }}
+                    onClick={() => navigate(window.location.pathname.startsWith('/agent/') ? '/agent/visits' : '/field-operations/visits')}>
+                    My Visits
+                  </Button>
+                }
+              >
+                {verification.message}
+              </Alert>
+            )
+          }
           return (
             <Alert
               severity="error"

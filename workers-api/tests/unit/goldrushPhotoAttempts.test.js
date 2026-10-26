@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { makeD1 } from './helpers/d1sqlite.js';
 import {
   avatarLettersCheck, photoChecks, attemptState, recordFail, recordPass, submitGate, hashDataUrl,
-  loadAttemptPhoto, reviewForPhoto,
+  loadAttemptPhoto, reviewForPhoto, ownSavedVisit,
   ATTEMPT_MESSAGES, LOCKED_MESSAGE, RETRY_DELAY_SECONDS, LIVE_CAPTURE_MAX_AGE_MS,
 } from '../../src/services/goldrushPhotoAttempts.js';
 
@@ -11,6 +11,7 @@ const db = makeD1(`
   CREATE TABLE users (id TEXT PRIMARY KEY, first_name TEXT, last_name TEXT, team_lead_id TEXT);
   CREATE TABLE visit_photos (id TEXT, tenant_id TEXT, visit_id TEXT, photo_hash TEXT);
   CREATE TABLE visit_individuals (id TEXT, tenant_id TEXT, visit_id TEXT, custom_field_values TEXT);
+  CREATE TABLE visits (id TEXT PRIMARY KEY, agent_id TEXT, created_at TEXT);
   INSERT INTO users VALUES ('tl1', 'Thandi', 'Lead', NULL);
 `);
 const puts = [];
@@ -168,5 +169,25 @@ describe('resuming an approved visit', () => {
     expect(await reviewForPhoto(db, { tenantId: 't1', agentId: 'c1', hash })).toMatchObject({ status: 'approved' });
     await db.prepare("UPDATE goldrush_photo_reviews SET visit_id = 'v-done' WHERE id = ?").bind(review.id).run();
     expect(await reviewForPhoto(db, { tenantId: 't1', agentId: 'c1', hash })).toBeNull();
+  });
+});
+
+describe('ownSavedVisit', () => {
+  it('recognises the visit this capture already saved, and nothing else', async () => {
+    const t0 = '2026-10-26T13:44:21.000Z';
+    await recordPass(db, { tenantId: 't1', agentId: 'd1', captureId: 'cap-s', hash: 'hs', extractedId: '502429034', nowIso: t0 });
+    db.exec("INSERT INTO visits VALUES ('v-own', 'd1', '2026-10-26T13:46:46.000Z')");
+    db.exec(`INSERT INTO visit_individuals VALUES ('vi-own', 't1', 'v-own', '{"goldrush_id":"502429034"}')`);
+    expect(await ownSavedVisit(db, { tenantId: 't1', agentId: 'd1', captureId: 'cap-s', goldrushId: '502429034' })).toBe('v-own');
+    // Another visit page, another agent, or no capture id: still a real duplicate.
+    expect(await ownSavedVisit(db, { tenantId: 't1', agentId: 'd1', captureId: 'cap-other', goldrushId: '502429034' })).toBeNull();
+    expect(await ownSavedVisit(db, { tenantId: 't1', agentId: 'd2', captureId: 'cap-s', goldrushId: '502429034' })).toBeNull();
+    expect(await ownSavedVisit(db, { tenantId: 't1', agentId: 'd1', captureId: null, goldrushId: '502429034' })).toBeNull();
+  });
+  it('ignores an older visit with the same ID saved before this capture', async () => {
+    db.exec("INSERT INTO visits VALUES ('v-old', 'd3', '2026-10-20T10:00:00.000Z')");
+    db.exec(`INSERT INTO visit_individuals VALUES ('vi-old', 't1', 'v-old', '{"goldrush_id":"611111111"}')`);
+    await recordPass(db, { tenantId: 't1', agentId: 'd3', captureId: 'cap-o', hash: 'ho', extractedId: '611111111', nowIso: '2026-10-26T09:00:00.000Z' });
+    expect(await ownSavedVisit(db, { tenantId: 't1', agentId: 'd3', captureId: 'cap-o', goldrushId: '611111111' })).toBeNull();
   });
 });

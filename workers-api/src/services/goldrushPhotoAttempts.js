@@ -10,7 +10,7 @@
 // capture page creates when it opens). The third failure sends that visit for review
 // and locks only that visit: the agent can start other individual visits meanwhile.
 // A passing photo closes the visit's open attempts.
-import { goldrushIdExists } from '../lib/goldrush.js';
+import { goldrushIdExists, extractGoldrushId } from '../lib/goldrush.js';
 import { isPhotoHashDuplicate } from '../lib/photoAi.js';
 
 export const MAX_ATTEMPTS = 3;
@@ -157,6 +157,32 @@ export async function photoChecks(db, { tenantId, hash, extractedId, blurry, aiR
   const avatarFlag = avatarLettersCheck({ avatar, name });
   if (avatarFlag) out.push(avatarFlag);
   return out;
+}
+
+export const ALREADY_SAVED_MESSAGE = 'This visit has already been saved. Go to My Visits to see it.';
+
+// The visit this same capture page already saved with this Goldrush ID, if any. When a
+// save reaches the server but the reply is lost (weak signal), the agent stays on the
+// page and retakes the photo; the ID then matches their own new visit. That is not a
+// duplicate customer, so it must not cost an attempt. Matched only when this capture
+// passed a photo with this ID and the visit was saved by the same agent after that.
+export async function ownSavedVisit(db, { tenantId, agentId, captureId, goldrushId }) {
+  if (!captureId || !goldrushId) return null;
+  await ensurePhotoAttemptTables(db);
+  const firstPass = await db.prepare(
+    "SELECT MIN(created_at) AS at FROM goldrush_photo_attempts WHERE tenant_id = ? AND agent_id = ? AND capture_id = ? AND outcome = 'pass' AND extracted_id = ?"
+  ).bind(tenantId, agentId, captureId, String(goldrushId)).first();
+  if (!firstPass?.at) return null;
+  const rows = await db.prepare(
+    `SELECT vi.visit_id, vi.custom_field_values FROM visit_individuals vi JOIN visits v ON v.id = vi.visit_id
+     WHERE vi.tenant_id = ? AND v.agent_id = ? AND v.created_at >= ? AND vi.custom_field_values LIKE ?`
+  ).bind(tenantId, agentId, firstPass.at, `%${goldrushId}%`).all();
+  for (const r of (rows.results || [])) {
+    let parsed = {};
+    try { parsed = JSON.parse(r.custom_field_values || '{}'); } catch { /* skip */ }
+    if (extractGoldrushId(parsed) === String(goldrushId)) return r.visit_id;
+  }
+  return null;
 }
 
 const openSince = nowIso => new Date(Date.parse(nowIso) - OPEN_WINDOW_HOURS * 3600e3).toISOString();
