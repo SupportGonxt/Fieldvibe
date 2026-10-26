@@ -20,6 +20,75 @@ const app = new Hono();
 const photoUrl = (key, reqUrl) => (key ? rewriteR2Url('/api/uploads/' + key, reqUrl) : null);
 const parseCodes = s => { try { return JSON.parse(s || '[]'); } catch { return []; } };
 
+// Every failed photo attempt in the period, whether or not its visit reached three —
+// with the photo, the real reasons, what the AI read, and what became of the visit.
+app.get('/photo-verification/attempts', requireRole('admin', 'general_manager'), async (c) => {
+  const db = c.env.DB;
+  const tenantId = c.get('tenantId');
+  await ensurePhotoAttemptTables(db);
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  const end = day.test(c.req.query('end') || '') ? c.req.query('end') : new Date().toISOString().slice(0, 10);
+  const start = day.test(c.req.query('start') || '') ? c.req.query('start') : new Date(Date.parse(end) - 30 * 864e5).toISOString().slice(0, 10);
+  const rows = (await db.prepare(
+    `SELECT a.*, TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS agent_name, r.status AS review_status
+     FROM goldrush_photo_attempts a
+     LEFT JOIN users u ON u.id = a.agent_id
+     LEFT JOIN goldrush_photo_reviews r ON r.id = a.review_id
+     WHERE a.tenant_id = ? AND a.outcome = 'fail' AND substr(a.created_at, 1, 10) BETWEEN ? AND ?
+     ORDER BY a.created_at DESC LIMIT 300`
+  ).bind(tenantId, start, end).all()).results || [];
+
+  // Every attempt of the same visits (capture ids), to number each failure and tell
+  // whether a later photo passed.
+  const captures = [...new Set(rows.map(r => r.capture_id).filter(Boolean))];
+  const byCapture = new Map();
+  for (let i = 0; i < captures.length; i += 50) {
+    const ids = captures.slice(i, i + 50);
+    const all = await db.prepare(
+      `SELECT capture_id, agent_id, outcome, created_at FROM goldrush_photo_attempts WHERE tenant_id = ? AND capture_id IN (${ids.map(() => '?').join(',')}) ORDER BY created_at`
+    ).bind(tenantId, ...ids).all();
+    for (const a of (all.results || [])) {
+      const k = `${a.agent_id}|${a.capture_id}`;
+      if (!byCapture.has(k)) byCapture.set(k, []);
+      byCapture.get(k).push(a);
+    }
+  }
+  const visitOutcome = r => {
+    if (r.review_status) return r.review_status === 'pending' ? 'review_pending' : r.review_status === 'approved' ? 'review_approved' : 'review_rejected';
+    const later = (byCapture.get(`${r.agent_id}|${r.capture_id}`) || []).filter(a => a.created_at > r.created_at);
+    if (later.some(a => a.outcome === 'pass')) return 'passed_later';
+    return r.open ? 'can_retry' : 'abandoned';
+  };
+  const attemptNo = r => {
+    const list = byCapture.get(`${r.agent_id}|${r.capture_id}`);
+    if (!list) return null;
+    // Counting restarts after a pass, like the attempts themselves.
+    let n = 0;
+    for (const a of list) {
+      if (a.outcome === 'pass') n = 0; else n++;
+      if (a.created_at === r.created_at) return n;
+    }
+    return null;
+  };
+
+  const reasonCounts = {};
+  const attempts = rows.map(r => {
+    const codes = parseCodes(r.reasons);
+    codes.forEach(code => { reasonCounts[code] = (reasonCounts[code] || 0) + 1; });
+    return {
+      id: r.id, created_at: r.created_at, agent_name: r.agent_name || 'Unknown', stage: r.stage,
+      attempt: attemptNo(r), outcome: visitOutcome(r),
+      reasons: codes.map(code => REASON_LABELS[code] || code), detail: r.detail,
+      extracted_id: r.extracted_id, avatar_letters: r.avatar_letters, profile_name: r.profile_name,
+      photo_url: photoUrl(r.photo_key, c.req.url),
+    };
+  });
+  return c.json({
+    success: true, period: { start, end }, total: attempts.length, attempts,
+    by_reason: Object.entries(reasonCounts).map(([code, n]) => ({ code, label: REASON_LABELS[code] || code, n })).sort((a, b) => b.n - a.n),
+  });
+});
+
 app.get('/photo-verification/reviews', requireRole('admin', 'general_manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');

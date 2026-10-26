@@ -31,7 +31,7 @@ export const LOCKED_MESSAGE = ATTEMPT_MESSAGES[2];
 // Reviewer-facing labels for the stored reason codes. Never sent to the agent.
 export const REASON_LABELS = {
   AI_FLAG: 'AI check: screenshot detected as fake or edited',
-  AVATAR_INITIALS: 'Profile circle shows initials, not the first two letters of the name',
+  AVATAR_INITIALS: 'Profile circle letters are not the first two letters of the name',
   NO_ID: 'No 9-digit Goldrush ID could be read',
   BLURRY: 'Photo too blurry to read',
   DUPLICATE_IMAGE: 'Same photo already submitted on another visit',

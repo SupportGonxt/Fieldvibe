@@ -2397,6 +2397,13 @@ Output JSON only.`;
     // The focused profile-header read wins; the general pass is the fallback.
     const profile = await profilePromise;
     const circle = profile.letters || avatarLetters;
+    // The general pass often returns no name; the name under the circle then fills the
+    // Details step (first word = first name, the rest = surname).
+    if (!extractedFirstName && !extractedLastName && profile.name) {
+      const [first, ...rest] = profile.name.split(/\s+/);
+      extractedFirstName = cleanName(first);
+      extractedLastName = cleanName(rest.join(' '));
+    }
     const profileName = profile.name || [extractedFirstName, extractedLastName].filter(Boolean).join(' ') || null;
     reasons.push(...await photoChecks(c.env.DB, {
       tenantId, hash, extractedId, blurry: photoBlurry, aiRead, fileAgeMs: Number(file_age_ms),

@@ -196,4 +196,95 @@ const FailedPhotoAttempts: React.FC<{ startDate: string; endDate: string; onPhot
   )
 }
 
+interface FailedAttempt {
+  id: string
+  created_at: string
+  agent_name: string
+  stage: string
+  attempt: number | null
+  outcome: 'can_retry' | 'passed_later' | 'abandoned' | 'review_pending' | 'review_approved' | 'review_rejected'
+  reasons: string[]
+  detail: string | null
+  extracted_id: string | null
+  avatar_letters: string | null
+  profile_name: string | null
+  photo_url: string | null
+}
+
+const OUTCOME: Record<FailedAttempt['outcome'], { label: string; cls: string }> = {
+  can_retry: { label: 'Still has attempts', cls: 'text-gray-600 dark:text-gray-300' },
+  passed_later: { label: 'A later photo passed', cls: 'text-green-700 dark:text-green-400' },
+  abandoned: { label: 'Visit not continued', cls: 'text-gray-500 dark:text-gray-400' },
+  review_pending: { label: 'Sent for review', cls: 'text-orange-600 dark:text-orange-400' },
+  review_approved: { label: 'Approved on review', cls: 'text-green-700 dark:text-green-400' },
+  review_rejected: { label: 'Rejected on review', cls: 'text-red-700 dark:text-red-400' },
+}
+
+// Every failed Goldrush photo attempt in the period — including visits that never reached
+// three failures — with the photo, the real reason and what the AI read from it.
+export const FailedAttemptsList: React.FC<{ startDate: string; endDate: string; onPhoto: (url: string) => void }> = ({ startDate, endDate, onPhoto }) => {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['photo-verification-attempts', startDate, endDate],
+    queryFn: async () => (await apiClient.get(`/field-ops/photo-verification/attempts?start=${startDate}&end=${endDate}`)).data as {
+      total: number; attempts: FailedAttempt[]; by_reason: { code: string; label: string; n: number }[]
+    },
+    staleTime: 30000,
+  })
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Failed photo attempts</h2>
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        Every Goldrush photo that failed verification in this period. The agent only saw the generic attempt message.
+      </p>
+      {isLoading ? <p className="text-sm text-gray-500">Loading…</p>
+        : isError || !data ? <p className="text-sm text-red-700 dark:text-red-400">Could not load the attempts. Try Refresh.</p>
+        : data.total === 0 ? <p className="text-sm text-gray-500">No failed attempts in this period.</p>
+        : (
+          <>
+            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+              <span className="rounded bg-gray-100 px-2 py-1 font-semibold dark:bg-gray-800">{data.total} failed</span>
+              {data.by_reason.map(r => (
+                <span key={r.code} className="rounded bg-red-50 px-2 py-1 text-red-800 dark:bg-red-950 dark:text-red-300">{r.label}: {r.n}</span>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[760px] w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-gray-800 text-left text-xs text-gray-500 dark:border-gray-300 dark:text-gray-400">
+                    <th className="py-2 pr-2">Photo</th><th className="px-2">When</th><th className="px-2">Agent</th><th className="px-2">Attempt</th><th className="px-2">Why it failed</th><th className="px-2">Read from photo</th><th className="px-2">Visit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.attempts.map(a => (
+                    <tr key={a.id} className="border-b border-gray-100 align-top dark:border-gray-800">
+                      <td className="py-1.5 pr-2">
+                        {a.photo_url ? (
+                          <button onClick={() => onPhoto(a.photo_url as string)} className="block focus-visible:outline focus-visible:outline-2" aria-label="Open photo">
+                            <img src={a.photo_url} alt="" loading="lazy" className="h-16 w-9 rounded border border-gray-200 object-cover object-top dark:border-gray-700" />
+                          </button>
+                        ) : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 tabular-nums">{when(a.created_at)}</td>
+                      <td className="px-2">{a.agent_name}</td>
+                      <td className="px-2 tabular-nums">{a.attempt ? `${a.attempt} of 3` : '—'}{a.stage === 'submit' ? ' (submit)' : ''}</td>
+                      <td className="px-2 text-xs">
+                        <ul className="list-disc pl-4 text-red-700 dark:text-red-400">{a.reasons.map(r => <li key={r}>{r}</li>)}</ul>
+                        {a.detail && <p className="mt-0.5 text-gray-600 dark:text-gray-300">{a.detail}</p>}
+                      </td>
+                      <td className="px-2 text-xs text-gray-600 dark:text-gray-300">
+                        {a.profile_name || '—'}{a.avatar_letters ? ` · circle "${a.avatar_letters}"` : ''}{a.extracted_id ? ` · ID ${a.extracted_id}` : ''}
+                      </td>
+                      <td className={`px-2 text-xs font-medium ${OUTCOME[a.outcome].cls}`}>{OUTCOME[a.outcome].label}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+    </section>
+  )
+}
+
 export default FailedPhotoAttempts

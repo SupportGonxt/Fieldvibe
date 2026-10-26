@@ -5,7 +5,7 @@ import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
 import { AlertTriangle, ShieldAlert, RefreshCw, X } from 'lucide-react'
-import FailedPhotoAttempts from './FailedPhotoAttempts'
+import FailedPhotoAttempts, { FailedAttemptsList } from './FailedPhotoAttempts'
 
 // AI Check — Goldrush screenshot fraud statistics (GM, Back Office, admins).
 // Definite fakes are excluded from every other report; they are counted only here.
@@ -182,7 +182,7 @@ const AiCheckPage: React.FC = () => {
             They are counted only on this page.
           </p>
         </div>
-        <button onClick={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['photo-verification-reviews'] }) }} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 dark:border-gray-600 dark:hover:bg-gray-800">
+        <button onClick={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['photo-verification-reviews'] }); queryClient.invalidateQueries({ queryKey: ['photo-verification-attempts'] }) }} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 dark:border-gray-600 dark:hover:bg-gray-800">
           <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
@@ -190,6 +190,8 @@ const AiCheckPage: React.FC = () => {
       <DateRangePresets startDate={startDate} endDate={endDate} onStartDateChange={setStartDate} onEndDateChange={setEndDate} />
 
       <FailedPhotoAttempts startDate={startDate} endDate={endDate} onPhoto={setLightbox} />
+
+      <FailedAttemptsList startDate={startDate} endDate={endDate} onPhoto={setLightbox} />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {tiles.map(k => (
