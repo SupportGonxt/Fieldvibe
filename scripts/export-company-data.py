@@ -39,6 +39,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WRANGLER = os.path.join(HERE, '..', 'workers-api', 'wrangler.toml')
 PAGE = 2000
 CELL_MAX = 32000  # Excel cell limit is 32767 chars
+SECRET_COLS = {'password_hash', 'pin_hash', 'admin_viewable_password', 'token', 'token_hash', 'p256dh', 'auth'}
 
 
 def d1_ids(env: str) -> tuple[str, str]:
@@ -144,7 +145,7 @@ def main() -> int:
     summary.append(['Table', 'Rows', 'Scope'])
 
     for table in tables:
-        cols = [r['name'] for r in db.query(f'PRAGMA table_info("{table}")')]
+        cols = [r['name'] for r in db.query(f'PRAGMA table_info("{table}")') if r['name'] not in SECRET_COLS]
         where = scope(table, set(cols))
         if not where:
             continue
