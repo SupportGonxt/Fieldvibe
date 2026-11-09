@@ -4,8 +4,9 @@ import toast from 'react-hot-toast'
 import { apiClient } from '../../../services/api.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
-import { AlertTriangle, ShieldAlert, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, ShieldAlert, RefreshCw, X, Download } from 'lucide-react'
 import FailedPhotoAttempts, { FailedAttemptsList } from './FailedPhotoAttempts'
+import { FLAG_LABELS, downloadAiCheckReport, type AiCheckExportData } from './aiCheckExport'
 
 // AI Check — Goldrush screenshot fraud statistics (GM, Back Office, admins).
 // Definite fakes are excluded from every other report; they are counted only here.
@@ -60,22 +61,6 @@ const SEGMENTS: { key: Verdict; label: string; color: string }[] = [
   { key: 'not_profile', label: 'Not a Goldrush profile', color: '#B9BEC5' },
 ]
 
-const FLAG_LABELS: Record<string, string> = {
-  REUSED_STATUS_BAR: 'Frozen phone status bar (reused template)',
-  GREEN_THEME: 'Green page — no such Goldrush theme',
-  FUTURE_ID: 'Goldrush ID not issued yet (shown in photo)',
-  PLACEHOLDER_TEXT: 'Placeholder text in name',
-  FONT_MISMATCH: 'Font does not match golden (3+ checks)',
-  THEME_COLOUR: 'Navy/black page + font deviation',
-  CARD_COLOUR: 'ID card not Goldrush mustard yellow',
-  GLYPH_ARTIFACT: 'AI glyph artifact in name',
-  FONT_DEVIATION: 'Font deviation (2 checks)',
-  ID_MISMATCH: 'Screenshot ID differs from typed ID',
-  DUPLICATE_ID: 'Goldrush ID used more than once',
-  FUTURE_ID_ENTERED: 'Typed ID beyond issued range (typo?)',
-  MANUAL_REVIEW: 'Confirmed fake on manual review',
-}
-
 const Bar: React.FC<{ t: Tally }> = ({ t }) => (
   <div className="flex h-2.5 w-full gap-px overflow-hidden rounded-sm bg-gray-100 dark:bg-gray-800" role="img" aria-label="verdict mix">
     {SEGMENTS.map(s => (t[s.key] > 0 ? (
@@ -127,7 +112,21 @@ const AiCheckPage: React.FC = () => {
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState<FlaggedCheckIn | null>(null)
   const [note, setNote] = useState('')
+  const [exporting, setExporting] = useState(false)
   const queryClient = useQueryClient()
+
+  const exportReport = async () => {
+    setExporting(true)
+    try {
+      const res = await apiClient.get(`/field-ops/ai-check/export?start=${startDate}&end=${endDate}`)
+      downloadAiCheckReport(res.data as AiCheckExportData)
+      toast.success('AI Check report downloaded')
+    } catch {
+      toast.error('Could not export the report. Try again.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const review = useMutation({
     mutationFn: async (vars: { visit_id: string; decision: 'fake' | 'genuine'; note: string }) =>
@@ -183,9 +182,14 @@ const AiCheckPage: React.FC = () => {
             They are counted only on this page.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
         <button onClick={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['photo-verification-reviews'] }); queryClient.invalidateQueries({ queryKey: ['photo-verification-attempts'] }) }} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 dark:border-gray-600 dark:hover:bg-gray-800">
           <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} /> Refresh
         </button>
+        <button onClick={exportReport} disabled={exporting} className="inline-flex items-center gap-2 rounded-lg bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 focus-visible:outline focus-visible:outline-2 disabled:opacity-50">
+          <Download className={`h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} /> {exporting ? 'Exporting…' : 'Export'}
+        </button>
+        </div>
       </div>
 
       <DateRangePresets startDate={startDate} endDate={endDate} onStartDateChange={setStartDate} onEndDateChange={setEndDate} />

@@ -22,21 +22,20 @@ const parseCodes = s => { try { return JSON.parse(s || '[]'); } catch { return [
 
 // Every failed photo attempt in the period, whether or not its visit reached three —
 // with the photo, the real reasons, what the AI read, and what became of the visit.
-app.get('/photo-verification/attempts', requireRole('admin', 'general_manager'), async (c) => {
-  const db = c.env.DB;
-  const tenantId = c.get('tenantId');
+// Shared with the AI Check export, which asks for a higher limit.
+export async function loadFailedAttempts(db, tenantId, start, end, reqUrl, limit = 300) {
   await ensurePhotoAttemptTables(db);
-  const day = /^\d{4}-\d{2}-\d{2}$/;
-  const end = day.test(c.req.query('end') || '') ? c.req.query('end') : new Date().toISOString().slice(0, 10);
-  const start = day.test(c.req.query('start') || '') ? c.req.query('start') : new Date(Date.parse(end) - 30 * 864e5).toISOString().slice(0, 10);
   const rows = (await db.prepare(
-    `SELECT a.*, TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS agent_name, r.status AS review_status
+    `SELECT a.*, TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')) AS agent_name,
+       u.team_lead_id, NULLIF(TRIM(COALESCE(tl.first_name,'') || ' ' || COALESCE(tl.last_name,'')), '') AS team_lead_name,
+       r.status AS review_status
      FROM goldrush_photo_attempts a
      LEFT JOIN users u ON u.id = a.agent_id
+     LEFT JOIN users tl ON tl.id = u.team_lead_id
      LEFT JOIN goldrush_photo_reviews r ON r.id = a.review_id
      WHERE a.tenant_id = ? AND a.outcome = 'fail' AND substr(a.created_at, 1, 10) BETWEEN ? AND ?
-     ORDER BY a.created_at DESC LIMIT 300`
-  ).bind(tenantId, start, end).all()).results || [];
+     ORDER BY a.created_at DESC LIMIT ?`
+  ).bind(tenantId, start, end, limit).all()).results || [];
 
   // Every attempt of the same visits (capture ids), to number each failure and tell
   // whether a later photo passed.
@@ -76,17 +75,26 @@ app.get('/photo-verification/attempts', requireRole('admin', 'general_manager'),
     const codes = parseCodes(r.reasons);
     codes.forEach(code => { reasonCounts[code] = (reasonCounts[code] || 0) + 1; });
     return {
-      id: r.id, created_at: r.created_at, agent_name: r.agent_name || 'Unknown', stage: r.stage,
+      id: r.id, created_at: r.created_at, agent_id: r.agent_id, agent_name: r.agent_name || 'Unknown',
+      team_lead_id: r.team_lead_id || null, team_lead_name: r.team_lead_name || null, stage: r.stage,
       attempt: attemptNo(r), outcome: visitOutcome(r),
       reasons: codes.map(code => REASON_LABELS[code] || code), detail: r.detail,
       extracted_id: r.extracted_id, avatar_letters: r.avatar_letters, profile_name: r.profile_name,
-      photo_url: photoUrl(r.photo_key, c.req.url),
+      photo_url: photoUrl(r.photo_key, reqUrl),
     };
   });
-  return c.json({
-    success: true, period: { start, end }, total: attempts.length, attempts,
+  return {
+    attempts,
     by_reason: Object.entries(reasonCounts).map(([code, n]) => ({ code, label: REASON_LABELS[code] || code, n })).sort((a, b) => b.n - a.n),
-  });
+  };
+}
+
+app.get('/photo-verification/attempts', requireRole('admin', 'general_manager'), async (c) => {
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  const end = day.test(c.req.query('end') || '') ? c.req.query('end') : new Date().toISOString().slice(0, 10);
+  const start = day.test(c.req.query('start') || '') ? c.req.query('start') : new Date(Date.parse(end) - 30 * 864e5).toISOString().slice(0, 10);
+  const { attempts, by_reason } = await loadFailedAttempts(c.env.DB, c.get('tenantId'), start, end, c.req.url);
+  return c.json({ success: true, period: { start, end }, total: attempts.length, attempts, by_reason });
 });
 
 app.get('/photo-verification/reviews', requireRole('admin', 'general_manager'), async (c) => {
