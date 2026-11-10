@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { HelpCircle, X, ChevronRight, BookOpen, Lightbulb, CheckCircle, Play } from 'lucide-react'
 import { getHelpContent, HelpContent, TrainingStep } from '../../config/helpContent'
+import { supportEnabled, openSupport, openMyTickets } from '../../lib/nxtdesk'
 
 interface HelpPanelProps {
   isOpen: boolean
@@ -202,9 +203,26 @@ export default function HelpPanel({ isOpen, onClose }: HelpPanelProps) {
       )}
 
       <div className="p-4 border-t border-gray-100 bg-surface-secondary">
-        <p className="text-xs text-gray-500 text-center">
-          Need more help? Contact support at support@fieldvibe.com
-        </p>
+        {supportEnabled ? (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { onClose(); openSupport() }}
+              className="flex-1 py-2 text-sm font-medium bg-primary text-on-primary rounded-lg hover:bg-[#00D06E] transition-colors"
+            >
+              Report an issue
+            </button>
+            <button
+              onClick={() => { onClose(); openMyTickets() }}
+              className="flex-1 py-2 text-sm font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              My tickets
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 text-center">
+            Need more help? Contact support at support@fieldvibe.com
+          </p>
+        )}
       </div>
     </div>
   )

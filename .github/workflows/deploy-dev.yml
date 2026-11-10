@@ -57,6 +57,10 @@ jobs:
           VITE_ENABLE_OFFLINE_MODE: true
           VITE_PWA_ENABLED: true
           VITE_APP_VERSION: dev-${{ github.sha }}
+          # NXTDesk support widget, test environment. The key is public (it can
+          # only create tickets). Production builds leave these unset: no widget.
+          VITE_NXTDESK_URL: https://nxtdesk-preview.pages.dev/widget.js
+          VITE_NXTDESK_KEY: pk_c706e1b21fa7b264995f6136
 
       - name: Deploy Frontend to Cloudflare Pages (dev branch)
         id: pages-deploy

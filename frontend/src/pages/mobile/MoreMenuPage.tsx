@@ -4,10 +4,11 @@ import {
   Settings, Users, Package, BarChart3, FileText,
   LogOut, ChevronRight, UserCircle, Building2,
   MapPin, Target, Wallet, Truck, ClipboardList, Camera,
-  Globe, Database, CreditCard, Tag
+  Globe, Database, CreditCard, Tag, LifeBuoy, Inbox
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
 import { roleAllows, canSeeMoney } from '../../lib/capabilities'
+import { supportEnabled, openSupport, openMyTickets } from '../../lib/nxtdesk'
 
 interface MenuItem {
   label: string
@@ -151,6 +152,33 @@ export default function MoreMenuPage() {
             </div>
           )
         })}
+
+        {supportEnabled && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
+              Support
+            </h3>
+            <div className="bg-white dark:bg-night-50 rounded-xl border border-gray-200 dark:border-night-100 divide-y divide-gray-100 dark:divide-night-100 overflow-hidden">
+              {[
+                { label: 'Report an issue', description: 'Tell the support team about a problem', icon: <LifeBuoy className="w-5 h-5" />, onClick: () => openSupport() },
+                { label: 'My support tickets', description: 'Replies to issues you reported', icon: <Inbox className="w-5 h-5" />, onClick: () => openMyTickets() },
+              ].map(item => (
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-night-100 transition-colors text-left"
+                >
+                  <div className="flex-shrink-0 text-gray-500 dark:text-gray-400">{item.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.label}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{item.description}</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Logout */}

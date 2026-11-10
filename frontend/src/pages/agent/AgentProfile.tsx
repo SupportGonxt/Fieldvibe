@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff, LayoutGrid, Wallet } from 'lucide-react'
+import { User, Phone, Building2, Shield, Lock, LogOut, ChevronRight, AlertCircle, CheckCircle2, Eye, EyeOff, LayoutGrid, Wallet, LifeBuoy, Inbox } from 'lucide-react'
+import { supportEnabled, openSupport, openMyTickets } from '../../lib/nxtdesk'
 import toast from 'react-hot-toast'
 import { useAuthStore, hasRole } from '../../store/auth.store'
 import { apiClient } from '../../services/api.service'
@@ -162,6 +163,38 @@ export default function AgentProfile() {
             </div>
             <ChevronRight className="w-4 h-4 text-token-faint" />
           </button>
+        )}
+
+        {/* Support (NXTDesk widget) — only in builds that carry a widget key */}
+        {supportEnabled && (
+          <>
+            <button
+              onClick={() => openSupport()}
+              className="w-full bg-white/5 border border-token rounded-xl p-4 flex items-center justify-between active:bg-white/10 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <LifeBuoy className="w-5 h-5 text-primary" />
+                <div className="text-left">
+                  <span className="block text-sm text-token font-medium">Report an issue</span>
+                  <span className="block text-[11px] text-token-faint">Tell the support team about a problem</span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-token-faint" />
+            </button>
+            <button
+              onClick={() => openMyTickets()}
+              className="w-full bg-white/5 border border-token rounded-xl p-4 flex items-center justify-between active:bg-white/10 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Inbox className="w-5 h-5 text-primary" />
+                <div className="text-left">
+                  <span className="block text-sm text-token font-medium">My support tickets</span>
+                  <span className="block text-[11px] text-token-faint">Replies to issues you reported</span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-token-faint" />
+            </button>
+          </>
         )}
 
         {/* Logout */}
