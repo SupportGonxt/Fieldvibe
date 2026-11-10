@@ -4,19 +4,19 @@
 INSERT OR IGNORE INTO tenants (id, name, code, domain, status, subscription_plan, max_users, created_at)
 VALUES ('default-tenant-001', 'Demo Company', 'DEMO', 'demo.fieldvibe.com', 'active', 'enterprise', 100, datetime('now'));
 
--- Super Admin user (password: SuperAdmin@2026!)
+-- Super Admin user (password not recorded here; rotate it, never commit it)
 INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, is_active, created_at)
 VALUES ('super-admin-001', 'default-tenant-001', 'superadmin@fieldvibe.com', '$2b$10$IkVFZiNQrkDanLSKHT/rXeCbL7eTXkCnpWcES9VjlVuRA97pwe4eW', 'Super', 'Admin', '+27100000000', 'super_admin', 'active', 1, datetime('now'));
 
--- Admin user (password: admin123)
+-- Admin user (password not recorded here)
 INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, is_active, created_at)
 VALUES ('admin-user-001', 'default-tenant-001', 'admin@demo.com', '$2b$10$KjbItQZTANkje1iozLTl3e9v57UTrSkwo12chehtr8IEr6HMhBGky', 'Admin', 'User', '+27123456789', 'admin', 'active', 1, datetime('now'));
 
--- Agent user (password: agent123)
+-- Agent user (password not recorded here)
 INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, is_active, manager_id, created_at)
 VALUES ('agent-user-001', 'default-tenant-001', 'agent@demo.com', '$2b$10$KjbItQZTANkje1iozLTl3e9v57UTrSkwo12chehtr8IEr6HMhBGky', 'John', 'Agent', '+27987654321', 'agent', 'active', 1, 'admin-user-001', datetime('now'));
 
--- Manager user (password: admin123)
+-- Manager user (password not recorded here)
 INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, is_active, created_at)
 VALUES ('manager-user-001', 'default-tenant-001', 'manager@demo.com', '$2b$10$KjbItQZTANkje1iozLTl3e9v57UTrSkwo12chehtr8IEr6HMhBGky', 'Sarah', 'Manager', '+27111222333', 'manager', 'active', 1, datetime('now'));
 

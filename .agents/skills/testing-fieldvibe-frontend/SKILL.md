@@ -31,8 +31,7 @@ npx wrangler pages deploy dist --project-name=fieldvibe
 
 ## Authentication
 - Login URL: `/auth/login`
-- Test credentials: `admin@demo.com` / `Admin@2026!`
-- The login page shows demo hint as `admin@demo.com / admin123` but the actual working password is `Admin@2026!`
+- Test credentials: read from the `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` environment variables. Never write a password into this file: the repository is public.
 - After login, the app redirects to `/dashboard`
 
 ## Key Routes to Test

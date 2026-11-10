@@ -5,13 +5,11 @@ import { readFileSync } from 'node:fs';
 // the capitalisation of the email — `users.email` is `TEXT UNIQUE` with no COLLATE NOCASE,
 // so SQLite treats them as distinct rows, and an exact `email = ?` match landed on the
 // wrong one and failed the bcrypt compare with a bare "Invalid credentials". Every email
-// lookup on a login/recovery path has to be case-insensitive, and the registration
-// duplicate check too — that check is what let the second account be created at all.
+// lookup on a login/recovery path has to be case-insensitive. (Public registration, whose
+// duplicate check let the second account be created, is now disabled outright.)
 const cases = [
   ['src/routes/auth.js', 'login',
    'SELECT * FROM users WHERE (LOWER(email) = LOWER(?) OR phone = ?) AND is_active = 1'],
-  ['src/routes/auth.js', 'register duplicate check',
-   'SELECT id FROM users WHERE LOWER(email) = LOWER(?)'],
   ['src/routes/auth.js', 'forgot password',
    'SELECT id, tenant_id, email, first_name FROM users WHERE LOWER(email) = LOWER(?) AND is_active = 1'],
   ['src/routes/companyPortal.js', 'company portal login',

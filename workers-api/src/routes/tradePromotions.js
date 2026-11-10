@@ -151,7 +151,7 @@ app.put('/trade-promotion-claims/:id/reject', requireRole('admin', 'manager'), a
   const userId = c.get('userId');
   const { id } = c.req.param();
   const { reason } = await c.req.json();
-  await db.prepare("UPDATE trade_promotion_claims SET status = 'REJECTED', approved_by = ?, approved_at = datetime('now') WHERE id = ?").bind(userId, id).run();
+  await db.prepare("UPDATE trade_promotion_claims SET status = 'REJECTED', approved_by = ?, approved_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(userId, id, c.get('tenantId')).run();
   return c.json({ success: true, message: 'Claim rejected' });
 });
 

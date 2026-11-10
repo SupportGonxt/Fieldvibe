@@ -98,6 +98,11 @@ app.use('*', async (c, next) => {
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('X-Request-ID', crypto.randomUUID());
   c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  // Stored files are served from this origin without auth. A sandboxed, script-less CSP
+  // means an uploaded HTML/SVG file (older rows predate the type allowlist) can't run here.
+  if (c.req.path.startsWith('/api/uploads/')) {
+    c.header('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+  }
 });
 
 // Middleware
@@ -105,7 +110,7 @@ app.use('*', logger());
 
 // ==================== SECTION 4: CORS LOCKDOWN ====================
 app.use('*', cors({
-  origin: (origin) => {
+  origin: (origin, c) => {
     const allowed = [
       'https://fieldvibe.vantax.co.za',
       'https://fieldvibe.pages.dev',
@@ -113,6 +118,10 @@ app.use('*', cors({
     ];
     if (!origin) return allowed[0];
     if (allowed.includes(origin)) return origin;
+    // Preview deploys and local dev talk to the preview Worker. Production trusts only the
+    // fixed origins above: any page served from localhost or a *.pages.dev preview could
+    // otherwise make credentialed calls to the live API.
+    if (c.env?.ENVIRONMENT === 'production') return null;
     if (origin.endsWith('.fieldvibe.pages.dev')) return origin;
     if (origin.endsWith('.fieldvibe-frontend.pages.dev')) return origin;
     if (origin.startsWith('http://localhost:')) return origin;
@@ -185,8 +194,13 @@ api.post('/uploads', async (c) => {
     if (!file) return c.json({ success: false, message: 'No file provided' }, 400);
     const bucket = c.env.UPLOADS;
     if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
-    const key = 'uploads/' + Date.now() + '-' + (file.name || 'file');
-    await bucket.put(key, file.stream || file, { httpMetadata: { contentType: file.type || 'application/octet-stream' } });
+    // Random, tenant-prefixed key: the old 'uploads/<ms>-<name>' keys were guessable, and the
+    // files are served without auth. The client's content type is only trusted for raster
+    // images; anything else (HTML, SVG) is stored as opaque bytes so it can't run as a page.
+    const ext = (String(file.name || '').match(/\.[A-Za-z0-9]{1,8}$/) || [''])[0];
+    const key = 'uploads/' + c.get('tenantId') + '/' + crypto.randomUUID() + ext;
+    const safeType = /^image\/(jpeg|jpg|png|webp|gif|heic|heif)$/i.test(file.type || '') || file.type === 'application/pdf';
+    await bucket.put(key, file.stream || file, { httpMetadata: { contentType: safeType ? file.type : 'application/octet-stream' } });
     return c.json({ success: true, data: { key, url: '/api/uploads/' + key } });
   } catch (error) {
     console.error('Upload error:', error);

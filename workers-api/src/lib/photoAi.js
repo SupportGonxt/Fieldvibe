@@ -4,7 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { clampSharePct } from '../services/goldrushVision.js';
 
 // Match old format: https://fieldvibe-uploads.{tenantId}.r2.dev/{key}
-const LEGACY_R2_URL_RE = /^https?:\/\/fieldvibe-uploads\.[^/]+\.r2\.dev\/(.+)$/;
+// The subdomain is a strict label: `[^/]+` also matched `evil.com?` and `x@evil.com`, which
+// turned the company-portal photo proxy into an open fetch of any host.
+const LEGACY_R2_URL_RE = /^https?:\/\/fieldvibe-uploads\.[A-Za-z0-9-]+\.r2\.dev\/(.+)$/;
 
 // Rewrite old bad R2 URLs (fieldvibe-uploads.*.r2.dev) to API proxy URLs
 function rewriteR2Url(url, reqUrl) {
@@ -370,14 +372,21 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
 // verbatim is how ~6k inline blobs ended up inside D1 (see migration 0024 / the backfill).
 // Push the bytes to R2 and keep only the URL. On any failure the data URI is returned
 // unchanged, so the photo is never lost — it just stays inline and the backfill can retry.
+// Raster types only: an image/svg+xml body carries script and is served from the API origin.
+const SAFE_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
+
 async function persistClientPhoto(bucket, photo, visitId, photoId, reqUrl) {
   const rawKey = typeof photo.r2_key === 'string' ? photo.r2_key : '';
-  const key = rawKey && !rawKey.startsWith('data:') ? rawKey : `photos/${visitId}/${photoId}`;
   const url = photo.r2_url || photo.photo_url || null;
   const decoded = bucket ? decodeDataUri(url) : null;
-  if (!decoded) return { r2_key: key, r2_url: url };
+  // No bytes: the client is referencing an already-uploaded object, so its key is kept as-is.
+  if (!decoded) return { r2_key: rawKey && !rawKey.startsWith('data:') ? rawKey : `photos/${visitId}/${photoId}`, r2_url: url };
+  // Bytes are always written under a server-chosen key (photoId is a fresh UUID). Writing to
+  // the client's r2_key let any user overwrite any object in the bucket, any tenant's included.
+  const key = `photos/${visitId}/${photoId}`;
+  const contentType = SAFE_IMAGE_TYPES.includes(decoded.contentType.toLowerCase()) ? decoded.contentType : 'application/octet-stream';
   try {
-    await bucket.put(key, decoded.bytes, { httpMetadata: { contentType: decoded.contentType } });
+    await bucket.put(key, decoded.bytes, { httpMetadata: { contentType } });
   } catch {
     return { r2_key: key, r2_url: url };
   }

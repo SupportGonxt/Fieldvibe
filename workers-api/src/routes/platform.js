@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, requireRole, requireSuperAdmin } from '../lib/middleware.js';
+import { roleAllows } from '../lib/capabilities.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { normalizePhone, generateToken } from '../lib/authUtils.js';
@@ -116,22 +117,31 @@ app.post('/notifications/broadcast', requireRole('admin'), async (c) => {
 });
 
 // ==================== CROSS-TENANT ====================
-app.get('/cross-tenant/assignments', requireRole('admin'), async (c) => {
+// Cross-tenant access is platform-level: tenant admins could otherwise grant themselves (or
+// anyone) access to any tenant with any role, and /switch would sign it. Only super admins
+// manage assignments, and an assignment can never carry super_admin.
+const ASSIGNABLE_OVERRIDE_ROLES = ['admin', 'general_manager', 'manager', 'team_lead', 'agent', 'field_agent', 'sales_rep', 'backoffice_admin', 'viewer'];
+
+app.get('/cross-tenant/assignments', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const assignments = await db.prepare("SELECT aca.*, u.first_name || ' ' || u.last_name as user_name, u.email as user_email, t.name as tenant_name FROM agent_company_assignments aca LEFT JOIN users u ON aca.user_id = u.id LEFT JOIN tenants t ON aca.tenant_id = t.id WHERE aca.revoked_at IS NULL ORDER BY aca.granted_at DESC").all();
   return c.json({ success: true, data: assignments.results || [] });
 });
 
-app.post('/cross-tenant/assignments', requireRole('admin'), async (c) => {
+app.post('/cross-tenant/assignments', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const body = await c.req.json();
+  if (!body.user_id || !body.tenant_id) return c.json({ success: false, message: 'user_id and tenant_id are required' }, 400);
+  if (body.role_override && !ASSIGNABLE_OVERRIDE_ROLES.includes(body.role_override)) {
+    return c.json({ success: false, message: 'Invalid role_override' }, 400);
+  }
   const id = uuidv4();
   const userId = c.get('userId');
   await db.prepare('INSERT INTO agent_company_assignments (id, user_id, tenant_id, role_override, granted_by) VALUES (?, ?, ?, ?, ?)').bind(id, body.user_id, body.tenant_id, body.role_override || null, userId).run();
   return c.json({ success: true, data: { id } }, 201);
 });
 
-app.delete('/cross-tenant/assignments/:id', requireRole('admin'), async (c) => {
+app.delete('/cross-tenant/assignments/:id', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   await db.prepare("UPDATE agent_company_assignments SET revoked_at = datetime('now') WHERE id = ?").bind(id).run();
@@ -146,6 +156,10 @@ app.post('/cross-tenant/switch', authMiddleware, async (c) => {
   if (!assignment) return c.json({ success: false, message: 'No access to this tenant' }, 403);
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+  // Re-checked at use: rows written before the allowlist existed may carry super_admin.
+  if (assignment.role_override && !ASSIGNABLE_OVERRIDE_ROLES.includes(assignment.role_override)) {
+    return c.json({ success: false, message: 'No access to this tenant' }, 403);
+  }
   const role = assignment.role_override || user.role;
   const jwtSecret = c.env.JWT_SECRET;
   const accessToken = await generateToken({ userId, tenantId: body.tenant_id, role }, jwtSecret);
@@ -180,8 +194,12 @@ app.get('/settings', async (c) => {
   if (category) { query += ' AND category = ?'; params.push(category); }
   query += ' ORDER BY key';
   const rows = await db.prepare(query).bind(...params).all();
+  // Integration credentials (smtp_password, sms_api_key/secret, ...) are admin-only: agent
+  // screens read this endpoint too, so drop those rows rather than gate the whole route.
+  const isSecretKey = (key) => /password|secret|api_key|token/i.test(key || '');
+  const showSecrets = roleAllows(c.get('role'), []);
   // Return settings as both array and keyed object for frontend compatibility
-  const settingsArray = rows.results || [];
+  const settingsArray = (rows.results || []).filter((s) => showSecrets || !isSecretKey(s.key));
   const settingsMap = {};
   for (const s of settingsArray) {
     settingsMap[s.key] = {
@@ -412,7 +430,7 @@ app.get('/process-flows/:id', authMiddleware, async (c) => {
 });
 
 // CREATE process flow
-app.post('/process-flows', authMiddleware, async (c) => {
+app.post('/process-flows', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -437,7 +455,7 @@ app.post('/process-flows', authMiddleware, async (c) => {
 });
 
 // UPDATE process flow
-app.put('/process-flows/:id', authMiddleware, async (c) => {
+app.put('/process-flows/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -474,7 +492,7 @@ app.put('/process-flows/:id', authMiddleware, async (c) => {
 });
 
 // DELETE process flow (soft)
-app.delete('/process-flows/:id', authMiddleware, async (c) => {
+app.delete('/process-flows/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -496,7 +514,7 @@ app.get('/company-process-flows', authMiddleware, async (c) => {
   } catch { return c.json({ data: [] }); }
 });
 
-app.post('/company-process-flows', authMiddleware, async (c) => {
+app.post('/company-process-flows', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -510,7 +528,7 @@ app.post('/company-process-flows', authMiddleware, async (c) => {
   } catch (err) { return c.json({ error: 'Failed to assign: ' + (err.message || err) }, 500); }
 });
 
-app.delete('/company-process-flows/:id', authMiddleware, async (c) => {
+app.delete('/company-process-flows/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -592,7 +610,7 @@ app.delete('/company-custom-questions/:id', authMiddleware, async (c) => {
 // --- Individual Visit Reporting (includes survey answers + custom fields) ---
 
 // --- Migration: create process_flows + company_custom_questions tables ---
-app.post('/migrations/create-process-flows', authMiddleware, async (c) => {
+app.post('/migrations/create-process-flows', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const results = [];
   try {
@@ -695,7 +713,7 @@ app.post('/migrations/create-process-flows', authMiddleware, async (c) => {
 });
 
 // One-time cleanup: soft-delete all company_custom_questions for Stellr
-app.post('/migrations/clear-stellr-company-questions', authMiddleware, async (c) => {
+app.post('/migrations/clear-stellr-company-questions', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {
@@ -711,7 +729,7 @@ app.post('/migrations/clear-stellr-company-questions', authMiddleware, async (c)
 });
 
 // Add performance indexes for faster queries
-app.post('/migrations/add-performance-indexes', authMiddleware, async (c) => {
+app.post('/migrations/add-performance-indexes', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const results = [];
   try {
@@ -1449,7 +1467,7 @@ app.get('/seed/runs', requireRole('admin'), async (c) => {
 });
 
 // ==================== X.2 Seed Goldrush Company + Questionnaires ====================
-app.post('/seed/goldrush', authMiddleware, async (c) => {
+app.post('/seed/goldrush', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -1687,7 +1705,7 @@ app.post('/seed/goldrush', authMiddleware, async (c) => {
 });
 
 // Upload sample board image for existing record (used after seed/goldrush)
-app.post('/seed/goldrush-sample-board', authMiddleware, async (c) => {
+app.post('/seed/goldrush-sample-board', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   try {

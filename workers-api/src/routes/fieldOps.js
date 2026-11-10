@@ -11,6 +11,7 @@ import { resolveReportCompanyId, mapLimit } from '../lib/aggregates.js';
 const RULE_CONCURRENCY = 3;
 const ROW_CONCURRENCY = 6;
 import { extractGoldrushId, goldrushIdExists } from '../lib/goldrush.js';
+import { pickCustomFieldUpdates, forbidForeignVisitEdit } from './coreCrud/visits.js';
 import { isOutsideAgentHours, AGENT_HOURS_ERROR } from '../lib/agentHours.js';
 import { rewriteR2Url, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto } from '../lib/photoAi.js';
 import { validate } from '../validate.js';
@@ -67,8 +68,10 @@ app.get('/field-operations/agents/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const agent = await db.prepare("SELECT u.* FROM users u WHERE u.id = ? AND u.tenant_id = ? AND u.role IN ('agent', 'field_agent', 'sales_rep')").bind(id, tenantId).first();
   if (!agent) return c.json({ success: false, message: 'Agent not found' }, 404);
+  // u.* carries the credential hashes; a 4-6 digit PIN hash cracks offline in minutes.
+  const { password_hash, pin_hash, admin_viewable_password, ...safeAgent } = agent;
   const visitCount = await db.prepare('SELECT COUNT(*) as count FROM visits WHERE agent_id = ? AND tenant_id = ?').bind(id, tenantId).first();
-  return c.json({ ...agent, total_visits: visitCount?.count || 0 });
+  return c.json({ ...safeAgent, total_visits: visitCount?.count || 0 });
 });
 
 app.get('/field-operations/visits', authMiddleware, async (c) => {
@@ -196,6 +199,8 @@ app.put('/field-operations/visits/:id', authMiddleware, async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
+  const blocked = await forbidForeignVisitEdit(c, db, id, tenantId);
+  if (blocked) return blocked;
   const body = await c.req.json();
   await db.prepare('UPDATE visits SET check_out_time = COALESCE(?, check_out_time), outcome = COALESCE(?, outcome), notes = COALESCE(?, notes), status = COALESCE(?, status), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.check_out_time || null, body.outcome || null, body.notes || null, body.status || null, id, tenantId).run();
   if (body.responses) {
@@ -207,10 +212,12 @@ app.put('/field-operations/visits/:id', authMiddleware, async (c) => {
       await db.prepare('INSERT INTO visit_responses (id, tenant_id, visit_id, responses) VALUES (?, ?, ?, ?)').bind(respId, tenantId, id, JSON.stringify(body.responses)).run();
     }
   }
-  // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill)
-  if (body.custom_field_values && typeof body.custom_field_values === 'object') {
+  // Update custom_field_values on visit_individuals (e.g. Goldrush ID backfill). Same
+  // allowlist as PUT /visits/:id: the blob also carries the keys that drive commission.
+  const customFieldUpdates = pickCustomFieldUpdates(body.custom_field_values);
+  if (Object.keys(customFieldUpdates).length > 0) {
     // Goldrush uniqueness + length on edit/resubmit (exclude this visit's own rows).
-    const incomingGoldrush = extractGoldrushId(body.custom_field_values);
+    const incomingGoldrush = extractGoldrushId(customFieldUpdates);
     if (incomingGoldrush) {
       if (incomingGoldrush.length !== 9) {
         return c.json({ error: 'Goldrush ID must be exactly 9 digits' }, 400);
@@ -223,7 +230,7 @@ app.put('/field-operations/visits/:id', authMiddleware, async (c) => {
     if (vi) {
       let existing = {};
       try { existing = JSON.parse(vi.custom_field_values || '{}'); } catch(e) {}
-      const merged = { ...existing, ...body.custom_field_values };
+      const merged = { ...existing, ...customFieldUpdates };
       await db.prepare('UPDATE visit_individuals SET custom_field_values = ? WHERE id = ? AND tenant_id = ?').bind(JSON.stringify(merged), vi.id, tenantId).run();
     }
     // Also update store_custom_questions in visit_responses for store visits (e.g. Goldrush ID on store visits)
@@ -231,7 +238,7 @@ app.put('/field-operations/visits/:id', authMiddleware, async (c) => {
     if (storeResp) {
       let existingStore = {};
       try { existingStore = JSON.parse(storeResp.responses || '{}'); } catch(e) {}
-      const mergedStore = { ...existingStore, ...body.custom_field_values };
+      const mergedStore = { ...existingStore, ...customFieldUpdates };
       await db.prepare("UPDATE visit_responses SET responses = ? WHERE id = ? AND tenant_id = ?").bind(JSON.stringify(mergedStore), storeResp.id, tenantId).run();
     }
   }
@@ -364,7 +371,7 @@ app.get('/field-ops/companies/:id', authMiddleware, async (c) => {
   return c.json({ ...company, agent_count: agentCount?.count || 0 });
 });
 
-app.post('/field-ops/companies', authMiddleware, async (c) => {
+app.post('/field-ops/companies', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -373,7 +380,7 @@ app.post('/field-ops/companies', authMiddleware, async (c) => {
   return c.json({ id, message: 'Company created' }, 201);
 });
 
-app.put('/field-ops/companies/:id', authMiddleware, async (c) => {
+app.put('/field-ops/companies/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -389,7 +396,7 @@ app.put('/field-ops/companies/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Company updated' });
 });
 
-app.delete('/field-ops/companies/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/companies/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -410,7 +417,7 @@ app.get('/field-ops/agent-companies/:agentId', authMiddleware, async (c) => {
   }
 });
 
-app.post('/field-ops/agent-companies', authMiddleware, async (c) => {
+app.post('/field-ops/agent-companies', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -419,7 +426,7 @@ app.post('/field-ops/agent-companies', authMiddleware, async (c) => {
   return c.json({ id, message: 'Agent linked to company' }, 201);
 });
 
-app.delete('/field-ops/agent-companies/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/agent-companies/:id', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -777,7 +784,7 @@ app.get('/field-ops/hierarchy', authMiddleware, async (c) => {
   }
 });
 
-app.put('/field-ops/hierarchy/assign', authMiddleware, async (c) => {
+app.put('/field-ops/hierarchy/assign', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -802,7 +809,7 @@ app.get('/field-ops/hierarchy/manager-companies/:managerId', authMiddleware, asy
   return c.json({ success: true, data: links.results || [] });
 });
 
-app.post('/field-ops/hierarchy/manager-companies', authMiddleware, async (c) => {
+app.post('/field-ops/hierarchy/manager-companies', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -819,7 +826,7 @@ app.post('/field-ops/hierarchy/manager-companies', authMiddleware, async (c) => 
   return c.json({ success: true, data: { id }, message: 'Manager assigned to company' }, 201);
 });
 
-app.delete('/field-ops/hierarchy/manager-companies/:linkId', authMiddleware, async (c) => {
+app.delete('/field-ops/hierarchy/manager-companies/:linkId', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const linkId = c.req.param('linkId');
@@ -838,7 +845,7 @@ app.get('/field-ops/settings', authMiddleware, async (c) => {
   } catch { return c.json({ data: [] }); }
 });
 
-app.put('/field-ops/settings', authMiddleware, async (c) => {
+app.put('/field-ops/settings', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -853,7 +860,7 @@ app.put('/field-ops/settings', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Setting saved' });
 });
 
-app.post('/field-ops/settings/bulk', authMiddleware, async (c) => {
+app.post('/field-ops/settings/bulk', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -885,7 +892,7 @@ app.get('/field-ops/working-days', authMiddleware, async (c) => {
   } catch { return c.json({ data: [] }); }
 });
 
-app.post('/field-ops/working-days', authMiddleware, async (c) => {
+app.post('/field-ops/working-days', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -894,7 +901,7 @@ app.post('/field-ops/working-days', authMiddleware, async (c) => {
   return c.json({ id, message: 'Working days config created' }, 201);
 });
 
-app.put('/field-ops/working-days/:id', authMiddleware, async (c) => {
+app.put('/field-ops/working-days/:id', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -911,7 +918,7 @@ app.put('/field-ops/working-days/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Working days config updated' });
 });
 
-app.delete('/field-ops/working-days/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/working-days/:id', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -1070,7 +1077,7 @@ app.get('/field-ops/commission-tiers', authMiddleware, async (c) => {
   } catch { return c.json({ data: [] }); }
 });
 
-app.post('/field-ops/commission-tiers', authMiddleware, async (c) => {
+app.post('/field-ops/commission-tiers', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -1080,7 +1087,7 @@ app.post('/field-ops/commission-tiers', authMiddleware, async (c) => {
   return c.json({ id, message: 'Commission tier created' }, 201);
 });
 
-app.put('/field-ops/commission-tiers/:id', authMiddleware, async (c) => {
+app.put('/field-ops/commission-tiers/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -1096,7 +1103,7 @@ app.put('/field-ops/commission-tiers/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Commission tier updated' });
 });
 
-app.delete('/field-ops/commission-tiers/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/commission-tiers/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -1115,7 +1122,7 @@ app.get('/visit-survey-config', authMiddleware, async (c) => {
   return c.json({ data: rows?.results || [] });
 });
 
-app.post('/visit-survey-config', authMiddleware, async (c) => {
+app.post('/visit-survey-config', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
@@ -1126,7 +1133,7 @@ app.post('/visit-survey-config', authMiddleware, async (c) => {
   return c.json({ data: { id, ...body }, message: 'Survey config created' }, 201);
 });
 
-app.put('/visit-survey-config/:id', authMiddleware, async (c) => {
+app.put('/visit-survey-config/:id', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -1139,7 +1146,7 @@ app.put('/visit-survey-config/:id', authMiddleware, async (c) => {
   return c.json({ success: true, message: 'Survey config updated' });
 });
 
-app.delete('/visit-survey-config/:id', authMiddleware, async (c) => {
+app.delete('/visit-survey-config/:id', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
@@ -1747,7 +1754,7 @@ app.delete('/visit-photos/:id', authMiddleware, async (c) => {
 });
 
 // ── Run migration to add review columns to visit_photos ──
-app.post('/visit-photos/add-review-columns', authMiddleware, async (c) => {
+app.post('/visit-photos/add-review-columns', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   try {
     const db = c.env.DB;
     const role = c.get('role');
@@ -1766,7 +1773,7 @@ app.post('/visit-photos/add-review-columns', authMiddleware, async (c) => {
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
 });
 // Migrate historical base64 photos from visit_responses to R2
-app.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
+app.post('/visit-photos/migrate-base64', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -1883,7 +1890,7 @@ app.post('/visit-photos/migrate-base64', authMiddleware, async (c) => {
 });
 
 // Fix old bad R2 URLs in visit_photos table (one-time migration)
-app.post('/visit-photos/fix-urls', authMiddleware, async (c) => {
+app.post('/visit-photos/fix-urls', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');
@@ -1938,7 +1945,7 @@ app.post('/visit-photos/fix-urls', authMiddleware, async (c) => {
 });
 
 // Batch AI analysis for historical/unanalyzed photos
-app.post('/visit-photos/ai-backfill', authMiddleware, async (c) => {
+app.post('/visit-photos/ai-backfill', authMiddleware, requireRole('admin', 'manager'), async (c) => {
   try {
     const db = c.env.DB;
     const tenantId = c.get('tenantId');

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { authMiddleware, requireRole } from '../../lib/middleware.js';
+import { authMiddleware, requireRole, requireSuperAdmin } from '../../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { validate, createCustomerSchema, updateCustomerSchema } from '../../validate.js';
 import { evaluateNewStoreLocation, namePrefix } from '../../services/storeLocationCheck.js';
@@ -41,13 +41,13 @@ app.post('/customers/check-location', authMiddleware, async (c) => {
 });
 
 // ==================== COMPANIES / TENANTS ====================
-app.get('/companies', requireRole('admin'), async (c) => {
+app.get('/companies', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const tenants = await db.prepare('SELECT * FROM tenants ORDER BY name LIMIT 500').all();
   return c.json({ success: true, data: tenants.results || [] });
 });
 
-app.post('/companies', requireRole('admin'), async (c) => {
+app.post('/companies', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const body = await c.req.json();
   const id = uuidv4();
@@ -55,7 +55,7 @@ app.post('/companies', requireRole('admin'), async (c) => {
   return c.json({ success: true, data: { id }, message: 'Company created' }, 201);
 });
 
-app.put('/companies/:id', requireRole('admin'), async (c) => {
+app.put('/companies/:id', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   const body = await c.req.json();
@@ -63,7 +63,7 @@ app.put('/companies/:id', requireRole('admin'), async (c) => {
   return c.json({ success: true, message: 'Company updated' });
 });
 
-app.get('/companies/:id/stats', requireRole('admin'), async (c) => {
+app.get('/companies/:id/stats', requireSuperAdmin, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
   const [users, customers, visits] = await Promise.all([

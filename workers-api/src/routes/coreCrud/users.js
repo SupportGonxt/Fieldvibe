@@ -7,6 +7,32 @@ import { normalizePhone } from '../../lib/authUtils.js';
 
 const app = new Hono();
 
+// Roles a tenant admin may assign. super_admin is platform-wide, so only an existing
+// super_admin may grant it (see assignableRole).
+const TENANT_ROLES = ['admin', 'general_manager', 'manager', 'team_lead', 'agent', 'field_agent', 'sales_rep', 'backoffice_admin', 'viewer'];
+
+function assignableRole(c, role) {
+  return TENANT_ROLES.includes(role) || (role === 'super_admin' && c.get('role') === 'super_admin');
+}
+
+// A tenant admin must not be able to edit, reset or deactivate a super_admin that happens to
+// live in their tenant: changing its email or password would hand them platform-wide access.
+async function forbidSuperAdminTarget(c, db, id, tenantId) {
+  if (c.get('role') === 'super_admin') return null;
+  const target = await db.prepare('SELECT role FROM users WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  if (target && target.role === 'super_admin') {
+    return c.json({ success: false, message: 'Only a super admin can change a super admin account' }, 403);
+  }
+  return null;
+}
+
+// Math.random is not a CSPRNG; generated passwords come from crypto instead.
+function randomPassword(length = 10) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+}
+
 // ==================== USERS ====================
 app.get('/users', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
@@ -37,7 +63,7 @@ app.post('/users', requireRole('admin'), async (c) => {
   // Agents/team_leads/managers default to password 12345; other roles get random password
   const isAgent = role === 'agent' || role === 'field_agent' || role === 'sales_rep';
   const isMobileRole = isAgent || role === 'team_lead' || role === 'manager';
-  const password = body.password || (isMobileRole ? '12345' : Math.random().toString(36).slice(-8));
+  const password = body.password || (isMobileRole ? '12345' : randomPassword());
   const hashedPassword = await bcrypt.hash(password, 10);
   // Set PIN for mobile-login-capable roles: use custom PIN if provided, otherwise default 12345
   let pinHash = null;
@@ -75,6 +101,11 @@ app.put('/users/:id', requireRole('admin'), async (c) => {
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
   const body = await c.req.json();
+  if (body.role && !assignableRole(c, body.role)) {
+    return c.json({ success: false, message: 'Invalid role' }, 400);
+  }
+  const blocked = await forbidSuperAdminTarget(c, db, id, tenantId);
+  if (blocked) return blocked;
   const agentType = body.agent_type !== undefined ? body.agent_type : (body.agentType !== undefined ? body.agentType : undefined);
   // Keep is_active in sync with status: the admin UI edits status only, while
   // most list/roster queries filter on is_active = 1 — letting them drift left
@@ -102,6 +133,9 @@ app.patch('/users/:id/quick-edit', requireRole('admin'), async (c) => {
   const body = await c.req.json();
   const user = await db.prepare('SELECT id, role, email FROM users WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+  if (user.role === 'super_admin' && c.get('role') !== 'super_admin') {
+    return c.json({ success: false, message: 'Only a super admin can change a super admin account' }, 403);
+  }
 
   const updates = [];
   const binds = [];
@@ -151,6 +185,8 @@ app.delete('/users/:id', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
+  const blocked = await forbidSuperAdminTarget(c, db, id, tenantId);
+  if (blocked) return blocked;
   // Unassign subordinates so they appear as "unassigned" instead of becoming invisible
   await db.batch([
     db.prepare('UPDATE users SET manager_id = NULL WHERE manager_id = ? AND tenant_id = ?').bind(id, tenantId),
@@ -164,8 +200,11 @@ app.patch('/users/:id/archive', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  const user = await db.prepare('SELECT status FROM users WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
+  const user = await db.prepare('SELECT status, role FROM users WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first();
   if (!user) return c.json({ success: false, message: 'User not found' }, 404);
+  if (user.role === 'super_admin' && c.get('role') !== 'super_admin') {
+    return c.json({ success: false, message: 'Only a super admin can change a super admin account' }, 403);
+  }
   const newStatus = user.status === 'archived' ? 'active' : 'archived';
   // is_active follows status so archived users drop out of roster queries
   await db.prepare('UPDATE users SET status = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?').bind(newStatus, newStatus === 'active' ? 1 : 0, id, tenantId).run();
@@ -176,7 +215,9 @@ app.post('/users/:id/reset-password', requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
-  const newPassword = Math.random().toString(36).slice(-8);
+  const blocked = await forbidSuperAdminTarget(c, db, id, tenantId);
+  if (blocked) return blocked;
+  const newPassword = randomPassword();
   const hashed = await bcrypt.hash(newPassword, 10);
   // Section 8: No longer storing plaintext password
   await db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND tenant_id = ?').bind(hashed, id, tenantId).run();

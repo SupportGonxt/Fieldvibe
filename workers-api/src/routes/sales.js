@@ -1019,7 +1019,7 @@ app.put('/returns/:id/reject', requireRole('admin', 'manager'), async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.param();
   const { reason } = await c.req.json();
-  await db.prepare("UPDATE returns SET status = 'REJECTED', approved_by = ?, updated_at = datetime('now') WHERE id = ?").bind(userId, id).run();
+  await db.prepare("UPDATE returns SET status = 'REJECTED', approved_by = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?").bind(userId, id, tenantId).run();
   return c.json({ success: true, message: 'Return rejected' });
 });
 

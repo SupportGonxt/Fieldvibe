@@ -16,11 +16,26 @@ describe('persistClientPhoto', () => {
     expect(out).toEqual({ r2_key: 'photos/v1/p1', r2_url: 'https://api.test/api/uploads/photos/v1/p1' });
   });
 
-  it('keeps a client-supplied key', async () => {
+  // A client-chosen key let any user overwrite any object in the bucket, any tenant's included.
+  it('writes bytes under the server key, never a client-supplied one', async () => {
     const puts = [];
-    const out = await persistClientPhoto(bucket(puts), { r2_key: 'photos/a/b', r2_url: GIF }, 'v1', 'p1', 'https://api.test/x');
-    expect(puts[0].key).toBe('photos/a/b');
+    const out = await persistClientPhoto(bucket(puts), { r2_key: 'photos/other-tenant/evidence', r2_url: GIF }, 'v1', 'p1', 'https://api.test/x');
+    expect(puts[0].key).toBe('photos/v1/p1');
+    expect(out.r2_key).toBe('photos/v1/p1');
+  });
+
+  it('keeps a client key that only references an already-uploaded object', async () => {
+    const puts = [];
+    const out = await persistClientPhoto(bucket(puts), { r2_key: 'photos/a/b', r2_url: 'https://api.test/api/uploads/photos/a/b' }, 'v1', 'p1', 'https://api.test/x');
+    expect(puts).toEqual([]);
     expect(out.r2_key).toBe('photos/a/b');
+  });
+
+  it('stores an SVG as opaque bytes so it cannot run script from the API origin', async () => {
+    const puts = [];
+    const svg = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    await persistClientPhoto(bucket(puts), { r2_url: svg }, 'v1', 'p1', 'https://api.test/x');
+    expect(puts[0].ct).toBe('application/octet-stream');
   });
 
   it('passes through an http url untouched', async () => {

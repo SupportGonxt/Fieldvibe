@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { validate, loginSchema, registerSchema } from '../validate.js';
+import { validate, loginSchema } from '../validate.js';
 import { rateLimiter, authMiddleware } from '../lib/middleware.js';
 import { generateToken, normalizePhone } from '../lib/authUtils.js';
 import { ensurePortalTables, inviteTokenExpired } from '../services/portal.js';
@@ -150,41 +150,11 @@ app.post('/api/auth/mobile-login', rateLimiter(10, 900000), async (c) => {
   }
 });
 
-app.post('/api/auth/register', rateLimiter(3, 3600000), async (c) => {
-  try {
-    const db = c.env.DB;
-    const body = await c.req.json();
-    const v = validate(registerSchema, body);
-    if (!v.valid) return c.json({ success: false, message: 'Validation failed', errors: v.errors }, 400);
-    const { email, phone, password, firstName, lastName, tenantCode } = v.data;
-    const existing = await db.prepare('SELECT id FROM users WHERE LOWER(email) = LOWER(?)').bind(email).first();
-    if (existing) return c.json({ success: false, message: 'Email already exists' }, 400);
-    let tenantId;
-    if (tenantCode) {
-      const tenant = await db.prepare('SELECT id FROM tenants WHERE code = ?').bind(tenantCode).first();
-      if (!tenant) return c.json({ success: false, message: 'Invalid tenant code' }, 400);
-      tenantId = tenant.id;
-    } else {
-      tenantId = uuidv4();
-      const companyName = firstName + "'s Company";
-      const code = email.split('@')[0];
-      await db.prepare('INSERT INTO tenants (id, name, code, status) VALUES (?, ?, ?, ?)').bind(tenantId, companyName, code, 'active').run();
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userId = uuidv4();
-    // Section 5: Batch user creation + audit log
-    await db.batch([
-      db.prepare('INSERT INTO users (id, tenant_id, email, phone, password_hash, first_name, last_name, role, status, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').bind(userId, tenantId, email, phone || null, hashedPassword, firstName, lastName, 'admin', 'active'),
-      db.prepare('INSERT INTO audit_log (id, tenant_id, user_id, action, resource_type, resource_id, new_values) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uuidv4(), tenantId, userId, 'CREATE', 'user', userId, JSON.stringify({ email, role: 'admin' })),
-    ]);
-    const jwtSecret = c.env.JWT_SECRET;
-    const accessToken = await generateToken({ userId, tenantId, role: 'admin' }, jwtSecret);
-    return c.json({ success: true, data: { user: { id: userId, email, role: 'admin', tenantId }, token: accessToken } }, 201);
-  } catch (error) {
-    console.error('Register error:', error);
-    return c.json({ success: false, message: 'Registration failed' }, 500);
-  }
-});
+// Public self-registration is disabled. It made the caller an admin, and with a tenantCode it
+// joined an EXISTING tenant as admin (the live tenant code is public), so anyone on the internet
+// could take over a tenant. Nothing in the web app calls it; tenants are created by a super
+// admin (POST /api/tenants) and users by a tenant admin (POST /api/users).
+app.post('/api/auth/register', (c) => c.json({ success: false, message: 'Self-registration is disabled. Ask your administrator for an account.' }, 403));
 
 app.get('/api/auth/me', authMiddleware, async (c) => {
   const db = c.env.DB;

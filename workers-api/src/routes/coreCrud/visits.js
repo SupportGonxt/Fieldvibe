@@ -277,10 +277,34 @@ export function pickCustomFieldUpdates(values) {
   return out;
 }
 
+// Keys only the server or back office may write (deposit matching sets verification_status;
+// review sets the rejection). Stripped from capture-time input, where any agent could
+// otherwise mark their own signup 'qualified' and be paid on it.
+const SERVER_ONLY_CUSTOM_KEYS = ['verification_status', 'goldrush_id_rejected', 'goldrush_id_rejection_reason'];
+
+export function stripServerOnlyKeys(values) {
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return values;
+  const out = { ...values };
+  for (const key of SERVER_ONLY_CUSTOM_KEYS) delete out[key];
+  return out;
+}
+
+const OWN_VISITS_ONLY_ROLES = ['agent', 'field_agent', 'sales_rep'];
+
+// Field agents may only edit their own visits; everyone above them keeps tenant-wide edit.
+export async function forbidForeignVisitEdit(c, db, visitId, tenantId) {
+  if (!OWN_VISITS_ONLY_ROLES.includes(c.get('role'))) return null;
+  const visit = await db.prepare('SELECT agent_id FROM visits WHERE id = ? AND tenant_id = ?').bind(visitId, tenantId).first();
+  if (!visit || visit.agent_id !== c.get('userId')) return c.json({ success: false, message: 'Visit not found' }, 404);
+  return null;
+}
+
 app.put('/visits/:id', async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const { id } = c.req.param();
+  const blocked = await forbidForeignVisitEdit(c, db, id, tenantId);
+  if (blocked) return blocked;
   const body = await c.req.json();
   await db.prepare('UPDATE visits SET check_out_time = COALESCE(?, check_out_time), outcome = COALESCE(?, outcome), notes = COALESCE(?, notes), status = COALESCE(?, status), updated_at = datetime("now") WHERE id = ? AND tenant_id = ?').bind(body.check_out_time || null, body.outcome || null, body.notes || null, body.status || null, id, tenantId).run();
   if (body.responses) {
@@ -678,6 +702,8 @@ app.post('/visits/workflow', authMiddleware, async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const body = await c.req.json();
+  body.custom_field_values = stripServerOnlyKeys(body.custom_field_values);
+  body.custom_question_values = stripServerOnlyKeys(body.custom_question_values);
   const visitId = body.client_visit_id || crypto.randomUUID();
   const now = new Date().toISOString();
   const visitDate = body.visit_date || now.split('T')[0];

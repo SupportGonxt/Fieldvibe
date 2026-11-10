@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
-import { authMiddleware } from '../lib/middleware.js';
+import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveAgentTargetMapBatch } from '../lib/calendar.js';
 import { reportIndexMiddleware } from '../lib/reportIndexes.js';
@@ -1115,18 +1115,23 @@ app.get('/field-ops/company-logins', authMiddleware, async (c) => {
   }
 });
 
-app.post('/field-ops/company-logins', authMiddleware, async (c) => {
+app.post('/field-ops/company-logins', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const body = await c.req.json();
   if (!body.company_id || !body.email || !body.password || !body.name) return c.json({ success: false, message: 'company_id, email, password, and name required' }, 400);
+  if (body.role && !['viewer', 'admin'].includes(body.role)) return c.json({ success: false, message: 'role must be viewer or admin' }, 400);
+  // The portal login's token takes its tenant from the company, so a foreign company_id would
+  // mint a login into another tenant.
+  const company = await db.prepare('SELECT id FROM field_companies WHERE id = ? AND tenant_id = ?').bind(body.company_id, tenantId).first();
+  if (!company) return c.json({ success: false, message: 'Company not found' }, 404);
   const id = uuidv4();
   const hashedPassword = await bcrypt.hash(body.password, 10);
   await db.prepare('INSERT INTO company_logins (id, company_id, tenant_id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, body.company_id, tenantId, body.email, hashedPassword, body.name, body.role || 'viewer').run();
   return c.json({ id, message: 'Company login created' }, 201);
 });
 
-app.delete('/field-ops/company-logins/:id', authMiddleware, async (c) => {
+app.delete('/field-ops/company-logins/:id', authMiddleware, requireRole('admin'), async (c) => {
   const db = c.env.DB;
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');

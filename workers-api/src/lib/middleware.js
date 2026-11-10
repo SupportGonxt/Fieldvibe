@@ -47,10 +47,12 @@ export const authMiddleware = async (c, next) => {
   try {
     const authHeader = c.req.header('Authorization');
     // Browser WebSocket can't set headers, so WS upgrades pass the JWT as a
-    // query param instead. Signature is still verified below either way.
+    // query param instead. Signature is still verified below either way. Only
+    // upgrades may do this: a token in a normal URL lands in logs and history.
+    const isWsUpgrade = (c.req.header('Upgrade') || '').toLowerCase() === 'websocket';
     const token = authHeader && authHeader.startsWith('Bearer ')
       ? authHeader.substring(7)
-      : c.req.query('access_token');
+      : (isWsUpgrade ? c.req.query('access_token') : undefined);
     if (!token) {
       return c.json({ success: false, message: 'Unauthorized' }, 401);
     }
@@ -85,8 +87,11 @@ export const authMiddleware = async (c, next) => {
     if (payload.exp < Math.floor(Date.now() / 1000)) {
       return c.json({ success: false, message: 'Token expired' }, 401);
     }
-    if (payload.aud === 'portal') {
-      return c.json({ success: false, message: 'Portal token not valid for staff API' }, 401);
+    // Staff access tokens carry none of these. A refresh token (type) would otherwise act as
+    // a 7-day access token, and customer-portal (aud) or company-portal (companyId) tokens
+    // would pass every /api route that has no requireRole.
+    if (payload.aud || payload.type || payload.companyId) {
+      return c.json({ success: false, message: 'Token not valid for staff API' }, 401);
     }
     c.set('userId', payload.userId);
     c.set('tenantId', payload.tenantId);

@@ -491,6 +491,9 @@ app.delete('/price-lists/:id', requireRole('admin'), async (c) => {
 app.post('/price-lists/:id/items', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
+  // price_list_items has no tenant_id of its own; ownership comes from the parent list.
+  const list = await db.prepare('SELECT id FROM price_lists WHERE id = ? AND tenant_id = ?').bind(id, c.get('tenantId')).first();
+  if (!list) return c.json({ success: false, message: 'Price list not found' }, 404);
   const body = await c.req.json();
   const items = Array.isArray(body) ? body : [body];
   for (const item of items) {
@@ -504,14 +507,14 @@ app.put('/price-lists/:listId/items/:itemId', requireRole('admin', 'manager'), a
   const db = c.env.DB;
   const { listId, itemId } = c.req.param();
   const body = await c.req.json();
-  await db.prepare('UPDATE price_list_items SET unit_price = COALESCE(?, unit_price), min_qty = COALESCE(?, min_qty), max_discount_pct = COALESCE(?, max_discount_pct) WHERE id = ? AND price_list_id = ?').bind(body.unit_price || null, body.min_qty || null, body.max_discount_pct || null, itemId, listId).run();
+  await db.prepare('UPDATE price_list_items SET unit_price = COALESCE(?, unit_price), min_qty = COALESCE(?, min_qty), max_discount_pct = COALESCE(?, max_discount_pct) WHERE id = ? AND price_list_id = ? AND price_list_id IN (SELECT id FROM price_lists WHERE tenant_id = ?)').bind(body.unit_price || null, body.min_qty || null, body.max_discount_pct || null, itemId, listId, c.get('tenantId')).run();
   return c.json({ success: true, message: 'Item updated' });
 });
 
 app.delete('/price-lists/:listId/items/:itemId', requireRole('admin', 'manager'), async (c) => {
   const db = c.env.DB;
   const { listId, itemId } = c.req.param();
-  await db.prepare('DELETE FROM price_list_items WHERE id = ? AND price_list_id = ?').bind(itemId, listId).run();
+  await db.prepare('DELETE FROM price_list_items WHERE id = ? AND price_list_id = ? AND price_list_id IN (SELECT id FROM price_lists WHERE tenant_id = ?)').bind(itemId, listId, c.get('tenantId')).run();
   return c.json({ success: true, message: 'Item removed' });
 });
 app.post('/inventory/movements', requireRole('admin', 'manager'), async (c) => {
