@@ -241,10 +241,6 @@ async function serveUpload(c) {
 }
 
 api.get('/uploads/:key{.+}', serveUpload);
-  } catch (error) {
-    return c.json({ success: false, message: 'File retrieval failed' }, 500);
-  }
-});
 
 
 
@@ -283,10 +279,6 @@ api.get('/uploads/:id/metadata', authMiddleware, async (c) => {
 
 // ==================== PUBLIC PHOTO SERVING (no auth required for <img> tags) ====================
 app.get('/api/uploads/:key{.+}', serveUpload);
-  } catch (error) {
-    return c.json({ success: false, message: 'File retrieval failed' }, 500);
-  }
-});
 
 // ==================== PUBLIC QR SCAN REDIRECT (no auth — scanned by anonymous public) ====================
 // Records the scan and 302-redirects to the code's destination. Rate-limited to blunt
