@@ -6,6 +6,7 @@ import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { toast } from 'react-hot-toast'
 import UnfinishedGoldrushVisits from '../../components/agent/UnfinishedGoldrushVisits'
+import { thumb } from '../../lib/thumb'
 
 interface Visit {
   id: string
@@ -324,7 +325,7 @@ export default function AgentVisits() {
                 {/* Photo thumbnail or status icon */}
                 <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-token">
                   {visit.thumbnail_url ? (
-                    <img src={visit.thumbnail_url} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
+                    <img src={thumb(visit.thumbnail_url, 320)} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
                   ) : (
                     <div className={`w-full h-full flex items-center justify-center ${statusColor(visit.status)}`}>
                       {statusIcon(visit.status)}

@@ -174,7 +174,7 @@ export default function BrandManagementPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       {brand.logo_url && (
-                        <img src={brand.logo_url} alt={brand.name} className="h-8 w-8 rounded mr-3" />
+                        <img loading="lazy" decoding="async" src={brand.logo_url} alt={brand.name} className="h-8 w-8 rounded mr-3" />
                       )}
                       <div className="text-sm font-medium text-gray-900">{brand.name}</div>
                     </div>

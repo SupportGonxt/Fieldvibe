@@ -440,7 +440,7 @@ function PhotoCaptureComponent({ onPhotoCapture }: { onPhotoCapture: (photos: st
       {photos.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {photos.map((photo, index) => (
-            <img key={index} src={photo} alt={`Photo ${index + 1}`} className="w-full h-20 object-cover rounded" />
+            <img loading="lazy" decoding="async" key={index} src={photo} alt={`Photo ${index + 1}`} className="w-full h-20 object-cover rounded" />
           ))}
         </div>
       )}

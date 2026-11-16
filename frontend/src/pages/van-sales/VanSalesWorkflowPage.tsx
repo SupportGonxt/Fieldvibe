@@ -472,7 +472,7 @@ const VanSalesWorkflowPage: React.FC = () => {
               <h3 className="font-medium text-gray-900 mb-3">Delivery Photo</h3>
               {deliveryPhoto ? (
                 <div className="relative">
-                  <img src={deliveryPhoto} alt="Delivery" className="w-full rounded-lg" />
+                  <img loading="lazy" decoding="async" src={deliveryPhoto} alt="Delivery" className="w-full rounded-lg" />
                   <button
                     onClick={() => setDeliveryPhoto(null)}
                     className="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded-lg text-sm"

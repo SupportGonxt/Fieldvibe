@@ -299,7 +299,7 @@ export default function DynamicForm({
             </Button>
             {photos[field.name] && (
               <Box sx={{ mt: 1 }}>
-                <img
+                <img loading="lazy" decoding="async"
                   src={photos[field.name]}
                   alt={field.label}
                   style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain' }}

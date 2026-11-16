@@ -254,7 +254,7 @@ export default function InventoryManagement() {
       render: (value: any, row: any) => (
         <div className="flex items-center">
           {row.product_image && (
-            <img 
+            <img loading="lazy" decoding="async" 
               src={row.product_image} 
               alt={row.product_name}
               className="w-10 h-10 rounded-lg object-cover mr-3"

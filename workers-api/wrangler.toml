@@ -37,6 +37,9 @@ bucket_name = "fieldvibe-uploads"
 [ai]
 binding = "AI"
 
+[images]
+binding = "IMAGES"
+
 [[durable_objects.bindings]]
 name = "CALL_ROOM"
 class_name = "CallRoom"
@@ -88,6 +91,9 @@ crons = []
 
 [env.preview.ai]
 binding = "AI"
+
+[env.preview.images]
+binding = "IMAGES"
 
 [[env.preview.durable_objects.bindings]]
 name = "CALL_ROOM"

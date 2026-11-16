@@ -4,6 +4,7 @@ import { ArrowLeft, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { apiClient } from '../../../services/api.service'
+import { thumb } from '../../../lib/thumb'
 
 export default function PhotoEvidence() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -93,8 +94,8 @@ export default function PhotoEvidence() {
         {evidence.evidence_items.map((item) => (
           <div key={item.id} className="bg-white rounded-lg shadow p-6">
             <div className="flex items-start gap-4">
-              <img
-                src={item.photo_url}
+              <img loading="lazy" decoding="async"
+                src={thumb(item.photo_url, 320)}
                 alt={item.caption}
                 onClick={() => navigate(`/field-operations/visits/${visitId}/photos/${item.id}`)}
                 className="w-32 h-32 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"

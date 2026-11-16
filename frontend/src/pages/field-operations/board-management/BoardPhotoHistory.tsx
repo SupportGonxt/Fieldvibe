@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, Calendar, MapPin } from 'lucide-react'
 import { apiClient } from '../../../services/api.service'
+import { thumb } from '../../../lib/thumb'
 
 export default function BoardPhotoHistory() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -62,8 +63,8 @@ export default function BoardPhotoHistory() {
             className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
           >
             <div className="aspect-video bg-gray-200 relative">
-              <img
-                src={photo.photo_url}
+              <img loading="lazy" decoding="async"
+                src={thumb(photo.photo_url, 480)}
                 alt={photo.caption}
                 className="w-full h-full object-cover"
               />

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Image, FileText, File } from 'lucide-react'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { apiClient } from '../../../services/api.service'
+import { thumb } from '../../../lib/thumb'
 
 interface AttachmentGalleryProps {
   entityType: string
@@ -52,8 +53,8 @@ export default function AttachmentGallery({ entityType, entityId }: AttachmentGa
               className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
             >
               {isImage && attachment.thumbnail_url ? (
-                <img
-                  src={attachment.thumbnail_url}
+                <img loading="lazy" decoding="async"
+                  src={thumb(attachment.thumbnail_url, 320)}
                   alt={attachment.file_name}
                   className="w-full h-full object-cover"
                 />

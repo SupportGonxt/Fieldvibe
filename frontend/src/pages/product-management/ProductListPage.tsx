@@ -203,7 +203,7 @@ export const ProductListPage: React.FC = () => {
             <div key={product.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
               <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-t-lg bg-gray-200">
                 {product.image_url ? (
-                  <img
+                  <img loading="lazy" decoding="async"
                     src={product.image_url}
                     alt={product.name}
                     className="h-48 w-full object-cover object-center"

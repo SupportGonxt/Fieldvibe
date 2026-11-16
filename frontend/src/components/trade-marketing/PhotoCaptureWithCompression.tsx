@@ -91,7 +91,7 @@ export default function PhotoCaptureWithCompression({ visitId, photoType = 'gene
         </button>
       ) : (
         <div className="relative">
-          <img src={preview} alt="Captured" className="w-full rounded-xl" />
+          <img loading="lazy" decoding="async" src={preview} alt="Captured" className="w-full rounded-xl" />
 
           {uploading && (
             <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center">

@@ -445,7 +445,7 @@ const ActivationWorkflowPage: React.FC = () => {
                     <div>
                       {taskPhotos[task.id] ? (
                         <div className="relative">
-                          <img src={taskPhotos[task.id]} alt="Task" className="w-full rounded-lg" />
+                          <img loading="lazy" decoding="async" src={taskPhotos[task.id]} alt="Task" className="w-full rounded-lg" />
                           <button
                             onClick={() => {
                               const newPhotos = { ...taskPhotos };

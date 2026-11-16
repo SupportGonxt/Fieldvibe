@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { rateLimiter, authMiddleware } from './lib/middleware.js';
 import { reportCacheMiddleware, isCacheableReportPath } from './lib/cache.js';
-import { servePhotoFromD1 } from './lib/photoAi.js';
+import { servePhotoFromD1, parseThumbWidth } from './lib/photoAi.js';
 // Route modules
 import configRoutes from './routes/field-ops/config.js';
 import hierarchyRoutes from './routes/field-ops/hierarchy.js';
@@ -194,21 +194,53 @@ api.post('/uploads', async (c) => {
   }
 });
 
-api.get('/uploads/:key{.+}', async (c) => {
+// Serves an uploaded file from R2 (or legacy base64 in D1). `?w=` returns a WebP
+// thumbnail resized by the Images binding; results are edge-cached per key and width.
+async function serveUpload(c) {
   try {
     const bucket = c.env.UPLOADS;
     if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
     const key = c.req.param('key');
+    const w = parseThumbWidth(c.req.query('w'));
+    const cache = caches.default;
+    const cacheKey = new Request(new URL('/api/uploads/' + key + (w ? '?w=' + w : ''), c.req.url).toString());
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+
+    let res;
     const object = await bucket.get(key);
-    if (!object) {
-      const fromD1 = await servePhotoFromD1(c.env.DB, key);
-      return fromD1 || c.json({ success: false, message: 'File not found' }, 404);
+    if (object) {
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set('etag', object.httpEtag);
+      res = new Response(object.body, { headers });
+    } else {
+      // Legacy photos live as base64 in D1, never in the bucket. See servePhotoFromD1.
+      res = await servePhotoFromD1(c.env.DB, key);
+      if (!res) return c.json({ success: false, message: 'File not found' }, 404);
     }
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
-    headers.set('etag', object.httpEtag);
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-    return new Response(object.body, { headers });
+
+    const type = res.headers.get('content-type') || '';
+    if (w && c.env.IMAGES && type.startsWith('image/')) {
+      const fallback = res.clone();
+      try {
+        const out = await c.env.IMAGES.input(res.body).transform({ width: w }).output({ format: 'image/webp', quality: 75 });
+        res = new Response(out.image(), { headers: { 'content-type': out.contentType() } });
+      } catch (e) {
+        console.error('thumbnail transform failed', key, e?.message);
+        res = fallback;
+      }
+    }
+    res = new Response(res.body, res);
+    res.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    if (res.status === 200) c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
+    return res;
+  } catch (error) {
+    return c.json({ success: false, message: 'File retrieval failed' }, 500);
+  }
+}
+
+api.get('/uploads/:key{.+}', serveUpload);
   } catch (error) {
     return c.json({ success: false, message: 'File retrieval failed' }, 500);
   }
@@ -250,22 +282,7 @@ api.get('/uploads/:id/metadata', authMiddleware, async (c) => {
 });
 
 // ==================== PUBLIC PHOTO SERVING (no auth required for <img> tags) ====================
-app.get('/api/uploads/:key{.+}', async (c) => {
-  try {
-    const bucket = c.env.UPLOADS;
-    if (!bucket) return c.json({ success: false, message: 'Storage not configured' }, 500);
-    const key = c.req.param('key');
-    const object = await bucket.get(key);
-    if (!object) {
-      // Legacy photos live as base64 in D1, never in the bucket. See servePhotoFromD1.
-      const fromD1 = await servePhotoFromD1(c.env.DB, key);
-      return fromD1 || c.json({ success: false, message: 'File not found' }, 404);
-    }
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
-    headers.set('etag', object.httpEtag);
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-    return new Response(object.body, { headers });
+app.get('/api/uploads/:key{.+}', serveUpload);
   } catch (error) {
     return c.json({ success: false, message: 'File retrieval failed' }, 500);
   }

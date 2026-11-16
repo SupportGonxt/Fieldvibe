@@ -5,6 +5,7 @@ import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { roleAllows } from '../../lib/capabilities'
 import { useToast } from '../../components/ui/Toast'
+import { thumb } from '../../lib/thumb'
 
 interface AgentInfo {
   id: string
@@ -364,7 +365,7 @@ export default function AgentDetailPage() {
                   >
                     <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-token">
                       {visit.thumbnail_url ? (
-                        <img src={visit.thumbnail_url} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
+                        <img src={thumb(visit.thumbnail_url, 320)} alt="Visit" className="w-full h-full object-cover" loading="lazy" />
                       ) : (
                         <div className={`w-full h-full flex items-center justify-center ${visit.status === 'completed' ? 'bg-green-500/10' : visit.status === 'in_progress' ? 'bg-blue-500/10' : 'bg-gray-500/10'}`}>
                           {statusIcon(visit.status)}

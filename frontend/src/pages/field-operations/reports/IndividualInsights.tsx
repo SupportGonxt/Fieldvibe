@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
 import { captureCharts } from '../../../utils/capture-chart'
+import { thumb } from '../../../lib/thumb'
 
 // ── Insights types ──
 interface YesNoBucket { key: string; yes: number; no: number; other: number }
@@ -814,7 +815,7 @@ export default function IndividualInsights() {
                           <td className="py-3 px-4">
                             {ind.thumbnail_url ? (
                               <button onClick={() => setExpandedPhoto(ind.thumbnail_url)} className="block">
-                                <img src={ind.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
+                                <img loading="lazy" decoding="async" src={thumb(ind.thumbnail_url, 160)} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
                               </button>
                             ) : ind.has_photos ? (
                               <button onClick={() => handleViewPhotos(ind.visit_id || ind.id)} className="inline-flex items-center justify-center w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors" title="Click to view photos">
@@ -927,7 +928,7 @@ export default function IndividualInsights() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={() => setExpandedPhoto(null)}>
           <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
             <button onClick={() => setExpandedPhoto(null)} className="absolute top-0 right-0 m-2 p-1 bg-white dark:bg-gray-800 rounded-full shadow-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 z-10"><X className="w-5 h-5" /></button>
-            <img src={expandedPhoto} alt="Visit photo expanded" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+            <img loading="lazy" decoding="async" src={expandedPhoto} alt="Visit photo expanded" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
           </div>
         </div>
       )}
@@ -953,7 +954,7 @@ export default function IndividualInsights() {
                   {photoModalPhotos.map((photo) => (
                     <div key={photo.id} className="relative group">
                       <button onClick={() => setExpandedPhoto(photo.r2_url)} className="block w-full">
-                        <img src={photo.r2_url} alt={photo.label || photo.photo_type || 'Visit photo'} className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
+                        <img loading="lazy" decoding="async" src={thumb(photo.r2_url, 480)} alt={photo.label || photo.photo_type || 'Visit photo'} className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
                       </button>
                       {photo.label && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-center truncate">{photo.label}</p>}
                     </div>

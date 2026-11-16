@@ -7,6 +7,7 @@ import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Download, Store, Search, AlertTriangle, RefreshCw, Camera, X, Eye, MapPin, User, Calendar, ClipboardList } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
+import { thumb } from '../../../lib/thumb'
 
 interface StellrVisit {
   id: string
@@ -402,7 +403,7 @@ const StellrReport: React.FC = () => {
                       .map(([key, url]) => (
                         <div key={key}>
                           <button onClick={() => setExpandedPhoto(String(url))} className="block w-full">
-                            <img
+                            <img loading="lazy" decoding="async"
                               src={String(url)}
                               alt={formatKey(key)}
                               className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
@@ -458,7 +459,7 @@ const StellrReport: React.FC = () => {
             >
               <X className="w-5 h-5" />
             </button>
-            <img
+            <img loading="lazy" decoding="async"
               src={expandedPhoto}
               alt="Visit photo expanded"
               className="max-w-full max-h-[85vh] rounded-lg object-contain"
@@ -499,8 +500,8 @@ const StellrReport: React.FC = () => {
                   {photoModalPhotos.map((photo) => (
                     <div key={photo.id} className="relative">
                       <button onClick={() => setExpandedPhoto(photo.r2_url)} className="block w-full">
-                        <img
-                          src={photo.r2_url}
+                        <img loading="lazy" decoding="async"
+                          src={thumb(photo.r2_url, 480)}
                           alt={photo.label || photo.photo_type || 'Visit photo'}
                           className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity"
                         />

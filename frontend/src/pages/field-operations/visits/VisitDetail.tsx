@@ -9,6 +9,7 @@ import ErrorState from '../../../components/ui/ErrorState'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { MapPin, Calendar, User, Store, Clock, CheckCircle, XCircle, ChevronLeft, Camera, FileText, MessageSquare, BarChart3, ImageIcon, Hash, Timer, UserCheck, Edit2, Save, X, Sparkles, Loader2, Upload, AlertTriangle, Ban } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { thumb } from '../../../lib/thumb'
 
 export default function VisitDetail() {
   const { id } = useParams()
@@ -546,8 +547,8 @@ export default function VisitDetail() {
                 {photos.map((photo: any, idx: number) => (
                   <div key={photo.id || idx} className="rounded-lg overflow-hidden bg-white/5">
                     <div className="aspect-square relative">
-                      <img
-                        src={photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : undefined)}
+                      <img loading="lazy" decoding="async"
+                        src={thumb(photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : undefined), 480)}
                         alt={`Photo ${idx + 1}`}
                         className="w-full h-full object-cover"
                       />
@@ -729,7 +730,7 @@ export default function VisitDetail() {
                             onClick={() => setExpandedPhoto(String(url))}
                             className="block w-full rounded-lg overflow-hidden border border-token active:opacity-80 transition-opacity"
                           >
-                            <img src={String(url)} alt={getLabelForKey(key)} className="w-full h-28 object-cover" />
+                            <img loading="lazy" decoding="async" src={String(url)} alt={getLabelForKey(key)} className="w-full h-28 object-cover" />
                           </button>
                           <p className="mt-1 text-[10px] text-token-faint text-center truncate">{getLabelForKey(key)}</p>
                         </div>
@@ -747,7 +748,7 @@ export default function VisitDetail() {
               className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
               onClick={() => setExpandedPhoto(null)}
             >
-              <img src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
+              <img loading="lazy" decoding="async" src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
               <button
                 onClick={() => setExpandedPhoto(null)}
                 className="absolute top-4 right-4 p-2 bg-white/10 rounded-full text-token"
@@ -870,8 +871,8 @@ export default function VisitDetail() {
             {photos.map((photo: any, idx: number) => (
               <div key={photo.id || idx} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                 <div className="aspect-square relative">
-                  <img
-                    src={photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : undefined)}
+                  <img loading="lazy" decoding="async"
+                    src={thumb(photo.r2_url || photo.photo_url || photo.url || (photo.photo_base64 ? `data:image/jpeg;base64,${photo.photo_base64}` : undefined), 480)}
                     alt={`Photo ${idx + 1}`}
                     className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                   />

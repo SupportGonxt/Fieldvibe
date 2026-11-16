@@ -203,7 +203,7 @@ export default function CameraCapture({
 
         {!error && capturedImage && (
           <div className={`max-w-4xl w-full ${getAspectRatioClass()}`}>
-            <img
+            <img loading="lazy" decoding="async"
               src={capturedImage}
               alt="Captured"
               className="w-full h-full object-cover rounded-lg"

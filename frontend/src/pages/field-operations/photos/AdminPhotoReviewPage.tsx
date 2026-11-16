@@ -4,6 +4,7 @@ import { photoReviewService } from '../../../services/insights.service'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Camera, Search, Filter, CheckCircle, XCircle, AlertTriangle, ChevronLeft, ChevronRight, Eye, X, User, Store, Calendar, Sparkles, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { thumb } from '../../../lib/thumb'
 
 interface PhotoItem {
   id: string
@@ -187,7 +188,7 @@ export default function AdminPhotoReviewPage() {
               {/* Photo thumbnail */}
               <div className="aspect-square relative group cursor-pointer" onClick={() => setSelectedPhoto(photo)}>
                 {photo.r2_url ? (
-                  <img src={photo.r2_url} alt="Visit photo" className="w-full h-full object-cover" />
+                  <img loading="lazy" decoding="async" src={thumb(photo.r2_url, 480)} alt="Visit photo" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700">
                     <Camera className="w-8 h-8 text-gray-400" />
@@ -293,7 +294,7 @@ export default function AdminPhotoReviewPage() {
               {/* Photo */}
               <div className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
                 {selectedPhoto.r2_url ? (
-                  <img src={selectedPhoto.r2_url} alt="Visit photo" className="w-full max-h-[50vh] object-contain" />
+                  <img loading="lazy" decoding="async" src={selectedPhoto.r2_url} alt="Visit photo" className="w-full max-h-[50vh] object-contain" />
                 ) : (
                   <div className="h-64 flex items-center justify-center">
                     <Camera className="w-12 h-12 text-gray-400" />

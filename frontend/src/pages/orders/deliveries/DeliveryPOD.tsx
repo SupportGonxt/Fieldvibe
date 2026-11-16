@@ -105,7 +105,7 @@ export default function DeliveryPOD() {
           </dl>
           {pod.signature_image_url ? (
             <div className="border-2 border-gray-300 rounded-lg p-4 bg-surface-secondary">
-              <img 
+              <img loading="lazy" decoding="async" 
                 src={pod.signature_image_url} 
                 alt="Signature" 
                 className="max-w-md h-32 object-contain"

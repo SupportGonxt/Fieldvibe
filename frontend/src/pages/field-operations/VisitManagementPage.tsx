@@ -7,6 +7,7 @@ import LiveVisitMap from '../../components/maps/LiveVisitMap'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import ErrorState from '../../components/ui/ErrorState'
+import { thumb } from '../../lib/thumb'
 
 interface VisitManagementPageProps {
   visitType?: 'store' | 'individual'
@@ -190,8 +191,8 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
                     <td className="px-6 py-4">
                       {(visit.thumbnail_url || visit.photo_url) ? (
                         <button onClick={(e) => { e.stopPropagation(); setExpandedPhoto(visit.photo_url || visit.thumbnail_url || null); }} className="block">
-                          <img
-                            src={visit.thumbnail_url || visit.photo_url}
+                          <img loading="lazy" decoding="async"
+                            src={thumb(visit.thumbnail_url || visit.photo_url, 160)}
                             alt="Visit photo"
                             className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
                           />
@@ -247,7 +248,7 @@ export default function VisitManagementPage({ visitType }: VisitManagementPagePr
             >
               <X className="w-5 h-5" />
             </button>
-            <img
+            <img loading="lazy" decoding="async"
               src={expandedPhoto}
               alt="Visit photo expanded"
               className="max-w-full max-h-[85vh] rounded-lg object-contain"

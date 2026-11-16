@@ -4,6 +4,7 @@ import { Eye, Edit, X } from 'lucide-react'
 import TransactionList from '../../../components/transactions/TransactionList'
 import { fieldOperationsService } from '../../../services/field-operations.service'
 import { formatDate } from '../../../utils/format'
+import { thumb } from '../../../lib/thumb'
 
 export default function VisitsList() {
   const navigate = useNavigate()
@@ -57,7 +58,7 @@ export default function VisitsList() {
         return (
           <button onClick={() => setExpandedPhoto(photoUrl)} className="block">
             <img
-              src={photoUrl}
+              src={thumb(photoUrl, 160)}
               alt="Visit photo"
               className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
             />

@@ -13,6 +13,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Legend, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts'
+import { thumb } from '../../lib/thumb'
 
 export default function CompanyDashboardPage() {
   const { companyId } = useParams<{ companyId: string }>()
@@ -833,7 +834,7 @@ export default function CompanyDashboardPage() {
                             </td>
                             <td className="px-4 py-3 text-center">
                               {v.photo_url ? (
-                                <img src={v.photo_url} alt="" className="h-8 w-8 object-cover rounded inline-block" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                <img loading="lazy" decoding="async" src={thumb(v.photo_url, 160)} alt="" className="h-8 w-8 object-cover rounded inline-block" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                               ) : <span className="text-gray-300">-</span>}
                             </td>
                           </tr>

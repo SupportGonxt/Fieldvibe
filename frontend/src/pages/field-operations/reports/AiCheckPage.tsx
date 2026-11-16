@@ -7,6 +7,7 @@ import DateRangePresets from '../../../components/ui/DateRangePresets'
 import { AlertTriangle, ShieldAlert, RefreshCw, X, Download } from 'lucide-react'
 import FailedPhotoAttempts, { FailedAttemptsList } from './FailedPhotoAttempts'
 import { FLAG_LABELS, downloadAiCheckReport, type AiCheckExportData } from './aiCheckExport'
+import { thumb } from '../../../lib/thumb'
 
 // AI Check — Goldrush screenshot fraud statistics (GM, Back Office, admins).
 // Definite fakes are excluded from every other report; they are counted only here.
@@ -270,7 +271,7 @@ const AiCheckPage: React.FC = () => {
                   <td className="py-1.5 pr-2">
                     {r.photo_url ? (
                       <button onClick={() => setLightbox(r.photo_url)} className="block focus-visible:outline focus-visible:outline-2" aria-label="Open photo">
-                        <img src={r.photo_url} alt="" loading="lazy" className="h-16 w-9 rounded border border-gray-200 object-cover object-top dark:border-gray-700" />
+                        <img src={thumb(r.photo_url, 160)} alt="" loading="lazy" className="h-16 w-9 rounded border border-gray-200 object-cover object-top dark:border-gray-700" />
                       </button>
                     ) : '—'}
                   </td>

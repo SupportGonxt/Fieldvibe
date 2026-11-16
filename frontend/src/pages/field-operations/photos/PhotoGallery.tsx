@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image as ImageIcon, Calendar } from 'lucide-react'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { apiClient } from '../../../services/api.service'
+import { thumb } from '../../../lib/thumb'
 
 export default function PhotoGallery() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -70,8 +71,8 @@ export default function PhotoGallery() {
             className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
           >
             <div className="aspect-video bg-gray-200 relative">
-              <img
-                src={photo.photo_url}
+              <img loading="lazy" decoding="async"
+                src={thumb(photo.photo_url, 480)}
                 alt={photo.caption}
                 className="w-full h-full object-cover"
               />

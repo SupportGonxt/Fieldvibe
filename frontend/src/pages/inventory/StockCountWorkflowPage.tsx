@@ -425,7 +425,7 @@ const StockCountWorkflowPage: React.FC = () => {
             <div className="bg-white rounded-lg p-4 mb-4">
               <h3 className="font-medium mb-3">Photo (Required)</h3>
               {photo ? (
-                <img src={photo} alt="Count" className="w-full rounded-lg" />
+                <img loading="lazy" decoding="async" src={photo} alt="Count" className="w-full rounded-lg" />
               ) : (
                 <button
                   onClick={handleCapturePhoto}

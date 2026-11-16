@@ -6,6 +6,7 @@ import { apiClient } from '../../services/api.service'
 import { useAuthStore } from '../../store/auth.store'
 import { canSeeMoney } from '../../lib/capabilities'
 import { saveRowsAsCsv } from '../../lib/downloadCsv'
+import { thumb } from '../../lib/thumb'
 
 // Mobile adaptation of field-operations/reports/CaptureFailuresReport — same
 // endpoint, grouped team lead → agent, dark PWA skin. Reached from the
@@ -119,7 +120,7 @@ export default function BOUploadFailures() {
                         <li key={f.id} className="flex items-center gap-3 px-4 py-2.5">
                           {f.photo_url && (
                             <button onClick={() => setLightbox(f.photo_url)} className="shrink-0">
-                              <img src={f.photo_url} alt="signup" className="w-10 h-10 rounded-lg object-cover" loading="lazy" />
+                              <img src={thumb(f.photo_url, 160)} alt="signup" className="w-10 h-10 rounded-lg object-cover" loading="lazy" />
                             </button>
                           )}
                           <div className="flex-1 min-w-0">

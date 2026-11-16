@@ -5,6 +5,7 @@ import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { Download, AlertTriangle, RefreshCw, XCircle, Users, Image, Link } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
+import { thumb } from '../../../lib/thumb'
 
 interface Company {
   id: string
@@ -154,7 +155,7 @@ const CaptureFailuresReport: React.FC = () => {
             >
               Close ✕
             </button>
-            <img
+            <img loading="lazy" decoding="async"
               src={lightboxUrl}
               alt="System photo"
               className="max-w-full max-h-[85vh] rounded-lg object-contain shadow-2xl"
@@ -287,8 +288,8 @@ const CaptureFailuresReport: React.FC = () => {
                                   className="block"
                                   title="Click to enlarge"
                                 >
-                                  <img
-                                    src={record.photo_url}
+                                  <img loading="lazy" decoding="async"
+                                    src={thumb(record.photo_url, 160)}
                                     alt="System photo"
                                     className="w-16 h-12 object-cover rounded border border-gray-200 dark:border-gray-600 hover:opacity-80 transition-opacity"
                                   />

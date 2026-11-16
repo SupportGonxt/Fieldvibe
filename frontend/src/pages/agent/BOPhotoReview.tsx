@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'react-hot-toast'
 import { ArrowLeft, Check, X, Loader2, CheckCircle2, Camera } from 'lucide-react'
 import { photoReviewService } from '../../services/insights.service'
+import { thumb } from '../../lib/thumb'
 
 // Mobile adaptation of field-operations/photos/AdminPhotoReviewPage — same
 // endpoints (photoReviewService), pending-first queue, dark PWA skin. The BO
@@ -116,7 +117,7 @@ export default function BOPhotoReview() {
           {photos.map((p) => (
             <div key={p.id} className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
               <button onClick={() => setLightbox(p.r2_url)} className="block w-full">
-                <img src={p.r2_url} alt="visit" className="w-full h-48 object-cover" loading="lazy" />
+                <img src={thumb(p.r2_url, 480)} alt="visit" className="w-full h-48 object-cover" loading="lazy" />
               </button>
               <div className="p-3">
                 <div className="flex items-baseline justify-between gap-2">

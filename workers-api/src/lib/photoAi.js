@@ -473,3 +473,9 @@ async function materializeQuestionnairPhoto(db, syntheticId, tenantId, uploadedB
 }
 
 export { rewriteR2Url, PHOTO_URL_SQL, decodeDataUri, servePhotoFromD1, persistClientPhoto, isLegacyR2PhotoUrl, computePhotoHash, isPhotoHashDuplicate, analyzePhotoWithAI, materializeQuestionnairPhoto, offloadProductAuditPhotos, extractJsonObject, bytesToDataUrl, PRODUCT_AUDIT_AI_STATUS };
+
+// Thumbnail width from `?w=`: 0 means original size, capped at 1600px.
+export function parseThumbWidth(raw) {
+  const w = parseInt(raw, 10);
+  return Number.isFinite(w) && w > 0 ? Math.min(w, 1600) : 0;
+}

@@ -2814,7 +2814,7 @@ export default function VisitCreate() {
                       </Button>
                       {val && (
                         <Box sx={{ mt: 1 }}>
-                          <img src={val} alt={q.question_label} style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8 }} />
+                          <img loading="lazy" decoding="async" src={val} alt={q.question_label} style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8 }} />
                         </Box>
                       )}
                     </FormControl>
@@ -2999,7 +2999,7 @@ export default function VisitCreate() {
                         <Box>
                           {surveyResponses[qKey] ? (
                             <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                              <img src={surveyResponses[qKey]} alt={qLabel} style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} />
+                              <img loading="lazy" decoding="async" src={surveyResponses[qKey]} alt={qLabel} style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} />
                               <Button size="small" color="error" onClick={() => setSurveyResponses(prev => { const n = { ...prev }; delete n[qKey]; return n })} sx={{ position: 'absolute', top: 0, right: 0 }}>Remove</Button>
                             </Box>
                           ) : (
@@ -3168,7 +3168,7 @@ export default function VisitCreate() {
                     <Box>
                       {customQuestionValues[qKey] ? (
                         <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                          <img src={customQuestionValues[qKey]} alt={qLabel} style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} />
+                          <img loading="lazy" decoding="async" src={customQuestionValues[qKey]} alt={qLabel} style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} />
                           <Button size="small" color="error" onClick={() => setCustomQuestionValues(prev => { const n = { ...prev }; delete n[qKey]; return n })} sx={{ position: 'absolute', top: 0, right: 0 }}>Remove</Button>
                         </Box>
                       ) : (
@@ -3356,7 +3356,7 @@ export default function VisitCreate() {
                             {taken.map(photo => (
                               <Grid item xs={6} key={photo.hash}>
                                 <Box sx={{ position: 'relative' }}>
-                                  <img
+                                  <img loading="lazy" decoding="async"
                                     src={photo.dataUrl}
                                     alt={slot.label}
                                     style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, display: 'block' }}
@@ -3376,7 +3376,7 @@ export default function VisitCreate() {
                         )
                       ) : (
                         hasAny && (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={taken[0].dataUrl}
                             alt={slot.label}
                             style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }}
@@ -3459,7 +3459,7 @@ export default function VisitCreate() {
               <Grid item xs={6} sm={4} key={idx}>
                 <Card variant="outlined">
                   <Box sx={{ position: 'relative' }}>
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={photo.dataUrl}
                       alt={`Board photo ${idx + 1}`}
                       style={{ width: '100%', height: 150, objectFit: 'cover' }}
@@ -3601,7 +3601,7 @@ export default function VisitCreate() {
               {photos.map((photo, idx) => photo.photoType !== PRODUCT_PHOTO_TYPE ? null : (
                 <Grid item xs={4} sm={3} key={photo.hash}>
                   <Box sx={{ position: 'relative' }}>
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={photo.dataUrl}
                       alt={`Product photo ${idx + 1}`}
                       style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, display: 'block' }}
@@ -3730,7 +3730,7 @@ export default function VisitCreate() {
                 return isImage ? (
                   <Box key={key} sx={{ mb: 1 }}>
                     <Typography variant="body2" fontWeight="medium">{cq?.question_label || key}:</Typography>
-                    <img src={value} alt={cq?.question_label || key} style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 4, marginTop: 4 }} />
+                    <img loading="lazy" decoding="async" src={value} alt={cq?.question_label || key} style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 4, marginTop: 4 }} />
                   </Box>
                 ) : (
                   <Typography key={key} variant="body2">{cq?.question_label || key}: {value}</Typography>
@@ -3767,7 +3767,7 @@ export default function VisitCreate() {
               {photos.length > 0 && (
                 <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                   {photos.map((p, i) => (
-                    <img key={i} src={p.dataUrl} alt={`Photo ${i + 1}`} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
+                    <img loading="lazy" decoding="async" key={i} src={p.dataUrl} alt={`Photo ${i + 1}`} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
                   ))}
                 </Box>
               )}

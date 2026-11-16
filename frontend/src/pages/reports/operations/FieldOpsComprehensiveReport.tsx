@@ -17,6 +17,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend
 } from 'recharts'
+import { thumb } from '../../../lib/thumb'
 
 // ─── Shared Types ───────────────────────────────────────────────────────────
 
@@ -756,7 +757,7 @@ function CheckinsTab({ startDate, endDate, selectedCompany, isStellr }: { startD
                     {stellrPhotoEntries.map(([key, url]) => (
                       <div key={key}>
                         <button onClick={() => setExpandedPhoto(String(url))} className="block w-full">
-                          <img src={String(url)} alt={checkinFormatKey(key)} className="w-full h-28 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
+                          <img loading="lazy" decoding="async" src={String(url)} alt={checkinFormatKey(key)} className="w-full h-28 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
                         </button>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-center truncate">{checkinFormatKey(key)}</p>
                       </div>
@@ -784,7 +785,7 @@ function CheckinsTab({ startDate, endDate, selectedCompany, isStellr }: { startD
       {/* Expanded photo lightbox */}
       {expandedPhoto && (
         <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setExpandedPhoto(null)}>
-          <img src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
+          <img loading="lazy" decoding="async" src={expandedPhoto} alt="Photo" className="max-w-full max-h-full rounded-lg object-contain" />
         </div>
       )}
 
@@ -929,7 +930,7 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
                     <td className="py-2 px-3">
                       {c.thumbnail_url ? (
                         <button onClick={() => setExpandedPhoto(c.thumbnail_url!)} className="block">
-                          <img src={c.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
+                          <img loading="lazy" decoding="async" src={thumb(c.thumbnail_url, 160)} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
                         </button>
                       ) : (
                         <span className="text-gray-400 text-xs">No photo</span>
@@ -961,7 +962,7 @@ function StoresTab({ startDate, endDate, selectedCompany, isStellr }: { startDat
               >
                 <X className="w-5 h-5" />
               </button>
-              <img
+              <img loading="lazy" decoding="async"
                 src={expandedPhoto}
                 alt="Visit photo expanded"
                 className="max-w-full max-h-[85vh] rounded-lg object-contain"

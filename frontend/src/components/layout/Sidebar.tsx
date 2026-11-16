@@ -72,9 +72,9 @@ export default function Sidebar({ onNavigate, collapsed = false, onToggleCollaps
       {/* Logo */}
       <div className="flex items-center h-16 flex-shrink-0 px-3 border-b border-token">
         {collapsed ? (
-          <img src="/fieldvibe-icon.svg" alt="FV" className="h-8 w-8 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <img loading="lazy" decoding="async" src="/fieldvibe-icon.svg" alt="FV" className="h-8 w-8 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
         ) : (
-          <img src="/fieldvibe-logo.svg" alt="FieldVibe" className="h-9" />
+          <img loading="lazy" decoding="async" src="/fieldvibe-logo.svg" alt="FieldVibe" className="h-9" />
         )}
       </div>
 

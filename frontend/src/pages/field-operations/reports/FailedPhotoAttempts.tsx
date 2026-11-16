@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { apiClient } from '../../../services/api.service'
+import { thumb } from '../../../lib/thumb'
 
 // AI Check section: Goldrush visits flagged after three failed photo attempts.
 // That visit is locked (the agent can still do other individual visits) until Back
@@ -82,7 +83,7 @@ const ReviewCard: React.FC<{ review: Review; onPhoto: (url: string) => void }> =
           <div key={a.id} className="min-w-0 rounded border border-gray-200 p-2 dark:border-gray-700">
             {a.photo_url ? (
               <button onClick={() => onPhoto(a.photo_url as string)} className="block w-full focus-visible:outline focus-visible:outline-2" aria-label={`Open attempt ${i + 1} photo`}>
-                <img src={a.photo_url} alt="" loading="lazy" className="h-40 w-full rounded object-cover object-top" />
+                <img src={thumb(a.photo_url, 480)} alt="" loading="lazy" className="h-40 w-full rounded object-cover object-top" />
               </button>
             ) : (
               <div className="flex h-40 items-center justify-center rounded bg-gray-100 text-xs text-gray-500 dark:bg-gray-800">No photo stored</div>
@@ -261,7 +262,7 @@ export const FailedAttemptsList: React.FC<{ startDate: string; endDate: string; 
                       <td className="py-1.5 pr-2">
                         {a.photo_url ? (
                           <button onClick={() => onPhoto(a.photo_url as string)} className="block focus-visible:outline focus-visible:outline-2" aria-label="Open photo">
-                            <img src={a.photo_url} alt="" loading="lazy" className="h-16 w-9 rounded border border-gray-200 object-cover object-top dark:border-gray-700" />
+                            <img src={thumb(a.photo_url, 160)} alt="" loading="lazy" className="h-16 w-9 rounded border border-gray-200 object-cover object-top dark:border-gray-700" />
                           </button>
                         ) : '—'}
                       </td>

@@ -14,6 +14,7 @@ import toast from 'react-hot-toast'
 import { buildInsightsPDF } from '../../../utils/insights-pdf'
 import { captureCharts } from '../../../utils/capture-chart'
 import { parseProductAudit, type LegacyProductEntry } from '../../../utils/product-audit'
+import { thumb } from '../../../lib/thumb'
 
 // One "Label: value" line in the visit-answers modal; renders nothing for a blank.
 function AnswerRow({ label, value }: { label: string; value?: string }) {
@@ -969,7 +970,7 @@ export default function StoreInsights() {
                           <td className="py-3 px-4">
                             {store.thumbnail_url ? (
                               <button onClick={() => setExpandedPhoto(store.thumbnail_url)} className="block">
-                                <img src={store.thumbnail_url} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
+                                <img loading="lazy" decoding="async" src={thumb(store.thumbnail_url, 160)} alt="Visit photo" className="w-10 h-10 rounded object-cover border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity" />
                               </button>
                             ) : store.has_photos ? (
                               <button onClick={() => handleViewPhotos(store.id)} className="inline-flex items-center justify-center w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors" title="Click to view photos">
@@ -1068,7 +1069,7 @@ export default function StoreInsights() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={() => setExpandedPhoto(null)}>
           <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
             <button onClick={() => setExpandedPhoto(null)} className="absolute top-0 right-0 m-2 p-1 bg-white dark:bg-gray-800 rounded-full shadow-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 z-10"><X className="w-5 h-5" /></button>
-            <img src={expandedPhoto} alt="Visit photo expanded" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
+            <img loading="lazy" decoding="async" src={expandedPhoto} alt="Visit photo expanded" className="max-w-full max-h-[85vh] rounded-lg object-contain" />
           </div>
         </div>
       )}
@@ -1094,7 +1095,7 @@ export default function StoreInsights() {
                   {photoModalPhotos.map((photo) => (
                     <div key={photo.id} className="relative group">
                       <button onClick={() => setExpandedPhoto(photo.r2_url)} className="block w-full">
-                        <img src={photo.r2_url} alt={photo.label || photo.photo_type || 'Visit photo'} className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
+                        <img loading="lazy" decoding="async" src={thumb(photo.r2_url, 480)} alt={photo.label || photo.photo_type || 'Visit photo'} className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
                       </button>
                       {photo.label && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-center truncate">{photo.label}</p>}
                     </div>
@@ -1144,7 +1145,7 @@ export default function StoreInsights() {
                     {Object.entries(detailVisit.raw_responses || {}).filter(([, v]) => isPhotoUrl(v)).map(([key, val]) => (
                       <div key={key}>
                         <button onClick={() => setExpandedPhoto(val as string)} className="block w-full">
-                          <img src={val as string} alt={formatKey(key)} className="w-full h-24 object-cover rounded border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
+                          <img loading="lazy" decoding="async" src={val as string} alt={formatKey(key)} className="w-full h-24 object-cover rounded border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity" />
                         </button>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-center truncate">{formatKey(key)}</p>
                       </div>
@@ -1228,7 +1229,7 @@ export default function StoreInsights() {
                                       <AnswerRow label="Comments" value={legacy.comments} />
                                       {legacy.photo && (
                                         <a href={legacy.photo} target="_blank" rel="noreferrer" className="block mt-1.5">
-                                          <img src={legacy.photo} alt={p.product} className="w-24 h-24 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                                          <img loading="lazy" decoding="async" src={legacy.photo} alt={p.product} className="w-24 h-24 object-cover rounded border border-gray-200 dark:border-gray-700" />
                                         </a>
                                       )}
                                     </>

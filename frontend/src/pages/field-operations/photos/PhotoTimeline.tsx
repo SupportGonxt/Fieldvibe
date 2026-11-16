@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Image, Clock } from 'lucide-react'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import { apiClient } from '../../../services/api.service'
+import { thumb } from '../../../lib/thumb'
 
 export default function PhotoTimeline() {
   const { visitId } = useParams<{ visitId: string }>()
@@ -71,8 +72,8 @@ export default function PhotoTimeline() {
 
               <div className="flex-1 bg-white rounded-lg shadow p-6">
                 <div className="flex items-start gap-4">
-                  <img
-                    src={photo.photo_url}
+                  <img loading="lazy" decoding="async"
+                    src={thumb(photo.photo_url, 320)}
                     alt={photo.caption}
                     onClick={() => navigate(`/field-operations/visits/${visitId}/photos/${photo.id}`)}
                     className="w-32 h-32 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
