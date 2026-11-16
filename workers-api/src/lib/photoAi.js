@@ -271,12 +271,15 @@ Output JSON only. Use empty arrays ([]) if you cannot determine.`;
       temperature: 0,
     });
 
-    const responseText = aiResponse?.response || '';
+    // Workers AI hands back `response` already parsed when the model emits JSON.
+    // Binding that object to D1 threw D1_TYPE_ERROR and discarded every paid result.
+    const rawResponse = aiResponse?.response ?? '';
+    const responseText = typeof rawResponse === 'string' ? rawResponse : JSON.stringify(rawResponse);
     // Robust JSON extraction:
     //   - strip markdown code fences if the model added them anyway
     //   - find the largest balanced {...} block, not just the first one
     //   - try the full text first, then progressively fall back
-    const parsed = extractJsonObject(responseText) || {};
+    const parsed = (rawResponse && typeof rawResponse === 'object') ? rawResponse : (extractJsonObject(responseText) || {});
 
     let sovPct = 0; let totalFacings = 0; let brandFacings = 0;
     if (parsed.brands && Array.isArray(parsed.brands)) {
