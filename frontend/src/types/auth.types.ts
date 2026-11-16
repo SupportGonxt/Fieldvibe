@@ -5,6 +5,10 @@ export interface User {
   last_name: string
   role: 'admin' | 'manager' | 'team_lead' | 'field_agent' | 'sales_rep' | 'agent' | 'super_admin' | 'backoffice_admin' | 'general_manager'
   department?: string
+  // From the login response (tenantId / companyName). Optional: sessions
+  // stored before these were kept don't have them.
+  tenant_id?: string
+  company_name?: string
   phone?: string
   avatar?: string
   status: 'active' | 'inactive' | 'suspended'

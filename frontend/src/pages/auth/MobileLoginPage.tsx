@@ -101,6 +101,8 @@ const MobileLoginPage: React.FC = () => {
           last_name: user.lastName || '',
           role: user.role,
           phone: user.phone,
+          tenant_id: user.tenantId,
+          company_name: user.companyName,
           status: user.status || 'active',
           permissions: [],
           created_at: new Date().toISOString(),

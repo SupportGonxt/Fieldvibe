@@ -12,6 +12,7 @@ import ChooseWorkspace from './pages/auth/ChooseWorkspace'
 import ToastContainer from './components/ui/Toast'
 import AppUpdater from './components/AppUpdater'
 import IncomingCallRinger from './components/IncomingCallRinger'
+import { useNxtDesk } from './hooks/useNxtDesk'
 
 // T-17: NotFoundPage
 import NotFoundPage from './pages/NotFoundPage'
@@ -519,6 +520,8 @@ const isStandalonePwa = () =>
 
 function App() {
   const { isAuthenticated, isLoading, initialize, hydrated, user } = useAuthStore()
+  // NXTDesk support widget: loaded for NXTDESK_ROLES only, removed otherwise.
+  useNxtDesk()
 
   useEffect(() => {
     if (hydrated) {

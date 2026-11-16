@@ -37,6 +37,8 @@ class AuthService {
         last_name: apiData.user.lastName,
         role: apiData.user.role,
         status: apiData.user.status,
+        tenant_id: apiData.user.tenantId,
+        company_name: apiData.user.companyName,
         permissions: apiData.user.permissions || [],
         last_login: apiData.user.lastLogin,
         created_at: apiData.user.createdAt,
