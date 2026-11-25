@@ -1,16 +1,20 @@
 """Recompute every metric behind the Diplomat Store Audit insight deck from a company export.
 
     python3 scripts/export-company-data.py --out diplomat-export.xlsx
-    python3 scripts/diplomat_audit_metrics.py diplomat-export.xlsx out_dir/
+    python3 scripts/diplomat_audit_metrics.py diplomat-export.xlsx out_dir/ [2026-11-01 2026-11-25]
 
-Writes out_dir/metrics.json plus stores_geo.csv, master_geo.csv, audits.csv and shelf.csv.
-Needs pandas, numpy, openpyxl and rapidfuzz.
+The optional date window restricts the store audits (and their photos, shelf analysis and
+GPS flags) to visit_date within [from, to]. Writes out_dir/metrics.json plus stores_geo.csv,
+master_geo.csv, audits.csv and shelf.csv. Needs pandas, numpy, openpyxl and rapidfuzz.
 """
 import json, re, math, collections, sys, os
 import numpy as np, pandas as pd
 from rapidfuzz import fuzz
 
+if len(sys.argv) < 3:
+    sys.exit('usage: diplomat_audit_metrics.py EXPORT.xlsx OUT_DIR [FROM_DATE TO_DATE]')
 XLSX, S = sys.argv[1], sys.argv[2]
+D0, D1 = (sys.argv[3], sys.argv[4]) if len(sys.argv) > 4 else (None, None)
 os.makedirs(S, exist_ok=True)
 x = pd.ExcelFile(XLSX)
 T = {n: pd.read_excel(x, n) for n in ['visits', 'visit_responses', 'customers', 'users', 'company_existing_customers',
@@ -19,6 +23,8 @@ M = {}
 
 # ---------- visits ----------
 v = T['visits'][T['visits'].visit_type == 'store'].copy()
+if D0: v = v[(v.visit_date >= D0) & (v.visit_date <= D1)].copy()
+T['visit_photos'] = T['visit_photos'][T['visit_photos'].visit_id.isin(v.id)]
 v['ci'] = pd.to_datetime(v.check_in_time, utc=True).dt.tz_convert('Africa/Johannesburg')
 v['co'] = pd.to_datetime(v.check_out_time, utc=True).dt.tz_convert('Africa/Johannesburg')
 v['dur'] = (v.co - v.ci).dt.total_seconds() / 60
@@ -82,10 +88,10 @@ def reason_cat(t):
     if re.search(r"out of (stock|product)|stock ?out|out stock|sold out|ran out|run out|finished|waiting (for )?(stock|delivery)|restock|re-stock|not delivered yet|still coming|not in stock|no stock at", t): return 'Out of stock'
     if re.search(r"slow|not (selling|moving|in demand)|low demand|less demand|no demand|don'?t sell well|doesn'?t sell|customers don'?t|not popular|nobody buys|no one buys|people don'?t|don'?t buy", t): return 'Slow moving / low demand'
     if re.search(r"expensive|price|pricing|cash|money|afford|budget|cost|capital|funding|startup|start-up", t): return 'Price / cash flow'
-    if re.search(r"food|liquor|tavern|shisa|restu?arant|kitchen|bar\b|butcher|salon|cook|fast food|take ?away|bottle store|pub|kota|car wash|hair|spaza kitchen", t): return 'Outlet format (food / liquor)'
+    if re.search(r"food|liquor|tavern|shisa|restu?arant|kitchen|bar\b|butcher|salon|cook|fast food|take ?away|bottle store|pub|kota|car wash|hair|spaza kitchen|ice ?cream|funeral|hardware|pharmacy", t): return 'Outlet format (food / liquor)'
     if re.search(r"supplier|supply|availab|wholesale|can'?t find|cannot find|hard to find|not (getting|get)|no delivery|delivery", t): return 'Supply / availability'
     if re.search(r"don'?t want|not interested|no interest|not needed|owner (does|doesn)|not keen|refuse|prefer|don'?t like|not willing|target market|not in line", t): return 'Not wanted by owner'
-    if re.search(r"know|aware|heard|unfamiliar|seen", t): return 'Product not known'
+    if re.search(r"know|aware|heard|familiar|seen", t): return 'Product not known'
     if re.search(r"not list|never|don'?t (sell|stock|have|get|order|keep|take)|do not|no stock|not stock|not sell|not (yet )?(ranged|supplied|introduced|offered)|haven'?t|didn'?t|not been|new|only|n/?a|none|no\b|would love|want to", t): return 'Not listed / never ranged'
     return 'Other'
 # test/training audits: every why-not answer is the literal "Test"
@@ -277,7 +283,9 @@ wd = wk.groupby('week').agg(n=('id', 'size'), days=('visit_date', 'nunique'))
 M['weeks'] = {k: dict(n=int(r_.n), days=int(r_.days), per_day=round(r_.n / r_.days)) for k, r_ in wd.iterrows()}
 M['avg_per_day'] = round(M['store_audits'] / M['field_days'])
 M['by_day'] = {k: int(n) for k, n in by_day.items() if n >= 10}
-M['weak_gps'] = int(len(T['anomaly_flags'])); M['weak_gps_pct'] = round(100 * M['weak_gps'] / M['store_audits'])
+af = T['anomaly_flags']
+if D0: af = af[(af.created_at.astype(str).str[:10] >= D0) & (af.created_at.astype(str).str[:10] <= D1)]
+M['weak_gps'] = int(len(af)); M['weak_gps_pct'] = round(100 * M['weak_gps'] / M['store_audits'])
 
 # ---------- opportunity numbers ----------
 M['oreo_missing'] = M['sku_missing'].get('Oreo Original LUP 41.57g'); M['oreo_never'] = M['never_listed_top'].get('Oreo Original LUP 41.57g'); M['oreo_oos'] = M['oos_top'].get('Oreo Original LUP 41.57g')
