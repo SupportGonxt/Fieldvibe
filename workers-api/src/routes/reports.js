@@ -1041,7 +1041,7 @@ app.get('/field-ops/reports/visit-photos', authMiddleware, async (c) => {
           AND vp.visit_id IN (SELECT value FROM json_each(?))
         ORDER BY ${PHOTO_TYPE_ORDER}, vp.created_at`).bind(tenantId, JSON.stringify([...byId.keys()])).all();
       for (const p of (photoRows.results || [])) {
-        byId.get(p.visit_id)?.photos.push({ id: p.id, photo_type: p.photo_type, url: '/api/uploads/' + p.r2_key, created_at: p.created_at });
+        byId.get(p.visit_id)?.photos.push({ id: p.id, photo_type: p.photo_type, url: rewriteR2Url('/api/uploads/' + p.r2_key, c.req.url), created_at: p.created_at });
       }
     }
 
