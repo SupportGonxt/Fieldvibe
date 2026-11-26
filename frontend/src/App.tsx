@@ -476,6 +476,7 @@ const VisitsList = lazyWithRetry(() => import('./pages/field-operations/visits/V
 const FieldOpsComprehensiveReport = lazyWithRetry(() => import('./pages/reports/operations/FieldOpsComprehensiveReport'))
 const IndividualInsights = lazyWithRetry(() => import('./pages/field-operations/reports/IndividualInsights'))
 const StoreInsights = lazyWithRetry(() => import('./pages/field-operations/reports/StoreInsights'))
+const CompanyViewerShell = lazyWithRetry(() => import('./pages/client/CompanyViewerShell'))
 const CaptureFailuresReport = lazyWithRetry(() => import('./pages/field-operations/reports/CaptureFailuresReport'))
 const AiCheckPage = lazyWithRetry(() => import('./pages/field-operations/reports/AiCheckPage'))
 const EscalationReport = lazyWithRetry(() => import('./pages/field-operations/reports/EscalationReport'))
@@ -534,6 +535,20 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <LoadingSpinner size="lg" />
       </div>
+    )
+  }
+
+  // Client read-only login (e.g. Diplomat): its own one-page app, nothing else routable.
+  if (isAuthenticated && user?.role === 'company_viewer') {
+    return (
+      <ErrorBoundary>
+        <ToastContainer />
+        <AppUpdater />
+        <Routes>
+          <Route path="/client/stores" element={<PageLoader><CompanyViewerShell /></PageLoader>} />
+          <Route path="*" element={<Navigate to="/client/stores" replace />} />
+        </Routes>
+      </ErrorBoundary>
     )
   }
 

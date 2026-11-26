@@ -3,6 +3,7 @@ import { checkGoldrushPhoto, recordFlag } from '../services/imageFraudService.js
 import { attemptState, cleanCaptureId, ensurePhotoAttemptTables, hashDataUrl, loadAttemptPhoto, lockedVerification, ownSavedVisit, photoChecks, readProfileCircle, recordFail, recordPass, reviewForPhoto, ALREADY_SAVED_MESSAGE, LOCKED_MESSAGE } from '../services/goldrushPhotoAttempts.js';
 import { authMiddleware, requireRole } from '../lib/middleware.js';
 import { canSeeMoney } from '../lib/capabilities.js';
+import { COMPANY_VIEWER_ROLE } from '../lib/companyViewer.js';
 import { v4 as uuidv4 } from 'uuid';
 import { resolveReportCompanyId, mapLimit } from '../lib/aggregates.js';
 
@@ -336,7 +337,10 @@ app.get('/field-ops/companies', authMiddleware, async (c) => {
     // backoffice_admin has no agent_company_links (they aren't field staff), so they
     // must fall in the all-active branch — otherwise their company toggle is empty.
     let companies;
-    if (role === 'admin' || role === 'super_admin' || role === 'general_manager' || role === 'backoffice_admin') {
+    if (role === COMPANY_VIEWER_ROLE) {
+      // Client read-only login: exactly its one linked company (set by the auth gate).
+      companies = await db.prepare("SELECT * FROM field_companies WHERE id = ? AND tenant_id = ? AND status = 'active'").bind(c.get('viewerCompanyId'), tenantId).all();
+    } else if (role === 'admin' || role === 'super_admin' || role === 'general_manager' || role === 'backoffice_admin') {
       companies = await db.prepare("SELECT * FROM field_companies WHERE tenant_id = ? AND status = 'active' ORDER BY name").bind(tenantId).all();
     } else if (role === 'manager') {
       companies = await db.prepare("SELECT fc.* FROM manager_company_links mcl JOIN field_companies fc ON mcl.company_id = fc.id WHERE mcl.manager_id = ? AND mcl.tenant_id = ? AND mcl.is_active = 1 AND fc.status = 'active' ORDER BY fc.name").bind(userId, tenantId).all();

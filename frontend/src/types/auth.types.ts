@@ -3,7 +3,7 @@ export interface User {
   email: string
   first_name: string
   last_name: string
-  role: 'admin' | 'manager' | 'team_lead' | 'field_agent' | 'sales_rep' | 'agent' | 'super_admin' | 'backoffice_admin' | 'general_manager'
+  role: 'admin' | 'manager' | 'team_lead' | 'field_agent' | 'sales_rep' | 'agent' | 'super_admin' | 'backoffice_admin' | 'general_manager' | 'company_viewer'
   department?: string
   // From the login response (tenantId / companyName). Optional: sessions
   // stored before these were kept don't have them.

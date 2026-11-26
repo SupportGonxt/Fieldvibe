@@ -1,5 +1,6 @@
 // Shared route middleware. Moved verbatim from index.js.
 import { roleAllows } from './capabilities.js';
+import { COMPANY_VIEWER_ROLE, companyViewerGate } from './companyViewer.js';
 // ==================== SECTION 3: RATE LIMITING (T-18: D1-backed for Cloudflare Workers) ====================
 export const rateLimiter = (limit, windowMs) => async (c, next) => {
   const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
@@ -91,6 +92,10 @@ export const authMiddleware = async (c, next) => {
     c.set('userId', payload.userId);
     c.set('tenantId', payload.tenantId);
     c.set('role', payload.role);
+    if (payload.role === COMPANY_VIEWER_ROLE) {
+      const denied = await companyViewerGate(c);
+      if (denied) return denied;
+    }
     await next();
   } catch (error) {
     return c.json({ success: false, message: 'Invalid token' }, 401);
