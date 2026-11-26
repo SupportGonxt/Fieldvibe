@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../lib/middleware.js';
+import { roleAllows } from '../lib/capabilities.js';
+import { COMPANY_VIEWER_ROLE } from '../lib/companyViewer.js';
 import { resolveReportCompanyId } from '../lib/aggregates.js';
 import { rewriteR2Url } from '../lib/photoAi.js';
 import { visitDurationMinutes } from '../services/visitTiming.js';
@@ -972,6 +974,85 @@ app.get('/field-ops/reports/stellr', authMiddleware, async (c) => {
 
     return c.json({ success: true, data, total: data.length });
   } catch (e) { return c.json({ success: false, message: e.message }, 500); }
+});
+
+// ── Photo review, grouped by visit ──
+// One company's visits, newest first, each carrying ALL its photos (store front,
+// layout, products…) so a reviewer sees a visit at a glance instead of photo by photo.
+// Read-only. Built for the company_viewer client login (e.g. Diplomat); admins and
+// managers may use it too. Paginates by visit, so a page is ≤ limit visits.
+const PHOTO_TYPE_ORDER = "CASE vp.photo_type WHEN 'store_front' THEN 0 WHEN 'store_layout' THEN 1 WHEN 'product' THEN 2 ELSE 3 END";
+app.get('/field-ops/reports/visit-photos', authMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const tenantId = c.get('tenantId');
+    const role = c.get('role');
+    if (role !== COMPANY_VIEWER_ROLE && !roleAllows(role, ['manager'])) {
+      return c.json({ success: false, message: 'Insufficient permissions' }, 403);
+    }
+    const { company_id, startDate, endDate, search, agent_id } = c.req.query();
+    if (!company_id) return c.json({ success: false, message: 'company_id is required' }, 400);
+    const companyId = await resolveReportCompanyId(db, tenantId, company_id);
+    if (!companyId) return c.json({ success: false, message: 'Company not found' }, 404);
+    const page = Math.max(parseInt(c.req.query('page') || '1', 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '20', 10) || 20, 1), 50);
+
+    // Same test-account exclusions as the stores report, so the two agree.
+    let where = `WHERE v.tenant_id = ? AND v.company_id = ?
+        AND v.agent_id NOT LIKE 'agent-test-%'
+        AND v.agent_id NOT IN ('admin-user-001', 'agent-user-001', 'manager-user-001', 'e6c2898a-6420-4327-8000-e7857021a306')
+        AND (u.id IS NULL OR (u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com' AND u.email != 'luke@templeman.co.za' AND u.email != 'luke.templeman@gonxt.tech'))
+        AND EXISTS (SELECT 1 FROM visit_photos vp WHERE vp.visit_id = v.id AND vp.tenant_id = v.tenant_id AND vp.r2_key IS NOT NULL)`;
+    const binds = [tenantId, companyId];
+    if (startDate) { where += ' AND v.visit_date >= ?'; binds.push(startDate); }
+    if (endDate) { where += ' AND v.visit_date <= ?'; binds.push(endDate); }
+    if (agent_id) { where += ' AND v.agent_id = ?'; binds.push(agent_id); }
+    if (search) {
+      where += " AND (c.name LIKE ? OR (u.first_name || ' ' || u.last_name) LIKE ?)";
+      binds.push('%' + search + '%', '%' + search + '%');
+    }
+    const from = `FROM visits v LEFT JOIN customers c ON v.customer_id = c.id LEFT JOIN users u ON v.agent_id = u.id ${where}`;
+
+    const [countRow, visitRows, agentRows] = await Promise.all([
+      db.prepare(`SELECT COUNT(*) AS n ${from}`).bind(...binds).first(),
+      db.prepare(`
+        SELECT v.id, v.visit_date, v.check_in_time, v.check_out_time, v.status,
+          c.name AS store_name, c.address AS store_address,
+          u.first_name || ' ' || u.last_name AS agent_name, v.agent_id
+        ${from}
+        ORDER BY v.visit_date DESC, v.created_at DESC
+        LIMIT ? OFFSET ?`).bind(...binds, limit, (page - 1) * limit).all(),
+      // Agent filter options: everyone with a photo visit for this company.
+      db.prepare(`
+        SELECT DISTINCT v.agent_id, u.first_name || ' ' || u.last_name AS agent_name
+        FROM visits v JOIN users u ON v.agent_id = u.id
+        WHERE v.tenant_id = ? AND v.company_id = ? AND v.agent_id NOT LIKE 'agent-test-%'
+          AND u.email NOT LIKE '%@fieldvibe.test' AND u.email NOT LIKE '%@demo.com'
+        ORDER BY agent_name`).bind(tenantId, companyId).all(),
+    ]);
+
+    const visits = (visitRows.results || []).map(v => ({ ...v, photos: [] }));
+    if (visits.length) {
+      const byId = new Map(visits.map(v => [v.id, v]));
+      const photoRows = await db.prepare(`
+        SELECT vp.id, vp.visit_id, vp.photo_type, vp.r2_key, vp.created_at
+        FROM visit_photos vp
+        WHERE vp.tenant_id = ? AND vp.r2_key IS NOT NULL
+          AND vp.visit_id IN (SELECT value FROM json_each(?))
+        ORDER BY ${PHOTO_TYPE_ORDER}, vp.created_at`).bind(tenantId, JSON.stringify([...byId.keys()])).all();
+      for (const p of (photoRows.results || [])) {
+        byId.get(p.visit_id)?.photos.push({ id: p.id, photo_type: p.photo_type, url: '/api/uploads/' + p.r2_key, created_at: p.created_at });
+      }
+    }
+
+    return c.json({
+      success: true,
+      data: { visits, agents: agentRows.results || [], pagination: { page, limit, total: countRow?.n || 0 } },
+    });
+  } catch (error) {
+    console.error('visit-photos report error:', error);
+    return c.json({ success: false, message: 'Failed to load visit photos' }, 500);
+  }
 });
 
 // Questions + answers for a single visit's company custom questions (the

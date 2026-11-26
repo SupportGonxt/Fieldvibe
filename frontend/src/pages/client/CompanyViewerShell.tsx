@@ -1,9 +1,9 @@
 import { LogOut } from 'lucide-react'
 import { useAuthStore } from '../../store/auth.store'
-import StoreInsights from '../field-operations/reports/StoreInsights'
+import CompanyPhotoReview from './CompanyPhotoReview'
 
 // Whole app for the company_viewer role (a client such as Diplomat): one page,
-// its company's Stores report, and a way to sign out. No navigation on purpose —
+// its company's photo review, and a way to sign out. No navigation on purpose —
 // the API refuses this role everything else (workers-api/src/lib/companyViewer.js).
 export default function CompanyViewerShell() {
   const { user, logout } = useAuthStore()
@@ -24,7 +24,7 @@ export default function CompanyViewerShell() {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 py-6">
-        <StoreInsights />
+        <CompanyPhotoReview />
       </main>
     </div>
   )

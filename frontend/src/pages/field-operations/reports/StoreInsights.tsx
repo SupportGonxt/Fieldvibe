@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../../services/api.service'
 import { fieldOperationsService } from '../../../services/field-operations.service'
-import { useAuthStore } from '../../../store/auth.store'
 import CompanyToggle from '../../../components/field-ops/CompanyToggle'
 import LoadingSpinner from '../../../components/ui/LoadingSpinner'
 import DateRangePresets from '../../../components/ui/DateRangePresets'
@@ -92,11 +91,7 @@ const ORANGE = '#f59e0b'
 
 export default function StoreInsights() {
   const queryClient = useQueryClient()
-  // Client read-only login (e.g. Diplomat): the server only answers for its own
-  // company, so never request without one, and hide the admin maintenance actions.
-  // It opens on the store detail table — the insights tab is Goldrush-shaped.
-  const isViewer = useAuthStore(s => s.user?.role) === 'company_viewer'
-  const [activeTab, setActiveTab] = useState<'insights' | 'detail'>(isViewer ? 'detail' : 'insights')
+  const [activeTab, setActiveTab] = useState<'insights' | 'detail'>('insights')
 
   // ── Shared: companies + program_config ──
   const { data: companiesResp } = useQuery({
@@ -162,10 +157,7 @@ export default function StoreInsights() {
       setLoading(false)
     }
   }
-  useEffect(() => {
-    if (isViewer && !selectedCompany) return
-    load()
-  }, [insStartDate, insEndDate, selectedCompany])
+  useEffect(() => { load() }, [insStartDate, insEndDate, selectedCompany])
 
   const exportCSV = () => {
     if (!data) return
@@ -448,7 +440,7 @@ export default function StoreInsights() {
       const res = await apiClient.get(`/field-ops/reports/goldrush-stores${dateParams}${companyParam}`)
       return { rows: (res.data?.data || []) as GoldrushStore[], truncated: !!res.data?.truncated }
     },
-    enabled: !isStellr && activeTab === 'detail' && (!isViewer || !!selectedCompany),
+    enabled: !isStellr && activeTab === 'detail',
     staleTime: 1000 * 60 * 5,
   })
   const stores = storesResult?.rows ?? []
@@ -621,21 +613,19 @@ export default function StoreInsights() {
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           {/* One company at a time — no blended "All Companies" (it silently meant Goldrush). */}
-          {!isViewer && (
-            <CompanyToggle
-              companies={companies}
-              value={selectedCompany || null}
-              onChange={(id) => setSelectedCompany(id || '')}
-              allowAll={false}
-            />
-          )}
+          <CompanyToggle
+            companies={companies}
+            value={selectedCompany || null}
+            onChange={(id) => setSelectedCompany(id || '')}
+            allowAll={false}
+          />
           {activeTab === 'insights' && (
             <DateRangePresets startDate={insStartDate} endDate={insEndDate} onStartDateChange={setInsStartDate} onEndDateChange={setInsEndDate} />
           )}
           {activeTab === 'detail' && (
             <DateRangePresets startDate={startDate} endDate={endDate} onStartDateChange={setStartDate} onEndDateChange={setEndDate} />
           )}
-          {activeTab === 'detail' && !isStellr && !isViewer && (
+          {activeTab === 'detail' && !isStellr && (
             <>
               <button onClick={handleMigratePhotos} disabled={migrating} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-1">
                 {migrating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {migrating ? (migrationStatus || 'Migrating…') : 'Migrate Photos'}

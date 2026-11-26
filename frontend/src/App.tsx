@@ -545,8 +545,8 @@ function App() {
         <ToastContainer />
         <AppUpdater />
         <Routes>
-          <Route path="/client/stores" element={<PageLoader><CompanyViewerShell /></PageLoader>} />
-          <Route path="*" element={<Navigate to="/client/stores" replace />} />
+          <Route path="/client/photos" element={<PageLoader><CompanyViewerShell /></PageLoader>} />
+          <Route path="*" element={<Navigate to="/client/photos" replace />} />
         </Routes>
       </ErrorBoundary>
     )
